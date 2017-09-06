@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block content %}
+
+<h3>COLLECTION: <b>{{collection}}</b></h3>
+<p>
+{%if results%}
+{% for file in results %}
+file{{file.id}}:  '{{file.filename}}{{file.fileext}}{%if file.indexedSuccess%}'   INDEXED     '{%else%} NOT INDEXED{%endif%}<p>
+{% endfor %}
+{%else%}
+No files scanned
+{% endif%} 
+
+{% endblock %}
+
+

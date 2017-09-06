@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block content %}
+
+{% comment %}
+This is a comment section
+{% endcomment %}
+
+{% if splittext %} <h3>Extracted Text</h3>
+<b>{{docname}}</b>
+<p>PATH: {{docpath}}<p>
+<a href="/docstore/{{docpath}}"><b>Download</b></a>	
+	
+{% for scrap in splittext %}
+{{scrap|linebreaksbr}}</pre><b>{{searchterm}}</b>
+{% endfor %}
+{{lastscrap}}
+{% endif %}
+
+{% endblock %}

@@ -1,0 +1,22 @@
+<html>
+<h2>SearchBox</h2>
+
+{% if user.is_authenticated %}
+<div style="position: absolute; top: 0; right: 10; width: 200px; text-align:right;">
+    Logged in as: {{ user.username }}  <a href="{% url 'logout' %}?next=/ownsearch/"">[logout]</a></p>
+  </div>
+
+
+{% block content %}
+{% endblock %}
+
+{% else %}
+    <p>Welcome, Guest <a href="{% url 'login' %}?next=/ownsearch"">[login]</a></p>
+{% endif %}
+
+{% comment %}
+modified log-in code from: https://rayed.com/wordpress/?p=1350
+{% endcomment %}
+
+</html>
+

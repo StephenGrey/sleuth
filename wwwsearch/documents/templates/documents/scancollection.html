@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block content %}
+
+<h3>Document Collections</h3>
+<form action="{% url 'listfiles'%}" method ="post">
+{% csrf_token %}
+
+{% for collection in latest_collection_list %}
+    <input type="radio" name="choice" id="choice{{ forloop.counter }}" value="{{ collection.id }}" />
+    <label for="choice{{ forloop.counter }}">{{ collection.path }}</label><br />
+{% endfor %}
+<p>
+<input type="submit" name="list" value="List Files" /><p>
+
+Admin functions:<p>
+<input type="submit" name="scan" value="Scan Files" /><p>
+<input type="submit" name="index" value="Index Files" />
+<p>
+<input type="submit" name="solrcursor" value="Scan Solr Index" />
+</form>
+
+{% endblock %}
