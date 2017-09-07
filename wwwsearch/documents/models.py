@@ -27,6 +27,7 @@ class File(models.Model):
     fileext=models.CharField('File Extension',max_length=10,default='')
     filesize = models.IntegerField('Filesize',default=0)
     last_modified=models.DateTimeField('date modified',blank=True)
+    solrid=models.CharField('Solr ID',max_length=100,default='',blank=True)
 
     def __str__(self):
         return self.filepath

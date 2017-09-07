@@ -45,7 +45,7 @@ def listfiles(request):
         thiscollection=Collection.objects.get(id=selected_collection)
         icount,iskipped,ifailed=indexdocs(thiscollection)
         return HttpResponse ("Indexing.. indexed: "+str(icount)+"  skipped:"+str(iskipped)+"   failed:"+str(ifailed))
-#TEST CURSOR SEARCH OF SOLR INDEX
+#CURSOR SEARCH OF SOLR INDEX
     elif request.method == 'POST' and 'solrcursor' in request.POST and 'choice' in request.POST:
         print('try cursor scan of Solr Index')
         selected_collection=int(request.POST[u'choice'])
@@ -69,11 +69,13 @@ def indexcheck(collection):
         print('failed to retreieve solr index')
         print (str(e))
         return 'Failed to get index'
+    #now compare file list with solrindex
     if True:
         counter=0
         skipped=0
         failed=0
-        print(collection)
+        resultlist=[]
+        #print(collection)
         filelist=File.objects.filter(collection=collection)
         #main loop
         for file in filelist:
@@ -84,8 +86,10 @@ def indexcheck(collection):
                 #print('Solr data:',solrdata)
                 #print ('PATH :'+file.filepath+' indexed successfully', 'Solr \'id\': '+solrdata['id'])
                 file.indexedSuccess=True
+                file.solrid=solrdata['id']
                 file.save()
                 counter+=1
+                resultlist.append()
             else:
                 #print (file.filepath,'.. not indexed')
                 file.indexedSuccess=False

@@ -1,2 +1,44 @@
 #example of user settings
 
+[Django]
+secretkey: somesecretkey
+#it can't cope with % charactrs in key
+allowed_hosts: localhost,127.0.0.1
+
+[Models]
+collectionbasepath: /home/ubuntu/somefolder
+
+[Solr]
+url: http://localhost:8983/solr/
+
+[Cores]
+CoreDefault: docscan3
+Core2: docscan1
+Core3: docscan2
+
+#this solr core has been specified to take docs from ICIJ extract engine
+[docscan3]
+highlightingargs: &fl=id,extract_id,tika_metadata_last_modified,tika_metadata_resourcename&hl.fl=tika_content&hl=on&start=
+contentarguments: &fl=id,extract_paths,tika_metadata_date,tika_metadata_resourcename,tika_content
+rawtext: tika_content
+docname: tika_metadata_resourcename
+docpath: extract_paths
+docsort: &sort+tika_metadata_resourcename+asc
+datesort: &sort+tika_metadata_last_modified+desc
+cursorargs: &fl=id,extract_id,extract_base_type,extract_paths,extract_parent_paths&sort=id+asc&rows=100
+#rows is size of the iteration block
+#the docpath field must be in the cursorargs to index by docpath
+
+#this solr core has been automatically created by SearchBox
+[docscan1]
+highlightingargs: &fl=id,extract_id,date,filename,last_modified,title,author&hl.fl=content&hl=on&start=
+contentarguments: &fl=id,filename,filepath,date,content
+rawtext: content
+docname: filename
+docpath: filepath
+docsort: &sort=filepath+asc
+datesort: &sort+last_modified+desc
+cursorargs: &fl=id,filename,filepath,last_modified&sort=id+asc&rows=100
+
+
+
