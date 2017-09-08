@@ -1,0 +1,19 @@
+#ignore python binaries
+*.pyc
+
+#ignore the python environment for now
+env/
+
+#ignore the ICIJ extract engine for now
+extract-master/
+master.zip
+
+#ignore logfile
+wwwsearch/logfile
+
+#ignore usersettings - put defaults into usersettings.config.example
+wwwsearch/usersettings.config
+
+#ignore the database - it should be recreated
+wwwsearch/db.sqlite3
+
