@@ -17,3 +17,8 @@ wwwsearch/usersettings.config
 #ignore the database - it should be recreated
 wwwsearch/db.sqlite3
 
+#ignore solr installation
+solr-6.6.0/
+
+
+
