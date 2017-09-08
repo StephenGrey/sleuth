@@ -5,7 +5,8 @@
 <p>
 {%if results%}
 {% for file in results %}
-file{{file.id}}:  '{{file.filename}}{{file.fileext}}{%if file.indexedSuccess%}'   INDEXED     '{%else%} NOT INDEXED{%endif%}<p>
+file{{file.id}}:  {{file.filename}}{{file.fileext}}{%if file.indexedSuccess%}   INDEXED     {%else%} NOT INDEXED{%endif%}
+{%if file.solrid%}  SOLRID: {{file.solrid}}{%endif%}<p>
 {% endfor %}
 {%else%}
 No files scanned

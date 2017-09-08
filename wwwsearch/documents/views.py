@@ -74,7 +74,6 @@ def indexcheck(collection):
         counter=0
         skipped=0
         failed=0
-        resultlist=[]
         #print(collection)
         filelist=File.objects.filter(collection=collection)
         #main loop
@@ -89,7 +88,6 @@ def indexcheck(collection):
                 file.solrid=solrdata['id']
                 file.save()
                 counter+=1
-                resultlist.append()
             else:
                 #print (file.filepath,'.. not indexed')
                 file.indexedSuccess=False
