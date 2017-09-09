@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+from __future__ import unicode_literals
 from bs4 import BeautifulSoup as BS
 import requests, os, logging
 import ownsearch.hashScan as dup
@@ -29,7 +30,7 @@ extracturl=solrurl+solrcore+'/update/extract?'
 
 def pathHash(path):
     m=hashlib.md5()
-    m.update(path.encode('utf-8'))  #encoding avoids unicode error for unicode paths
+    m.update(path.encode('utf-8'))  #cope with unicode filepaths; NB to work requred 'from __future__ import unicode_literals'
     return m.hexdigest()
 
 def scanPath(parentFolder):  #recursively check all files in a file folder and get specs 
@@ -45,6 +46,7 @@ def scanPath(parentFolder):  #recursively check all files in a file folder and g
                 print ('PATH :'+path+'indexed successfully')
 
 def extract(path,test=False):
+    #print(path)
     if os.path.exists(path)==False: #check file exists
         print ('path '+path+' does not exist')
         return False
@@ -78,11 +80,17 @@ def getSolrResponse(args):
     soup=BS(res.content,"html.parser")
     return soup
 
+#DEBUG NOTE: requests won't successfully post if unicode filenames in the header; so converted below
+#should consider using basefilename not file path below
 def postSolr(args,path):
     url=extracturl+args
+    try:
+        simplefilename=path.encode('ascii','ignore')
+    except:
+        simplefilename='Unicode filename DECODE error'
     try: 
         with open(path,'rb') as f:
-            file = {'myfile': f}
+            file = {'myfile': (simplefilename,f)}
             res=requests.post(url, files=file)
         soup=BS(res.content,"html.parser")
         statusOK = True
@@ -91,6 +99,7 @@ def postSolr(args,path):
         print ('Exception: ',str(e))
         statusOK=False
         return '',statusOK
+
 
 if __name__ == '__main__':   #
     scanpath('')

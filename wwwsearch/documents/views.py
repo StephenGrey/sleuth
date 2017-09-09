@@ -35,7 +35,7 @@ def listfiles(request):
         #>> DO THE SCAN ON THIS COLLECTION
         scancount,skipcount=scandocs(thiscollection)
         if scancount>0 or skipcount>0:
-             return HttpResponse (" Scanned "+str(scancount)+" docs and skipped "+str(skipcount)+ " docs.")
+             return HttpResponse (" <p>Scanned "+str(scancount)+" docs<p>Skipped "+str(skipcount)+ " docs.")
         else:
              return HttpResponse (" Scan Failed!")
 #INDEX DOCUMENTS IN COLLECTION IN SOLR
@@ -44,14 +44,14 @@ def listfiles(request):
         selected_collection=int(request.POST[u'choice'])
         thiscollection=Collection.objects.get(id=selected_collection)
         icount,iskipped,ifailed=indexdocs(thiscollection)
-        return HttpResponse ("Indexing.. indexed: "+str(icount)+"  skipped:"+str(iskipped)+"   failed:"+str(ifailed))
+        return HttpResponse ("Indexing.. <p>indexed: "+str(icount)+"<p>skipped:"+str(iskipped)+"<p>failed:"+str(ifailed))
 #CURSOR SEARCH OF SOLR INDEX
     elif request.method == 'POST' and 'solrcursor' in request.POST and 'choice' in request.POST:
         print('try cursor scan of Solr Index')
         selected_collection=int(request.POST[u'choice'])
         thiscollection=Collection.objects.get(id=selected_collection)
         match,skipped,failed=indexcheck(thiscollection)
-        return HttpResponse ("Checking solr index.. files indexed: "+str(match)+"  files not found:"+str(skipped)+"   errors:"+str(failed))
+        return HttpResponse ("Checking solr index.. <p>files indexed: "+str(match)+"<p>files not found:"+str(skipped)+"<p>errors:"+str(failed))
     else:
         return redirect('index')
     return render(request, 'documents/listdocs.html',{'results':filelist,'collection':collectionpath })
@@ -96,7 +96,7 @@ def indexcheck(collection):
         return counter,skipped,failed
 
 
-def indexdocs(collection,forceretry=False): #index into Solr documents not already indexed
+def indexdocs(collection,forceretry=True): #index into Solr documents not already indexed
     if True:
         counter=0
         skipped=0
