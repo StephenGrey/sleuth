@@ -129,6 +129,16 @@ def hashfile(path, blocksize = 65536):
     afile.close()
     return hasher.hexdigest()
 
+def hashfile256(path,blocksize = 65536):
+    afile = open(path, 'rb')
+    hasher = hashlib.sha256()
+    buf = afile.read(blocksize)
+    while len(buf) > 0:
+        hasher.update(buf)
+        buf = afile.read(blocksize)
+    afile.close()
+    return hasher.hexdigest()
+
 # Joins two dictionaries - which key a list
 def joinDicts(dict1, dict2):
     for key in dict2.keys():
