@@ -6,8 +6,10 @@ from django.utils import timezone
 import pytz #support localising the timezone
 from models import Collection,File
 from ownsearch.hashScan import HexFolderTable as hex
+from ownsearch.hashScan import hashfile256 as hexfile
 import datetime, hashlib, os, logging
 import indexSolr
+import ownsearch.solrSoup as solr
 import solrcursor
 from django.contrib.admin.views.decorators import staff_member_required
 log = logging.getLogger('ownsearch')
@@ -40,14 +42,14 @@ def listfiles(request):
              return HttpResponse (" Scan Failed!")
 #INDEX DOCUMENTS IN COLLECTION IN SOLR
     elif request.method == 'POST' and 'index' in request.POST and 'choice' in request.POST:
-        print('try to index in Solr')
+        #print('try to index in Solr')
         selected_collection=int(request.POST[u'choice'])
         thiscollection=Collection.objects.get(id=selected_collection)
         icount,iskipped,ifailed=indexdocs(thiscollection)
         return HttpResponse ("Indexing.. <p>indexed: "+str(icount)+"<p>skipped:"+str(iskipped)+"<p>failed:"+str(ifailed))
 #CURSOR SEARCH OF SOLR INDEX
     elif request.method == 'POST' and 'solrcursor' in request.POST and 'choice' in request.POST:
-        print('try cursor scan of Solr Index')
+        #print('try cursor scan of Solr Index')
         selected_collection=int(request.POST[u'choice'])
         thiscollection=Collection.objects.get(id=selected_collection)
         match,skipped,failed=indexcheck(thiscollection)
@@ -62,11 +64,11 @@ def indexcheck(collection):
     #get the basefilepath
     docstore=config['Models']['collectionbasepath'] #get base path of the docstore
     #first get solrindex ids and key fields
-    try:
+    try:#make a dictionary of filepaths from solr index
         indexpaths=solrcursor.cursor()
         #print(indexpaths)
     except Exception as e:
-        print('failed to retreieve solr index')
+        print('failed to retrieve solr index')
         print (str(e))
         return 'Failed to get index'
     #now compare file list with solrindex
@@ -76,11 +78,14 @@ def indexcheck(collection):
         failed=0
         #print(collection)
         filelist=File.objects.filter(collection=collection)
-        #main loop
+        #main loop - go through files in the collection
         for file in filelist:
-            relpath=os.path.relpath(file.filepath,start=docstore) #extract a relative path from the docstore
+            relpath=os.path.relpath(file.filepath,start=docstore) #extract the relative path from the docstore
+            hash=file.hash_contents #get the hash of the contents
             #print (file.filepath,relpath)
-            if relpath in indexpaths:
+
+	#INDEX CHECK: METHOD ONE : IF RELATIVE PATHS STORED MATCH
+            if relpath in indexpaths:  #if the relpath in collection is in the solr index
                 solrdata=indexpaths[relpath]
                 #print('Solr data:',solrdata)
                 #print ('PATH :'+file.filepath+' indexed successfully', 'Solr \'id\': '+solrdata['id'])
@@ -88,11 +93,32 @@ def indexcheck(collection):
                 file.solrid=solrdata['id']
                 file.save()
                 counter+=1
+        #METHOD TWO: CHECK IF FILE STORED IN INDEX UNDER CONTENTS HASH                
             else:
-                #print (file.filepath,'.. not indexed')
-                file.indexedSuccess=False
-                file.save()
-                skipped+=1
+                #is there a stored hash, if not get one
+                if not hash:
+                    hash=hexfile(file.filepath)
+                    file.hash_contents=hash
+                    file.save()
+                #now lookup hash in solr index
+                #print (hash)
+                solrresult=solr.hashlookup(hash)
+                print(solrresult)
+                if len(solrresult)>0:
+                    #if some files, take the first one
+                    solrdata=solrresult[0]
+                    #print('solrdata:',solrdata)
+                    file.indexedSuccess=True
+                    file.solrid=solrdata['id']
+                    file.save()
+                    counter+=1
+                    print ('PATH :'+file.filepath+' indexed successfully (HASHMATCH)', 'Solr \'id\': '+solrdata['id'])
+                #NO MATCHES< RETURN FAILURE
+                else:
+                    print (file.filepath,'.. not indexed')
+                    file.indexedSuccess=False
+                    file.save()
+                    skipped+=1
         return counter,skipped,failed
 
 

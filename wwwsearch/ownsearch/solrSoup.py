@@ -77,14 +77,14 @@ def getlist(soup,counter): #this parses the list of results, starting at 'counte
             #document['docname']=os.path.basename(document[docpath])
             #print('extracted docname is:',document['docname'])
 
-            #look up this in our model database, to see if additional data on this doc
+            #look up this in our model database, to see if additional data on this doc >>>SHOULD BE MOVED
             try: 
                 f=File.objects.get(hash_filename=fid)
                 #DEBUG print('FILE',f)
                 document['path']=f.filepath
                 document['filesize']=f.filesize
             except Exception as e:
-                print('Cannot look up file in database',e)
+                #print('Cannot look up file in database',e)
                 document['path']=''
                 document['filesize']=0
             document['resultnumber']=counter
@@ -143,6 +143,17 @@ def getcontents(docid):
     sp=getSolrResponse(searchterm,args)
     res,numbers=getlist(sp,0)
     return res
+
+def hashlookup(hex):
+    searchterm='extract_id:'+hex
+    #print (searchterm,contentarguments)
+    args=hlarguments+'0'
+    #print (args)
+    sp=getSolrResponse(searchterm,args)
+    res,numbers=getlist(sp,0)
+    return res    
+
+
 
 #res=getlist(sp)
 #highlights=gethighlights(sp)

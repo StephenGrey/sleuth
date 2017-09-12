@@ -1,13 +1,13 @@
 {% extends "base.html" %}
 {% block content %}
 
-
 <form action="/ownsearch/" method="post">
     {% csrf_token %}
-    {{ form }}
-   <input type="submit" value="Search" />
-</form>
-
+Index:{{form.CoreChoice}}<p>
+{{form.search_term.label}}{{form.search_term}}<p>
+Sort by:
+{{form.SortType}}
+<input type="submit" value="Search" />
 
 {% if resultcount == 0 %}<p>No results for search on "{{searchterm}}" {%endif%}
 {% if resultcount == -2 %}<p>Connection error to index (Check Internet connection){%endif%}
@@ -28,5 +28,4 @@
 	{% endif %}
 
 {% endif %} 
-
 {% endblock %}

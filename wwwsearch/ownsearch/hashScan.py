@@ -51,7 +51,7 @@ def findDup(parentFolder):  #check duplicates in a file folder  MAIN ROUTINE FOR
             # Get the path to the file
             path = os.path.join(dirName, filename)
             # Calculate hash
-            file_hash = hashfile(path)
+            file_hash = hashfile256(path)
 #            # Calculate filesize (for info)
 #            file_size = os.path.getsize(path)
 #            print ('file_size:',file_size) #for debugging
@@ -81,8 +81,8 @@ def HexFolderTable(parentFolder):  #check duplicates in a file folder  MAIN ROUT
             if os.path.exists(path)==True: #check file exists
                 # Calculate hash
                 shortName, fileExt = os.path.splitext(filename)
-                try:
-                    file_hash = hashfile(path)
+                try: #modified to switch from MD5 to sha256 hash function
+                    file_hash = hashfile256(path)
                 except IOError as e:
                     file_hash = None
                     print (str(e))
@@ -112,7 +112,7 @@ def HexDetails(path):
                 # Calculate hash
                 head,filename=os.path.split(path)
                 shortName, fileExt = os.path.splitext(filename)
-                file_hash = hashfile(path)
+                file_hash = hashfile256(path)
                 filelen=os.path.getsize(path) #get file length
                 modTime = os.path.getmtime(path) #last modified time
                 return file_hash,[path,filelen,shortName,fileExt,modTime]

@@ -22,7 +22,7 @@ import solrSoup, re, os, logging
 from usersettings import userconfig as config
 log = logging.getLogger('ownsearch')
 core=config['Cores']['coredefault'] #the name of the index to use within the Solr backend
-
+#coredict=config['Cores']
 
 @login_required
 def do_search(request,page=0,searchterm='',direction='',pagemax=0,sorttype=''):

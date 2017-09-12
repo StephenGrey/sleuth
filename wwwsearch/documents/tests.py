@@ -4,19 +4,28 @@ import hashlib,requests
 from django.test import TestCase
 import indexSolr as i
 from models import File,Collection
+from ownsearch.hashScan import HexFolderTable as hex
+from ownsearch.hashScan import hashfile256 as hexfile
+import ownsearch.solrSoup as s
 
-def  listhexes():
+def listhexes():
     thiscollection=Collection.objects.all()[0]
     files=File.objects.filter(collection=thiscollection)
-
     for file in files:
         print (file.id,file.filepath)
-        print(file.filepath.encode('ascii','ignore'))
+        hex=hexfile(file.filepath)
+        #print (result)
+        result=s.hashlookup(hex)
+        if len(result)>0:
+           print(result[0]['id'])
+
+        
+#        print(file.filepath.encode('ascii','ignore')
 #    h=i.pathHash(file.filepath)
-        m=hashlib.md5()
-        m.update(file.filepath.encode('utf-8'))  #cope with unicode filepaths
-        hex = m.hexdigest()
-        print (hex)
+#        m=hashlib.md5()
+#        m.update(file.filepath.encode('utf-8'))  #cope with unicode filepaths
+#        hex = m.hexdigest()
+#        print (hex)
 
 def extract(id):
     path=files[id].filepath
@@ -33,7 +42,10 @@ def pathhash(path):
     m.update(path.encode('utf-8'))  #cope with unicode filepaths
     return m.hexdigest()
 
-
+def hexexists(hex):
+    url=u'http://localhost:8983/solr/docscan3/select?fl=id,tika_metadata_resourcename&q=extract_id:'+hex
+    res=requests.get(url)
+    return res
 
 def post(path):
     url='http://localhost:8983/solr/docscan1/update/extract?commit=true'
@@ -44,5 +56,4 @@ def post(path):
     return res
 
 
-#files = {'file': ('report.xls', open('report.xls', 'rb'), 'application/vnd.ms-excel', {'Expires': '0'})}
 
