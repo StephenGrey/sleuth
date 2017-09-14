@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from __future__ import unicode_literals, print_function
 from django.http import HttpResponse
+from .forms import IndexForm
 from django.shortcuts import render, redirect
 from django.utils import timezone
 import pytz #support localising the timezone
@@ -17,19 +18,46 @@ from usersettings import userconfig as config
 
 @staff_member_required()
 def index(request):
+    if request.method=='POST': #if data posted # switch core
+#        print('post data')
+        form=IndexForm(request.POST)
+        if form.is_valid():
+            coreselect=form.cleaned_data['CoreChoice']
+#            print ('change core to',coreselect)
+            request.session['mycore']=coreselect
+    else:
+        if 'mycore' not in request.session:  #set default if no core selected
+            request.session['mycore']='1'
+        mycore=request.session.get('mycore') 
+#        print(request.session['mycore'])
+        form=IndexForm(initial={'CoreChoice':mycore})
+        print('Core set in request: ',request.session['mycore'])
     latest_collection_list = Collection.objects.all()
-    return render(request, 'documents/scancollection.html',{'latest_collection_list': latest_collection_list})
+#    print('Core set in request: ',request.session['mycore'])
+    return render(request, 'documents/scancollection.html',{'form': form, 'latest_collection_list': latest_collection_list})
 
 def listfiles(request):
+#    if 'mycore' in request.session:
+#        print('Core set in request: ',request.session['mycore'])
+    cores=solr.getcores() #fetch dictionary of installed solr indexes (cores)
+    if 'mycore' in request.session:
+        coreID=request.session['mycore'] #currentlyselected core
+    else:
+        print ('ERROR no stored core in session; use default')
+        coreID='1'
+    mycore=cores[coreID] # get the working core
+    print ('using', mycore.name)
     if request.method == 'POST' and 'list' in request.POST and 'choice' in request.POST:
+        #get the files in selected collection
         try:
             selected_collection=int(request.POST[u'choice'])
             thiscollection=Collection.objects.get(id=selected_collection)
             collectionpath=thiscollection.path
             filelist=File.objects.filter(collection=thiscollection)
+            return render(request, 'documents/listdocs.html',{'results':filelist,'collection':collectionpath })
         except:
             return HttpResponse( "Error...please go back")
-#SCAN DOCUMENTS IN A COLLECTION
+#SCAN DOCUMENTS IN A COLLECTION on disk to make a  stored list with hash of contents etc
     elif request.method == 'POST' and 'scan' in request.POST and 'choice' in request.POST:
         selected_collection=int(request.POST[u'choice'])
         thiscollection=Collection.objects.get(id=selected_collection)
@@ -45,27 +73,28 @@ def listfiles(request):
         #print('try to index in Solr')
         selected_collection=int(request.POST[u'choice'])
         thiscollection=Collection.objects.get(id=selected_collection)
-        icount,iskipped,ifailed=indexdocs(thiscollection)
+        icount,iskipped,ifailed=indexdocs(thiscollection,mycore) #GO INDEX THE DOCS IN SOLR
         return HttpResponse ("Indexing.. <p>indexed: "+str(icount)+"<p>skipped:"+str(iskipped)+"<p>failed:"+str(ifailed))
 #CURSOR SEARCH OF SOLR INDEX
     elif request.method == 'POST' and 'solrcursor' in request.POST and 'choice' in request.POST:
         #print('try cursor scan of Solr Index')
         selected_collection=int(request.POST[u'choice'])
         thiscollection=Collection.objects.get(id=selected_collection)
-        match,skipped,failed=indexcheck(thiscollection)
+        print (thiscollection,mycore)
+        match,skipped,failed=indexcheck(thiscollection,mycore) #GO SCAN THE SOLR INDEX
         return HttpResponse ("Checking solr index.. <p>files indexed: "+str(match)+"<p>files not found:"+str(skipped)+"<p>errors:"+str(failed))
     else:
         return redirect('index')
-    return render(request, 'documents/listdocs.html',{'results':filelist,'collection':collectionpath })
+#    return render(request, 'documents/listdocs.html',{'results':filelist,'collection':collectionpath })
 
 
 #checking for what files in existing solrindex
-def indexcheck(collection):
+def indexcheck(collection,thiscore):
     #get the basefilepath
     docstore=config['Models']['collectionbasepath'] #get base path of the docstore
     #first get solrindex ids and key fields
     try:#make a dictionary of filepaths from solr index
-        indexpaths=solrcursor.cursor()
+        indexpaths=solrcursor.cursor(thiscore)
         #print(indexpaths)
     except Exception as e:
         print('failed to retrieve solr index')
@@ -103,7 +132,7 @@ def indexcheck(collection):
                 #now lookup hash in solr index
                 #print (hash)
                 solrresult=solr.hashlookup(hash)
-                print(solrresult)
+                #print(solrresult)
                 if len(solrresult)>0:
                     #if some files, take the first one
                     solrdata=solrresult[0]
@@ -122,7 +151,7 @@ def indexcheck(collection):
         return counter,skipped,failed
 
 
-def indexdocs(collection,forceretry=True): #index into Solr documents not already indexed
+def indexdocs(collection,mycore,forceretry=True): #index into Solr documents not already indexed
     if True:
         counter=0
         skipped=0
@@ -138,7 +167,7 @@ def indexdocs(collection,forceretry=True): #index into Solr documents not alread
                 #skip this file, tried before and not forceing retry
                 skipped+=1
             else: #do try this file
-                result=indexSolr.extract(file.filepath)
+                result=indexSolr.extract(file.filepath,mycore)
                 if result is True:
                     counter+=1
                     #print ('PATH :'+file.filepath+' indexed successfully')
@@ -186,7 +215,7 @@ def scandocs(collection):
                 f.fileext=fileext
                 f.hash_filename=pathHash(docpath)
                 #print ('hash',f.hash_filename,'docpath',docpath)
-                f.save()       
+                f.save()
 #    except UnicodeError as e:
 #        log.error=str(e)
 #        print ('Error in getting hash dictionary')

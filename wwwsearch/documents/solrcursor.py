@@ -4,24 +4,24 @@ import requests, requests.exceptions
 from usersettings import userconfig as config
 
 #print(config)
-core=config['Cores']['coredefault'] #the name of the index to use within the Solr backend
-url=config['Solr']['url']+core+'/select?q=' #Solr:url is the network address of Solr backend
+core=config['Cores']['1'] #the name of the index to use within the Solr backend
+#url=config['Solr']['url']+core+'/select?q=' #Solr:url is the network address of Solr backend
 hlarguments=config[core]['highlightingargs']
 dfltsearchterm=config['Test']['testsearchterm']
-cursorargs=config[core]['cursorargs']
+#cursorargs=config[core]['cursorargs']
 docpath=config[core]['docpath']
 #arguments='&fl=id,date,content'
 
 
-def cursor(): #iterates through entire solr index in blocks of e.g. 100
+def cursor(mycore): #iterates through entire solr index in blocks of e.g. 100
     print('start scan')
     cursormark='*' #start a cursor scan with * and next cursor to begin with is returned
     nextcursor=''
     longdict={} #dictionary of index data, keyed on full filepath
     while True:
-        args=cursorargs+'&cursorMark='+cursormark
+        args=mycore.cursorargs+'&cursorMark='+cursormark
         #print args
-        res=getSolrResponse('*',args)
+        res=getSolrResponse('*',args,mycore)
         #print res
         blocklist,resultsnumber=listresults(res)
         #print (blocklist,resultsnumber)
@@ -40,8 +40,8 @@ def cursor(): #iterates through entire solr index in blocks of e.g. 100
             cursormark=nextcursor
     return longdict
 
-def getSolrResponse(searchterm,arguments):
-    searchurl=url+searchterm+arguments
+def getSolrResponse(searchterm,arguments,mycore):
+    searchurl=mycore.url+'/select?q='+searchterm+arguments
     ses = requests.Session()
     # the session instance holds the cookie. So use it to get/post later
     res=ses.get(searchurl)

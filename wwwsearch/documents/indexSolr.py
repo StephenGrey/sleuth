@@ -9,25 +9,17 @@ log = logging.getLogger('ownsearch')
 from usersettings import userconfig as config
 
 #from settings
-solrcore=config['Cores']['coredefault'] #the name of the index to use within the Solr backend
-solrurl=config['Solr']['url'] #Solr:url is the network address of Solr backend
-docstore=config['Models']['collectionbasepath'] #get base path of the docstore
-
-extractargs='commit=true'
-extracturl=solrurl+solrcore+'/update/extract?'
-
-#hlarguments=config[core]['highlightingargs']
-#dfltsearchterm=config['Test']['testsearchterm']
-#docpath=config[core]['docpath']
-#docnamefield=config[core]['docname']
-#arguments='&fl=id,date,content'
-#contentarguments=config[core]['contentarguments']
+#solrcore=config['Cores']['1'] #the name of the index to use within the Solr backend
+#solrurl=config['Solr']['url'] #Solr:url is the network address of Solr backend
+#docstore=config['Models']['collectionbasepath'] #get base path of the docstore
+#extractargs='commit=true'
+#extracturl=solrurl+solrcore+'/update/extract?'
 
 
 """
 
 """
-
+#FILE METHODS
 def pathHash(path):
     m=hashlib.md5()
     m.update(path.encode('utf-8'))  #cope with unicode filepaths; NB to work requred 'from __future__ import unicode_literals'
@@ -45,8 +37,14 @@ def scanPath(parentFolder):  #recursively check all files in a file folder and g
             if result is True:
                 print ('PATH :'+path+'indexed successfully')
 
-def extract(path,test=False):
+
+
+#SOLR METHODS
+def extract(path,mycore,test=False):
     #print(path)
+    docstore=config['Models']['collectionbasepath'] #get base path of the docstore
+#    extracturl=mycore.url+'/update/extract?'
+    extractargs='commit=true'
     if os.path.exists(path)==False: #check file exists
         print ('path '+path+' does not exist')
         return False
@@ -58,7 +56,7 @@ def extract(path,test=False):
         #>>>>go index, use MD5 of path as unique ID
         #and calculate filename to put in index
         #print ('extract args: '+args)
-    sp,statusOK=postSolr(args,path) #POST TO THE INDEX
+    sp,statusOK=postSolr(args,path,mycore) #POST TO THE INDEX
     #print sp
     if statusOK is not True:
          print ('Error in posting file with args: ',args,' and path: ',path)
@@ -71,7 +69,7 @@ def extract(path,test=False):
     return False
     
 
-def getSolrResponse(args):
+def getSolrResponse(args,mycore):
     searchurl=extracturl+args
     #USE IF COOKIES OR LOGIN REQUIRED ses = requests.Session()
     # the session instance holds the cookie. So use it to get/post later
@@ -82,7 +80,8 @@ def getSolrResponse(args):
 
 #DEBUG NOTE: requests won't successfully post if unicode filenames in the header; so converted below
 #should consider using basefilename not file path below
-def postSolr(args,path):
+def postSolr(args,path,mycore):
+    extracturl=mycore.url+'/update/extract?'
     url=extracturl+args
     try:
         simplefilename=path.encode('ascii','ignore')

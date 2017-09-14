@@ -29,7 +29,7 @@ cursorargs: &fl=id,extract_id,extract_base_type,extract_paths,extract_parent_pat
 #rows is size of the iteration block
 #the docpath field must be in the cursorargs to index by docpath
 
-#this solr core has been automatically created by SearchBox
+#this solr core has specified to take docs indexed automatically by SearchBox
 [docscan1]
 highlightingargs: &fl=id,extract_id,date,filename,last_modified,title,author&hl.fl=content&hl=on&start=
 contentarguments: &fl=id,filename,filepath,date,content

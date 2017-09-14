@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-#using 'id' as the uniquefield
+# 
 from __future__ import unicode_literals
 from bs4 import BeautifulSoup as BS
 import requests, requests.exceptions
@@ -7,48 +7,55 @@ import os, logging
 import re
 from documents.models import File,Collection
 from usersettings import userconfig as config
+
+class SolrCore:
+    def __init__(self,core):
+        self.url=config['Solr']['url']+core # Solr:url is the network address of the Solr backend
+        self.hlarguments=config[core]['highlightingargs']
+        self.dfltsearchterm=config['Test']['testsearchterm']
+        self.docpath=config[core]['docpath']
+        self.docnamefield=config[core]['docname']
+        self.contentarguments=config[core]['contentarguments']
+        self.docsort=config[core]['docsort']
+        self.datesort=config[core]['datesort']
+        self.rawtext=config[core]['rawtext']
+        self.cursorargs=config[core]['cursorargs']
+        self.name=core
+    def test(self):
+        args=self.hlarguments+'0'
+        soup=getSolrResponse(self.dfltsearchterm,args,core=self)
+        res,numbers=getlist(soup,0,core=self)
+        return res,soup
+
 log = logging.getLogger('ownsearch')
+defaultcore=config['Cores']['1'] #the name of the index to use within the Solr backend
+mydefaultcore=SolrCore(defaultcore) #instantiate a default core object
 
-#print(config)
-core=config['Cores']['coredefault'] #the name of the index to use within the Solr backend
-url=config['Solr']['url']+core+'/select?q=' #Solr:url is the network address of Solr backend
-hlarguments=config[core]['highlightingargs']
-dfltsearchterm=config['Test']['testsearchterm']
-docpath=config[core]['docpath']
-docnamefield=config[core]['docname']
 
-#arguments='&fl=id,date,content'
-contentarguments=config[core]['contentarguments']
-
-def getdefault():
-    soup=getSolrResponse(dfltsearchterm,hlarguments+'0')
-    res,numbers=getlist(soup,0)
-    return res,soup
-
-def getSortAttrib(sorttype):
+def getSortAttrib(sorttype,core=mydefaultcore):
     if sorttype == 'documentID':
-        sortattrib = config[core]['docsort']
+        sortattrib = core.docsort
     elif sorttype == 'last_modified':
-        sortattrib = config[core]['datesort']
+        sortattrib = core.datesort
     else: #this is the default - sort by relevance
         sortattrib = ''
     return sortattrib
 
-def solrSearch(q,sorttype,startnumber):
-    args=hlarguments+str(startnumber)+getSortAttrib(sorttype)
+def solrSearch(q,sorttype,startnumber,core=mydefaultcore):
+    args=core.hlarguments+str(startnumber)+getSortAttrib(sorttype)
     #print('args',args)
     try:
-        soup=getSolrResponse(q,args)
+        soup=getSolrResponse(q,args,core=core)
         #print(soup.prettify())    
-        reslist,numbers=getlist(soup,startnumber)
+        reslist,numbers=getlist(soup,startnumber,core=core)
     except requests.exceptions.RequestException as e:
         reslist=[]
         numbers=-2
         print 'Connection error to Solr'
     return reslist,numbers
 
-def getSolrResponse(searchterm,arguments):
-    searchurl=url+searchterm+arguments
+def getSolrResponse(searchterm,arguments,core=mydefaultcore):
+    searchurl=core.url+'/select?q='+searchterm+arguments
     #print (searchurl)
     ses = requests.Session()
     # the session instance holds the cookie. So use it to get/post later
@@ -58,7 +65,7 @@ def getSolrResponse(searchterm,arguments):
     return soup
 
 
-def getlist(soup,counter): #this parses the list of results, starting at 'counter'
+def getlist(soup,counter,core=mydefaultcore): #this parses the list of results, starting at 'counter'
     try:
         numberfound=int(soup.response.result['numfound'])
         result=soup.response.result
@@ -71,15 +78,12 @@ def getlist(soup,counter): #this parses the list of results, starting at 'counte
             for arr in doc:
                 document[arr.attrs['name']]=arr.text
             #give the docname a standard name  -- the field must be in the content args or this will return an error
-            document['docname']=document[docnamefield]
-            #print('extracted docname',document['docname'])
-            fid=document['id'] #this is the main file ID used by Solr
-            #document['docname']=os.path.basename(document[docpath])
-            #print('extracted docname is:',document['docname'])
+            document['docname']=document[core.docnamefield]
+            solrid=document['id'] #this is the main file ID used by Solr
 
             #look up this in our model database, to see if additional data on this doc >>>SHOULD BE MOVED
-            try: 
-                f=File.objects.get(hash_filename=fid)
+            try: #lookup to see if hash of filepath is id 
+                f=File.objects.get(hash_filename=solrid)
                 #DEBUG print('FILE',f)
                 document['path']=f.filepath
                 document['filesize']=f.filesize
@@ -90,10 +94,10 @@ def getlist(soup,counter): #this parses the list of results, starting at 'counte
             document['resultnumber']=counter
             results.append(document)
     except Exception as e: 
-        print(e)
+        print('error in get list',e)
         results=[]
         numberfound=0
-    #DEBUG print ('results', results)
+    #add the highlighting strings to the results 
     if results:
         highlights=gethighlights(soup)
         if highlights:
@@ -131,34 +135,32 @@ def gethighlights(soup):
         highlights[id]=highlight
     return highlights
 
-# highlightall=results.highlighting[id]['content'][0].replace('$
-# highlight=[highlightall.split('<em>')[0]]+highlightall.split($
-#                                #       print(u"CONTEXT: ...{0}...".format(highlight))   
-# resultlist.append([id,docname,lmod,ddate,wcount,author,highlight])
 
-def getcontents(docid):
+def getcontents(docid,core=mydefaultcore):
     searchterm=r'id:"'+docid+r'"'
     #print (searchterm,contentarguments)
-    args=contentarguments
-    sp=getSolrResponse(searchterm,args)
-    res,numbers=getlist(sp,0)
+    args=core.contentarguments
+    sp=getSolrResponse(searchterm,args,core=core)
+    res,numbers=getlist(sp,0,core=core)
     return res
 
-def hashlookup(hex):
+def hashlookup(hex,core=mydefaultcore):
     searchterm='extract_id:'+hex
     #print (searchterm,contentarguments)
-    args=hlarguments+'0'
+    args=core.hlarguments+'0'
     #print (args)
-    sp=getSolrResponse(searchterm,args)
-    res,numbers=getlist(sp,0)
-    return res    
+    sp=getSolrResponse(searchterm,args,core=core)
+    res,numbers=getlist(sp,0,core=core)
+    return res
+
+#make a dictionary of SolrCore objects, so different indexes can be selected from form
+def getcores():
+    cores={}
+    for corenumber in config['Cores']:
+        core=config['Cores'][corenumber]
+#        name=config[core]['name']
+        cores[corenumber]=SolrCore(core)
+    return cores
 
 
-
-#res=getlist(sp)
-#highlights=gethighlights(sp)
-
-#contents = getcontents(eg)
-#result=contents[0]
-#print (results['contents'])
 
