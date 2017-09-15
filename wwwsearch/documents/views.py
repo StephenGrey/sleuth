@@ -15,24 +15,26 @@ import solrcursor
 from django.contrib.admin.views.decorators import staff_member_required
 log = logging.getLogger('ownsearch')
 from usersettings import userconfig as config
+defaultcore='1' 
 
 @staff_member_required()
 def index(request):
+    #get the core , or set the the default
+    if 'mycore' not in request.session:  #set default if no core selected
+        request.session['mycore']=defaultcore
+    mycore=request.session.get('mycore')
     if request.method=='POST': #if data posted # switch core
 #        print('post data')
         form=IndexForm(request.POST)
         if form.is_valid():
-            coreselect=form.cleaned_data['CoreChoice']
-#            print ('change core to',coreselect)
-            request.session['mycore']=coreselect
+            mycore=form.cleaned_data['CoreChoice']
+            print ('change core to',mycore)
+            request.session['mycore']=mycore
     else:
-        if 'mycore' not in request.session:  #set default if no core selected
-            request.session['mycore']='1'
-        mycore=request.session.get('mycore') 
 #        print(request.session['mycore'])
         form=IndexForm(initial={'CoreChoice':mycore})
-        print('Core set in request: ',request.session['mycore'])
-    latest_collection_list = Collection.objects.all()
+#        print('Core set in request: ',request.session['mycore'])
+    latest_collection_list = Collection.objects.filter(core=mycore)
 #    print('Core set in request: ',request.session['mycore'])
     return render(request, 'documents/scancollection.html',{'form': form, 'latest_collection_list': latest_collection_list})
 
@@ -44,9 +46,9 @@ def listfiles(request):
         coreID=request.session['mycore'] #currentlyselected core
     else:
         print ('ERROR no stored core in session; use default')
-        coreID='1'
+        coreID=defaultcore
     mycore=cores[coreID] # get the working core
-    print ('using', mycore.name)
+#    print ('using', mycore.name)
     if request.method == 'POST' and 'list' in request.POST and 'choice' in request.POST:
         #get the files in selected collection
         try:

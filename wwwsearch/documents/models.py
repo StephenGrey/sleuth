@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 from __future__ import unicode_literals
-
 from django.db import models
 from usersettings import userconfig as config
+from django.contrib.auth.models import Group
 
 # Create your models here.
 collectionbasepath=config['Models']['collectionbasepath']
@@ -10,8 +10,19 @@ collectionbasepath=config['Models']['collectionbasepath']
 class Collection(models.Model):
     path = models.FilePathField('File path',path=collectionbasepath, allow_files=False,allow_folders=True,recursive=True, max_length=150)
     indexedFlag = models.BooleanField('Indexed')
+    core = models.ForeignKey(
+        'SolrCore',
+        on_delete=models.CASCADE,
+    )
     def __str__(self):
         return self.path
+
+class SolrCore(models.Model):
+    coreID=models.CharField('Core ID (1-10)',max_length=10,default='')
+    coreDisplayName=models.CharField('Core Display Name',max_length=10,default='',blank=True)
+    usergroup=models.ForeignKey(Group)
+    def __str__(self):
+        return self.coreID
 
 class File(models.Model):
     collection = models.ForeignKey(
