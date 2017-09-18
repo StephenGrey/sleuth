@@ -2,19 +2,22 @@
 from bs4 import BeautifulSoup as BS
 import requests, requests.exceptions
 from usersettings import userconfig as config
+from ownsearch import solrSoup
 
 #print(config)
-core=config['Cores']['1'] #the name of the index to use within the Solr backend
+#core=config['Cores']['1'] #the name of the index to use within the Solr backend
 #url=config['Solr']['url']+core+'/select?q=' #Solr:url is the network address of Solr backend
-hlarguments=config[core]['highlightingargs']
+#hlarguments=config[core]['highlightingargs']
 dfltsearchterm=config['Test']['testsearchterm']
 #cursorargs=config[core]['cursorargs']
-docpath=config[core]['docpath']
+#docpath=config[core]['docpath']
 #arguments='&fl=id,date,content'
 
+def getcore(corename):
+    return solrSoup.SolrCore(corename)
 
 def cursor(mycore): #iterates through entire solr index in blocks of e.g. 100
-    print('start scan')
+    #print('start scan')
     cursormark='*' #start a cursor scan with * and next cursor to begin with is returned
     nextcursor=''
     longdict={} #dictionary of index data, keyed on full filepath
@@ -23,7 +26,7 @@ def cursor(mycore): #iterates through entire solr index in blocks of e.g. 100
         #print args
         res=getSolrResponse('*',args,mycore)
         #print res
-        blocklist,resultsnumber=listresults(res)
+        blocklist,resultsnumber=listresults(res,mycore)
         #print (blocklist,resultsnumber)
         more=res.response.result.next_sibling 
         if more['name']=='nextCursorMark':
@@ -48,22 +51,25 @@ def getSolrResponse(searchterm,arguments,mycore):
     soup=BS(res.content,"html.parser")
     return soup
     
-def listresults(soup):
+def listresults(soup,mycore):
 #    counter=0
     try:
         numberfound=int(soup.response.result['numfound'])
         result=soup.response.result
+        #print('RESULT: ',result)
         results={}
         for doc in result:
+        #    print('DOC',doc)
             document={}
 #            counter+=1
             document['id']=doc.str.text
             for arr in doc:
                 document[arr.attrs['name']]=arr.text
             fid=document['id'] #this is the main file ID used by Solr
+            
             #indexing this output by file path to docpath
-            path=document[docpath] #the docpath field defined in configs must be in cursorargs
-            #print(path)
+            path=document[mycore.docpath] #the docpath field defined in configs must be in cursorargs
+         #   print(path)
             #INDEX BY THE PATH STORED IN SOLR INDEX 
             results[path]=document
             #document['docname']=os.path.basename(id)

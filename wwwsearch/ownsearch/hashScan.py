@@ -34,7 +34,8 @@ def FileSpecTable(parentFolder): #  MAIN ROUTINE FOR BUILDING SIMPLE FILE SPECS 
                     specs.append([path,filelen,shortName,fileExt,modTime])#add new specs to old specs for same hash
                     deetdict[path] = specs
                 else:  #first or only version of the file
-                    deetdict[path]=[[path,filelen,shortName,fileExt,modTime]]  #first item in list of specs for potential duplicate
+                    deetdict[path]=[path,filelen,shortName,fileExt,modTime]  #first item in list of specs for potential duplicate
+                    
             else:
                 print ('ERROR: File not Found: ',path)
     return deetdict
