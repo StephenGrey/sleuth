@@ -7,6 +7,24 @@ from models import File,Collection
 from ownsearch.hashScan import HexFolderTable as hex
 from ownsearch.hashScan import hashfile256 as hexfile
 import ownsearch.solrSoup as s
+import solrcursor as curs
+
+def checksolrcursor():
+    mycore=s.SolrCore('docscan1')
+    res=curs.cursor(mycore)
+    return res
+
+def checksolrlists(mycore):
+    cursormark='*' 
+    args=mycore.cursorargs+'&cursorMark='+cursormark
+    res=curs.getSolrResponse('*',args,mycore)
+    blocklist,resultsnumber=curs.listresults(res,mycore)
+    result=res.response.result
+    document={}
+    for doc in result:
+        for arr in doc:
+            document[arr.attrs['name']]=arr.text
+    return document
 
 def listhexes():
     thiscollection=Collection.objects.all()[0]

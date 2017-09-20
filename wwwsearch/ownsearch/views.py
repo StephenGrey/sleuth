@@ -59,11 +59,11 @@ def do_search(request,page=0,searchterm='',direction='',pagemax=0,sorttype=''):
             sorttype=form.cleaned_data['SortType']
             coreselect=form.cleaned_data['CoreChoice']
             if coreselect != coreID:  #NEW INDEX SELECTED
-                print('change core')
+                #print('change core')
                 coreID=coreselect  #new solr core ID
                 request.session['mycore']=coreID  #store the chosen index
                 mycore=cores[coreID]  #select new SolrCore object
-            print (coreselect)
+            #print (coreselect)
             if True:
                 resultlist,resultcount=solrSoup.solrSearch(searchterm,sorttype,0,core=mycore)
                 pagemax=int(resultcount/10)+1
@@ -121,7 +121,7 @@ def get_content(request,doc_id,searchterm): #make a page showing the extracted t
         #check if file is registered and authorised to download
             files=File.objects.filter(hash_contents=hashcontents)
             if files.count()>0:
-                print(files,'authorised')
+                #print(files,'authorised')
                 auth=True
             else:
                 auth=False

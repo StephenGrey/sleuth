@@ -10,13 +10,14 @@ log = logging.getLogger('ownsearch')
 
 def FileSpecTable(parentFolder): #  MAIN ROUTINE FOR BUILDING SIMPLE FILE SPECS TABLE KEYED TO pATH
     deetdict = {}  #dictionary of filespecs
-    print ('Scanning directory tree to create filespecs index.')
-    print ('Folders scanned ...')
+    #print ('Scanning directory tree to create filespecs index.')
+    #print ('Folders scanned ...')
     count=0
     for dirName, subdirs, fileList in os.walk(parentFolder): #go through every subfolder in a folder
         count+=1
         if count%100==0:
-            print ('...',count)
+            #print ('...',count)
+            pass
         for filename in fileList: #now through every file in the folder/subfolder
 #######GET FILE SPECS
             # Get the path to the file

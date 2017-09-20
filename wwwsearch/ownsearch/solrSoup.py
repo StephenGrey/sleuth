@@ -106,13 +106,13 @@ def getlist(soup,counter,core=mydefaultcore): #this parses the list of results, 
             else:
                 document['hashcontents']=''
             #look up this in our model database, to see if additional data on this doc >>>SHOULD BE MOVED
-            try: #lookup to see if hash of filepath is id 
+            try: #lookup to see if hash of filecontents is id 
                 f=File.objects.get(hash_contents=document['hashcontents'])
-                print('FILE',f)
+                #print('FILE',f)
                 document['path']=f.filepath
                 document['filesize']=f.filesize
             except Exception as e:
-                print('Cannot look up file in database',e)
+                #print('Cannot look up file in database',e)
                 document['path']=''
                 document['filesize']=0
             document['resultnumber']=counter

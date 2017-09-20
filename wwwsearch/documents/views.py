@@ -99,7 +99,7 @@ def indexcheck(collection,thiscore):
     #first get solrindex ids and key fields
     try:#make a dictionary of filepaths from solr index
         indexpaths=solrcursor.cursor(thiscore)
-        print(indexpaths)
+        #print(indexpaths)
     except Exception as e:
         print('failed to retrieve solr index')
         print (str(e))
@@ -114,29 +114,30 @@ def indexcheck(collection,thiscore):
         #main loop - go through files in the collection
         for file in filelist:
             relpath=os.path.relpath(file.filepath,start=docstore) #extract the relative path from the docstore
-            hash=file.hash_contents #get the hash of the contents
-            print (file.filepath,relpath)
+            hash=file.hash_contents #get the stored hash of the file contents
+            #print (file.filepath,relpath)
 
 	#INDEX CHECK: METHOD ONE : IF RELATIVE PATHS STORED MATCH
             if relpath in indexpaths:  #if the relpath in collection is in the solr index
                 solrdata=indexpaths[relpath]
-                print('Solr data:',solrdata)
-                print ('PATH :'+file.filepath+' indexed successfully', 'Solr \'id\': '+solrdata['id'])
+                #print('Solr data:',solrdata)
+                #print ('PATH :'+file.filepath+' indexed successfully', 'Solr \'id\': '+solrdata['id'])
                 file.indexedSuccess=True
                 file.solrid=solrdata['id']
                 file.save()
                 counter+=1
         #METHOD TWO: CHECK IF FILE STORED IN INDEX UNDER CONTENTS HASH                
             else:
+                #print('trying hash method')
                 #is there a stored hash, if not get one
                 if not hash:
                     hash=hexfile(file.filepath)
                     file.hash_contents=hash
                     file.save()
                 #now lookup hash in solr index
-                print (hash)
+                #print (hash)
                 solrresult=solr.hashlookup(hash,thiscore)
-                print(solrresult)
+                #print(solrresult)
                 if len(solrresult)>0:
                     #if some files, take the first one
                     solrdata=solrresult[0]
@@ -145,7 +146,7 @@ def indexcheck(collection,thiscore):
                     file.solrid=solrdata['id']
                     file.save()
                     counter+=1
-                    print ('PATH :'+file.filepath+' indexed successfully (HASHMATCH)', 'Solr \'id\': '+solrdata['id'])
+                    #print ('PATH :'+file.filepath+' indexed successfully (HASHMATCH)', 'Solr \'id\': '+solrdata['id'])
                 #NO MATCHES< RETURN FAILURE
                 else:
                     print (file.filepath,'.. not indexed')
@@ -172,7 +173,7 @@ def indexdocs(collection,mycore,forceretry=True): #index into Solr documents not
                 #skip this file, tried before and not forceing retry
                 skipped+=1
             else: #do try this file
-                print('trying ...',file.filepath)
+                #print('trying ...',file.filepath)
                 result=indexSolr.extract(file.filepath,mycore)
                 if result is True:
                     counter+=1

@@ -12,33 +12,43 @@ collectionbasepath: /home/ubuntu/somefolder
 url: http://localhost:8983/solr/
 
 [Cores]
-CoreDefault: docscan3
-Core2: docscan1
-Core3: docscan2
+1: docscan3
+2: docscan1
 
-#this solr core has been specified to take docs from ICIJ extract engine
+#this index is populated by the ICIJ extract engine
 [docscan3]
-highlightingargs: &fl=id,extract_id,tika_metadata_last_modified,tika_metadata_resourcename&hl.fl=tika_content&hl=on&start=
-contentarguments: &fl=id,extract_paths,tika_metadata_date,tika_metadata_resourcename,tika_content
+name: XYZ files
+highlightingargs: &fl=id,extract_id,tika_metadata_last_modified,tika_metadata_content_length,tika_metadata_resourcename&hl.fl=tika_content&hl=on&start=
+contentarguments: &fl=id,extract_paths,tika_metadata_date,tika_metadata_resourcename,tika_content,tika_metadata_content_length
 rawtext: tika_content
 docname: tika_metadata_resourcename
 docpath: extract_paths
+docsize: tika_metadata_content_length
 docsort: &sort+tika_metadata_resourcename+asc
 datesort: &sort+tika_metadata_last_modified+desc
+hashcontents: extract_id
 cursorargs: &fl=id,extract_id,extract_base_type,extract_paths,extract_parent_paths&sort=id+asc&rows=100
-#rows is size of the iteration block
-#the docpath field must be in the cursorargs to index by docpath
 
-#this solr core has specified to take docs indexed automatically by SearchBox
+#rows is size of the iteration block
+
+#this solr core has been indexed automatially by SearchBox
 [docscan1]
-highlightingargs: &fl=id,extract_id,date,filename,last_modified,title,author&hl.fl=content&hl=on&start=
-contentarguments: &fl=id,filename,filepath,date,content
+name: Test1 (autoextract)
+highlightingargs: &fl=id,extract_id,date,filename,stream_size,last_modified,title,author&hl.fl=content&hl=on&start=
+contentarguments: &fl=id,filename,filepath,date,content,stream_size
 rawtext: content
 docname: filename
 docpath: filepath
 docsort: &sort=filepath+asc
 datesort: &sort+last_modified+desc
+docsize: stream_size
+hashcontents: extract_id
 cursorargs: &fl=id,filename,filepath,last_modified&sort=id+asc&rows=100
+#alternate highlightingargs='&fl=id,extract_id,date,filename,last_modified,title,author&hl.fl=content&hl=on&start='
+#alternate contentarguments='&fl=id,date,content'
 
-
+[Test]
+#debug
+#testfile: 5001329_2090628_600881.msg
+testfile1: testdoc1.doc
 
