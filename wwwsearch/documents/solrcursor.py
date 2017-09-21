@@ -2,19 +2,22 @@
 from bs4 import BeautifulSoup as BS
 import requests, requests.exceptions
 from usersettings import userconfig as config
+from ownsearch import solrSoup
 
 #print(config)
-core=config['Cores']['1'] #the name of the index to use within the Solr backend
+#core=config['Cores']['1'] #the name of the index to use within the Solr backend
 #url=config['Solr']['url']+core+'/select?q=' #Solr:url is the network address of Solr backend
-hlarguments=config[core]['highlightingargs']
+#hlarguments=config[core]['highlightingargs']
 dfltsearchterm=config['Test']['testsearchterm']
 #cursorargs=config[core]['cursorargs']
-docpath=config[core]['docpath']
+#docpath=config[core]['docpath']
 #arguments='&fl=id,date,content'
 
+def getcore(corename):
+    return solrSoup.SolrCore(corename)
 
 def cursor(mycore): #iterates through entire solr index in blocks of e.g. 100
-    print('start scan')
+    #print('start scan')
     cursormark='*' #start a cursor scan with * and next cursor to begin with is returned
     nextcursor=''
     longdict={} #dictionary of index data, keyed on full filepath
@@ -22,8 +25,7 @@ def cursor(mycore): #iterates through entire solr index in blocks of e.g. 100
         args=mycore.cursorargs+'&cursorMark='+cursormark
         #print args
         res=getSolrResponse('*',args,mycore)
-        #print res
-        blocklist,resultsnumber=listresults(res)
+        blocklist,resultsnumber=listresults(res,mycore)
         #print (blocklist,resultsnumber)
         more=res.response.result.next_sibling 
         if more['name']=='nextCursorMark':
@@ -48,27 +50,31 @@ def getSolrResponse(searchterm,arguments,mycore):
     soup=BS(res.content,"html.parser")
     return soup
     
-def listresults(soup):
-#    counter=0
-    try:
-        numberfound=int(soup.response.result['numfound'])
-        result=soup.response.result
-        results={}
-        for doc in result:
-            document={}
-#            counter+=1
-            document['id']=doc.str.text
-            for arr in doc:
+def listresults(soup,mycore):
+    
+    results={}
+    result=soup.response.result
+    if result.has_attr('numfound'):
+        numberfound=int(result['numfound'])
+    else:
+        print('No results found in listresults')
+        return {},0
+
+    #loop through each doc in resultset
+    for doc in result:
+        #print('DOC',doc)
+        document={}
+        #get all the attributes
+        document['id']=doc.str.text
+        for arr in doc:
+            if 'name' in arr.attrs:
                 document[arr.attrs['name']]=arr.text
-            fid=document['id'] #this is the main file ID used by Solr
-            #indexing this output by file path to docpath
-            path=document[docpath] #the docpath field defined in configs must be in cursorargs
+        #indexing these attributes, keyed to filepath from field defined in mycore.docpath
+        if mycore.docpath in document:
+            path=document[mycore.docpath] #the docpath field defined in configs 'cursorargs'
             #print(path)
-            #INDEX BY THE PATH STORED IN SOLR INDEX 
             results[path]=document
             #document['docname']=os.path.basename(id)
-    except Exception as e: 
-        print(e)
-        results={}
-        numberfound=0
+        else:
+            print('ERROR- no filepath defined in this document: ',document,'(skipped)')
     return results,numberfound

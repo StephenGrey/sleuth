@@ -7,9 +7,12 @@ This is a comment section
 
 {% if splittext %} <h3>Extracted Text</h3>
 <b>{{docname}}</b>
-<p>PATH: {{docpath}}<p>
-<a href="/docstore/{{docpath}}"><b>Download</b></a>	
-	
+<p>PATH: {{docpath}}&emsp; SIZE(bytes):{{docsize}}<p>
+<!--DIRECT FROM APACHE--<a href="/docstore/{{docpath}}"><b>Download</b></a>	-->
+
+{% if docexists%}<a href="/ownsearch/download={{docpath}}"<b>Download</b></a><p>
+{% endif %}
+
 {% for scrap in splittext %}
 {{scrap|linebreaksbr}}</pre><b>{{searchterm}}</b>
 {% endfor %}

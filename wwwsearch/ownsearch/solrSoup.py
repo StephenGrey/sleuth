@@ -20,6 +20,8 @@ class SolrCore:
         self.datesort=config[core]['datesort']
         self.rawtext=config[core]['rawtext']
         self.cursorargs=config[core]['cursorargs']
+        self.docsizefield=config[core]['docsize']
+        self.hashcontentsfield=config[core]['hashcontents']
         self.name=core
     def test(self):
         args=self.hlarguments+'0'
@@ -73,18 +75,40 @@ def getlist(soup,counter,core=mydefaultcore): #this parses the list of results, 
         for doc in result:
             document={}
             counter+=1
-            document['id']=doc.str.text
+            solrid=doc.str.text
+            document['id']=solrid #this is the main file ID used by Solr
             #now go through all fields returned by the solr search
             for arr in doc:
                 document[arr.attrs['name']]=arr.text
-            #give the docname a standard name  -- the field must be in the content args or this will return an error
-            document['docname']=document[core.docnamefield]
-            solrid=document['id'] #this is the main file ID used by Solr
-
+            #give the KEY ATTRIBS standard names
+            if core.docnamefield in document:
+                document['docname']=document[core.docnamefield]
+            else:
+                document['docname']=''
+            if core.docsizefield in document:
+                document['solrdocsize']=document[core.docsizefield]
+            else:
+                document['solrdocsize']=''
+            if core.rawtext in document:
+                document['rawtext']=document.pop(core.rawtext)
+            else:
+                document['rawtext']=''
+            if core.docnamefield in document:
+                document['docname']=document[core.docnamefield]
+            else:
+                document['docname']=''
+            if core.docpath in document:
+                document['docpath']=document[core.docpath]
+            else:
+                document['docpath']=''
+            if core.hashcontentsfield in document:
+                document['hashcontents']=document[core.hashcontentsfield]
+            else:
+                document['hashcontents']=''
             #look up this in our model database, to see if additional data on this doc >>>SHOULD BE MOVED
-            try: #lookup to see if hash of filepath is id 
-                f=File.objects.get(hash_filename=solrid)
-                #DEBUG print('FILE',f)
+            try: #lookup to see if hash of filecontents is id 
+                f=File.objects.get(hash_contents=document['hashcontents'])
+                #print('FILE',f)
                 document['path']=f.filepath
                 document['filesize']=f.filesize
             except Exception as e:
@@ -110,6 +134,7 @@ def getlist(soup,counter,core=mydefaultcore): #this parses the list of results, 
                        result['highlight']=''
                        highlightedresults.append(result)
               results=highlightedresults
+    #print (results)
     return results,numberfound
 
 #print(results)

@@ -10,13 +10,14 @@ log = logging.getLogger('ownsearch')
 
 def FileSpecTable(parentFolder): #  MAIN ROUTINE FOR BUILDING SIMPLE FILE SPECS TABLE KEYED TO pATH
     deetdict = {}  #dictionary of filespecs
-    print ('Scanning directory tree to create filespecs index.')
-    print ('Folders scanned ...')
+    #print ('Scanning directory tree to create filespecs index.')
+    #print ('Folders scanned ...')
     count=0
     for dirName, subdirs, fileList in os.walk(parentFolder): #go through every subfolder in a folder
         count+=1
         if count%100==0:
-            print ('...',count)
+            #print ('...',count)
+            pass
         for filename in fileList: #now through every file in the folder/subfolder
 #######GET FILE SPECS
             # Get the path to the file
@@ -34,7 +35,8 @@ def FileSpecTable(parentFolder): #  MAIN ROUTINE FOR BUILDING SIMPLE FILE SPECS 
                     specs.append([path,filelen,shortName,fileExt,modTime])#add new specs to old specs for same hash
                     deetdict[path] = specs
                 else:  #first or only version of the file
-                    deetdict[path]=[[path,filelen,shortName,fileExt,modTime]]  #first item in list of specs for potential duplicate
+                    deetdict[path]=[path,filelen,shortName,fileExt,modTime]  #first item in list of specs for potential duplicate
+                    
             else:
                 print ('ERROR: File not Found: ',path)
     return deetdict
