@@ -35,7 +35,7 @@ def index(request):
         form=IndexForm(initial={'CoreChoice':mycore})
 #        print('Core set in request: ',request.session['mycore'])
     latest_collection_list = Collection.objects.filter(core=mycore)
-#    print('Core set in request: ',request.session['mycore'])
+    print('Core set in request: ',request.session['mycore'])
     return render(request, 'documents/scancollection.html',{'form': form, 'latest_collection_list': latest_collection_list})
 
 def listfiles(request):
