@@ -8,21 +8,27 @@ import re
 from documents.models import File,Collection
 from usersettings import userconfig as config
 
+class MissingConfigData(Exception): 
+    pass
+
 class SolrCore:
     def __init__(self,core):
-        self.url=config['Solr']['url']+core # Solr:url is the network address of the Solr backend
-        self.hlarguments=config[core]['highlightingargs']
-        self.dfltsearchterm=config['Test']['testsearchterm']
-        self.docpath=config[core]['docpath']
-        self.docnamefield=config[core]['docname']
-        self.contentarguments=config[core]['contentarguments']
-        self.docsort=config[core]['docsort']
-        self.datesort=config[core]['datesort']
-        self.rawtext=config[core]['rawtext']
-        self.cursorargs=config[core]['cursorargs']
-        self.docsizefield=config[core]['docsize']
-        self.hashcontentsfield=config[core]['hashcontents']
-        self.name=core
+        try:
+            self.url=config['Solr']['url']+core # Solr:url is the network address of the Solr backend
+            self.hlarguments=config[core]['highlightingargs']
+            self.dfltsearchterm=config['Test']['testsearchterm']
+            self.docpath=config[core]['docpath']
+            self.docnamefield=config[core]['docname']
+            self.contentarguments=config[core]['contentarguments']
+            self.docsort=config[core]['docsort']
+            self.datesort=config[core]['datesort']
+            self.rawtext=config[core]['rawtext']
+            self.cursorargs=config[core]['cursorargs']
+            self.docsizefield=config[core]['docsize']
+            self.hashcontentsfield=config[core]['hashcontents']
+            self.name=core
+        except KeyError:
+            raise MissingConfigData
     def test(self):
         args=self.hlarguments+'0'
         soup=getSolrResponse(self.dfltsearchterm,args,core=self)
@@ -184,7 +190,10 @@ def getcores():
     for corenumber in config['Cores']:
         core=config['Cores'][corenumber]
 #        name=config[core]['name']
-        cores[corenumber]=SolrCore(core)
+        try:
+            cores[corenumber]=SolrCore(core)
+        except MissingConfigData:
+            print('Missing data in usersettings.config for core number '+corenumber)
     return cores
 
 

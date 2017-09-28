@@ -13,13 +13,13 @@ from django.http import HttpResponseRedirect
 #from parseresults import parseSolrResults as parse
 #import pickle, re, sys
 #from search_solr import solrSearch
-import solrSoup, re, os, logging
+import solrSoup, re, os, logging, unicodedata
 from usersettings import userconfig as config
 log = logging.getLogger('ownsearch')
 
 #set up solr indexes
 cores=solrSoup.getcores()
-defaultcore='1'
+defaultcore='3'
 docbasepath=config['Models']['collectionbasepath']
 
 @login_required
@@ -29,7 +29,10 @@ def do_search(request,page=0,searchterm='',direction='',pagemax=0,sorttype=''):
     if 'mycore' not in request.session:  #set default if no core selected
         request.session['mycore']=defaultcore
     coreID=request.session.get('mycore')
-    mycore=cores[coreID]
+    if coreID in cores:
+        mycore=cores[coreID]
+    else:
+        return HttpResponse('Missing config data for selected index ; retry')
 
 #SET THE RESULT PAGE    
     page=int(page) #urls always returns strings only
@@ -89,11 +92,12 @@ def do_search(request,page=0,searchterm='',direction='',pagemax=0,sorttype=''):
 @login_required
 def download(request,doc_relpath): #download a document from the docstore
     file_path = os.path.join(docbasepath,doc_relpath)    
-    #print ('FILEPATHS',doc_relpath,file_path)
+    #print ('FILEPATHS (relative/full)',doc_relpath,file_path)
     if os.path.exists(file_path):
+        cleanfilename=slugify(os.path.basename(file_path))
         with open(file_path, 'rb') as thisfile:
             response=HttpResponse(thisfile.read(), content_type='application/force-download')
-            response['Content-Disposition'] = 'inline; filename=' + os.path.basename(file_path)
+            response['Content-Disposition'] = 'inline; filename=' + cleanfilename
             return response
         raise Http404
     else:
@@ -118,10 +122,11 @@ def get_content(request,doc_id,searchterm): #make a page showing the extracted t
                 local=True
             else:
                 local=False
+                print('File does not exist locally')
         #check if file is registered and authorised to download
             files=File.objects.filter(hash_contents=hashcontents)
             if files.count()>0:
-                #print(files,'authorised')
+                print(files,'authorised')
                 auth=True
             else:
                 auth=False
@@ -139,3 +144,18 @@ def get_content(request,doc_id,searchterm): #make a page showing the extracted t
             return HttpResponse('Can\'t find document with ID '+doc_id+' COREID: '+coreID)
     else:
         return HttpResponseRedirect('/') 
+
+
+
+def slugify(value):
+    """
+    Normalizes string, converts to lowercase, removes non-alpha characters,
+    and converts spaces to hyphens.
+    """
+    shortName, fileExt = os.path.splitext(value)
+    value = unicodedata.normalize('NFKD', value).encode('ascii', 'ignore')
+    value = unicode(re.sub('[^\w\s-]', '', value).strip().lower())
+    value = unicode(re.sub('[-\s]+', '-', value))
+    return value+fileExt
+
+

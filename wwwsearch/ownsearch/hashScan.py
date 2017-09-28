@@ -264,6 +264,11 @@ def testdup():
 	dups=dupfind(['/Users/Stephen/Documents/Dropbox/REUTERS/Russia'])
 	printResults(dups)
 	return dups
+
+def pathHash(path):
+    m=hashlib.md5()
+    m.update(path.encode('utf-8'))  #encoding avoids unicode error for unicode paths
+    return m.hexdigest()
 	
 if __name__ == '__main__':   #ASK USER TO CHOOSE A DIRECTORY FOLDER, OR SEVERAL, AND LOOK FOR DUPS
     if len(sys.argv) > 1: 

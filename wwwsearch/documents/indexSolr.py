@@ -40,11 +40,22 @@ def scanPath(parentFolder):  #recursively check all files in a file folder and g
 
 
 #SOLR METHODS
-def extract(path,mycore,test=False):
+def extract(path,contentsHash,mycore,test=False):
     #print(path)
     docstore=config['Models']['collectionbasepath'] #get base path of the docstore
 #    extracturl=mycore.url+'/update/extract?'
     extractargs='commit=true'
+    try:
+        filenamefield=mycore.docnamefield
+        hashcontentsfield= mycore.hashcontentsfield
+        filepathfield=mycore.docpath
+    except Exception as e:
+        print ('Exception: ',str(e))
+        print('core missing default fields')
+        return False
+    if ping(mycore)==False:
+        print('No connection')
+        return False
     if os.path.exists(path)==False: #check file exists
         print ('path '+path+' does not exist')
         return False
@@ -52,12 +63,13 @@ def extract(path,mycore,test=False):
         args=extractargs+'&extractOnly=true' #does not index on test
     else:
         relpath=os.path.relpath(path,start=docstore) #extract a relative path from the docstore
-        args=extractargs+'&literal.id='+pathHash(path)+'&literal.filename='+os.path.basename(path)+'&literal.filepath='+relpath
+        args=extractargs+'&literal.id='+pathHash(path)+'&literal.'+filenamefield+'='+os.path.basename(path)
+        args+='&literal.'+filepathfield+'='+relpath+'&literal.'+hashcontentsfield+'='+contentsHash
         #>>>>go index, use MD5 of path as unique ID
         #and calculate filename to put in index
         #print ('extract args: '+args)
     sp,statusOK=postSolr(args,path,mycore) #POST TO THE INDEX
-    #print sp
+    #print (sp)
     if statusOK is not True:
          print ('Error in posting file with args: ',args,' and path: ',path)
          return False
@@ -83,6 +95,7 @@ def getSolrResponse(args,mycore):
 def postSolr(args,path,mycore):
     extracturl=mycore.url+'/update/extract?'
     url=extracturl+args
+    #print('POSTURL',url)
     try:
         simplefilename=path.encode('ascii','ignore')
     except:
@@ -94,16 +107,29 @@ def postSolr(args,path,mycore):
         soup=BS(res.content,"html.parser")
         statusOK = True
         return soup, statusOK
-    except Exception as e:
-        print ('Exception: ',str(e))
+    except requests.exceptions.RequestException as e:
+        print ('Exception in postSolr: ',str(e),e)
         statusOK=False
         return '',statusOK
 
+def ping(core):
+    res=requests.get(core.url+'/admin/ping')
+    
+#    except requests.exceptions.ConnectionError as e:
+#        print('no connection to solr server')
+#        return False
+#      except requests.exceptions.RequestException as e:
+#         raise requests.exceptions.RequestException
+#        print (e,str(e))
+#        return False
+    return True
 
 if __name__ == '__main__':   #
     scanpath('')
     
+
     
+
 
 """
 

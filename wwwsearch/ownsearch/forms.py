@@ -8,9 +8,12 @@ from usersettings import userconfig as config
 def get_corechoices():
     choice_list=()
     for corenumber in config['Cores']:
-       core=config['Cores'][corenumber] 
-       choice_list +=((corenumber,config[core]['name']),) #value/label
-    print(choice_list)
+       core=config['Cores'][corenumber]
+       #print corenumber,core
+       if core in config: 
+           if 'name' in config[core]:
+               choice_list +=((corenumber,config[core]['name']),) #value/label
+    #print(choice_list)
     return choice_list
 
 SORT_CHOICES = (('relevance', 'Relevance'), ('documentID', 'Document name'),('last_modified','Last Modified'))
