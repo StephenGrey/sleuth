@@ -16,7 +16,7 @@ import solrcursor
 from django.contrib.admin.views.decorators import staff_member_required
 log = logging.getLogger('ownsearch')
 from usersettings import userconfig as config
-defaultcore='1' 
+defaultcore='1'
 
 @staff_member_required()
 def index(request):
@@ -35,13 +35,7 @@ def index(request):
 #        print(request.session['mycore'])
         form=IndexForm(initial={'CoreChoice':coreID})
 #        print('Core set in request: ',request.session['mycore'])
-<<<<<<< HEAD
     latest_collection_list = Collection.objects.filter(core=mycore)
-    print('Core set in request: ',request.session['mycore'])
-=======
-    latest_collection_list = Collection.objects.filter(core=coreID)
-#    print('Core set in request: ',request.session['mycore'])
->>>>>>> b5ed1173225029c623f96dce59386c3843143844
     return render(request, 'documents/scancollection.html',{'form': form, 'latest_collection_list': latest_collection_list})
 
 def listfiles(request):
