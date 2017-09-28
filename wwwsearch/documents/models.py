@@ -32,6 +32,7 @@ class File(models.Model):
     filepath=models.FilePathField('File path',path=collectionbasepath, allow_files=True,allow_folders=False,recursive=True)
     indexedSuccess = models.BooleanField('IndexedOK',default=False)
     indexedTry=models.BooleanField('IndexedTry',default=False)
+    indexUpdateMeta=models.BooleanField('UpdateMeta',default=False)
     hash_contents = models.CharField('Hash contents',max_length=200,default='')
     hash_filename = models.CharField('Hash doc name',max_length=200,default='')
     filename=models.CharField('Filename',max_length=100,default='')

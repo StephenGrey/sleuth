@@ -9,7 +9,7 @@ from models import Collection,File
 from ownsearch.hashScan import HexFolderTable as hex
 from ownsearch.hashScan import hashfile256 as hexfile
 from ownsearch.hashScan import FileSpecTable as filetable
-import datetime, hashlib, os, logging
+import datetime, hashlib, os, logging, requests
 import indexSolr
 import ownsearch.solrSoup as solr
 import solrcursor
@@ -73,11 +73,16 @@ def listfiles(request):
              return HttpResponse (" Scan Failed!")
 #INDEX DOCUMENTS IN COLLECTION IN SOLR
     elif request.method == 'POST' and 'index' in request.POST and 'choice' in request.POST:
-        #print('try to index in Solr')
-        selected_collection=int(request.POST[u'choice'])
-        thiscollection=Collection.objects.get(id=selected_collection)
-        icount,iskipped,ifailed=indexdocs(thiscollection,mycore) #GO INDEX THE DOCS IN SOLR
-        return HttpResponse ("Indexing.. <p>indexed: "+str(icount)+"<p>skipped:"+str(iskipped)+"<p>failed:"+str(ifailed))
+        try:
+            #print('try to index in Solr')
+            selected_collection=int(request.POST[u'choice'])
+            thiscollection=Collection.objects.get(id=selected_collection)
+            icount,iskipped,ifailed=indexdocs(thiscollection,mycore) #GO INDEX THE DOCS IN SOLR
+            return HttpResponse ("Indexing.. <p>indexed: "+str(icount)+"<p>skipped:"+str(iskipped)+"<p>failed:"+str(ifailed))
+        except requests.exceptions.RequestException as e:
+            print ('caught connection error')
+            return HttpResponse ("No response from Solr Server / Solr Server crashed")
+
 #CURSOR SEARCH OF SOLR INDEX
     elif request.method == 'POST' and 'solrcursor' in request.POST and 'choice' in request.POST:
         #print('try cursor scan of Solr Index')
@@ -93,16 +98,18 @@ def listfiles(request):
 
 #checking for what files in existing solrindex
 def indexcheck(collection,thiscore):
+
     #get the basefilepath
     docstore=config['Models']['collectionbasepath'] #get base path of the docstore
+
     #first get solrindex ids and key fields
     try:#make a dictionary of filepaths from solr index
         indexpaths=solrcursor.cursor(thiscore)
-        #print(indexpaths)
     except Exception as e:
         print('failed to retrieve solr index')
         print (str(e))
         return 'Failed to get index'
+
     #now compare file list with solrindex
     if True:
         counter=0
@@ -110,6 +117,7 @@ def indexcheck(collection,thiscore):
         failed=0
         #print(collection)
         filelist=File.objects.filter(collection=collection)
+
         #main loop - go through files in the collection
         for file in filelist:
             relpath=os.path.relpath(file.filepath,start=docstore) #extract the relative path from the docstore
@@ -119,13 +127,12 @@ def indexcheck(collection,thiscore):
 	#INDEX CHECK: METHOD ONE : IF RELATIVE PATHS STORED MATCH
             if relpath in indexpaths:  #if the relpath in collection is in the solr index
                 solrdata=indexpaths[relpath]
-                #print('Solr data:',solrdata)
                 #print ('PATH :'+file.filepath+' indexed successfully', 'Solr \'id\': '+solrdata['id'])
                 file.indexedSuccess=True
                 file.solrid=solrdata['id']
                 file.save()
                 counter+=1
-        #METHOD TWO: CHECK IF FILE STORED IN INDEX UNDER CONTENTS HASH                
+        #INDEX CHECK: METHOD TWO: CHECK IF FILE STORED IN SOLR INDEX UNDER CONTENTS HASH                
             else:
                 #print('trying hash method')
                 #is there a stored hash, if not get one
@@ -134,7 +141,6 @@ def indexcheck(collection,thiscore):
                     file.hash_contents=hash
                     file.save()
                 #now lookup hash in solr index
-                #print (hash)
                 solrresult=solr.hashlookup(hash,thiscore)
                 #print(solrresult)
                 if len(solrresult)>0:
@@ -150,12 +156,13 @@ def indexcheck(collection,thiscore):
                 else:
                     print (file.filepath,'.. not indexed')
                     file.indexedSuccess=False
+                    file.solrid='' #wipe any stored solr id
                     file.save()
                     skipped+=1
         return counter,skipped,failed
 
 
-def indexdocs(collection,mycore,forceretry=True): #index into Solr documents not already indexed
+def indexdocs(collection,mycore,forceretry=False): #index into Solr documents not already indexed
     if True:
         counter=0
         skipped=0
@@ -164,19 +171,25 @@ def indexdocs(collection,mycore,forceretry=True): #index into Solr documents not
         filelist=File.objects.filter(collection=collection)
         #main loop
         for file in filelist:
+            print('Attempting index of',file.filepath)
             if file.indexedSuccess:
                 #skip this file, it's already indexed
-                #print('Already indexed')
+                print('Already indexed')
                 skipped+=1
             elif file.indexedTry==True and forceretry==False:
                 #skip this file, tried before and not forceing retry
+                print('Tried before; not forcing retry')
                 skipped+=1
-            else: #do try this file
+            else: #do try to index this file
                 #print('trying ...',file.filepath)
-                result=indexSolr.extract(file.filepath,mycore)
+                if not file.hash_contents:
+                    file.hash_contents=hexfile(file.filepath)
+                    file.save()
+                result=indexSolr.extract(file.filepath,file.hash_contents,mycore)
                 if result is True:
                     counter+=1
                     #print ('PATH :'+file.filepath+' indexed successfully')
+                    file.solrid=file.hash_filename  #extract users hashfilename for an id , so add it
                     file.indexedSuccess=True
                     file.save()
                 else:
@@ -198,7 +211,10 @@ def scandocs(collection):
             if File.objects.filter(filepath = path).exists():
                 skipped+=1
                 file=File.objects.get(filepath = path)
-                #print('Skipped/file already logged:',file.filename)
+                print('Skipped/file already logged:',file.filename)
+                #reset index try to allow another attempt
+                file.indexedTry=False
+                file.save()
                 pass
             else:
                 counter+=1
