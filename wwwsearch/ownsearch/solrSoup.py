@@ -26,6 +26,7 @@ class SolrCore:
             self.cursorargs=config[core]['cursorargs']
             self.docsizefield=config[core]['docsize']
             self.hashcontentsfield=config[core]['hashcontents']
+            self.datefield=config[core]['datefield']
             self.name=core
         except KeyError:
             raise MissingConfigData
@@ -62,7 +63,7 @@ def solrSearch(q,sorttype,startnumber,core=mydefaultcore):
         print 'Connection error to Solr'
     return reslist,numbers
 
-def getSolrResponse(searchterm,arguments,core=mydefaultcore):
+def getSolrResponse(searchterm,arguments,core):
     searchurl=core.url+'/select?q='+searchterm+arguments
     #print (searchurl)
     ses = requests.Session()
@@ -103,6 +104,10 @@ def getlist(soup,counter,core=mydefaultcore): #this parses the list of results, 
                 document['docname']=document[core.docnamefield]
             else:
                 document['docname']=''
+            if core.datefield in document:
+                document['date']=document.pop(core.datefield)
+            elif 'date' not in document:
+                document['date']=''
             if core.docpath in document:
                 document['docpath']=document[core.docpath]
             else:
@@ -174,6 +179,16 @@ def getcontents(docid,core=mydefaultcore):
     sp=getSolrResponse(searchterm,args,core=core)
     res,numbers=getlist(sp,0,core=core)
     return res
+    
+def bighighlights(docid,core):
+    searchterm=r'id:'+docid
+    args=core.hlarguments+'0&hl.fragsize=100&hl.snippets=10&hl.q=Trump'
+    print(args)
+    sp=getSolrResponse(searchterm,args,core)
+    print(sp)
+    res=gethighlights(sp)
+#    res,numbers=getlist(sp,0,core=core)
+    return res,sp
 
 def hashlookup(hex,core=mydefaultcore):
     searchterm='extract_id:'+hex

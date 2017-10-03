@@ -70,11 +70,12 @@ def listresults(soup,mycore):
             if 'name' in arr.attrs:
                 document[arr.attrs['name']]=arr.text
         #indexing these attributes, keyed to filepath from field defined in mycore.docpath
+        #print(document)
         if mycore.docpath in document:
             path=document[mycore.docpath] #the docpath field defined in configs 'cursorargs'
             #print(path)
             results[path]=document
             #document['docname']=os.path.basename(id)
         else:
-            print('ERROR- no filepath defined in this document: ',document,'(skipped)')
+            print('Solrcursor: no filepath defined in this Solr document: ',document)
     return results,numberfound

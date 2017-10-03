@@ -38,7 +38,6 @@ def scanPath(parentFolder):  #recursively check all files in a file folder and g
                 print ('PATH :'+path+'indexed successfully')
 
 
-
 #SOLR METHODS
 def extract(path,contentsHash,mycore,test=False):
     #print(path)
@@ -67,19 +66,64 @@ def extract(path,contentsHash,mycore,test=False):
         args+='&literal.'+filepathfield+'='+relpath+'&literal.'+hashcontentsfield+'='+contentsHash
         #>>>>go index, use MD5 of path as unique ID
         #and calculate filename to put in index
-        #print ('extract args: '+args)
+        #print ('extract args: '+args,'path: ',path,'mycore: ',mycore)
     sp,statusOK=postSolr(args,path,mycore) #POST TO THE INDEX
     #print (sp)
     if statusOK is not True:
-         print ('Error in posting file with args: ',args,' and path: ',path)
-         return False
-    if sp.response:
-        if sp.response.lst.int['name'] == 'status' and sp.response.lst.int.text == '0':
-            print ('success')
-            return True
-    print ('Error: response is: ',sp)
-    return False
+        print ('Error in extract() posting file with args: ',args,' and path: ',path)
+        print ('Response from solr:',sp)
+        return False
+    response,success,message=parseresponse(sp) #turn the response into a dictionary
+    if success is True:
+        print(message)
+        return True
+    else:
+        print(message,response)
+        return False
     
+#turn request xml response from solr api into a dictionary
+def parseresponse(soup):
+    if soup.response:
+        result={}
+        if soup.response.find_all('lst'):
+            lists={}
+            success=False
+            #parse lists in resposne
+            for lst in soup.response.find_all('lst'):
+                 tags={}
+                 for item in lst:
+                     value=''
+                     if item.name=='int':
+                         value=int(item.text)
+                     if item.name=='str':
+                         value=item.text
+                     if item.has_attr('name'):
+                         tags[item['name']]=value
+                     else:
+                         print('tag has no name attribute')
+                 lists[lst['name']]=tags
+            result['lists']=lists
+            #check for errors 
+            if 'responseHeader' in lists:
+                 header=lists['responseHeader']
+                 status=header['status']
+                 if status==0:
+                     success=True
+                     return result,success,'success'
+                 else:
+                     success=False
+            if 'error' in lists:
+                errorlist=lists['error']
+                errormessage=errorlist['msg']
+                errorcode=errorlist['code']
+                message=errormessage+'  CODE:'+str(errorcode)
+            else:
+                message='Error message not parsed'
+            #NB THERE IS A METADATA LIST THAT COULD ALSO BE PARSED AND LOGGGED
+            return result,success,message
+        return result,False,'no lists found'
+    return {},False,'no response found'
+
 
 def getSolrResponse(args,mycore):
     searchurl=extracturl+args
@@ -107,6 +151,10 @@ def postSolr(args,path,mycore):
         soup=BS(res.content,"html.parser")
         statusOK = True
         return soup, statusOK
+#    except ConnectionError as e:
+#        print ('ConnectionError in postSolr: ',str(e),e)
+#        statusOK=False
+#        return '',statusOK    
     except requests.exceptions.RequestException as e:
         print ('Exception in postSolr: ',str(e),e)
         statusOK=False
