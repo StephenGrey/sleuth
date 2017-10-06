@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block content %}
+
+{% comment %}
+This is a comment section
+{% for scraplist in highlight%}
+<b>{{scrap1}}{{scrap2}}</b>
+{% endfor %}
+{{scraplist|linebreaksbr}}
+
+{% endcomment %}
+
+
+
+{% if highlights %} <h3>Extracted Text - highlights</h3>
+<b>{{docname}}</b>
+<p>PATH: {{docpath}}&emsp; SIZE(bytes):{{docsize}}<p>
+<!--DIRECT FROM APACHE--<a href="/docstore/{{docpath}}"><b>Download</b></a>	-->
+
+{% if docexists%}<a href="/ownsearch/download={{docpath}}"<b>Download</b></a><p>
+{% endif %}
+
+{% for highlight in highlights%}
+{{highlight.0.0}}
+<b>{{highlight.1.0}}</b>
+{{highlight.1.1}}
+<p>
+{% endfor %}
+{% endif %}
+
+{% endblock %}

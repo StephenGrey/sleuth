@@ -50,52 +50,14 @@ def getSolrResponse(searchterm,arguments,core):
     soup=BS(res.content,"html.parser")
     #print(soup.prettify())
     return soup
-
-def bighighlights(docid,core):
-    searchterm=r'id:'+docid
-    args=core.hlarguments+'0&hl.fragsize=1000&hl.snippets=20&hl.q=Trump'
-    print(args)
-    sp=solrSoup.getSolrResponse(searchterm,args,core)
-    #print(sp)
-    res=getbighighlights(sp)
-#    res,numbers=getlist(sp,0,core=core)
-    return res,sp
     
-def getbighighlights(soup):
-    highlights={}
-    highlights_all=soup.response.result.next_sibling
-#    print ('highlightsall',highlights_all)
-    try:
-        highlights_all['name']=='highlighting'
-    except:
-        #no highlights
-        return {}
-    for item in highlights_all:
-        #print (item)
-        id=item['name']
-        hl=[]
-        if item.arr:
-#remove line returns and tabs
-            
-            highlight=item.arr.text.replace('\n','').replace('\t',' ')
-#split by em tags to enable highlighting
-            print highlight
-            for scrap in highlight.split('<em>'):
-                print 'scrap',scrap
-                scrap=scrap.split('</em>')
-                hl.append(scrap)
-            #highlight=[highlight.split('<em>')[0]]+highlight.split('<em>')[1].split('</em>')
-        else:
-            highlight=''
-        highlights[id]=hl
-    return highlights
-"""
-What you're looking for is the highlighting hl.maxAlternateFieldLength (http://wiki.apache.org/solr/HighlightingParameters#hl.maxAlternateFieldLength).
-
-You will need to define the field as its own alternate field. If you want to highlight the field Description, the highlight query parameters would be:
-
-hl=true
-hl.fl=Description
-f.Description.hl.alternateField=Description
-hl.maxAlternateFieldLength=300
-"""
+def bighighlights(docid,core,q):
+    searchterm=r'id:'+docid
+    args=core.hlarguments+'0&hl.fragsize=100&hl.snippets=10&hl.q='+q
+    #print(args)
+    sp=getSolrResponse(searchterm,args,core)
+    #print(sp)
+    res=solrSoup.getbighighlights(sp)
+#    res,numbers=getlist(sp,0,core=core,big=True)#   
+#res,numbers=getlist(sp,0,core=core)
+    return sp,res
