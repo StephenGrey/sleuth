@@ -15,7 +15,7 @@ Sort by:
 <h4>{{resultcount}} results for search on "{{searchterm}}"</h4>
 
 {% for res in results %} 	
-<li><a href="/ownsearch/doc={{res.id}}&searchterm={{searchterm}}"><b>{{res.docname }}</b></a>{{res.solrdocsize}}<p>
+<li><a href="/ownsearch/doc={{res.id}}&searchterm={{searchterm}}"><b>{{res.docname }}</b></a> {{res.solrdocsize}}<p>
 	{{ res.highlight.0 }}<b>{{ res.highlight.1 }}</b>{{ res.highlight.2 }}
 {% endfor %} 
 <p>

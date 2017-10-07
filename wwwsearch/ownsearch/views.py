@@ -112,7 +112,6 @@ def download(request,doc_relpath): #download a document from the docstore
 #    if coreID:
 #        mycore=cores[coreID]
 #        
-#
 #            
 #        results=solrSoup.getcontents(doc_id,core=mycore)
 #        if len(results)>0:
@@ -156,22 +155,30 @@ def get_content(request,doc_id,searchterm): #make a page showing the extracted t
     coreID=request.session.get('mycore')
     if coreID:
         mycore=cores[coreID]
-            
+        contentsmax=50000
+        #TEMP DEBUG
         results=solrSoup.gettrimcontents(doc_id,mycore,searchterm)
-
 #        return HttpResponse(results)     
-
         if len(results)>0:
             result=results[0]
+            if 'highlight' in results[0]:
+                highlight=results[0]['highlight']
+            else:
+                highlight=''
+            #print len(highlight)
+            
+            #detect if large file (contents greater or equal to max size)
+            if len(highlight)==contentsmax:
+               print('max contents')
+               #go get large highlights instead
+               res=get_bigcontent(request,doc_id,searchterm)
+               return res
             docsize=result['solrdocsize']
             docpath=result['docpath']
             rawtext=result['rawtext']
             docname=result['docname']
             hashcontents=result['hashcontents']
-            if 'highlight' in results[0]:
-                highlight=results[0]['highlight']
-            else:
-                highlight=''
+
         #check if file available for download
             if os.path.exists(os.path.join(docbasepath,docpath)):
                 local=True
@@ -186,8 +193,10 @@ def get_content(request,doc_id,searchterm): #make a page showing the extracted t
             else:
                 auth=False
         #clean up the text for display
+#            return HttpResponse(highlight)
             cleaned=re.sub('(\n[\s]+\n)+', '\n\n', highlight) #cleaning up chunks of white space
             #print cleaned
+#            cleaned=highlight
             lastscrap=''
             try:
                 splittext=re.split(searchterm,cleaned,flags=re.IGNORECASE) #make a list of text scraps, removing search term
@@ -226,8 +235,8 @@ def get_bigcontent(request,doc_id,searchterm): #make a page of highlights, for M
         mycore=cores[coreID]
         
         results=solrSoup.bighighlights(doc_id,mycore,searchterm)
-        #print (str(results))
- #       return HttpResponse(str(results))
+#        print (str(results))
+#        return HttpResponse(str(results))
         if len(results)>0:
 
             result=results[0]
@@ -246,7 +255,7 @@ def get_bigcontent(request,doc_id,searchterm): #make a page of highlights, for M
         #check if file is registered and authorised to download
             files=File.objects.filter(hash_contents=hashcontents)
             if files.count()>0:
-                print(files,'authorised') #DEBUG : need to add user check to authorise
+                #print(files,'authorised') #DEBUG : need to add user check to authorise
                 auth=True
             else:
                 auth=False
@@ -272,7 +281,7 @@ def get_bigcontent(request,doc_id,searchterm): #make a page of highlights, for M
 #            for highlight in highlights:
 #                parsedhl.append([highlight.replace('<em>','<b>').replace('</em>','</b>'),'TEST'])
 #                
-            
+#            teststring=[['cat','dog'],['elephant\n\n cat','mousen\n\xa0 cat'],['', ' \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n 2016-10-01 Donald '], [u'Trump', u' Tax Records Show He Could Have Avoided Taxes for Nearly Two Decades, The Times Found\n \n By DAVID BARSTOW, SUSANNE CRAIG, RUSS BUETTNER and MEGAN TWOHEYOCT. 1, 2016\n \n ELECTION 2016 By AINARA TIEFENTH\xc4LER and GABRIEL DANCE 1:22\n \n Trump\u2019s Tax Records\n \n Video\n \n Trump\u2019s Tax Records\n \n The New York Times obtained records from 1995 showing that Donald J. ']]
             return render(request, 'bigcontentform.html', {'docsize':docsize, 'doc_id': doc_id, 'highlights': highlights, 'searchterm': searchterm,'docname':docname, 'docpath':docpath, 'docexists':local})
         else:
             return HttpResponse('Can\'t find document with ID '+doc_id+' COREID: '+coreID)

@@ -74,7 +74,7 @@ def getSolrResponse(searchterm,arguments,core):
     return soup
 
 
-def getlist(soup,counter,core=mydefaultcore,big=False): #this parses the list of results, starting at 'counter'
+def getlist(soup,counter,core=mydefaultcore,linebreaks=False,big=False): #this parses the list of results, starting at 'counter'
     try:
         numberfound=int(soup.response.result['numfound'])
         result=soup.response.result
@@ -134,10 +134,10 @@ def getlist(soup,counter,core=mydefaultcore,big=False): #this parses the list of
         numberfound=0
     #add the highlighting strings to the results 
     if results:
-#        if big is True:
-#            highlights=getbighighlights(soup)
-#        else:
-        highlights=gethighlights(soup,big)
+        if big is True:
+            highlights=getbighighlights(soup)
+        else:
+            highlights=gethighlights(soup,linebreaks=linebreaks)
         if highlights:
               highlightedresults=[]
               for result in results:
@@ -152,22 +152,22 @@ def getlist(soup,counter,core=mydefaultcore,big=False): #this parses the list of
     return results,numberfound
 
 #print(results)
-def gethighlights(soup,big=False):
+def gethighlights(soup,linebreaks=False):
     highlights={}
     highlights_all=soup.response.result.next_sibling
-#    print ('highlightsall',highlights_all)
+    #print ('highlightsall',highlights_all)
     try:
         highlights_all['name']=='highlighting'
     except:
         #no highlights
         return {}
     for item in highlights_all:
-            #print (item)
+        #print (item)
         id=item['name']
         if item.arr:
 #remove line returns
             highlight=item.arr.text
-            if big is False:
+            if linebreaks is False:
                 highlight=highlight.replace('\n','') 
 #split by em tags to enable highlighting
             try:
@@ -188,48 +188,52 @@ def getcontents(docid,core=mydefaultcore):
     res,numbers=getlist(sp,0,core=core)
     return res
     
-#def bighighlights(docid,core,q):
-#    searchterm=r'id:'+docid
-#    args=core.hlarguments+'0&hl.fragsize=500&hl.snippets=20&hl.q='+q
-#    #print(args)
-#    sp=getSolrResponse(searchterm,args,core)
-#    #print(sp)
-##    res=getbighighlights(sp)
-#    res,numbers=getlist(sp,0,core=core,big=True)#   
-##res,numbers=getlist(sp,0,core=core)
-#    return res
-#
-#def getbighighlights(soup):
-#    highlights={}
-#    highlights_all=soup.response.result.next_sibling
-#    print ('highlightsall',highlights_all)
-#    try:
-#        highlights_all['name']=='highlighting'
-#    except:
-#        #no highlights
-#        return {}
-#    for highlightlist in highlights_all:
-#        #print (item)
-#        id=highlightlist['name']
-#        hls=[]
-#        if highlightlist.arr:
-##remove line returns and tabs
-#            for highlighttag in highlightlist.arr:
-#                hl=[]
-#                highlight=highlighttag.text.replace('\n','').replace('\t',' ')
-##split by em tags to enable highlighting
-#            #print highlight
-#                for scrap in highlight.split('<em>'):
-#                #print 'scrap',scrap
-#                    scrap=scrap.split('</em>')
-#                    hl.append(scrap)
-##            highlight=[highlight.split('<em>')[0]]+highlight.split('<em>')[1].split('</em>')
-#                hls.append(hl)
-#        else:
-#            highlight=''
-#        highlights[id]=hls
-#        print('extracted highlights:',highlights)
-#    return highlights
+def bighighlights(docid,core,q):
+    searchterm=r'id:'+docid
+    args=core.hlarguments+'0&hl.fragsize=5000&hl.snippets=50&hl.q={}&hl.alternateField={}&hl.maxAlternateFieldLength=50000'.format(q,core.rawtext)
+    print(args)
+    sp=getSolrResponse(searchterm,args,core)
+    #print(sp)
+#    return getbighighlights(sp)
+#    res=getbighighlights(sp)
+    res,numbers=getlist(sp,0,core=core,linebreaks=True, big=True)#   
+#res,numbers=getlist(sp,0,core=core)
+    return res
+
+def getbighighlights(soup):
+    highlights={}
+    highlights_all=soup.response.result.next_sibling
+    #print ('highlightsall',highlights_all)
+    try:
+        highlights_all['name']=='highlighting'
+    except:
+        #no highlights
+        return {}
+    for highlightlist in highlights_all:
+        #print (item)
+        id=highlightlist['name']
+        hls=[]
+        if highlightlist.arr:
+            for highlighttag in highlightlist.arr:
+                hl=[]
+                highlight=highlighttag.text #.replace('\n','').replace('\t',' ')
+#remove huge chunks of white space
+                highlight=re.sub('(\n[\s]+\n)+', '\n', highlight)
+#split by em tags to enable highlighting
+            #print highlight
+                for scrap in highlight.split('<em>'):
+                #print 'scrap',scrap
+                    scrap=scrap.split('</em>')
+                    hl.append(scrap)
+#            highlight=[highlight.split('<em>')[0]]+highlight.split('<em>')[1].split('</em>')
+#                print('firstscrap',hl[0])
+                hl[0]=['',hl[0][0]]
+                hls.append(hl)
+        else:
+            highlight=''
+        highlights[id]=hls
+        #print('extracted highlights:',highlights)
+    return highlights
 
 def gettrimcontents(docid,core,q):
     searchterm=r'id:'+docid
@@ -240,7 +244,7 @@ def gettrimcontents(docid,core,q):
     args=fieldargs+hlargs
 #    print (args)
     sp=getSolrResponse(searchterm,args,core)
-    res,numbers=getlist(sp,0,core=core,big=True)
+    res,numbers=getlist(sp,0,core=core,linebreaks=True,big=False)
 #    print (sp)
     return res
 

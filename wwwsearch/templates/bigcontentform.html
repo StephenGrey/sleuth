@@ -8,9 +8,16 @@ This is a comment section
 {% endfor %}
 {{scraplist|linebreaksbr}}
 
+{{highlight.0.0.3}}
+<b>{{highlight.1.0}}</b>
+{{highlight.1.1}}
+
+<p>
+{{teststring}}
+{%for a,b in teststring%}<b>{{a}}</b>{{b|linebreaksbr}}{%endfor%}<p>
+
+
 {% endcomment %}
-
-
 
 {% if highlights %} <h3>Extracted Text - highlights</h3>
 <b>{{docname}}</b>
@@ -21,9 +28,10 @@ This is a comment section
 {% endif %}
 
 {% for highlight in highlights%}
-{{highlight.0.0}}
-<b>{{highlight.1.0}}</b>
-{{highlight.1.1}}
+<p><i>Snippet:</i><p>
+{% for a,b in highlight %}
+<b>{{a}}</b>{{b|linebreaksbr}}
+{% endfor %}
 <p>
 {% endfor %}
 {% endif %}
