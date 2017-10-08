@@ -48,11 +48,9 @@ class SolrCore:
         return res,soup
 
 log = logging.getLogger('ownsearch')
-defaultcore=config['Cores']['1'] #the name of the index to use within the Solr backend
-mydefaultcore=SolrCore(defaultcore) #instantiate a default core object
 
 
-def getSortAttrib(sorttype,core=mydefaultcore):
+def getSortAttrib(sorttype,core):
     if sorttype == 'documentID':
         sortattrib = core.docsort
     elif sorttype == 'last_modified':
@@ -61,8 +59,8 @@ def getSortAttrib(sorttype,core=mydefaultcore):
         sortattrib = ''
     return sortattrib
 
-def solrSearch(q,sorttype,startnumber,core=mydefaultcore):
-    args=core.hlarguments+str(startnumber)+getSortAttrib(sorttype)
+def solrSearch(q,sorttype,startnumber,core):
+    args=core.hlarguments+str(startnumber)+getSortAttrib(sorttype,core)
     #print('args',args)
     try:
         soup=getSolrResponse(q,args,core=core)
@@ -85,7 +83,7 @@ def getSolrResponse(searchterm,arguments,core):
     return soup
 
 
-def getlist(soup,counter,core=mydefaultcore,linebreaks=False,big=False): #this parses the list of results, starting at 'counter'
+def getlist(soup,counter,core,linebreaks=False,big=False): #this parses the list of results, starting at 'counter'
     try:
         numberfound=int(soup.response.result['numfound'])
         result=soup.response.result
@@ -191,7 +189,7 @@ def gethighlights(soup,linebreaks=False):
     return highlights
 
 
-def getcontents(docid,core=mydefaultcore):
+def getcontents(docid,core):
     searchterm=r'id:"'+docid+r'"'
     #print (searchterm,contentarguments)
     args=core.contentarguments
@@ -260,7 +258,7 @@ def gettrimcontents(docid,core,q):
     return res
 
 
-def hashlookup(hex,core=mydefaultcore):
+def hashlookup(hex,core):
     searchterm='extract_id:'+hex
     #print (searchterm,contentarguments)
     args=core.hlarguments+'0'
@@ -284,5 +282,5 @@ def getcores():
             print('Missing data in usersettings.config for core number '+corenumber)
     return cores
 
-
-
+#defaultcore=getcores()['1'] #config['Cores']['1'] #the name of the index to use within the Solr backend
+#mydefaultcore=SolrCore(defaultcore) #instantiate a default core object
