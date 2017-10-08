@@ -6,17 +6,27 @@ import requests, requests.exceptions
 import os, logging
 import re
 from documents.models import File,Collection
+from documents.models import SolrCore as sc
 from usersettings import userconfig as config
 
 class MissingConfigData(Exception): 
     pass
 
 class SolrCore:
-    def __init__(self,core):
+    def __init__(self,mycore):
         try:
-            self.url=config['Solr']['url']+core # Solr:url is the network address of the Solr backend
+            if mycore not in config:
+                core='defaultcore'
+            else:
+                core=mycore
+            
+            #variables that are specific to this core
+            self.url=config['Solr']['url']+mycore # Solr:url is the network address of the Solr backend
+            self.name=mycore
+                        
+            #variables that can take the defautls
             self.hlarguments=config[core]['highlightingargs']
-            self.dfltsearchterm=config['Test']['testsearchterm']
+#            self.dfltsearchterm=config['Test']['testsearchterm']
             self.docpath=config[core]['docpath']
             self.docnamefield=config[core]['docname']
             self.contentarguments=config[core]['contentarguments']
@@ -27,7 +37,8 @@ class SolrCore:
             self.docsizefield=config[core]['docsize']
             self.hashcontentsfield=config[core]['hashcontents']
             self.datefield=config[core]['datefield']
-            self.name=core
+
+            
         except KeyError:
             raise MissingConfigData
     def test(self):
@@ -261,8 +272,11 @@ def hashlookup(hex,core=mydefaultcore):
 #make a dictionary of SolrCore objects, so different indexes can be selected from form
 def getcores():
     cores={}
-    for corenumber in config['Cores']:
-        core=config['Cores'][corenumber]
+    for coredoc in sc.objects.all():
+        core=coredoc.corename
+        corenumber=coredoc.coreID
+#    for corenumber in config['Cores']:
+#        core=config['Cores'][corenumber]
 #        name=config[core]['name']
         try:
             cores[corenumber]=SolrCore(core)
