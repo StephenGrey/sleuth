@@ -10,6 +10,8 @@ parser=SafeConfigParser()
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__))) 
 configpath=BASE_DIR+'/wwwsearch/usersettings.config'
 defaultpath=BASE_DIR+'/wwwsearch/usersettings.config.example'
+solrdefaults=BASE_DIR+'/wwwsearch/solrdefaults.config'
+
 
 #log.info(configpath)
 
@@ -26,11 +28,25 @@ def settingsMap(section):
             dict1[option] = None
     return dict1
 
+#GET DEFAULT CONFIGS
+defaultconfig={}
+try:
+    parser.read(solrdefaults)
+except:
+    log.error ('Error on reading default configuration')    
+
+if parser.sections()==[]:
+    log.info('Failed to load default usersettings.config ')
+
+for section in parser.sections():
+    defaultconfig[section]=settingsMap(section)
+
+#GET USER CONFIGS (which will override default)
 userconfig={}
 try:
     parser.read(configpath)
 except:
-    log.error ('Error on reading configuration')
+    log.error ('Error on reading user configuration')
 
 #debugging
 #log.info(parser.read(configpath))
@@ -44,9 +60,18 @@ if parser.sections()==[]:
     except:
         print ('Error on reading default=example configuration')
 
-
 for section in parser.sections():
     userconfig[section]=settingsMap(section)
+
+for section in defaultconfig:
+    if section not in userconfig:
+        userconfig[section]=defaultconfig[section]
+#print ('userconfig',userconfig)
+
+
+
+
+
 
 """
 

@@ -86,7 +86,7 @@ def do_search(request,page=0,searchterm='',direction='',pagemax=0,sorttype=''):
         form = SearchForm()
         resultlist = []
         resultcount=-1
-
+    #print (resultlist)
     return render(request, 'searchform.html', {'form': form, 'pagemax': pagemax, 'results': resultlist, 'searchterm': searchterm, 'resultcount': resultcount, 'page':page, 'sorttype': sorttype})
 
 @login_required
@@ -103,20 +103,82 @@ def download(request,doc_relpath): #download a document from the docstore
     else:
         return HttpResponse('File not stored on server')
 
+
+##NOT IN USE _ THIS RETURNS FULL CONTENT WHICH WOULD BE TOO LARGE IF MASSIVE FILE
+#@login_required
+#def oldget_content(request,doc_id,searchterm): #make a page showing the extracted text, highlighting searchterm
+#    #load solr index in use, SolrCore object
+#    coreID=request.session.get('mycore')
+#    if coreID:
+#        mycore=cores[coreID]
+#        
+#            
+#        results=solrSoup.getcontents(doc_id,core=mycore)
+#        if len(results)>0:
+#            result=results[0]
+#            docsize=result['solrdocsize']
+#            docpath=result['docpath']
+#            rawtext=result['rawtext']
+#            docname=result['docname']
+#            hashcontents=result['hashcontents'] 
+#        #check if file available for download
+#            if os.path.exists(os.path.join(docbasepath,docpath)):
+#                local=True
+#            else:
+#                local=False
+#                print('File does not exist locally')
+#        #check if file is registered and authorised to download
+#            files=File.objects.filter(hash_contents=hashcontents)
+#            if files.count()>0:
+#                print(files,'authorised')
+#                auth=True
+#            else:
+#                auth=False
+#        #clean up the text for display
+#            cleaned=re.sub('(\n[\s]+\n)+', '\n', rawtext) #cleaning up chunks of white space
+#            lastscrap=''
+#            try:
+#                splittext=re.split(searchterm,cleaned,flags=re.IGNORECASE) #make a list of text scraps, removing search term
+#                if len(splittext) > 1:
+#                    lastscrap=splittext.pop() #remove last entry if more than one, as this last is NOT followed by searchterm
+#            except:
+#                splittext=[cleaned]
+#            return render(request, 'contentform.html', {'docsize':docsize, 'doc_id': doc_id, 'splittext': splittext, 'searchterm': searchterm, 'lastscrap': lastscrap, 'docname':docname, 'docpath':docpath, 'docexists':local})
+#        else:
+#            return HttpResponse('Can\'t find document with ID '+doc_id+' COREID: '+coreID)
+#    else:
+#        return HttpResponseRedirect('/') 
+
 @login_required
 def get_content(request,doc_id,searchterm): #make a page showing the extracted text, highlighting searchterm
     #load solr index in use, SolrCore object
     coreID=request.session.get('mycore')
     if coreID:
         mycore=cores[coreID]
-        results=solrSoup.getcontents(doc_id,core=mycore)
+        contentsmax=50000
+        #TEMP DEBUG
+        results=solrSoup.gettrimcontents(doc_id,mycore,searchterm)
+#        return HttpResponse(results)     
         if len(results)>0:
             result=results[0]
+            if 'highlight' in results[0]:
+                highlight=results[0]['highlight']
+            else:
+                highlight=''
+            #print len(highlight)
+            
+            #detect if large file (contents greater or equal to max size)
+            if len(highlight)==contentsmax:
+               print('max contents')
+               #go get large highlights instead
+               res=get_bigcontent(request,doc_id,searchterm)
+               return res
             docsize=result['solrdocsize']
             docpath=result['docpath']
             rawtext=result['rawtext']
             docname=result['docname']
-            hashcontents=result['hashcontents'] 
+            hashcontents=result['hashcontents']
+
         #check if file available for download
             if os.path.exists(os.path.join(docbasepath,docpath)):
                 local=True
@@ -126,12 +188,15 @@ def get_content(request,doc_id,searchterm): #make a page showing the extracted t
         #check if file is registered and authorised to download
             files=File.objects.filter(hash_contents=hashcontents)
             if files.count()>0:
-                print(files,'authorised')
+                #print(files,'authorised')
                 auth=True
             else:
                 auth=False
         #clean up the text for display
-            cleaned=re.sub('(\n[\s]+\n)+', '\n', rawtext) #cleaning up chunks of white space
+#            return HttpResponse(highlight)
+            cleaned=re.sub('(\n[\s]+\n)+', '\n\n', highlight) #cleaning up chunks of white space
+            #print cleaned
+#            cleaned=highlight
             lastscrap=''
             try:
                 splittext=re.split(searchterm,cleaned,flags=re.IGNORECASE) #make a list of text scraps, removing search term
@@ -145,6 +210,83 @@ def get_content(request,doc_id,searchterm): #make a page showing the extracted t
     else:
         return HttpResponseRedirect('/') 
 
+
+
+@login_required
+def testsearch(request,doc_id,searchterm):
+    coreID=request.session.get('mycore')
+    if coreID:
+        mycore=cores[coreID]
+        results=solrSoup.testresponse(doc_id,mycore,searchterm)
+        print results
+        if len(results)>0:
+            if 'highlight' in results[0]:
+                highlight=results[0]['highlight']
+                return HttpResponse(highlight)
+        return HttpResponse(results)
+    else:
+        return HttpResponseRedirect('/')        
+        
+@login_required
+def get_bigcontent(request,doc_id,searchterm): #make a page of highlights, for MEGA files
+	  #load solr index in use, SolrCore object
+    coreID=request.session.get('mycore')
+    if coreID:
+        mycore=cores[coreID]
+        
+        results=solrSoup.bighighlights(doc_id,mycore,searchterm)
+#        print (str(results))
+#        return HttpResponse(str(results))
+        if len(results)>0:
+
+            result=results[0]
+            docsize=result['solrdocsize']
+            docpath=result['docpath']
+            rawtext=result['rawtext']
+            docname=result['docname']
+            hashcontents=result['hashcontents']
+            highlights=result['highlight'] 
+        #check if file available for download
+            if os.path.exists(os.path.join(docbasepath,docpath)):
+                local=True
+            else:
+                local=False
+                print('File does not exist locally')
+        #check if file is registered and authorised to download
+            files=File.objects.filter(hash_contents=hashcontents)
+            if files.count()>0:
+                #print(files,'authorised') #DEBUG : need to add user check to authorise
+                auth=True
+            else:
+                auth=False
+
+        #clean up the text for display
+#            if highlights:
+#                firstscrap=highlights.pop(0)[0]
+#            
+#            else:
+#                firstscrap=''
+#            cleaned=re.sub('(\n[\s]+\n)+', '\n', rawtext) #cleaning up chunks of white space
+#            
+#            lastscrap=''
+#            try:
+#                splittext=re.split(searchterm,cleaned,flags=re.IGNORECASE) #make a list of text scraps, removing search term
+#                if len(splittext) > 1:
+#                    lastscrap=splittext.pop() #remove last entry if more than one, as this last is NOT followed by searchterm
+#            except:
+#                splittext=[cleaned]
+#            print ('HIGHLIGHTS:' , highlights)
+            
+#            parsedhl=[]
+#            for highlight in highlights:
+#                parsedhl.append([highlight.replace('<em>','<b>').replace('</em>','</b>'),'TEST'])
+#                
+#            teststring=[['cat','dog'],['elephant\n\n cat','mousen\n\xa0 cat'],['', ' \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n 2016-10-01 Donald '], [u'Trump', u' Tax Records Show He Could Have Avoided Taxes for Nearly Two Decades, The Times Found\n \n By DAVID BARSTOW, SUSANNE CRAIG, RUSS BUETTNER and MEGAN TWOHEYOCT. 1, 2016\n \n ELECTION 2016 By AINARA TIEFENTH\xc4LER and GABRIEL DANCE 1:22\n \n Trump\u2019s Tax Records\n \n Video\n \n Trump\u2019s Tax Records\n \n The New York Times obtained records from 1995 showing that Donald J. ']]
+            return render(request, 'bigcontentform.html', {'docsize':docsize, 'doc_id': doc_id, 'highlights': highlights, 'searchterm': searchterm,'docname':docname, 'docpath':docpath, 'docexists':local})
+        else:
+            return HttpResponse('Can\'t find document with ID '+doc_id+' COREID: '+coreID)
+    else:
+        return HttpResponseRedirect('/') 
 
 
 def slugify(value):
