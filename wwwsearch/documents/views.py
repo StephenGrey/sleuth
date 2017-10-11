@@ -16,13 +16,18 @@ import solrcursor
 from django.contrib.admin.views.decorators import staff_member_required
 log = logging.getLogger('ownsearch')
 from usersettings import userconfig as config
-defaultcore='1'
+
+#set up solr indexes
+cores=solr.getcores()
+defaultcoreID=config['Solr']['defaultcoreid']
+if defaultcoreID not in cores:
+   defaultcoreID=cores.keys()[0]  #take any old core, if default not found
 
 @staff_member_required()
 def index(request):
     #get the core , or set the the default
     if 'mycore' not in request.session:  #set default if no core selected
-        request.session['mycore']=defaultcore
+        request.session['mycore']=defaultcoreID
     coreID=request.session.get('mycore')
     if request.method=='POST': #if data posted # switch core
 #        print('post data')
@@ -35,7 +40,7 @@ def index(request):
 #        print(request.session['mycore'])
         form=IndexForm(initial={'CoreChoice':coreID})
 #        print('Core set in request: ',request.session['mycore'])
-    latest_collection_list = Collection.objects.filter(core=mycore)
+    latest_collection_list = Collection.objects.filter(core=coreID)
     return render(request, 'documents/scancollection.html',{'form': form, 'latest_collection_list': latest_collection_list})
 
 def listfiles(request):
