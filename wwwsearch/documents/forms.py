@@ -4,16 +4,20 @@ from django.forms.fields import ChoiceField
 from usersettings import userconfig as config
 from documents.models import SolrCore as sc
 #NB values fetched at server restart, not dynamic
+from django.db.utils import OperationalError
 
 def get_corechoices():
     cores={}
     choice_list=()
-    for coredoc in sc.objects.all():
-        corenumber=coredoc.coreID
-        coredisplayname=coredoc.coreDisplayName
+    try:
+        for coredoc in sc.objects.all():
+            corenumber=coredoc.coreID
+            coredisplayname=coredoc.coreDisplayName
        #print corenumber,core
-        choice_list +=((corenumber,coredisplayname),) #value/label
+            choice_list +=((corenumber,coredisplayname),) #value/label
     #print(choice_list)
+    except OperationalError:
+        pass #catching solr table not created yet
     return choice_list
 	
 #    choice_list=()

@@ -8,7 +8,10 @@ from ownsearch import solrSoup
 #core=config['Cores']['1'] #the name of the index to use within the Solr backend
 #url=config['Solr']['url']+core+'/select?q=' #Solr:url is the network address of Solr backend
 #hlarguments=config[core]['highlightingargs']
-dfltsearchterm=config['Test']['testsearchterm']
+try:
+    dfltsearchterm=config['Test']['testsearchterm']
+except:
+    dfltsearchterm=''
 #cursorargs=config[core]['cursorargs']
 #docpath=config[core]['docpath']
 #arguments='&fl=id,date,content'

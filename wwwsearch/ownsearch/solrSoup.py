@@ -7,6 +7,7 @@ import os, logging
 import re
 from documents.models import File,Collection
 from documents.models import SolrCore as sc
+from django.db.utils import OperationalError
 from usersettings import userconfig as config
 
 class MissingConfigData(Exception): 
@@ -270,16 +271,19 @@ def hashlookup(hex,core):
 #make a dictionary of SolrCore objects, so different indexes can be selected from form
 def getcores():
     cores={}
-    for coredoc in sc.objects.all():
-        core=coredoc.corename
-        corenumber=coredoc.coreID
+    try:
+        for coredoc in sc.objects.all():
+            core=coredoc.corename
+            corenumber=coredoc.coreID
 #    for corenumber in config['Cores']:
 #        core=config['Cores'][corenumber]
 #        name=config[core]['name']
-        try:
-            cores[corenumber]=SolrCore(core)
-        except MissingConfigData:
-            print('Missing data in usersettings.config for core number '+corenumber)
+            try:
+                cores[corenumber]=SolrCore(core)
+            except MissingConfigData:
+                print('Missing data in usersettings.config for core number '+corenumber)
+    except OperationalError: #catching if solrcore table not created yet
+        pass
     return cores
 
 #defaultcore=getcores()['1'] #config['Cores']['1'] #the name of the index to use within the Solr backend
