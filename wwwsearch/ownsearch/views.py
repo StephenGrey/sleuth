@@ -19,7 +19,10 @@ log = logging.getLogger('ownsearch')
 
 #set up solr indexes
 cores=solrSoup.getcores()
-defaultcore='3'
+defaultcoreID=config['Solr']['defaultcoreid']
+if defaultcoreID not in cores:
+   defaultcoreID=cores.keys()[0]  #take any old core, if default not found
+
 docbasepath=config['Models']['collectionbasepath']
 
 @login_required
@@ -27,7 +30,7 @@ def do_search(request,page=0,searchterm='',direction='',pagemax=0,sorttype=''):
 
 #GET THE INDEX get the solr index, a SolrCore object, or choose the the default
     if 'mycore' not in request.session:  #set default if no core selected
-        request.session['mycore']=defaultcore
+        request.session['mycore']=defaultcoreID
     coreID=request.session.get('mycore')
     if coreID in cores:
         mycore=cores[coreID]
