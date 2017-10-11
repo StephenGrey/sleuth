@@ -26,7 +26,7 @@ def scandocs(collection,deletes=True):
     except Exception as e:
         print ('failed to make updates to file database')
         print('Error: ',str(e))
-        return
+        return [0,0,0,0,0]
     #remove deleted files from the index
     #(only remove from database when successfully removed from solrindex, so if solr is down won't lose sync)
     if deletes and change['deletedfiles']:
@@ -42,7 +42,7 @@ def scandocs(collection,deletes=True):
     except Exception as e:
         print ('failed to make update updates to solr metadata')
         print('Error: ',str(e),e)
-        return
+        return [0,0,0,0,0] 
     listchanges=countchanges(change)
     return listchanges #newfiles,deleted,moved,unchanged,changedfiles
 
@@ -79,14 +79,22 @@ def checkupdate(id,changes,mycore):
     status=True
     res,numbers=s.solrSearch('id:'+id,'',0,core=mycore)
     #print (changes,res)
-    for field,value in changes:
-        newvalue=res[0][field]
-        #print newvalue,value
-        if newvalue==value:
-            print(field+'  successfully updated to '+str(value))
-        else:
-            print(field+' not updated; currentvalue: '+res[0][field])
-            status=False
+    if len(res)>0:
+        for field,value in changes:
+            if field in res[0]:
+                newvalue=res[0][field]
+            #print newvalue,value
+                if newvalue==value:
+                    print(field+' successfully updated to '+str(value))
+                else:
+                    print(field+' not updated; currentvalue: '+res[0][field])
+                    status=False
+            else:
+                print(field+' not found in solr result')
+                status=False
+    else:
+        print('error finding solr result for id',id)
+        status=False
     return status
 
 def update(id,changes,mycore):  #solrid, list of changes [(field,value),(field2,value)],core
@@ -208,8 +216,7 @@ def parsechanges(solrresult,file,mycore):
 #debug - timezones not quite fixed here
     if oldlastmraw !=newlastmodified:
 #    oldlastmodified != file.last_modified:
-        print (oldlastmodified,file.last_modified)
-        print (oldlastmodified-file.last_modified)
+        print(oldlastmodified,file.last_modified)
         print('need to update last_modified from '+oldlastmraw+' to '+newlastmodified)
         changes.append((mycore.datefield,newlastmodified))
     newfilename=file.filename+file.fileext
