@@ -17,8 +17,12 @@ wwwsearch/usersettings.config
 #ignore the database - it should be recreated
 wwwsearch/db.sqlite3
 
-#ignore solr installation
+#EXCLUDE solr installation >>> PUT another gitignore in data directory
 solr-6.6.0/
 
+#ignore mac folder configs
+.DS_Store
 
-
+.DS_Store
+wwwsearch/.DS_Store
+wwwsearch/documents/.DS_Store

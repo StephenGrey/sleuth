@@ -18,7 +18,7 @@ docstore=config['Models']['collectionbasepath'] #get base path of the docstore
 
 
 def scandocs(collection,deletes=True):
-    change=changes(collection)  #get dictionary of changes to file collection
+    change=changes(collection)  #get dictionary of changes to file collection (compare disk folder to meta database)
     
     #make the changes to file database
     try:
@@ -285,10 +285,10 @@ def updates(change,collection):
                 #contents change, flag for index
                 file.indexedSuccess=False
                 file.hash_contents=newhash
-                #no change in contents - no need to flag for index
-            #else if the file has been already indexed, flag to correct solr index meta
+            #else-if the file has been already indexed, flag to correct solr index meta
             elif file.indexedSuccess==True:
                 file.indexUpdateMeta=True  #flag to correct solrindex
+            #else no change in contents - no need to flag for index
             file.save()
     return
 
@@ -316,9 +316,10 @@ def updatefiledata(file,path,makehash=False):
         return False
 
 def changes(collection):
-    filedict=filetable(collection.path) #get files and specs inside a folder (and subfolders)
+    filedict=filetable(collection.path) #get specs of files in disk folder(and subfolders)
     filelist=File.objects.filter(collection=collection)
     unchanged,changedfiles,missingfiles,newfileshash,movedfiles,newfiles,deletedfiles=[],[],{},{},[],[],[]
+
     #loop through files in the database
     #print filedict,filelist
     for file in filelist:
@@ -326,10 +327,10 @@ def changes(collection):
         lastm=file.last_modified
         hash=file.hash_contents
         size=file.filesize
-        #grab and remove the filepath from filedict if in database
+        #grab and remove the filepath from filedict if already in database
         latest_file=filedict.pop(path, None)
         if latest_file:  #if stored path exists in current folder
-                latest_lastm=latest_file[4]
+                latest_lastm=latest_file[4] #gets last modified info
                 latest_lastmod=datetime.fromtimestamp(latest_lastm)
                 latest_lastmodified=pytz.timezone("Europe/London").localize(latest_lastmod, is_dst=True)
                 latestfilesize=latest_file[1]

@@ -110,14 +110,17 @@ def getlist(soup,counter,core,linebreaks=False,big=False): #this parses the list
                 document['rawtext']=document.pop(core.rawtext)
             else:
                 document['rawtext']=''
+
             if core.docnamefield in document:
                 document['docname']=document[core.docnamefield]
             else:
                 document['docname']=''
+
             if core.datefield in document:
                 document['date']=document.pop(core.datefield)
             elif 'date' not in document:
                 document['date']=''
+
             if core.docpath in document:
                 document['docpath']=document[core.docpath]
             else:
