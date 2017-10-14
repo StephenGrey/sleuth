@@ -52,6 +52,7 @@ def extract(path,contentsHash,mycore,test=False):
         print ('Exception: ',str(e))
         print('core missing default fields')
         return False
+    #establish connnection to solr index
     if ping(mycore)==False:
         print('No connection')
         return False

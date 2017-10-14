@@ -1,0 +1,9 @@
+#hide logs 
+/logs/*
+#hide the indexes
+/solr/*
+!/solr/configsets/*
+!/solr/README.txt
+#allow configuration to be tracked
+!solr.xml
+

@@ -12,6 +12,9 @@ from usersettings import userconfig as config
 
 class MissingConfigData(Exception): 
     pass
+    
+class SolrConnectionError(Exception):
+    pass
 
 class SolrCore:
     def __init__(self,mycore):
@@ -47,6 +50,18 @@ class SolrCore:
         soup=getSolrResponse(self.dfltsearchterm,args,core=self)
         res,numbers=getlist(soup,0,core=self)
         return res,soup
+    def ping(self):
+        try:
+            res=requests.get(self.url+'/admin/ping')
+        except requests.exceptions.ConnectionError as e:
+            print('no connection to solr server')
+            raise SolrConnectionError
+            return False
+#      except requests.exceptions.RequestException as e:
+#         raise requests.exceptions.RequestException
+#        print (e,str(e))
+#        return False
+        return True
 
 log = logging.getLogger('ownsearch')
 
