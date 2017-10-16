@@ -16,9 +16,13 @@ class MissingConfigData(Exception):
 class SolrConnectionError(Exception):
     pass
 
+
+
 class SolrCore:
     def __init__(self,mycore):
         try:
+            #if mycore is integer, make it string
+            mycore=str(mycore)
             if mycore not in config:
                 core='defaultcore'
             else:
@@ -54,8 +58,8 @@ class SolrCore:
         try:
             res=requests.get(self.url+'/admin/ping')
         except requests.exceptions.ConnectionError as e:
-            print('no connection to solr server')
-            raise SolrConnectionError
+#            print('no connection to solr server')
+            raise SolrConnectionError('solr connection error')
             return False
 #      except requests.exceptions.RequestException as e:
 #         raise requests.exceptions.RequestException

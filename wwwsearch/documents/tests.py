@@ -121,7 +121,7 @@ def failedscans(collection=''):
         d=File.objects.filter(indexedTry=True)
     for f in d:
         print(f.collection, f.filename, f.filepath, f.filesize)
-        print ("UpdateMeta: "+str(f.indexUpdateMeta), "Indexed Success: "+str(f.indexedSuccess), "Indexed Try :"+str(f.indexedTry), f.last_modified, f.solrid)
+        print ("FileID: "+str(f.id)+"UpdateMeta: "+str(f.indexUpdateMeta), "Indexed Success: "+str(f.indexedSuccess), "Indexed Try :"+str(f.indexedTry), f.last_modified, f.solrid)
        
 def listc():
     for collection in Collection.objects.all():
@@ -136,7 +136,7 @@ def makecollection(path):
 def listf(collectionID):
     listfiles=File.objects.filter(collection=collectionID)
     for file in listfiles:
-        print('Path:'+file.filepath,'SolrID:'+file.solrid,'Indexed?'+str(file.indexedSuccess),'IndexedTry'+str(file.indexedTry),'Contents:'+file.hash_contents,'Path:'+file.hash_filename)
+        print('FIlename'+file.filename,'FileExt'+file.fileext,'Path:'+file.filepath,'SolrID:'+file.solrid,'Indexed?'+str(file.indexedSuccess),'IndexedTry'+str(file.indexedTry),'Contents:'+file.hash_contents,'Path:'+file.hash_filename)
         
 def coll(ID):
     return Collection.objects.get(id=ID)
@@ -184,3 +184,11 @@ def ckdates(collection):
 # id,tika_metadata_last_modified, last_modified, tika_metadata_resourcename, tika_metadata_date, date                    
 def times(path):
     return os.path.getmtime(path)
+    
+def pingtest(mycore):
+    try:
+        mycore.ping()
+    except s.SolrConnectionError as e:
+        print e
+        return e
+

@@ -23,7 +23,7 @@ def cursor(mycore): #iterates through entire solr index in blocks of e.g. 100
     #print('start scan')
     cursormark='*' #start a cursor scan with * and next cursor to begin with is returned
     nextcursor=''
-    longdict={} #dictionary of index data, keyed on full filepath
+    longdict={} #dictionary of index data, keyed on relative filepath
     while True:
         args=mycore.cursorargs+'&cursorMark='+cursormark
         #print args
@@ -80,5 +80,5 @@ def listresults(soup,mycore):
             results[path]=document
             #document['docname']=os.path.basename(id)
         else:
-            print('Solrcursor: no filepath defined in this Solr document: ',document)
+            print('Solrcursor: no filepath in Solr document with ID: '+str(document['id']))
     return results,numberfound

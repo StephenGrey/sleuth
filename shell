@@ -1,0 +1,2 @@
+python wwwsearch/manage.py shell
+

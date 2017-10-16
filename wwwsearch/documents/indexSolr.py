@@ -19,6 +19,10 @@ from usersettings import userconfig as config
 """
 
 """
+
+class ExtractInterruption(Exception):
+    pass
+    
 #FILE METHODS
 def pathHash(path):
     m=hashlib.md5()
@@ -46,7 +50,7 @@ def extract(path,contentsHash,mycore,test=False):
     extractargs='commit=true'
     try:
         filenamefield=mycore.docnamefield
-        hashcontentsfield= mycore.hashcontentsfield
+        hashcontentsfield=mycore.hashcontentsfield
         filepathfield=mycore.docpath
     except Exception as e:
         print ('Exception: ',str(e))

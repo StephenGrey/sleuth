@@ -156,7 +156,7 @@ def metaupdate(collection):
             print()
             print('ID:'+file.solrid)
             #,'PATHHASH'+file.hash_filename
-            print'Solr meta data needs update'
+            print'Solr meta data flagged for update'
             #get solr data on file - and then modify if changed
             results=s.getcontents(file.solrid,core=mycore)  #get current contents of solr doc
             if len(results)>0:
@@ -219,9 +219,10 @@ def parsechanges(solrresult,file,mycore):
         print(oldlastmodified,file.last_modified)
         print('need to update last_modified from '+oldlastmraw+' to '+newlastmodified)
         changes.append((mycore.datefield,newlastmodified))
-    newfilename=file.filename+file.fileext
+    newfilename=file.filename
     if olddocname != newfilename:
         print('need to update filename from'+olddocname+' to '+newfilename)
+        changes.append((mycore.docnamefield,newfilename))
     return changes
 
 

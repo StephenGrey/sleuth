@@ -71,35 +71,50 @@ def listfiles(request):
         thiscollection=Collection.objects.get(id=selected_collection)
         collectionpath=thiscollection.path
         #>> DO THE SCAN ON THIS COLLECTION
-        scanfiles=updateSolr.scandocs(thiscollection)
-        newfiles,deletedfiles,movedfiles,unchangedfiles,changedfiles=scanfiles
-        if sum(scanfiles)>0:
-             return HttpResponse (" <p>Scanned "+str(sum(scanfiles))+" docs<p>New: "+str(newfiles)+"<p>Deleted: "+str(deletedfiles)+"<p> Moved: "+str(movedfiles)+"<p>Changed: "+str(changedfiles)+"<p>Unchanged: "+str(unchangedfiles))
-        else:
-             return HttpResponse (" Scan Failed!")
+        try:
+            mycore.ping()
+            scanfiles=updateSolr.scandocs(thiscollection)
+            newfiles,deletedfiles,movedfiles,unchangedfiles,changedfiles=scanfiles
+            if sum(scanfiles)>0:
+                return HttpResponse (" <p>Scanned "+str(sum(scanfiles))+" docs<p>New: "+str(newfiles)+"<p>Deleted: "+str(deletedfiles)+"<p> Moved: "+str(movedfiles)+"<p>Changed: "+str(changedfiles)+"<p>Unchanged: "+str(unchangedfiles))
+            else:
+                return HttpResponse (" Scan Failed!")
+        except solr.SolrConnectionError:
+            return HttpResponse("No connection to Solr index: (re)start Solr server")
 #INDEX DOCUMENTS IN COLLECTION IN SOLR
     elif request.method == 'POST' and 'index' in request.POST and 'choice' in request.POST:
         try:
             #print('try to index in Solr')
+            mycore.ping()
             selected_collection=int(request.POST[u'choice'])
             thiscollection=Collection.objects.get(id=selected_collection)
             icount,iskipped,ifailed=indexdocs(thiscollection,mycore) #GO INDEX THE DOCS IN SOLR
             return HttpResponse ("Indexing.. <p>indexed: "+str(icount)+"<p>skipped:"+str(iskipped)+"<p>failed:"+str(ifailed))
+        except indexSolr.ExtractInterruption as e:
+            return HttpResponse ("Indexing interrupted -- Solr Server not available. \n"+e.message)
+        except solr.SolrConnectionError as e:
+            #print (e)
+            return HttpResponse("No connection to Solr index: (re)start Solr server")
         except requests.exceptions.RequestException as e:
-            print ('caught connection error')
-            return HttpResponse ("No response from Solr Server / Solr Server crashed")
+            print ('caught requests connection error')
+            return HttpResponse ("Indexing interrupted -- Solr Server not available")
 
 #CURSOR SEARCH OF SOLR INDEX
     elif request.method == 'POST' and 'solrcursor' in request.POST and 'choice' in request.POST:
         #print('try cursor scan of Solr Index')
-        selected_collection=int(request.POST[u'choice'])
-        thiscollection=Collection.objects.get(id=selected_collection)
+        try:
+            mycore.ping()
+            selected_collection=int(request.POST[u'choice'])
+            thiscollection=Collection.objects.get(id=selected_collection)
         #print (thiscollection,mycore)
-        match,skipped,failed=indexcheck(thiscollection,mycore) #GO SCAN THE SOLR INDEX
-        return HttpResponse ("Checking solr index.. <p>files indexed: "+str(match)+"<p>files not found:"+str(skipped)+"<p>errors:"+str(failed))
+            match,skipped,failed=indexcheck(thiscollection,mycore) #GO SCAN THE SOLR INDEX
+            return HttpResponse ("Checking solr index.. <p>files indexed: "+str(match)+"<p>files not found:"+str(skipped)+"<p>errors:"+str(failed))
+        except solr.SolrConnectionError:
+            return HttpResponse("No connection to Solr index: (re)start Solr server")
     else:
         return redirect('index')
 #    return render(request, 'documents/listdocs.html',{'results':filelist,'collection':collectionpath })
+
 
 
 #checking for what files in existing solrindex
@@ -112,9 +127,9 @@ def indexcheck(collection,thiscore):
     try:#make a dictionary of filepaths from solr index
         indexpaths=solrcursor.cursor(thiscore)
     except Exception as e:
-        print('failed to retrieve solr index')
+        print('Failed to retrieve solr index')
         print (str(e))
-        return 'Failed to get index'
+        return 0,0,0
 
     #now compare file list with solrindex
     if True:
@@ -160,9 +175,9 @@ def indexcheck(collection,thiscore):
                     #print ('PATH :'+file.filepath+' indexed successfully (HASHMATCH)', 'Solr \'id\': '+solrdata['id'])
                 #NO MATCHES< RETURN FAILURE
                 else:
-                    print (file.filepath,'.. not indexed')
+                    print (file.filepath,'.. not found in Solr index')
                     file.indexedSuccess=False
-                    file.solrid='' #wipe any stored solr id
+                    file.solrid='' #wipe any stored solr id; DEBUG: this wipes also oldsolr ids scheduled for delete
                     file.save()
                     skipped+=1
         return counter,skipped,failed
@@ -199,7 +214,10 @@ def indexdocs(collection,mycore,forceretry=False): #index into Solr documents no
                     file.hash_contents=hexfile(file.filepath)
                     file.save()
                 #now try the extract
-                result=indexSolr.extract(file.filepath,file.hash_contents,mycore)
+                try:
+                    result=indexSolr.extract(file.filepath,file.hash_contents,mycore)
+                except requests.exceptions.RequestException as e:
+                    raise indexSolr.ExtractInterruption('Indexing interrupted after '+str(counter)+' files extracted, '+str(skipped)+' files skipped and '+str(failed)+' files failed.')               
                 if result is True:
                     counter+=1
                     #print ('PATH :'+file.filepath+' indexed successfully')
