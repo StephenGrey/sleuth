@@ -6,4 +6,7 @@
 !/solr/README.txt
 #allow configuration to be tracked
 !solr.xml
+#allow example index
+!/solr/coreexample
+!/solr/coreexample/*
 
