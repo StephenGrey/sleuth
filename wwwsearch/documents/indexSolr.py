@@ -7,6 +7,7 @@ import hashlib  #routines for calculating hash
 from documents.models import Collection,File
 log = logging.getLogger('ownsearch')
 from usersettings import userconfig as config
+from ownsearch.solrSoup import SolrConnectionError
 
 #from settings
 #solrcore=config['Cores']['1'] #the name of the index to use within the Solr backend
@@ -57,7 +58,9 @@ def extract(path,contentsHash,mycore,test=False):
         print('core missing default fields')
         return False
     #establish connnection to solr index
-    if ping(mycore)==False:
+    try:
+        mycore.ping()
+    except SolrConnectionError as e:
         print('No connection')
         return False
     if os.path.exists(path)==False: #check file exists
@@ -165,17 +168,6 @@ def postSolr(args,path,mycore):
         statusOK=False
         return '',statusOK
 
-def ping(core):
-    res=requests.get(core.url+'/admin/ping')
-    
-#    except requests.exceptions.ConnectionError as e:
-#        print('no connection to solr server')
-#        return False
-#      except requests.exceptions.RequestException as e:
-#         raise requests.exceptions.RequestException
-#        print (e,str(e))
-#        return False
-    return True
 
 if __name__ == '__main__':   #
     scanpath('')

@@ -16,7 +16,7 @@ from usersettings import userconfig as config
 
 docstore=config['Models']['collectionbasepath'] #get base path of the docstore
 
-
+#SCAN AND MAKE UPDATES TO BOTH LOCAL FILE META DATABASE AND SOLR INDEX
 def scandocs(collection,deletes=True):
     change=changes(collection)  #get dictionary of changes to file collection (compare disk folder to meta database)
     
@@ -111,11 +111,13 @@ def makejson(solrid,changes):
     data=json.dumps([a])
     return data
 
+#delete a file from solr index, return True if success
 def delete(solrid,mycore):
     data=deletejson(solrid)
     response,status=post_jsonupdate(data,mycore)
     return response,status
 
+#build json to delete a file from solr index
 def deletejson(solrid):
     a=collections.OrderedDict()  #keeps the JSON file in a nice order
     a['delete']={'id':solrid}
@@ -286,6 +288,7 @@ def updates(change,collection):
                 #contents change, flag for index
                 file.indexedSuccess=False
                 file.hash_contents=newhash
+            #the solrid field is not cleared = the index process can check if it exists and delete it
             #else-if the file has been already indexed, flag to correct solr index meta
             elif file.indexedSuccess==True:
                 file.indexUpdateMeta=True  #flag to correct solrindex

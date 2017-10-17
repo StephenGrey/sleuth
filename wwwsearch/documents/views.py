@@ -10,7 +10,7 @@ from ownsearch.hashScan import HexFolderTable as hex
 from ownsearch.hashScan import hashfile256 as hexfile
 from ownsearch.hashScan import FileSpecTable as filetable
 import datetime, hashlib, os, logging, requests
-import indexSolr, updateSolr
+import indexSolr, updateSolr, solrICIJ
 import ownsearch.solrSoup as solr
 import solrcursor
 from django.contrib.admin.views.decorators import staff_member_required
@@ -182,8 +182,8 @@ def indexcheck(collection,thiscore):
                     skipped+=1
         return counter,skipped,failed
 
-
-def indexdocs(collection,mycore,forceretry=False): #index into Solr documents not already indexed
+#MAIN METHOD FOR EXTRACTING DATA
+def indexdocs(collection,mycore,forceretry=False,useICIJ=False): #index into Solr documents not already indexed
     #need to check if mycore and collection are valid objects
     if isinstance(mycore,solr.SolrCore) == False or isinstance(collection,Collection) == False:
         print('indexdocs() parameters invalid')
@@ -214,23 +214,32 @@ def indexdocs(collection,mycore,forceretry=False): #index into Solr documents no
                     file.hash_contents=hexfile(file.filepath)
                     file.save()
                 #now try the extract
-                try:
-                    result=indexSolr.extract(file.filepath,file.hash_contents,mycore)
-                except requests.exceptions.RequestException as e:
-                    raise indexSolr.ExtractInterruption('Indexing interrupted after '+str(counter)+' files extracted, '+str(skipped)+' files skipped and '+str(failed)+' files failed.')               
+                if useICIJ:
+                    print('using ICIJ extract method..')
+                    result = solrICIJ.ICIJextract(file.filepath,file.hash_contents,mycore)
+                else:
+                    try:
+                        result=indexSolr.extract(file.filepath,file.hash_contents,mycore)
+                    except requests.exceptions.RequestException as e:
+                        raise indexSolr.ExtractInterruption('Indexing interrupted after '+str(counter)+' files extracted, '+str(skipped)+' files skipped and '+str(failed)+' files failed.')               
                 if result is True:
                     counter+=1
                     #print ('PATH :'+file.filepath+' indexed successfully')
-                    file.solrid=file.hash_filename  #extract users hashfilename for an id , so add it
+                    file.solrid=file.hash_filename  #extract uses hashfilename for an id , so add it
                     file.indexedSuccess=True
-                    #now delete old solr doc 
+                    #now delete previous solr doc (if any): THIS IS ONLY NECESSARY IF ID CHANGES  
+                    print ('Old ID:'+oldsolrid,'New ID'+file.solrid)
                     if oldsolrid and oldsolrid!=file.solrid:
                         print('now delete old solr doc',oldsolrid)
+                        #DEBUG: NOT TESTED YET
+                        response,status=updateSolr.delete(oldsolrid,mycore)
+                        if status:
+                            print('Deleted solr doc with ID:'+oldsolrid)
                     file.save()
                 else:
                     print ('PATH : '+file.filepath+' indexing failed')
                     failed+=1
-                    file.indexedTry=True  #set flag to say we've treid
+                    file.indexedTry=True  #set flag to say we've tried
                     file.save()
         return counter,skipped,failed
 

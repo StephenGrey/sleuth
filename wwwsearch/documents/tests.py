@@ -10,6 +10,7 @@ from ownsearch.hashScan import pathHash
 import ownsearch.solrSoup as s
 import solrcursor as curs
 from ownsearch.hashScan import FileSpecTable as filetable
+from documents import views as v
 from django.utils import timezone
 import pytz #support localising the timezone
 from usersettings import userconfig as config
@@ -80,38 +81,6 @@ def post(path,solrurl):
             file = {'myfile': (simplefilename,f)}
             res=requests.post(url, files=file)
     return res
-
-def testextract(path="somefile",coreID="3"):
-    try:
-        docstore=config['Models']['collectionbasepath'] #get base path of the docstore
-        cores=s.getcores() #fetch dictionary of installed solr indexes (cores)
-        mycore=cores[coreID]
-        i.ping(mycore) #checks the connection is alive
-        contentsHash=hexfile(path)
-        #print mycore.name,mycore.url
-        #result=i.extract(path,contentsHash,mycore,test=False)
-        result=trysub(path,mycore)
-        return result
-    except requests.exceptions.RequestException as e:
-        print ('caught connection error')
-
-def trysub(path,mycore):
-    extractpath=config['Extract']['extractpath'] #get location of Extract java JAR
-    solrurl=mycore.url
-    target=path
-    #extract via ICIJ extract
-    args=["java","-jar", extractpath, "spew","-o", "solr", "-s"]
-    args.append(solrurl)
-    args.append(target)
-    result=subprocess.call(args)
-    print result
-    #commit the results
-    print ('commmitting ..')
-    args=["java","-jar",extractpath,"commit","-s"]
-    args.append(solrurl)
-    result=subprocess.call(args)
-    print result
-    return
 
 
 def failedscans(collection=''):
@@ -191,4 +160,9 @@ def pingtest(mycore):
     except s.SolrConnectionError as e:
         print e
         return e
+        
+
+def ICIJindex(collection,mycore): #indexdocs(collection,mycore,forceretry=False,useICIJ=False)
+    counter,skipped,failed=v.indexdocs(collection,mycore,forceretry=True,useICIJ=True)
+    return counter,skipped,failed
 
