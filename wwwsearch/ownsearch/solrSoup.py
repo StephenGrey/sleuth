@@ -61,11 +61,10 @@ class SolrCore:
 #            print('no connection to solr server')
             raise SolrConnectionError('solr connection error')
             return False
-#      except requests.exceptions.RequestException as e:
-#         raise requests.exceptions.RequestException
-#        print (e,str(e))
-#        return False
+
         return True
+    def __str__(self):
+        return self.name
 
 log = logging.getLogger('ownsearch')
 

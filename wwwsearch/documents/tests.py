@@ -16,6 +16,7 @@ import pytz #support localising the timezone
 from usersettings import userconfig as config
 from datetime import datetime, date, time
 import subprocess
+from subprocess import Popen, PIPE, STDOUT
 import updateSolr as u
 
 docstore=config['Models']['collectionbasepath'] #get base path of the docstore
@@ -166,3 +167,28 @@ def ICIJindex(collection,mycore): #indexdocs(collection,mycore,forceretry=False,
     counter,skipped,failed=v.indexdocs(collection,mycore,forceretry=True,useICIJ=True)
     return counter,skipped,failed
 
+
+
+def tps():  #test sub process
+    args=["java","-version"] #,"2>&1"]
+#    args=[u'java', u'-jar', 'somepath', u'commit', u'-s', u'http://localhost:8983/solr/debugxx']
+#    path=u'somefilen.docxXX'
+#    args=[u'extract','spew','-o','solr','-s','http://localhost:8983/solr/coreexample',path] #1>&2']
+#    args=[u'extract','commit',u'-s', u'http://localhost:8983/solr/corexample']
+#    args=['ls','-lh']
+    result=Popen(args, stderr=PIPE,shell=False,stdout=PIPE)
+    print vars(result)
+    print ('STDOUT:',result.stdout.read())
+    print ('STDERR:')
+    while True:
+        line = result.stderr.readline()
+        if line != '':
+    #the real code does filtering here
+            print "test:", line.rstrip()
+        else:
+            break
+    if result==0:
+        print ('Successful')
+    return result
+    
+   

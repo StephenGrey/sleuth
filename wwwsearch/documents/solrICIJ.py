@@ -29,16 +29,66 @@ def tryextract(path,mycore):
     args=["java","-jar", extractpath, "spew","-o", "solr", "-s"]
     args.append(solrurl)
     args.append(target)
-    result=subprocess.call(args)
-    print (result)
-    if result==0:
+    result=subprocess.Popen(args, stderr=subprocess.PIPE, stdout=subprocess.PIPE,shell=False)
+    output,success=parse_out(result)
+#    print(output) #DEBUG : LOG IT instead
+    for mtype,message in output:
+        if mtype=='SEVERE':  #PRINT OUT ONLY SEVERE MESSAGES
+            print (mtype+message)
+    if success == True:
         print ('Successful extract')
         #commit the results
         print ('Committing ..')
         args=["java","-jar",extractpath,"commit","-s"]
-        args.append(solrurl)
-        result=subprocess.call(args)
-        if result==0:
-            return True
+        args.append(solrurl+'xx') #tests - add deliberate error
+#        print (args)
+#        commitout=subprocess.call(args)
+        result=subprocess.Popen(args, stderr=subprocess.PIPE, stdout=subprocess.PIPE,shell=False)
+#        print (result, vars(result)) #
+        commitout,ignore=parse_out(result)
+        if commitout==[]:
+            print ('No errors from commit')
+            return True 
     return False
     
+def parse_out(result):
+    #calling a java app produces no stdout -- but for debug, output it if any
+    if result.stdout:
+       print('STDOUT from Java process: ',result.stdout.read())
+    output=[]
+    message=''
+    ltype=''
+    postsolr = False
+    while True:
+        line = result.stderr.readline()
+        linestrip=line.rstrip()
+        #print (linestrip)
+        if line != '':
+            if line[:5]=='INFO:':
+                #dump previous message
+                if message:
+                    output.append((ltype,message))
+                message=line[5:]
+                if message[:23]==' Document added to Solr':
+                    postsolr = True
+                ltype='INFO'
+            elif line[:8]=='WARNING:':
+                #dump previous message
+                if message:
+                    output.append((ltype,message))                
+                ltype='WARNING'
+                message=line[8:]
+            elif line[:7]=='SEVERE:':
+                #dump previous message
+                if message:
+                    output.append((ltype,message))                
+                ltype='SEVERE'
+                message=line[7:]
+            else: #NOT A HEADER
+                message+=line
+#            print ("test:", line.rstrip())
+        else:
+            break
+#    print (vars(result))
+#    print (output)
+    return output, postsolr
