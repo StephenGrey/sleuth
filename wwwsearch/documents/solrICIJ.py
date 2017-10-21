@@ -7,16 +7,15 @@ import subprocess
 #EXTRACT A FILE TO SOLR INDEX (defined in mycore (instance of solrSoup.SolrCore))
 #returns solrSoup.MissingConfigData error if path missing to extract.jar
 def ICIJextract(path,hashcontents,mycore):
-    print('trying test extract')
     try:
         mycore.ping() #checks the connection is alive
         result=tryextract(path,mycore)
-        return result
+        return result #return True on success
     except IOError as e:
         print ('File cannot be opened')
     except s.SolrConnectionError as e:
         print ('Connection error')
-    return False  #for now make every result false to force retry
+    return False  #if error return False
 
 def tryextract(path,mycore):
     try:
@@ -42,19 +41,20 @@ def tryextract(path,mycore):
         args=["java","-jar",extractpath,"commit","-s"]
         args.append(solrurl+'xx') #tests - add deliberate error
 #        print (args)
-#        commitout=subprocess.call(args)
         result=subprocess.Popen(args, stderr=subprocess.PIPE, stdout=subprocess.PIPE,shell=False)
 #        print (result, vars(result)) #
         commitout,ignore=parse_out(result)
         if commitout==[]:
-            print ('No errors from commit')
+#            print ('No errors from commit')
             return True 
     return False
     
 def parse_out(result):
     #calling a java app produces no stdout -- but for debug, output it if any
     if result.stdout:
-       print('STDOUT from Java process: ',result.stdout.read())
+       sout=result.stdout.read()
+       if sout != '':
+           print('STDOUT from Java process: ',result.stdout.read())
     output=[]
     message=''
     ltype=''

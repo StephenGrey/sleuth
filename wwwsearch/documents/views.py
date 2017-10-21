@@ -98,6 +98,23 @@ def listfiles(request):
         except requests.exceptions.RequestException as e:
             print ('caught requests connection error')
             return HttpResponse ("Indexing interrupted -- Solr Server not available")
+#INDEX DOCUMENTS IN COLLECTION IN SOLR
+    elif request.method == 'POST' and 'indexICIJ' in request.POST and 'choice' in request.POST:
+        try:
+            #print('try to index in Solr')
+            mycore.ping()
+            selected_collection=int(request.POST[u'choice'])
+            thiscollection=Collection.objects.get(id=selected_collection)
+            icount,iskipped,ifailed=indexdocs(thiscollection,mycore,forceretry=True,useICIJ=True) #GO INDEX THE DOCS IN SOLR
+            return HttpResponse ("Indexing w ICIJ tool .. <p>indexed: "+str(icount)+"<p>skipped:"+str(iskipped)+"<p>failed:"+str(ifailed))
+        except indexSolr.ExtractInterruption as e:
+            return HttpResponse ("Indexing w ICIJ tool interrupted -- Solr Server not available. \n"+e.message)
+        except solr.SolrConnectionError as e:
+            #print (e)
+            return HttpResponse("No connection to Solr index: (re)start Solr server")
+        except requests.exceptions.RequestException as e:
+            print ('caught requests connection error')
+            return HttpResponse ("Indexing interrupted -- Solr Server not available")
 
 #CURSOR SEARCH OF SOLR INDEX
     elif request.method == 'POST' and 'solrcursor' in request.POST and 'choice' in request.POST:
