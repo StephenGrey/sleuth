@@ -23,8 +23,8 @@ defaultcoreID=config['Solr']['defaultcoreid']
 if defaultcoreID not in cores:
     try:
         defaultcoreID=cores.keys()[0]  #take any old core, if default not found
-    except:
-        defaultcoreID='1' #get any cores.
+    except Exception as e:
+        defaultcoreID='1' #and if no cores defined , just make it 1
 
 @login_required
 def do_search(request,page=0,searchterm='',direction='',pagemax=0,sorttype=''):
