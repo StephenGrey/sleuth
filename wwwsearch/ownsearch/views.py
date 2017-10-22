@@ -21,9 +21,10 @@ log = logging.getLogger('ownsearch')
 cores=solrSoup.getcores()
 defaultcoreID=config['Solr']['defaultcoreid']
 if defaultcoreID not in cores:
-   defaultcoreID=cores.keys()[0]  #take any old core, if default not found
-
-docbasepath=config['Models']['collectionbasepath']
+    try:
+        defaultcoreID=cores.keys()[0]  #take any old core, if default not found
+    except:
+        defaultcoreID='1' #get any cores.
 
 @login_required
 def do_search(request,page=0,searchterm='',direction='',pagemax=0,sorttype=''):

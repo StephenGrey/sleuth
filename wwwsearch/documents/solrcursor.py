@@ -82,3 +82,4 @@ def listresults(soup,mycore):
         else:
             print('Solrcursor: no filepath in Solr document with ID: '+str(document['id']))
     return results,numberfound
+

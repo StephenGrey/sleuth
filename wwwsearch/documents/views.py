@@ -165,7 +165,7 @@ def indexcheck(collection,thiscore):
 	#INDEX CHECK: METHOD ONE : IF RELATIVE PATHS STORED MATCH
             if relpath in indexpaths:  #if the path in database in the solr index
                 solrdata=indexpaths[relpath]
-                #print ('PATH :'+file.filepath+' indexed successfully', 'Solr \'id\': '+solrdata['id'])
+                print ('PATH :'+file.filepath+' found in Solr index', 'Solr \'id\': '+solrdata['id'])
                 file.indexedSuccess=True
                 file.solrid=solrdata['id']
                 file.save()
