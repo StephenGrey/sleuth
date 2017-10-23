@@ -21,7 +21,10 @@ from usersettings import userconfig as config
 cores=solr.getcores()
 defaultcoreID=config['Solr']['defaultcoreid']
 if defaultcoreID not in cores:
-   defaultcoreID=cores.keys()[0]  #take any old core, if default not found
+    try:
+        defaultcoreID=cores.keys()[0]  #take any old core, if default not found
+    except Exception as e:
+        defaultcoreID='1' #and if no cores defined , just make it 1
 
 @staff_member_required()
 def index(request):

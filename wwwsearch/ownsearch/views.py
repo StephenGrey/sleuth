@@ -25,6 +25,7 @@ if defaultcoreID not in cores:
         defaultcoreID=cores.keys()[0]  #take any old core, if default not found
     except Exception as e:
         defaultcoreID='1' #and if no cores defined , just make it 1
+docbasepath=config['Models']['collectionbasepath']
 
 @login_required
 def do_search(request,page=0,searchterm='',direction='',pagemax=0,sorttype=''):
