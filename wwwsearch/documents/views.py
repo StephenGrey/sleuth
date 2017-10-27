@@ -163,12 +163,12 @@ def indexcheck(collection,thiscore):
         for file in filelist:
             relpath=os.path.relpath(file.filepath,start=docstore) #extract the relative path from the docstore
             hash=file.hash_contents #get the stored hash of the file contents
-            #print (file.filepath,relpath)
+            #print (file.filepath,relpath,file.id,hash)
 
 	#INDEX CHECK: METHOD ONE : IF RELATIVE PATHS STORED MATCH
             if relpath in indexpaths:  #if the path in database in the solr index
-                solrdata=indexpaths[relpath]
-                print ('PATH :'+file.filepath+' found in Solr index', 'Solr \'id\': '+solrdata['id'])
+                solrdata=indexpaths[relpath][0] #take the first of list of docs with this path
+                #print ('PATH :'+file.filepath+' found in Solr index', 'Solr \'id\': '+solrdata['id'])
                 file.indexedSuccess=True
                 file.solrid=solrdata['id']
                 file.save()
@@ -245,7 +245,11 @@ def indexdocs(collection,mycore,forceretry=False,useICIJ=False): #index into Sol
                 if result is True:
                     counter+=1
                     #print ('PATH :'+file.filepath+' indexed successfully')
-                    file.solrid=file.hash_filename  #extract uses hashfilename for an id , so add it
+                    if not useICIJ:
+                        file.solrid=file.hash_filename  #extract uses hashfilename for an id , so add it
+                    else:
+                        file.solrid=''
+                    #DEBUG: above won't work for ICIJ method as does NOT use hasfilename as id
                     file.indexedSuccess=True
                     #now delete previous solr doc (if any): THIS IS ONLY NECESSARY IF ID CHANGES  
                     print ('Old ID:'+oldsolrid,'New ID'+file.solrid)

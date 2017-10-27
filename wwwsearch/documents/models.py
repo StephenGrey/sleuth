@@ -23,7 +23,7 @@ class SolrCore(models.Model):
     corename=models.CharField('Corename',max_length=20,default='')
     usergroup=models.ForeignKey(Group)
     def __str__(self):
-        return self.coreID
+        return self.corename
 
 class File(models.Model):
     collection = models.ForeignKey(

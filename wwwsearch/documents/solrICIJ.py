@@ -39,13 +39,13 @@ def tryextract(path,mycore):
         #commit the results
         print ('Committing ..')
         args=["java","-jar",extractpath,"commit","-s"]
-        args.append(solrurl+'xx') #tests - add deliberate error
+        args.append(solrurl) #tests - add deliberate error
 #        print (args)
         result=subprocess.Popen(args, stderr=subprocess.PIPE, stdout=subprocess.PIPE,shell=False)
 #        print (result, vars(result)) #
         commitout,ignore=parse_out(result)
         if commitout==[]:
-#            print ('No errors from commit')
+            print ('No errors from commit')
             return True 
     return False
     
