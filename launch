@@ -1,2 +1,1 @@
-python wwwsearch/manage.py runserver
-
+python wwwsearch/manage.py runserver $@
