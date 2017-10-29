@@ -19,9 +19,9 @@ except:
 def getcore(corename):
     return solrSoup.SolrCore(corename)
 
-def cursor(mycore,key='docpath'): #iterates through entire solr index in blocks of e.g. 100
+def cursor(mycore,keyfield='docpath'): #iterates through entire solr index in blocks of e.g. 100
     #print('start scan')
-    keyfield=getattr(mycore,key,'id') #get solr field to use as key, default to id
+#    keyfield=getattr(mycore,key,'id') #get solr field to use as key, default to id
     cursormark='*' #start a cursor scan with * and next cursor to begin with is returned
     nextcursor=''
     counted=0
@@ -30,7 +30,7 @@ def cursor(mycore,key='docpath'): #iterates through entire solr index in blocks 
         args=mycore.cursorargs+'&cursorMark='+cursormark
         #print args
         res=getSolrResponse('*',args,mycore)
-        blocklist,resultsnumber,counter=listresults(res,mycore,key)
+        blocklist,resultsnumber,counter=listresults(res,mycore)
         #print (resultsnumber,counter)
         more=res.response.result.next_sibling
         counted+=counter
@@ -72,7 +72,7 @@ def getSolrResponse(searchterm,arguments,mycore):
     soup=BS(res.content,"html.parser")
     return soup
     
-def listresults(soup,mycore,key):
+def listresults(soup,mycore):
     results=[]
     counter=0
     result=soup.response.result
@@ -85,13 +85,18 @@ def listresults(soup,mycore,key):
     #loop through each doc in resultset
     for doc in result:
         #print('DOC',doc)
-        document={}
-        #get all the attributes
-        document['id']=doc.str.text
-        for arr in doc:
-            if 'name' in arr.attrs:
-                document[arr.attrs['name']]=arr.text
-        results.append(document)
+        #get standardised result
+        parsedoc=solrSoup.Solrdoc(doc,mycore)
+#        print('parsed doc',parsedoc.data)
+#        document={}
+#        #get all the attributes
+#        document['id']=doc.str.text
+#        for arr in doc:
+#            if 'name' in arr.attrs:
+#                document[arr.attrs['name']]=arr.text
+#        results.append(document)
+#        
+        results.append(parsedoc.data)
         counter+=1
     return results,numberfound,counter
                 

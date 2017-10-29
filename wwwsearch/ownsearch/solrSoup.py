@@ -9,6 +9,9 @@ from documents.models import File,Collection
 from documents.models import SolrCore as sc
 from django.db.utils import OperationalError
 from usersettings import userconfig as config
+from django.utils import timezone
+import pytz #support localising the timezone
+from datetime import datetime
 
 class MissingConfigData(Exception): 
     pass
@@ -16,7 +19,8 @@ class MissingConfigData(Exception):
 class SolrConnectionError(Exception):
     pass
 
-
+class SolrCoreNotFound(Exception):
+    pass
 
 class SolrCore:
     def __init__(self,mycore):
@@ -57,14 +61,65 @@ class SolrCore:
     def ping(self):
         try:
             res=requests.get(self.url+'/admin/ping')
+            soup=BS(res.content,"html.parser")
+            print(soup)
+            if soup.title:
+                if soup.title.text == u'Error 404 Not Found':
+                    raise SolrCoreNotFound('core not found')
+            statusline=soup.response.lst.next_sibling
+            if statusline.attrs['name']==u'status' and statusline.text=='OK':
+                print('Good connection')
+                return True
+            else:
+                print('Core status: ',soup)
+                return False
         except requests.exceptions.ConnectionError as e:
 #            print('no connection to solr server')
             raise SolrConnectionError('solr connection error')
             return False
 
-        return True
     def __str__(self):
         return self.name
+
+class Solrdoc:
+    def __init__(self,doc,core):
+            self.id=doc.str.text
+            self.data={}
+            #now go through all fields returned by the solr search
+            for arr in doc:
+                self.data[arr.attrs['name']]=arr.text
+            #give the KEY ATTRIBS standard names
+            if core.docnamefield in self.data:
+                self.data['docname']=self.data[core.docnamefield]
+            else:
+                self.data['docname']=''
+            if core.docsizefield in self.data:
+                self.data['solrdocsize']=self.data[core.docsizefield]
+            else:
+                self.data['solrdocsize']=''
+            if core.rawtext in self.data:
+                self.data['rawtext']=self.data.pop(core.rawtext)
+            else:
+                self.data['rawtext']=''
+
+            if core.docnamefield in self.data:
+                self.data['docname']=self.data[core.docnamefield]
+            else:
+                self.data['docname']=''
+
+            if core.datefield in self.data:
+                self.data['date']=self.data.pop(core.datefield)
+            elif 'date' not in self.data:
+                self.data['date']=''
+
+            if core.docpath in self.data:
+                self.data['docpath']=self.data[core.docpath]
+            else:
+                self.data['docpath']=''
+            if core.hashcontentsfield in self.data:
+                self.data['hashcontents']=self.data[core.hashcontentsfield]
+            else:
+                self.data['hashcontents']=''        
 
 log = logging.getLogger('ownsearch')
 
@@ -309,3 +364,14 @@ def getcores():
 
 #defaultcore=getcores()['1'] #config['Cores']['1'] #the name of the index to use within the Solr backend
 #mydefaultcore=SolrCore(defaultcore) #instantiate a default core object
+
+def timefromSolr(timestring):
+    if timestring:
+        parseraw=datetime.strptime(timestring, "%Y-%m-%dT%H:%M:%SZ")
+        parsetimezone=pytz.timezone("Europe/London").localize(parseraw, is_dst=True)
+        return parsetimezone
+    else:
+        return ''
+
+def timestring(timeobject):
+    return "{:%B %d,%Y %I:%M%p}".format(timeobject)
