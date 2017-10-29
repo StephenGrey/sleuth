@@ -62,13 +62,13 @@ class SolrCore:
         try:
             res=requests.get(self.url+'/admin/ping')
             soup=BS(res.content,"html.parser")
-            print(soup)
+#            print(soup)
             if soup.title:
                 if soup.title.text == u'Error 404 Not Found':
                     raise SolrCoreNotFound('core not found')
             statusline=soup.response.lst.next_sibling
             if statusline.attrs['name']==u'status' and statusline.text=='OK':
-                print('Good connection')
+#                print('Good connection')
                 return True
             else:
                 print('Core status: ',soup)

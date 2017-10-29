@@ -8,6 +8,7 @@ from documents.models import Collection,File
 log = logging.getLogger('ownsearch')
 from usersettings import userconfig as config
 from ownsearch.solrSoup import SolrConnectionError
+from ownsearch.solrSoup import SolrCoreNotFound
 
 #from settings
 #solrcore=config['Cores']['1'] #the name of the index to use within the Solr backend
@@ -58,11 +59,11 @@ def extract(path,contentsHash,mycore,test=False):
         print('core missing default fields')
         return False
     #establish connnection to solr index
-    try:
+    if True:
         mycore.ping()
-    except SolrConnectionError as e:
-        print('No connection')
-        return False
+#    except SolrConnectionError as e:
+#        print('No connection')
+#        return False
     if os.path.exists(path)==False: #check file exists
         print ('path '+path+' does not exist')
         return False
