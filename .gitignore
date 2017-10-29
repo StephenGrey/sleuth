@@ -1,32 +1,24 @@
-#ignore python binaries
+.*
+!.gitignore
+
+# ignore python bytecode
 *.pyc
 
-#ignore the python environment for now
-env/
+# ignore the virtual environment
+venv/
 
-#ignore the ICIJ extract engine for now
+# ignore the ICIJ extract engine for now
 extract-master/
-master.zip
 
-#ignore logfile
+# ignore logs
 wwwsearch/logfile
 
-#ignore usersettings - put defaults into usersettings.config.example
+# ignore user settings - put defaults into usersettings.config.example
 wwwsearch/usersettings.config
 
-#ignore the database - it should be recreated
+# ignore database - it should be recreated
 wwwsearch/db.sqlite3
 
-#EXCLUDE solr installation >>> PUT another gitignore in data directory
-solr-6.6.0/
-!solr/solr-6.6.0/
-
-#ignore mac folder configs
-.DS_Store
-
-.DS_Store
-wwwsearch/.DS_Store
-wwwsearch/documents/.DS_Store
-.DS_Store
-solr/solr-6.6.0/bin/solr-8983.pid
-.DS_Store
+# ignore Solr data and PID files
+solr/solr-*/server/solr/*/data/*
+solr/solr-*/bin/solr-*.pid
