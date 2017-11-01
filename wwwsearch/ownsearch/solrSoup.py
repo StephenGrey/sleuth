@@ -49,6 +49,16 @@ class SolrCore:
             self.docsizefield=config[core]['docsize']
             self.hashcontentsfield=config[core]['hashcontents']
             self.datefield=config[core]['datefield']
+            
+            #make reverse
+            self.fields={} #dictionary to reverse from solr field to standard field
+            self.fields['date']=self.datefield
+            self.fields['solrdocsize']=self.docsizefield
+            self.fields['rawtext']=self.rawtext
+            self.fields['docname']=self.docnamefield
+            self.fields['docpath']=self.docpath
+            self.fields['hashcontents']=self.hashcontentsfield
+            
 
             
         except KeyError:
@@ -163,55 +173,23 @@ def getlist(soup,counter,core,linebreaks=False,big=False): #this parses the list
         result=soup.response.result
         results=[]
         for doc in result:
-            document={}
             counter+=1
             solrid=doc.str.text
-            document['id']=solrid #this is the main file ID used by Solr
-            #now go through all fields returned by the solr search
-            for arr in doc:
-                document[arr.attrs['name']]=arr.text
-            #give the KEY ATTRIBS standard names
-            if core.docnamefield in document:
-                document['docname']=document[core.docnamefield]
-            else:
-                document['docname']=''
-            if core.docsizefield in document:
-                document['solrdocsize']=document[core.docsizefield]
-            else:
-                document['solrdocsize']=''
-            if core.rawtext in document:
-                document['rawtext']=document.pop(core.rawtext)
-            else:
-                document['rawtext']=''
+            
+            document=Solrdoc(doc,core).data  #parse the solr result into standard fields, e.g. 'date' for date
 
-            if core.docnamefield in document:
-                document['docname']=document[core.docnamefield]
-            else:
-                document['docname']=''
 
-            if core.datefield in document:
-                document['date']=document.pop(core.datefield)
-            elif 'date' not in document:
-                document['date']=''
-
-            if core.docpath in document:
-                document['docpath']=document[core.docpath]
-            else:
-                document['docpath']=''
-            if core.hashcontentsfield in document:
-                document['hashcontents']=document[core.hashcontentsfield]
-            else:
-                document['hashcontents']=''
-            #look up this in our model database, to see if additional data on this doc >>>SHOULD BE MOVED
-            try: #lookup to see if hash of filecontents is id 
-                f=File.objects.get(hash_contents=document['hashcontents'])
-                #print('FILE',f)
-                document['path']=f.filepath
-                document['filesize']=f.filesize
-            except Exception as e:
-                #print('Cannot look up file in database',e)
-                document['path']=''
-                document['filesize']=0
+            #look up this in our model database, to see if additional data on this doc >>>
+            if True: #lookup to see if hash of filecontents is id 
+                filelist=File.objects.filter(hash_contents=document['hashcontents'])
+                #print('FILE',filelist)
+                if len(filelist)>0:
+                    f=filelist[0]
+                    document['path']=f.filepath
+                    document['filesize']=f.filesize
+                else:
+                    document['path']=''
+                    document['filesize']=0
             document['resultnumber']=counter
             results.append(document)
     except Exception as e: 
@@ -375,3 +353,8 @@ def timefromSolr(timestring):
 
 def timestring(timeobject):
     return "{:%B %d,%Y %I:%M%p}".format(timeobject)
+    
+    
+
+
+
