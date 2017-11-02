@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-# 
 from __future__ import unicode_literals
 from bs4 import BeautifulSoup as BS
 import requests, requests.exceptions
@@ -95,9 +94,24 @@ class Solrdoc:
     def __init__(self,doc,core):
             self.id=doc.str.text
             self.data={}
+            #print(doc)
             #now go through all fields returned by the solr search
             for arr in doc:
-                self.data[arr.attrs['name']]=arr.text
+                if arr.str:
+                    self.data[arr.attrs['name']]=arr.str.text
+                elif arr.date:
+                    dates=[]
+                    for date in arr:
+                        dates.append(date.text)
+                    self.data[arr.attrs['name']]=dates
+                elif arr.long:
+                    ints=[]
+                    for longn in arr:
+                        ints.append(longn.text)
+                    self.data[arr.attrs['name']]=ints
+                else:
+                    self.data[arr.attrs['name']]=arr.text
+                #print(arr.text)
             #give the KEY ATTRIBS standard names
             if core.docnamefield in self.data:
                 self.data['docname']=self.data[core.docnamefield]
@@ -249,13 +263,23 @@ def getcontents(docid,core):
     #print (searchterm,contentarguments)
     args=core.contentarguments
     sp=getSolrResponse(searchterm,args,core=core)
+    #print(args,sp)
+    res,numbers=getlist(sp,0,core=core)
+    return res
+
+def getmeta(docid,core):
+    searchterm=r'id:"'+docid+r'"'
+    args='&fl=id'
+    args+=","+core.docpath+","+core.datefield+","+core.docsizefield+","+core.datefield+","+core.docnamefield
+    sp=getSolrResponse(searchterm,args,core=core)
+    #print(args,sp)
     res,numbers=getlist(sp,0,core=core)
     return res
     
 def bighighlights(docid,core,q):
     searchterm=r'id:'+docid
     args=core.hlarguments+'0&hl.fragsize=5000&hl.snippets=50&hl.q={}&hl.alternateField={}&hl.maxAlternateFieldLength=50000'.format(q,core.rawtext)
-    print(args)
+    #print(args)
     sp=getSolrResponse(searchterm,args,core)
     #print(sp)
 #    return getbighighlights(sp)
@@ -354,6 +378,8 @@ def timefromSolr(timestring):
 def timestring(timeobject):
     return "{:%B %d,%Y %I:%M%p}".format(timeobject)
     
+def timestringGMT(timeobject):
+    return timeobject.strftime("%Y-%m-%dT%H:%M:%SZ")
     
 
 

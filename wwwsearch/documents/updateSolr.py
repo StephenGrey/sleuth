@@ -66,19 +66,20 @@ def checkupdate(id,changes,mycore):
     #check success
     #print id
     status=True
-    res,numbers=s.solrSearch('id:'+id,'',0,core=mycore)
-    #print (changes,res)
+    res=s.getmeta(id,mycore)
+    #print (changes,res[0])
     if len(res)>0: #check there are solr docs returned
         for field,value in changes:
-            #print(field,value)
-            #print (mycore.fields)
-            if mycore.fields[field] in res[0]:
-                newvalue=res[0][mycore.fields[field]]
+            #print('Change',field,value)
+            if field in res[0]:
+                newvalue=res[0][field] # mycore.fields[field]]
+                if not isinstance(newvalue, basestring): #check for a list e.g date(not a string)
+                    newvalue=newvalue[-1] if len(newvalue)>0 else '' #use the last in list
                 #print (newvalue,value)
-                if newvalue==str(value): 
-                    print(field+' successfully updated to '+str(value))
+                if newvalue==value: 
+                    print(field+' successfully updated to ',value)
                 else:
-                    print(field+' not updated; currentvalue: '+res[0][field])
+                    print(field+' not updated; currentvalue: ',newvalue)
                     status=False
             else:
                 print(field+' not found in solr result')
@@ -146,16 +147,15 @@ def metaupdate(collection):
     filelist=File.objects.filter(collection=collection)
     for file in filelist: #loop through files in collection
         if file.indexUpdateMeta: #do action if indexUpdateMeta flag is true
-            print (file.filename, file.filepath)
-            print()
+            #print (file.filename, file.filepath)
+            #print()
             print('ID:'+file.solrid)
             #,'PATHHASH'+file.hash_filename
             print'Solr meta data flagged for update'
             #get solr data on file - and then modify if changed
-            results=s.getcontents(file.solrid,core=mycore)  #get current contents of solr doc
+            results=s.getmeta(file.solrid,core=mycore)  #get current contents of solr doc, without full contents
             if len(results)>0:
-                solrdoc=results[0]   #results come as a list so just take the first one
-                print (result)
+                solrdoc=results[0] #results come as a list so just take the first one
                 #parse existing solr data
                 changes=parsechanges(solrdoc,file,mycore) #returns list of tuples [(field,newvalue),]
                 if changes:
@@ -163,7 +163,7 @@ def metaupdate(collection):
                     json2post=makejson(solrdoc['id'],changes,mycore)
                     response,updatestatus=post_jsonupdate(json2post,mycore)
                     if checkupdate(solrdoc['id'],changes,mycore):
-                        print('solr successfullyupdated')
+                        print('solr successfully updated')
                         file.indexUpdateMeta=False
                         file.save()
                     else:
@@ -180,14 +180,15 @@ def metaupdate(collection):
 #take a solr result,compare with filedatabae, return change list [(standardisedfield,newvalue),..]
 def parsechanges(solrresult,file,mycore): 
     #print(solrresult)
-    solrdocsize=solrresult['solrdocsize']
+    solrdocsize=solrresult['solrdocsize'][-1] #solrdocsize is a list; take the last item
     olddocsize=int(solrdocsize) if solrdocsize else 0
-#    if solrdocsize:
-#        olddocsize=int(solrresult['solrdocsize'])
-#    else:
-#        olddocsize=0
     olddocpath=solrresult['docpath']
-    oldlastmodified=s.timefromSolr(solrresult['date']) #convert raw time text from solr into time object
+    olddate=solrresult['date'][-1] if len(solrresult['date'])>0 else ''#dates are multivalued;use the flast in list
+    try:
+        oldlastmodified=s.timefromSolr(olddate) #convert raw time text from solr into time object
+    except Exception as e:
+        print ('Error with date stored in solr',olddate, e)
+        oldlastmodified='' 
     olddocname=solrresult['docname']
     #print olddocsize,olddocpath,olddocname
 
@@ -202,12 +203,14 @@ def parsechanges(solrresult,file,mycore):
         print('need to update filesize')
         print('old',olddocsize,'new',file.filesize)
         changes.append(('solrdocsize',file.filesize))
-    newlastmodified=file.last_modified.strftime("%Y-%m-%dT%H:%M:%SZ")
+    newlastmodified=s.timestringGMT(file.last_modified)
+#    file.last_modified.strftime("%Y-%m-%dT%H:%M:%SZ")
+
 #debug - timezones not quite fixed here
-    if oldlastmraw !=newlastmodified:
+    if olddate !=newlastmodified:
 #    oldlastmodified != file.last_modified:
         print(oldlastmodified,file.last_modified)
-        print('need to update last_modified from '+oldlastmraw+' to '+newlastmodified)
+        print('need to update last_modified from '+str(oldlastmodified)+' to '+str(newlastmodified))
         changes.append(('date',newlastmodified))
     newfilename=file.filename
     if olddocname != newfilename:
@@ -284,7 +287,7 @@ def updatefiledata(file,path,makehash=False):
         file.fileext=fileExt    
         modTime = os.path.getmtime(path) #last modified time
         lastmod=datetime.fromtimestamp(modTime)
-        file.last_modified=pytz.timezone("Europe/London").localize(lastmod, is_dst=True)
+        file.last_modified=pytz.timezone("Europe/London").localize(lastmod, is_dst=False)
         if makehash:
             hash=hexfile(path) #GET THE HASH OF FULL CONTENTS
             file.hash_contents=hash
@@ -372,13 +375,15 @@ def listmeta():
             print file.filename, 'ID:'+file.solrid,'PATHHASH'+file.hash_filename
             print'Solr meta data needs update'
 
-def test(solrid,mycore=s.getcores()['1']):
+def test(solrid,mycore=s.getcores()['3']):
 #    cores=s.getcores() #fetch dictionary of installed solr indexes (cores)
 #    mycore=cores['1']
     print (mycore.name)
-    changes=[('solrdocsize',100100)]
+    changes=[('solrdocsize',"100100")] #('date', '2017-09-15T18:08:24Z')] #
     data=makejson(solrid,changes,mycore)
+    print(data)
     response,updatestatus=post_jsonupdate(data,mycore)
+    print(response,updatestatus)
     checkstatus=checkupdate(solrid,changes,mycore)
     return updatestatus,checkstatus
 

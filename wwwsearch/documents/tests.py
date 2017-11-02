@@ -191,4 +191,12 @@ def tps():  #test sub process
         print ('Successful')
     return result
     
-   
+def listmeta(collection):
+    listfiles=File.objects.filter(collection=collection)
+    core=collection2solrcore(collection)
+    for file in listfiles:
+#         print('FIlename'+file.filename,'FileExt'+file.fileext,'Path:'+file.filepath,'SolrID:'+
+       res=s.getmeta(file.solrid,core)
+       if res:
+           print(file.solrid,'Date: '+str(res[0].get('date','no date')))
+       #'Indexed?'+str(file.indexedSuccess),'IndexedTry'+str(file.indexedTry),'Contents:'+file.hash_contents,'Path:'+file.hash_filename)
