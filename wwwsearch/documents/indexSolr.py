@@ -9,7 +9,8 @@ log = logging.getLogger('ownsearch')
 from usersettings import userconfig as config
 from ownsearch.solrSoup import SolrConnectionError
 from ownsearch.solrSoup import SolrCoreNotFound
-
+from fnmatch import fnmatch
+ignorelist=config['Solr']['ignore_list'].split(',')
 #from settings
 #solrcore=config['Cores']['1'] #the name of the index to use within the Solr backend
 #solrurl=config['Solr']['url'] #Solr:url is the network address of Solr backend
@@ -168,6 +169,27 @@ def postSolr(args,path,mycore):
         print ('Exception in postSolr: ',str(e),e)
         statusOK=False
         return '',statusOK
+
+def ignorefile(path):
+    assert os.path.exists(path)
+    head,filename=os.path.split(path)
+    if any(fnmatch(filename, pattern) for pattern in ignorelist):
+        print 'Ignore', filename
+        return True
+    else:
+        return False
+
+def ignorepath(parentFolder):
+    ignorefiles=[]
+    assert os.path.exists(parentFolder)
+    for dirName, subdirs, fileList in os.walk(parentFolder): #go through every subfolder in a folder
+        #print('Scanning %s...' % dirName)
+        for filename in fileList: #now through every file in the folder/subfolder
+            if any(fnmatch(filename, pattern) for pattern in ignorelist):
+                print 'Ignore', filename, os.path.abspath(filename)
+                ignorefiles.append((filename, os.path.abspath(filename)))
+                continue
+    return ignorefiles
 
 
 if __name__ == '__main__':   #

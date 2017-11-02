@@ -17,6 +17,7 @@ from usersettings import userconfig as config
 from datetime import datetime, date, time
 import subprocess
 from subprocess import Popen, PIPE, STDOUT
+from fnmatch import fnmatch
 import updateSolr as u
 
 docstore=config['Models']['collectionbasepath'] #get base path of the docstore
@@ -33,7 +34,7 @@ def checksolrlists(mycore):
     blocklist,resultsnumber=curs.listresults(res,mycore)
     result=res.response.result
     document={}
-    for doc in result:
+    for doc in result:        
         for arr in doc:
             document[arr.attrs['name']]=arr.text
     return document
@@ -200,3 +201,6 @@ def listmeta(collection):
        if res:
            print(file.solrid,'Date: '+str(res[0].get('date','no date')))
        #'Indexed?'+str(file.indexedSuccess),'IndexedTry'+str(file.indexedTry),'Contents:'+file.hash_contents,'Path:'+file.hash_filename)
+
+
+
