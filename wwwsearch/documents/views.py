@@ -10,9 +10,8 @@ from ownsearch.hashScan import HexFolderTable as hex
 from ownsearch.hashScan import hashfile256 as hexfile
 from ownsearch.hashScan import FileSpecTable as filetable
 import datetime, hashlib, os, logging, requests
-import indexSolr, updateSolr, solrICIJ, solrDeDup
+import indexSolr, updateSolr, solrICIJ, solrDeDup, solrcursor
 import ownsearch.solrSoup as solr
-import solrcursor
 from django.contrib.admin.views.decorators import staff_member_required
 log = logging.getLogger('ownsearch')
 from usersettings import userconfig as config
@@ -92,11 +91,7 @@ def listfiles(request):
                 thiscollection=Collection.objects.get(id=selected_collection)
                 icount,iskipped,ifailed=indexdocs(thiscollection,mycore) #GO INDEX THE DOCS IN SOLR
                 return HttpResponse ("Indexing.. <p>indexed: "+str(icount)+"<p>skipped:"+str(iskipped)+"<p>failed:"+str(ifailed))
-#            except indexSolr.ExtractInterruption as e:
-#                return HttpResponse ("Indexing interrupted -- Solr Server not available. \n"+e.message)
-#            except requests.exceptions.RequestException as e:
-#                print ('caught requests connection error')
-#                return HttpResponse ("Indexing interrupted -- Solr Server not available")
+
     #INDEX DOCUMENTS IN COLLECTION IN SOLR
         elif request.method == 'POST' and 'indexICIJ' in request.POST and 'choice' in request.POST:
             if True:
@@ -225,6 +220,10 @@ def indexdocs(collection,mycore,forceretry=False,useICIJ=False): #index into Sol
                 #skip this file, tried before and not forceing retry
                 #print('Previous failed index attempt, not forcing retry:',file.filepath)
                 skipped+=1
+            elif indexSolr.ignorefile(file.filepath) is True:
+                #skip this file because it is on ignore list
+                print('Ignoring: ',file.filepath)
+                skipped+=1
             else: #do try to index this file
                 print('Attempting index of',file.filepath)
                 #print('trying ...',file.filepath)
@@ -272,44 +271,6 @@ def indexdocs(collection,mycore,forceretry=False,useICIJ=False): #index into Sol
                     file.indexedTry=True  #set flag to say we've tried
                     file.save()
         return counter,skipped,failed
-
-#def scandocs(collection):
-#    if True: 
-#        counter=0
-#        skipped=0
-##        print(collection)
-##        dict=hex(collection.path) #makes a dictionary keyed by hash of file contents
-#        dict=filetable(collection.path) #make a dictionary of filespecs, keyed to path
-##           >>>>>>>filespecs are a list [path]=[[path,filelen,shortName,fileExt,modTime]]
-#        for path in dict:
-#            if File.objects.filter(filepath = path).exists():
-#                skipped+=1
-#                file=File.objects.get(filepath = path)
-#                print('Skipped/file already logged:',file.filename)
-#                #reset index try to allow another attempt
-#                file.indexedTry=False
-#                file.save()
-#                pass
-#            else:
-#                counter+=1
-#                #print(lastm)
-#                docpath=path
-#                hash=hexfile(path) #GET THE HASH OF FULL CONTENTS
-##                print(hash,docpath,lastmodified)
-#                f=File(hash_contents=hash,filepath=docpath)
-#                lastm=dict[path][4]
-#                lastmod=datetime.datetime.fromtimestamp(lastm)
-#                lastmodified=pytz.timezone("Europe/London").localize(lastmod, is_dst=True)
-#                f.last_modified=lastmodified
-#                f.collection=collection
-#                f.filesize=dict[path][1]
-#                f.filename=dict[path][2]
-#                f.fileext=dict[path][3]
-#                f.hash_filename=pathHash(docpath)
-#                #print ('hash',f.hash_filename,'docpath',docpath)
-#                f.save()
-#
-#    return counter,skipped
     
 def pathHash(path):
     m=hashlib.md5()

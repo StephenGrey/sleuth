@@ -10,17 +10,17 @@ from usersettings import userconfig as config
 from ownsearch.solrSoup import SolrConnectionError
 from ownsearch.solrSoup import SolrCoreNotFound
 from fnmatch import fnmatch
-ignorelist=config['Solr']['ignore_list'].split(',')
-#from settings
-#solrcore=config['Cores']['1'] #the name of the index to use within the Solr backend
-#solrurl=config['Solr']['url'] #Solr:url is the network address of Solr backend
-#docstore=config['Models']['collectionbasepath'] #get base path of the docstore
-#extractargs='commit=true'
-#extracturl=solrurl+solrcore+'/update/extract?'
 
-
+try:
+    ignorelist=config['Solr']['ignore_list'].split(',')
+except Exception as e:
+    print('Configuration warning: no ignore list found')
+    ignorelist=[]
+    
 """
+EXTRACT CONTENTS OF A FILE FROM LOCAL MEDIA INTO SOLR INDEX
 
+main method is extract(path,contentsHash,mycore,test=False)
 """
 
 class ExtractInterruption(Exception):
@@ -161,17 +161,14 @@ def postSolr(args,path,mycore):
         soup=BS(res.content,"html.parser")
         statusOK = True
         return soup, statusOK
-#    except ConnectionError as e:
-#        print ('ConnectionError in postSolr: ',str(e),e)
-#        statusOK=False
-#        return '',statusOK    
+
     except requests.exceptions.RequestException as e:
         print ('Exception in postSolr: ',str(e),e)
         statusOK=False
         return '',statusOK
 
+#check if filepath fits an ignore pattern (no check to see if file exists)
 def ignorefile(path):
-    assert os.path.exists(path)
     head,filename=os.path.split(path)
     if any(fnmatch(filename, pattern) for pattern in ignorelist):
         print 'Ignore', filename
@@ -195,11 +192,3 @@ def ignorepath(parentFolder):
 if __name__ == '__main__':   #
     scanpath('')
     
-
-    
-
-
-"""
-
-
-"""
