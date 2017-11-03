@@ -86,6 +86,7 @@ def post(path,solrurl):
 
 
 def failedscans(collection=''):
+    failures=[]
     if collection:
         d=File.objects.filter(indexedTry=True,collection=collection)
     else:
@@ -93,7 +94,22 @@ def failedscans(collection=''):
     for f in d:
         print(f.collection, f.filename, f.filepath, f.filesize)
         print ("FileID: "+str(f.id)+"UpdateMeta: "+str(f.indexUpdateMeta), "Indexed Success: "+str(f.indexedSuccess), "Indexed Try :"+str(f.indexedTry), f.last_modified, f.solrid)
-       
+        failures.append(f)
+    return failures
+
+def copyfiles(files,destination): #take a list of file objects and copy actual files to folder
+    assert os.path.exists(destination)
+    assert os.path.isdir(destination)
+    try:
+        for f in files:
+            existpath=f.filepath
+            os.system('cp \"'+existpath+'\" \"'+destination+'\"/')
+    except Exception as e:
+        print (e)
+        return False
+    return True
+
+
 def listc():
     for collection in Collection.objects.all():
         print (collection.id, collection.path,collection.indexedFlag,collection.core)
