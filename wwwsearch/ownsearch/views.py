@@ -10,6 +10,7 @@ from django.shortcuts import render
 from django.contrib.auth.decorators import login_required
 from django.http import HttpResponse
 from django.http import HttpResponseRedirect
+from django.db.models.base import ObjectDoesNotExist
 #from parseresults import parseSolrResults as parse
 #import pickle, re, sys
 #from search_solr import solrSearch
@@ -57,16 +58,37 @@ def authcores(request):
     return cores, defaultcoreID, choice_list
 
 def authfile(request,hashcontents):
-    print(File.objects.filter(hash_contents=hashcontents))
-    collection_ids=[matchfile.collection_id for matchfile in File.objects.filter(hash_contents=hashcontents)]
+    matchfiles=File.objects.filter(hash_contents=hashcontents)
+    #collection that contain the file
+    collection_ids=[matchfile.collection_id for matchfile in matchfiles]
+    #indexes that contain the file
     coreids=[collection.core_id for collection in Collection.objects.filter(id__in=collection_ids)]
+    #user groups that user belongs to
     authgroupids=[group.id for group in request.user.groups.all()]
+    #indexes that user is authorised for
     authcoreids=[core.id for core in SolrCore.objects.filter(usergroup_id__in=authgroupids)]
-    print(authcoreids)
-    result=not set(authcoreids).isdisjoint(coreids)
-    print(result)
-    return True    
+    #test if indexes containing file match authorised indexes
+    if not set(authcoreids).isdisjoint(coreids):
+        print('authorised for download')
+        for matchfile in matchfiles:
+            if os.path.exists(matchfile.filepath):
+                return matchfile
+    return None
         
+def authid(request,doc):
+    coreid=Collection.objects.get(id=doc.collection_id).core_id
+    #print(coreid)
+    #user groups that user belongs to
+    authgroupids=[group.id for group in request.user.groups.all()]
+    #print(authgroupids)
+    #indexes that user is authorised for
+    authcoreids=[core.id for core in SolrCore.objects.filter(usergroup_id__in=authgroupids)]
+    #print(authcoreids)
+    if coreid in authcoreids:
+        return True
+    else:
+        return False
+
 
 @login_required
 def do_search(request,page=0,searchterm='',direction='',pagemax=0,sorttype=''):
@@ -94,7 +116,7 @@ def do_search(request,page=0,searchterm='',direction='',pagemax=0,sorttype=''):
 
 #DO SEARCH IF PAGE ESTABLISHED 
     if page > 0: #if page value not default (0) then proceed directly with search
-        form = SearchForm(choice_list,str(defaultcoreID))
+        form = SearchForm(choice_list,str(coreID))
         resultlist,resultcount=solrSoup.solrSearch(searchterm,sorttype,(page-1)*10,core=mycore)
         pagemax=int(resultcount/10)+1
 
@@ -103,7 +125,7 @@ def do_search(request,page=0,searchterm='',direction='',pagemax=0,sorttype=''):
     elif request.method == 'POST': #if data posted from form
 
         # create a form instance and populate it with data from the request:
-        form = SearchForm(choice_list,str(defaultcoreID),request.POST)
+        form = SearchForm(choice_list,str(coreID),request.POST)
         # check whether it's valid:
         if form.is_valid():
             # process the data in form.cleaned_data as required
@@ -133,16 +155,33 @@ def do_search(request,page=0,searchterm='',direction='',pagemax=0,sorttype=''):
 
     # if a GET (or any other method) we'll create a blank form
     else:
-        form = SearchForm(choice_list,str(defaultcoreID))
+        form = SearchForm(choice_list,str(coreID))
         resultlist = []
         resultcount=-1
     #print (resultlist)
     return render(request, 'searchform.html', {'form': form, 'pagemax': pagemax, 'results': resultlist, 'searchterm': searchterm, 'resultcount': resultcount, 'page':page, 'sorttype': sorttype})
 
 @login_required
-def download(request,doc_relpath): #download a document from the docstore
-    file_path = os.path.join(docbasepath,doc_relpath)    
-    #print ('FILEPATHS (relative/full)',doc_relpath,file_path)
+def download(request,doc_id,hashfilename): #download a document from the docstore
+    #print doc_id,hashfilename
+    
+    #MAKE CHECKS BEFORE DOWNLOAD
+    #check file exists in database and hash matches
+    try:
+        thisfile=File.objects.get(id=doc_id)
+        assert thisfile.hash_filename==hashfilename
+    except AssertionError as e:
+        print ('Hash Mismatch Error',e)
+        return HttpResponse('File not stored on server')
+    except ObjectDoesNotExist as e:
+        print ('File ID does not exist',e)
+        return HttpResponse('File not stored on server')
+    #check user authorised to download
+    if authid(request,thisfile) is False:
+        return HttpResponse('File NOT authorised for download')    
+    #DEBUG THE DOWNLOAD SHOULD BE LOGGED
+
+    file_path = thisfile.filepath
     if os.path.exists(file_path):
         cleanfilename=slugify(os.path.basename(file_path))
         with open(file_path, 'rb') as thisfile:
@@ -238,14 +277,17 @@ def get_content(request,doc_id,searchterm): #make a page showing the extracted t
                 local=False
                 print('File does not exist locally')
         #check if file is registered and authorised to download
-            if authfile(request,hashcontents) == True:
-#                print('File registerd for download')
-#            files=File.objects.filter(hash_contents=hashcontents)
-#            if len(files)>0:
-                #print(files,'authorised')
-                auth=True
-            else:
+            
+            matchfile=authfile(request,hashcontents)
+            if matchfile is None:
                 auth=False
+                matchfileid=''
+                hashfilename=''
+            else:
+                print(matchfile.filename)
+                auth=True
+                matchfile_id=matchfile.id
+                hashfilename=matchfile.hash_filename
         #clean up the text for display
 #            return HttpResponse(highlight)
             cleaned=re.sub('(\n[\s]+\n)+', '\n\n', highlight) #cleaning up chunks of white space
@@ -258,7 +300,7 @@ def get_content(request,doc_id,searchterm): #make a page showing the extracted t
                     lastscrap=splittext.pop() #remove last entry if more than one, as this last is NOT followed by searchterm
             except:
                 splittext=[cleaned]
-            return render(request, 'contentform.html', {'docsize':docsize, 'doc_id': doc_id, 'splittext': splittext, 'searchterm': searchterm, 'lastscrap': lastscrap, 'docname':docname, 'docpath':docpath, 'docexists':local})
+            return render(request, 'contentform.html', {'docsize':docsize, 'doc_id': doc_id, 'splittext': splittext, 'searchterm': searchterm, 'lastscrap': lastscrap, 'docname':docname, 'docpath':docpath, 'hashfile':hashfilename, 'fileid':matchfile_id,'docexists':local})
         else:
             return HttpResponse('Can\'t find document with ID '+doc_id+' COREID: '+coreID)
     else:
