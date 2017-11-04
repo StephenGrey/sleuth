@@ -16,26 +16,70 @@ from django.http import HttpResponseRedirect
 import solrSoup, re, os, logging, unicodedata
 from usersettings import userconfig as config
 log = logging.getLogger('ownsearch')
-
-#set up solr indexes
-cores=solrSoup.getcores()
-defaultcoreID=config['Solr']['defaultcoreid']
-if defaultcoreID not in cores:
-    try:
-        defaultcoreID=cores.keys()[0]  #take any old core, if default not found
-    except Exception as e:
-        defaultcoreID='1' #and if no cores defined , just make it 1
 docbasepath=config['Models']['collectionbasepath']
+
+#cores=solrSoup.getcores()
+#print(cores)
+#defaultcoreID=config['Solr']['defaultcoreid']
+#if defaultcoreID not in cores:
+#    try:
+#        defaultcoreID=cores.keys()[0]  #take any old core, if default not found
+#    except Exception as e:
+#        defaultcoreID='1' #and if no cores defined , just make it 1
+#docbasepath=config['Models']['collectionbasepath']
+
+##set up solr indexes
+@login_required
+def authcores(request):
+    cores={}
+    choice_list=()
+    thisuser=request.user
+    groupids=[group.id for group in thisuser.groups.all()]
+    corelist=(SolrCore.objects.filter(usergroup_id__in=groupids))
+    
+    for core in corelist:
+        cores[core.id]=solrSoup.SolrCore(core.corename)
+        corenumber=str(core.id)
+        coredisplayname=core.coreDisplayName
+        choice_list +=((corenumber,coredisplayname),) #value/label
+    try:
+        defaultcoreID=int(config['Solr']['defaultcoreid'])
+        assert defaultcoreID in cores
+                
+    except Exception as e:
+        print(e)
+        try:
+            defaultcoreID=cores.keys()[0]  #take any old core, if default not found
+        except Exception as e:
+            print(e)
+            cores={}
+            defaultcoreID=0
+    return cores, defaultcoreID, choice_list
+
+def authfile(request,hashcontents):
+    print(File.objects.filter(hash_contents=hashcontents))
+    collection_ids=[matchfile.collection_id for matchfile in File.objects.filter(hash_contents=hashcontents)]
+    coreids=[collection.core_id for collection in Collection.objects.filter(id__in=collection_ids)]
+    authgroupids=[group.id for group in request.user.groups.all()]
+    authcoreids=[core.id for core in SolrCore.objects.filter(usergroup_id__in=authgroupids)]
+    print(authcoreids)
+    result=not set(authcoreids).isdisjoint(coreids)
+    print(result)
+    return True    
+        
 
 @login_required
 def do_search(request,page=0,searchterm='',direction='',pagemax=0,sorttype=''):
 
-#GET THE INDEX get the solr index, a SolrCore object, or choose the the default
+#GET AUTHORISED CORES AND DEFAULT
+    corelist,defaultcoreID,choice_list=authcores(request)
+    print(choice_list)
+#GET THE INDEX get the solr index, a SolrCore object, or choose the default
     if 'mycore' not in request.session:  #set default if no core selected
         request.session['mycore']=defaultcoreID
-    coreID=request.session.get('mycore')
-    if coreID in cores:
-        mycore=cores[coreID]
+    coreID=int(request.session.get('mycore'))
+    if coreID in corelist:
+        mycore=corelist[coreID]
     else:
         return HttpResponse('Missing config data for selected index ; retry')
 
@@ -50,27 +94,28 @@ def do_search(request,page=0,searchterm='',direction='',pagemax=0,sorttype=''):
 
 #DO SEARCH IF PAGE ESTABLISHED 
     if page > 0: #if page value not default (0) then proceed directly with search
-        form = SearchForm()
+        form = SearchForm(choice_list,str(defaultcoreID))
         resultlist,resultcount=solrSoup.solrSearch(searchterm,sorttype,(page-1)*10,core=mycore)
         pagemax=int(resultcount/10)+1
 
 #PROCESS FORM DATA - INDEX AND SEARCHTERM CHOICES AND THEN DO FIRST SEARCH
     # if this is a POST request we need to process the form data
     elif request.method == 'POST': #if data posted from form
+
         # create a form instance and populate it with data from the request:
-        form = SearchForm(request.POST)
+        form = SearchForm(choice_list,str(defaultcoreID),request.POST)
         # check whether it's valid:
         if form.is_valid():
             # process the data in form.cleaned_data as required
             #print(form)
             searchterm=form.cleaned_data['search_term']
             sorttype=form.cleaned_data['SortType']
-            coreselect=form.cleaned_data['CoreChoice']
+            coreselect=int(form.cleaned_data['CoreChoice'])
             if coreselect != coreID:  #NEW INDEX SELECTED
                 #print('change core')
                 coreID=coreselect  #new solr core ID
                 request.session['mycore']=coreID  #store the chosen index
-                mycore=cores[coreID]  #select new SolrCore object
+                mycore=corelist[coreID]  #select new SolrCore object
             #print (coreselect)
             if True:
                 resultlist,resultcount=solrSoup.solrSearch(searchterm,sorttype,0,core=mycore)
@@ -88,7 +133,7 @@ def do_search(request,page=0,searchterm='',direction='',pagemax=0,sorttype=''):
 
     # if a GET (or any other method) we'll create a blank form
     else:
-        form = SearchForm()
+        form = SearchForm(choice_list,str(defaultcoreID))
         resultlist = []
         resultcount=-1
     #print (resultlist)
@@ -157,9 +202,11 @@ def download(request,doc_relpath): #download a document from the docstore
 @login_required
 def get_content(request,doc_id,searchterm): #make a page showing the extracted text, highlighting searchterm
     #load solr index in use, SolrCore object
-    coreID=request.session.get('mycore')
+    coreID=int(request.session.get('mycore'))
+    corelist,defaultcoreID,choice_list=authcores(request)
+    
     if coreID:
-        mycore=cores[coreID]
+        mycore=corelist[coreID]
         contentsmax=50000
         #TEMP DEBUG
         results=solrSoup.gettrimcontents(doc_id,mycore,searchterm)
@@ -191,8 +238,10 @@ def get_content(request,doc_id,searchterm): #make a page showing the extracted t
                 local=False
                 print('File does not exist locally')
         #check if file is registered and authorised to download
-            files=File.objects.filter(hash_contents=hashcontents)
-            if files.count()>0:
+            if authfile(request,hashcontents) == True:
+#                print('File registerd for download')
+#            files=File.objects.filter(hash_contents=hashcontents)
+#            if len(files)>0:
                 #print(files,'authorised')
                 auth=True
             else:
@@ -235,9 +284,10 @@ def testsearch(request,doc_id,searchterm):
 @login_required
 def get_bigcontent(request,doc_id,searchterm): #make a page of highlights, for MEGA files
 	  #load solr index in use, SolrCore object
-    coreID=request.session.get('mycore')
+    coreID=int(request.session.get('mycore'))
+    corelist,defaultcoreID,choice_list=authcores(request)
     if coreID:
-        mycore=cores[coreID]
+        mycore=corelist[coreID]
         
         results=solrSoup.bighighlights(doc_id,mycore,searchterm)
 #        print (str(results))
@@ -265,28 +315,6 @@ def get_bigcontent(request,doc_id,searchterm): #make a page of highlights, for M
             else:
                 auth=False
 
-        #clean up the text for display
-#            if highlights:
-#                firstscrap=highlights.pop(0)[0]
-#            
-#            else:
-#                firstscrap=''
-#            cleaned=re.sub('(\n[\s]+\n)+', '\n', rawtext) #cleaning up chunks of white space
-#            
-#            lastscrap=''
-#            try:
-#                splittext=re.split(searchterm,cleaned,flags=re.IGNORECASE) #make a list of text scraps, removing search term
-#                if len(splittext) > 1:
-#                    lastscrap=splittext.pop() #remove last entry if more than one, as this last is NOT followed by searchterm
-#            except:
-#                splittext=[cleaned]
-#            print ('HIGHLIGHTS:' , highlights)
-            
-#            parsedhl=[]
-#            for highlight in highlights:
-#                parsedhl.append([highlight.replace('<em>','<b>').replace('</em>','</b>'),'TEST'])
-#                
-#            teststring=[['cat','dog'],['elephant\n\n cat','mousen\n\xa0 cat'],['', ' \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n 2016-10-01 Donald '], [u'Trump', u' Tax Records Show He Could Have Avoided Taxes for Nearly Two Decades, The Times Found\n \n By DAVID BARSTOW, SUSANNE CRAIG, RUSS BUETTNER and MEGAN TWOHEYOCT. 1, 2016\n \n ELECTION 2016 By AINARA TIEFENTH\xc4LER and GABRIEL DANCE 1:22\n \n Trump\u2019s Tax Records\n \n Video\n \n Trump\u2019s Tax Records\n \n The New York Times obtained records from 1995 showing that Donald J. ']]
             return render(request, 'bigcontentform.html', {'docsize':docsize, 'doc_id': doc_id, 'highlights': highlights, 'searchterm': searchterm,'docname':docname, 'docpath':docpath, 'docexists':local})
         else:
             return HttpResponse('Can\'t find document with ID '+doc_id+' COREID: '+coreID)
