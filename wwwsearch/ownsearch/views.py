@@ -57,23 +57,27 @@ def authcores(request):
             defaultcoreID=0
     return cores, defaultcoreID, choice_list
 
+#CHECK IF FILE EXISTS IN DATABASE, AUTHORISED FOR DOWNLOAD AND IS PRESENT ON  MEDIA
 def authfile(request,hashcontents):
-    matchfiles=File.objects.filter(hash_contents=hashcontents)
-    #collection that contain the file
-    collection_ids=[matchfile.collection_id for matchfile in matchfiles]
-    #indexes that contain the file
-    coreids=[collection.core_id for collection in Collection.objects.filter(id__in=collection_ids)]
-    #user groups that user belongs to
-    authgroupids=[group.id for group in request.user.groups.all()]
-    #indexes that user is authorised for
-    authcoreids=[core.id for core in SolrCore.objects.filter(usergroup_id__in=authgroupids)]
-    #test if indexes containing file match authorised indexes
-    if not set(authcoreids).isdisjoint(coreids):
-        print('authorised for download')
-        for matchfile in matchfiles:
-            if os.path.exists(matchfile.filepath):
-                return matchfile
-    return None
+    matchfiles=File.objects.filter(hash_contents=hashcontents) #find local registered files by hashcontents
+    if matchfiles:
+        #collection that contain the file
+        collection_ids=[matchfile.collection_id for matchfile in matchfiles]
+        #indexes that contain the file
+        coreids=[collection.core_id for collection in Collection.objects.filter(id__in=collection_ids)]
+        #user groups that user belongs to
+        authgroupids=[group.id for group in request.user.groups.all()]
+        #indexes that user is authorised for
+        authcoreids=[core.id for core in SolrCore.objects.filter(usergroup_id__in=authgroupids)]
+        #test if indexes containing file match authorised indexes
+        if not set(authcoreids).isdisjoint(coreids):
+            #print('authorised for download')
+            for matchfile in matchfiles:
+                if os.path.exists(matchfile.filepath):
+                    #FILE AUTHORISED AND EXISTS LOCALLY
+                    return True,matchfile.id,matchfile.hash_filename
+    #return blanks
+    return False,'',''
         
 def authid(request,doc):
     coreid=Collection.objects.get(id=doc.collection_id).core_id
@@ -93,73 +97,71 @@ def authid(request,doc):
 @login_required
 def do_search(request,page=0,searchterm='',direction='',pagemax=0,sorttype=''):
 
-#GET AUTHORISED CORES AND DEFAULT
-    corelist,defaultcoreID,choice_list=authcores(request)
-    print(choice_list)
-#GET THE INDEX get the solr index, a SolrCore object, or choose the default
-    if 'mycore' not in request.session:  #set default if no core selected
-        request.session['mycore']=defaultcoreID
-    coreID=int(request.session.get('mycore'))
-    if coreID in corelist:
-        mycore=corelist[coreID]
-    else:
-        return HttpResponse('Missing config data for selected index ; retry')
-
-#SET THE RESULT PAGE    
-    page=int(page) #urls always returns strings only
-    #print('page',page,'searchterm',searchterm,'direction',direction)
-    if direction == 'next':
-        page=page+1
-    if direction == 'back':
-        page=page-1
-    #print('page',page)
-
-#DO SEARCH IF PAGE ESTABLISHED 
-    if page > 0: #if page value not default (0) then proceed directly with search
-        form = SearchForm(choice_list,str(coreID))
-        resultlist,resultcount=solrSoup.solrSearch(searchterm,sorttype,(page-1)*10,core=mycore)
-        pagemax=int(resultcount/10)+1
-
-#PROCESS FORM DATA - INDEX AND SEARCHTERM CHOICES AND THEN DO FIRST SEARCH
-    # if this is a POST request we need to process the form data
-    elif request.method == 'POST': #if data posted from form
-
-        # create a form instance and populate it with data from the request:
-        form = SearchForm(choice_list,str(coreID),request.POST)
-        # check whether it's valid:
-        if form.is_valid():
-            # process the data in form.cleaned_data as required
-            #print(form)
-            searchterm=form.cleaned_data['search_term']
-            sorttype=form.cleaned_data['SortType']
-            coreselect=int(form.cleaned_data['CoreChoice'])
-            if coreselect != coreID:  #NEW INDEX SELECTED
-                #print('change core')
-                coreID=coreselect  #new solr core ID
-                request.session['mycore']=coreID  #store the chosen index
-                mycore=corelist[coreID]  #select new SolrCore object
-            #print (coreselect)
-            if True:
-                resultlist,resultcount=solrSoup.solrSearch(searchterm,sorttype,0,core=mycore)
-                pagemax=int(resultcount/10)+1
-                if resultcount > 10:
-                    page = 1
-                else:
-                    page = 0
-#commented out for debug: convert above into try statement
-#            except Exception, e: #exception on SOlr connection should be caught in solrSoup
-#                print ('error in do search',str(e))
-#                resultlist=[]
-#                resultcount=-1
-#negative resultcount is used as an error code; -2 sent from solrSoup is connnection error
-
-    # if a GET (or any other method) we'll create a blank form
-    else:
-        form = SearchForm(choice_list,str(coreID))
-        resultlist = []
-        resultcount=-1
-    #print (resultlist)
-    return render(request, 'searchform.html', {'form': form, 'pagemax': pagemax, 'results': resultlist, 'searchterm': searchterm, 'resultcount': resultcount, 'page':page, 'sorttype': sorttype})
+    try:
+    #GET AUTHORISED CORES AND DEFAULT
+        corelist,defaultcoreID,choice_list=authcores(request)
+        #print(choice_list)
+        
+    #GET THE INDEX get the solr index, a SolrCore object, or choose the default
+        if 'mycore' not in request.session:  #set default if no core selected
+            request.session['mycore']=defaultcoreID
+        coreID=int(request.session.get('mycore'))
+        if coreID in corelist:
+            mycore=corelist[coreID]
+        else:
+            return HttpResponse('Missing config data for selected index ; retry')
+    
+    #SET THE RESULT PAGE    
+        page=int(page) #urls always returns strings only
+        #print('page',page,'searchterm',searchterm,'direction',direction)
+        if direction == 'next':
+            page=page+1
+        if direction == 'back':
+            page=page-1
+        #print('page',page)
+    
+    #DO SEARCH IF PAGE ESTABLISHED 
+        if page > 0: #if page value not default (0) then proceed directly with search
+            form = SearchForm(choice_list,str(coreID))
+            resultlist,resultcount=solrSoup.solrSearch(searchterm,sorttype,(page-1)*10,core=mycore)
+            pagemax=int(resultcount/10)+1
+    
+    #PROCESS FORM DATA - INDEX AND SEARCHTERM CHOICES AND THEN DO FIRST SEARCH
+        # if this is a POST request we need to process the form data
+        elif request.method == 'POST': #if data posted from form
+    
+            # create a form instance and populate it with data from the request:
+            form = SearchForm(choice_list,str(coreID),request.POST)
+            # check whether it's valid:
+            if form.is_valid():
+                # process the data in form.cleaned_data as required
+                #print(form)
+                searchterm=form.cleaned_data['search_term']
+                sorttype=form.cleaned_data['SortType']
+                coreselect=int(form.cleaned_data['CoreChoice'])
+                if coreselect != coreID:  #NEW INDEX SELECTED
+                    #print('change core')
+                    coreID=coreselect  #new solr core ID
+                    request.session['mycore']=coreID  #store the chosen index
+                    mycore=corelist[coreID]  #select new SolrCore object
+                #print (coreselect)
+                if True:
+                    resultlist,resultcount=solrSoup.solrSearch(searchterm,sorttype,0,core=mycore)
+                    pagemax=int(resultcount/10)+1
+                    if resultcount > 10:
+                        page = 1
+                    else:
+                        page = 0
+    
+        # if a GET (or any other method) we'll create a blank form
+        else:
+            form = SearchForm(choice_list,str(coreID))
+            resultlist = []
+            resultcount=-1
+        #print (resultlist)
+        return render(request, 'searchform.html', {'form': form, 'pagemax': pagemax, 'results': resultlist, 'searchterm': searchterm, 'resultcount': resultcount, 'page':page, 'sorttype': sorttype})
+    except solrSoup.SolrCoreNotFound as e:
+        return HttpResponse('Index not found on solr server : check configuration')
 
 @login_required
 def download(request,doc_id,hashfilename): #download a document from the docstore
@@ -193,55 +195,14 @@ def download(request,doc_id,hashfilename): #download a document from the docstor
         return HttpResponse('File not stored on server')
 
 
-##NOT IN USE _ THIS RETURNS FULL CONTENT WHICH WOULD BE TOO LARGE IF MASSIVE FILE
-#@login_required
-#def oldget_content(request,doc_id,searchterm): #make a page showing the extracted text, highlighting searchterm
-#    #load solr index in use, SolrCore object
-#    coreID=request.session.get('mycore')
-#    if coreID:
-#        mycore=cores[coreID]
-#        
-#            
-#        results=solrSoup.getcontents(doc_id,core=mycore)
-#        if len(results)>0:
-#            result=results[0]
-#            docsize=result['solrdocsize']
-#            docpath=result['docpath']
-#            rawtext=result['rawtext']
-#            docname=result['docname']
-#            hashcontents=result['hashcontents'] 
-#        #check if file available for download
-#            if os.path.exists(os.path.join(docbasepath,docpath)):
-#                local=True
-#            else:
-#                local=False
-#                print('File does not exist locally')
-#        #check if file is registered and authorised to download
-#            files=File.objects.filter(hash_contents=hashcontents)
-#            if files.count()>0:
-#                print(files,'authorised')
-#                auth=True
-#            else:
-#                auth=False
-#        #clean up the text for display
-#            cleaned=re.sub('(\n[\s]+\n)+', '\n', rawtext) #cleaning up chunks of white space
-#            lastscrap=''
-#            try:
-#                splittext=re.split(searchterm,cleaned,flags=re.IGNORECASE) #make a list of text scraps, removing search term
-#                if len(splittext) > 1:
-#                    lastscrap=splittext.pop() #remove last entry if more than one, as this last is NOT followed by searchterm
-#            except:
-#                splittext=[cleaned]
-#            return render(request, 'contentform.html', {'docsize':docsize, 'doc_id': doc_id, 'splittext': splittext, 'searchterm': searchterm, 'lastscrap': lastscrap, 'docname':docname, 'docpath':docpath, 'docexists':local})
-#        else:
-#            return HttpResponse('Can\'t find document with ID '+doc_id+' COREID: '+coreID)
-#    else:
-#        return HttpResponseRedirect('/') 
-
 @login_required
 def get_content(request,doc_id,searchterm): #make a page showing the extracted text, highlighting searchterm
     #load solr index in use, SolrCore object
-    coreID=int(request.session.get('mycore'))
+    corestring=request.session.get('mycore')
+    if corestring:
+        coreID=int(corestring)
+    else:
+        coreID=''
     corelist,defaultcoreID,choice_list=authcores(request)
     
     if coreID:
@@ -270,29 +231,22 @@ def get_content(request,doc_id,searchterm): #make a page showing the extracted t
             docname=result['docname']
             hashcontents=result['hashcontents']
 
-        #check if file available for download
-            if os.path.exists(os.path.join(docbasepath,docpath)):
-                local=True
-            else:
-                local=False
-                print('File does not exist locally')
-        #check if file is registered and authorised to download
-            
-            matchfile=authfile(request,hashcontents)
-            if matchfile is None:
-                auth=False
-                matchfileid=''
-                hashfilename=''
-            else:
-                print(matchfile.filename)
-                auth=True
-                matchfile_id=matchfile.id
-                hashfilename=matchfile.hash_filename
+#        #check if file is registered and authorised to download
+            authflag,matchfile_id,hashfilename=authfile(request,hashcontents)
+
+#            #file does not exist locally or not authorised for download
+#            if matchfile is None:
+#                local=False
+#                matchfileid=''
+#                hashfilename=''
+#            #file authorised for download:
+#            else:
+#                #print(matchfile.filename)
+#                local=True
+#                matchfile_id=matchfile.id
+#                hashfilename=matchfile.hash_filename
         #clean up the text for display
-#            return HttpResponse(highlight)
             cleaned=re.sub('(\n[\s]+\n)+', '\n\n', highlight) #cleaning up chunks of white space
-            #print cleaned
-#            cleaned=highlight
             lastscrap=''
             try:
                 splittext=re.split(searchterm,cleaned,flags=re.IGNORECASE) #make a list of text scraps, removing search term
@@ -300,7 +254,7 @@ def get_content(request,doc_id,searchterm): #make a page showing the extracted t
                     lastscrap=splittext.pop() #remove last entry if more than one, as this last is NOT followed by searchterm
             except:
                 splittext=[cleaned]
-            return render(request, 'contentform.html', {'docsize':docsize, 'doc_id': doc_id, 'splittext': splittext, 'searchterm': searchterm, 'lastscrap': lastscrap, 'docname':docname, 'docpath':docpath, 'hashfile':hashfilename, 'fileid':matchfile_id,'docexists':local})
+            return render(request, 'contentform.html', {'docsize':docsize, 'doc_id': doc_id, 'splittext': splittext, 'searchterm': searchterm, 'lastscrap': lastscrap, 'docname':docname, 'docpath':docpath, 'hashfile':hashfilename, 'fileid':matchfile_id,'docexists':authflag})
         else:
             return HttpResponse('Can\'t find document with ID '+doc_id+' COREID: '+coreID)
     else:
@@ -310,7 +264,12 @@ def get_content(request,doc_id,searchterm): #make a page showing the extracted t
 
 @login_required
 def testsearch(request,doc_id,searchterm):
-    coreID=request.session.get('mycore')
+	    #load solr index in use, SolrCore object
+    corestring=request.session.get('mycore')
+    if corestring:
+        coreID=int(corestring)
+    else:
+        coreID=''
     if coreID:
         mycore=cores[coreID]
         results=solrSoup.testresponse(doc_id,mycore,searchterm)
@@ -325,8 +284,12 @@ def testsearch(request,doc_id,searchterm):
         
 @login_required
 def get_bigcontent(request,doc_id,searchterm): #make a page of highlights, for MEGA files
-	  #load solr index in use, SolrCore object
-    coreID=int(request.session.get('mycore'))
+  #load solr index in use, SolrCore object
+    corestring=request.session.get('mycore')
+    if corestring:
+        coreID=int(corestring)
+    else:
+        coreID=''
     corelist,defaultcoreID,choice_list=authcores(request)
     if coreID:
         mycore=corelist[coreID]
@@ -343,21 +306,32 @@ def get_bigcontent(request,doc_id,searchterm): #make a page of highlights, for M
             docname=result['docname']
             hashcontents=result['hashcontents']
             highlights=result['highlight'] 
-        #check if file available for download
-            if os.path.exists(os.path.join(docbasepath,docpath)):
-                local=True
-            else:
-                local=False
-                print('File does not exist locally')
-        #check if file is registered and authorised to download
-            files=File.objects.filter(hash_contents=hashcontents)
-            if files.count()>0:
-                #print(files,'authorised') #DEBUG : need to add user check to authorise
-                auth=True
-            else:
-                auth=False
 
-            return render(request, 'bigcontentform.html', {'docsize':docsize, 'doc_id': doc_id, 'highlights': highlights, 'searchterm': searchterm,'docname':docname, 'docpath':docpath, 'docexists':local})
+
+#        #check if file available for download
+#            if os.path.exists(os.path.join(docbasepath,docpath)):
+#                local=True
+#            else:
+#                local=False
+#                print('File does not exist locally')
+
+        #check if file is registered and authorised to download
+            
+            authflag,matchfile_id,hashfilename=authfile(request,hashcontents)
+
+#            #file not authorised for download
+#            if matchfile is None:
+#                auth=False
+#                matchfileid=''
+#                hashfilename=''
+#            #file authorised for download:
+#            else:
+#                #print(matchfile.filename)
+#                auth=True
+#                matchfile_id=matchfile.id
+#                hashfilename=matchfile.hash_filename
+
+            return render(request, 'bigcontentform.html', {'docsize':docsize, 'doc_id': doc_id, 'highlights': highlights, 'hashfile':hashfilename, 'fileid':matchfile_id,'searchterm': searchterm,'docname':docname, 'docpath':docpath, 'docexists':authflag})
         else:
             return HttpResponse('Can\'t find document with ID '+doc_id+' COREID: '+coreID)
     else:

@@ -29,7 +29,7 @@ class SearchForm(forms.Form):
         self.initial=initial
 #        self.choicelist=get_corechoices(self.request.user)
         super(SearchForm, self).__init__(*args, **kwargs)
-        print ('choises',self.choicelist)
+        #print ('choices',self.choicelist)
         #dynamically set core choice based on user
         self.fields['CoreChoice']=ChoiceField(label='Index: ',choices=self.choicelist,initial=self.initial)   
     search_term = forms.CharField(label='Search Term', max_length=100)

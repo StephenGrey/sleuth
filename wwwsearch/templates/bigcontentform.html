@@ -24,7 +24,7 @@ This is a comment section
 <p>PATH: {{docpath}}&emsp; SIZE(bytes):{{docsize}}<p>
 <!--DIRECT FROM APACHE--<a href="/docstore/{{docpath}}"><b>Download</b></a>	-->
 
-{% if docexists%}<a href="/ownsearch/download={{docpath}}"<b>Download</b></a><p>
+{% if docexists%}<a href="/ownsearch/download={{fileid}}&{{hashfile}}"<b>Download</b></a><p>
 {% endif %}
 
 {% for highlight in highlights%}

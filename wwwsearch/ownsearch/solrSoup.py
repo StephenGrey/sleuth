@@ -158,6 +158,7 @@ def getSortAttrib(sorttype,core):
     return sortattrib
 
 def solrSearch(q,sorttype,startnumber,core):
+    core.ping()
     args=core.hlarguments+str(startnumber)+getSortAttrib(sorttype,core)
     #print('args',args)
     try:
@@ -183,34 +184,39 @@ def getSolrResponse(searchterm,arguments,core):
 
 def getlist(soup,counter,core,linebreaks=False,big=False): #this parses the list of results, starting at 'counter'
     try:
-        numberfound=int(soup.response.result['numfound'])
-        result=soup.response.result
-        results=[]
-        for doc in result:
-            counter+=1
-            solrid=doc.str.text
-            
-            document=Solrdoc(doc,core).data  #parse the solr result into standard fields, e.g. 'date' for date
-
-
-            #look up this in our model database, to see if additional data on this doc >>>
-            if True: #lookup to see if hash of filecontents is id 
-                filelist=File.objects.filter(hash_contents=document['hashcontents'])
-                #print('FILE',filelist)
-                if len(filelist)>0:
-                    f=filelist[0]
-                    document['path']=f.filepath
-                    document['filesize']=f.filesize
-                else:
-                    document['path']=''
-                    document['filesize']=0
-            document['resultnumber']=counter
-            results.append(document)
+        if soup.response:
+            numberfound=int(soup.response.result['numfound'])
+            result=soup.response.result
+            results=[]
+            for doc in result:
+                counter+=1
+                solrid=doc.str.text
+                
+                document=Solrdoc(doc,core).data  #parse the solr result into standard fields, e.g. 'date' for date
+    
+    
+                #look up this in our model database, to see if additional data on this doc >>>
+                if True: #lookup to see if hash of filecontents is id 
+                    filelist=File.objects.filter(hash_contents=document['hashcontents'])
+                    #print('FILE',filelist)
+                    if len(filelist)>0:
+                        f=filelist[0]
+                        document['path']=f.filepath
+                        document['filesize']=f.filesize
+                    else:
+                        document['path']=''
+                        document['filesize']=0
+                document['resultnumber']=counter
+                results.append(document)
+        else:
+            results=[]
+            numberfound=0        
     except Exception as e: 
-        print('error in get list',e)
-        results=[]
-        numberfound=0
-    #add the highlighting strings to the results 
+            print('error in get list',e)
+            results=[]
+            numberfound=0
+
+        #add the highlighting strings to the results 
     if results:
         if big is True:
             highlights=getbighighlights(soup)
