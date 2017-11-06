@@ -7,6 +7,7 @@ extractpath: /somepath/extract-master/target/extract.jar
 secretkey: somesecretkey
 #it can't cope with % charactrs in key
 allowed_hosts: localhost,127.0.0.1
+debug: False
 
 [Models]
 collectionbasepath: /home/ubuntu/somefolder

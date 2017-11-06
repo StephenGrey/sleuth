@@ -197,31 +197,24 @@ def download(request,doc_id,hashfilename): #download a document from the docstor
 
 @login_required
 def get_content(request,doc_id,searchterm): #make a page showing the extracted text, highlighting searchterm
+
     #load solr index in use, SolrCore object
-    corestring=request.session.get('mycore')
-    if corestring:
-        coreID=int(corestring)
-    else:
-        coreID=''
-    corelist,defaultcoreID,choice_list=authcores(request)
-    
-    if coreID:
+    try:
+        coreID=int(request.session.get('mycore'))
+        corelist,defaultcoreID,choice_list=authcores(request)
         mycore=corelist[coreID]
         contentsmax=50000
-        #TEMP DEBUG
         results=solrSoup.gettrimcontents(doc_id,mycore,searchterm)
-#        return HttpResponse(results)     
         if len(results)>0:
             result=results[0]
             if 'highlight' in results[0]:
                 highlight=results[0]['highlight']
             else:
                 highlight=''
-            #print len(highlight)
             
             #detect if large file (contents greater or equal to max size)
             if len(highlight)==contentsmax:
-               print('max contents')
+               #print('max contents')
                #go get large highlights instead
                res=get_bigcontent(request,doc_id,searchterm)
                return res
@@ -234,17 +227,6 @@ def get_content(request,doc_id,searchterm): #make a page showing the extracted t
 #        #check if file is registered and authorised to download
             authflag,matchfile_id,hashfilename=authfile(request,hashcontents)
 
-#            #file does not exist locally or not authorised for download
-#            if matchfile is None:
-#                local=False
-#                matchfileid=''
-#                hashfilename=''
-#            #file authorised for download:
-#            else:
-#                #print(matchfile.filename)
-#                local=True
-#                matchfile_id=matchfile.id
-#                hashfilename=matchfile.hash_filename
         #clean up the text for display
             cleaned=re.sub('(\n[\s]+\n)+', '\n\n', highlight) #cleaning up chunks of white space
             lastscrap=''
@@ -257,7 +239,9 @@ def get_content(request,doc_id,searchterm): #make a page showing the extracted t
             return render(request, 'contentform.html', {'docsize':docsize, 'doc_id': doc_id, 'splittext': splittext, 'searchterm': searchterm, 'lastscrap': lastscrap, 'docname':docname, 'docpath':docpath, 'hashfile':hashfilename, 'fileid':matchfile_id,'docexists':authflag})
         else:
             return HttpResponse('Can\'t find document with ID '+doc_id+' COREID: '+coreID)
-    else:
+
+    except Exception as e:
+        print('error',e)
         return HttpResponseRedirect('/') 
 
 
@@ -307,29 +291,9 @@ def get_bigcontent(request,doc_id,searchterm): #make a page of highlights, for M
             hashcontents=result['hashcontents']
             highlights=result['highlight'] 
 
-
-#        #check if file available for download
-#            if os.path.exists(os.path.join(docbasepath,docpath)):
-#                local=True
-#            else:
-#                local=False
-#                print('File does not exist locally')
-
         #check if file is registered and authorised to download
             
             authflag,matchfile_id,hashfilename=authfile(request,hashcontents)
-
-#            #file not authorised for download
-#            if matchfile is None:
-#                auth=False
-#                matchfileid=''
-#                hashfilename=''
-#            #file authorised for download:
-#            else:
-#                #print(matchfile.filename)
-#                auth=True
-#                matchfile_id=matchfile.id
-#                hashfilename=matchfile.hash_filename
 
             return render(request, 'bigcontentform.html', {'docsize':docsize, 'doc_id': doc_id, 'highlights': highlights, 'hashfile':hashfilename, 'fileid':matchfile_id,'searchterm': searchterm,'docname':docname, 'docpath':docpath, 'docexists':authflag})
         else:
