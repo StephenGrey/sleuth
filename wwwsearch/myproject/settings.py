@@ -22,12 +22,14 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SECRET_KEY = config['Django']['secretkey']
 
 # SECURITY WARNING: don't run with debug turned on in production!
-#set to False for logging to file to work
-
-if config['Django']['debug']=='True':
-    DEBUG =  True
-else:
-    DEBUG = False
+#set DEBUG to False for logging functions to work
+try:
+    if config['Django']['debug']=='True':
+        DEBUG =  True
+    else:
+        DEBUG = False
+except:
+    DEBUG= False
     
 ALLOWED_HOSTS = config['Django']['allowed_hosts'].split(',')
 
@@ -128,6 +130,14 @@ USE_TZ = True
 STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, "static/")
 
+#get loglevels from user configs - or take defaults
+try:
+    console_loglevel=config['Django']['console_loglevel']
+    logfile_loglevel=config['Django']['logfile_loglevel']
+except:
+    console_loglevel='INFO'
+    logfile_loglevel='DEBUG'
+
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': True,
@@ -143,15 +153,15 @@ LOGGING = {
             'class':'logging.NullHandler',
         },
         'logfile': {
-            'level':'DEBUG',
+            'level': logfile_loglevel,
             'class':'logging.handlers.RotatingFileHandler',
             'filename': os.path.join(BASE_DIR, 'logfile'),
             'maxBytes': 50000,
-            'backupCount': 2,
+            'backupCount': 9, #number of backup files of old logs
             'formatter': 'standard',
         },
         'console':{
-            'level':'INFO',
+            'level': console_loglevel,
             'class':'logging.StreamHandler',
             'formatter': 'standard'
         },
@@ -169,7 +179,7 @@ LOGGING = {
         },
         'ownsearch': {
             'handlers': ['console', 'logfile'],
-            'level': 'DEBUG',
+            'level': 'DEBUG', #ROOT LOG LEVEL -  CAN"T GO LOWER - 
         },
     }
 }

@@ -6,19 +6,7 @@ from documents.models import SolrCore as sc
 from django.db.utils import OperationalError
 #NB values fetched at server restart, not dynamic
 
-#def get_corechoices(thisuser):
-#    cores={}
-#    choice_list=()
-#    try:
-#        for coredoc in sc.objects.all():
-#            corenumber=coredoc.coreID
-#            coredisplayname=coredoc.coreDisplayName
-#            #print corenumber,core
-#            choice_list +=((corenumber,coredisplayname),) #value/label
-#    except OperationalError: #table hasn't been created yet
-#        pass
-#    #print(choice_list)
-#    return choice_list
+
 
 SORT_CHOICES = (('relevance', 'Relevance'), ('documentID', 'Document name'),('last_modified','Last Modified'))
 

@@ -11,7 +11,7 @@ venv/
 extract-master/
 
 # ignore logs
-wwwsearch/logfile
+wwwsearch/logfile*
 
 # ignore user settings - put defaults into usersettings.config.example
 wwwsearch/usersettings.config
@@ -22,3 +22,7 @@ wwwsearch/db.sqlite3
 # ignore Solr data and PID files
 solr/solr-*/server/solr/*/data/*
 solr/solr-*/bin/solr-*.pid
+
+
+wwwsearch/documents/.DS_Store
+wwwsearch/documents/.DS_Store

@@ -11,96 +11,20 @@ from django.contrib.auth.decorators import login_required
 from django.http import HttpResponse
 from django.http import HttpResponseRedirect
 from django.db.models.base import ObjectDoesNotExist
-#from parseresults import parseSolrResults as parse
-#import pickle, re, sys
-#from search_solr import solrSearch
 import solrSoup, re, os, logging, unicodedata
 from usersettings import userconfig as config
-log = logging.getLogger('ownsearch')
+log = logging.getLogger('ownsearch.views')
 docbasepath=config['Models']['collectionbasepath']
-
-#cores=solrSoup.getcores()
-#print(cores)
-#defaultcoreID=config['Solr']['defaultcoreid']
-#if defaultcoreID not in cores:
-#    try:
-#        defaultcoreID=cores.keys()[0]  #take any old core, if default not found
-#    except Exception as e:
-#        defaultcoreID='1' #and if no cores defined , just make it 1
-#docbasepath=config['Models']['collectionbasepath']
-
-##set up solr indexes
-@login_required
-def authcores(request):
-    cores={}
-    choice_list=()
-    thisuser=request.user
-    groupids=[group.id for group in thisuser.groups.all()]
-    corelist=(SolrCore.objects.filter(usergroup_id__in=groupids))
-    
-    for core in corelist:
-        cores[core.id]=solrSoup.SolrCore(core.corename)
-        corenumber=str(core.id)
-        coredisplayname=core.coreDisplayName
-        choice_list +=((corenumber,coredisplayname),) #value/label
-    try:
-        defaultcoreID=int(config['Solr']['defaultcoreid'])
-        assert defaultcoreID in cores
-                
-    except Exception as e:
-        print(e)
-        try:
-            defaultcoreID=cores.keys()[0]  #take any old core, if default not found
-        except Exception as e:
-            print(e)
-            cores={}
-            defaultcoreID=0
-    return cores, defaultcoreID, choice_list
-
-#CHECK IF FILE EXISTS IN DATABASE, AUTHORISED FOR DOWNLOAD AND IS PRESENT ON  MEDIA
-def authfile(request,hashcontents):
-    matchfiles=File.objects.filter(hash_contents=hashcontents) #find local registered files by hashcontents
-    if matchfiles:
-        #collection that contain the file
-        collection_ids=[matchfile.collection_id for matchfile in matchfiles]
-        #indexes that contain the file
-        coreids=[collection.core_id for collection in Collection.objects.filter(id__in=collection_ids)]
-        #user groups that user belongs to
-        authgroupids=[group.id for group in request.user.groups.all()]
-        #indexes that user is authorised for
-        authcoreids=[core.id for core in SolrCore.objects.filter(usergroup_id__in=authgroupids)]
-        #test if indexes containing file match authorised indexes
-        if not set(authcoreids).isdisjoint(coreids):
-            #print('authorised for download')
-            for matchfile in matchfiles:
-                if os.path.exists(matchfile.filepath):
-                    #FILE AUTHORISED AND EXISTS LOCALLY
-                    return True,matchfile.id,matchfile.hash_filename
-    #return blanks
-    return False,'',''
-        
-def authid(request,doc):
-    coreid=Collection.objects.get(id=doc.collection_id).core_id
-    #print(coreid)
-    #user groups that user belongs to
-    authgroupids=[group.id for group in request.user.groups.all()]
-    #print(authgroupids)
-    #indexes that user is authorised for
-    authcoreids=[core.id for core in SolrCore.objects.filter(usergroup_id__in=authgroupids)]
-    #print(authcoreids)
-    if coreid in authcoreids:
-        return True
-    else:
-        return False
 
 
 @login_required
 def do_search(request,page=0,searchterm='',direction='',pagemax=0,sorttype=''):
-
     try:
+
     #GET AUTHORISED CORES AND DEFAULT
         corelist,defaultcoreID,choice_list=authcores(request)
-        #print(choice_list)
+        print(str(choice_list))
+        log.debug(choice_list)
         
     #GET THE INDEX get the solr index, a SolrCore object, or choose the default
         if 'mycore' not in request.session:  #set default if no core selected
@@ -109,6 +33,7 @@ def do_search(request,page=0,searchterm='',direction='',pagemax=0,sorttype=''):
         if coreID in corelist:
             mycore=corelist[coreID]
         else:
+            log.warning('Cannot find coreID in corelist')
             return HttpResponse('Missing config data for selected index ; retry')
     
     #SET THE RESULT PAGE    
@@ -123,6 +48,7 @@ def do_search(request,page=0,searchterm='',direction='',pagemax=0,sorttype=''):
     #DO SEARCH IF PAGE ESTABLISHED 
         if page > 0: #if page value not default (0) then proceed directly with search
             form = SearchForm(choice_list,str(coreID))
+            log.info('User '+request.user.username+' searching with searchterm: '+searchterm+' on page '+str(page))            
             resultlist,resultcount=solrSoup.solrSearch(searchterm,sorttype,(page-1)*10,core=mycore)
             pagemax=int(resultcount/10)+1
     
@@ -140,12 +66,13 @@ def do_search(request,page=0,searchterm='',direction='',pagemax=0,sorttype=''):
                 sorttype=form.cleaned_data['SortType']
                 coreselect=int(form.cleaned_data['CoreChoice'])
                 if coreselect != coreID:  #NEW INDEX SELECTED
-                    #print('change core')
+                    log.debug('change core')
                     coreID=coreselect  #new solr core ID
                     request.session['mycore']=coreID  #store the chosen index
                     mycore=corelist[coreID]  #select new SolrCore object
-                #print (coreselect)
+                    log.debug('selected core'+str(coreselect))
                 if True:
+                    log.info('User '+request.user.username+' searching with searchterm: '+searchterm)
                     resultlist,resultcount=solrSoup.solrSearch(searchterm,sorttype,0,core=mycore)
                     pagemax=int(resultcount/10)+1
                     if resultcount > 10:
@@ -158,30 +85,33 @@ def do_search(request,page=0,searchterm='',direction='',pagemax=0,sorttype=''):
             form = SearchForm(choice_list,str(coreID))
             resultlist = []
             resultcount=-1
-        #print (resultlist)
         return render(request, 'searchform.html', {'form': form, 'pagemax': pagemax, 'results': resultlist, 'searchterm': searchterm, 'resultcount': resultcount, 'page':page, 'sorttype': sorttype})
     except solrSoup.SolrCoreNotFound as e:
+        log.error('Index not found on solr server')
         return HttpResponse('Index not found on solr server : check configuration')
+    except solrSoup.SolrConnectionError as e:
+        log.error(e)
+        return HttpResponse('No response from solr server : check network connection, solr status')
 
 @login_required
 def download(request,doc_id,hashfilename): #download a document from the docstore
-    #print doc_id,hashfilename
-    
+    log.debug('Download of doc_id:'+doc_id+' hashfilename:'+hashfilename)
     #MAKE CHECKS BEFORE DOWNLOAD
     #check file exists in database and hash matches
     try:
         thisfile=File.objects.get(id=doc_id)
+        log.info('User: '+request.user.username+' attempting to download file: '+thisfile.filename)
         assert thisfile.hash_filename==hashfilename
-    except AssertionError as e:
-        print ('Hash Mismatch Error',e)
+    except AssertionError:
+        log.warning('Download failed because of hash mismatch')
         return HttpResponse('File not stored on server')
-    except ObjectDoesNotExist as e:
-        print ('File ID does not exist',e)
+    except ObjectDoesNotExist:
+        log.warning('Download failed as file ID not found in database')
         return HttpResponse('File not stored on server')
     #check user authorised to download
     if authid(request,thisfile) is False:
+        log.warning(thisfile.filename+' not authorised or not present')
         return HttpResponse('File NOT authorised for download')    
-    #DEBUG THE DOWNLOAD SHOULD BE LOGGED
 
     file_path = thisfile.filepath
     if os.path.exists(file_path):
@@ -189,6 +119,7 @@ def download(request,doc_id,hashfilename): #download a document from the docstor
         with open(file_path, 'rb') as thisfile:
             response=HttpResponse(thisfile.read(), content_type='application/force-download')
             response['Content-Disposition'] = 'inline; filename=' + cleanfilename
+            log.info('DOWNLOAD User: '+str(request.user)+' Filepath: '+file_path)
             return response
         raise Http404
     else:
@@ -200,9 +131,14 @@ def get_content(request,doc_id,searchterm): #make a page showing the extracted t
 
     #load solr index in use, SolrCore object
     try:
+        #only show content if index defined in session:
+        if request.session.get('mycore') is None:
+            log.info('Get content request refused; no index defined in session')
+            return HttpResponseRedirect('/') 
         coreID=int(request.session.get('mycore'))
         corelist,defaultcoreID,choice_list=authcores(request)
         mycore=corelist[coreID]
+
         contentsmax=50000
         results=solrSoup.gettrimcontents(doc_id,mycore,searchterm)
         if len(results)>0:
@@ -214,7 +150,6 @@ def get_content(request,doc_id,searchterm): #make a page showing the extracted t
             
             #detect if large file (contents greater or equal to max size)
             if len(highlight)==contentsmax:
-               #print('max contents')
                #go get large highlights instead
                res=get_bigcontent(request,doc_id,searchterm)
                return res
@@ -225,26 +160,30 @@ def get_content(request,doc_id,searchterm): #make a page showing the extracted t
             hashcontents=result['hashcontents']
 
 #        #check if file is registered and authorised to download
-            authflag,matchfile_id,hashfilename=authfile(request,hashcontents)
+            authflag,matchfile_id,hashfilename=authfile(request,hashcontents,docname)
 
         #clean up the text for display
-            cleaned=re.sub('(\n[\s]+\n)+', '\n\n', highlight) #cleaning up chunks of white space
-            lastscrap=''
-            try:
-                splittext=re.split(searchterm,cleaned,flags=re.IGNORECASE) #make a list of text scraps, removing search term
-                if len(splittext) > 1:
-                    lastscrap=splittext.pop() #remove last entry if more than one, as this last is NOT followed by searchterm
-            except:
-                splittext=[cleaned]
+            splittext,lastscrap=cleanup(searchterm,highlight)
+            
             return render(request, 'contentform.html', {'docsize':docsize, 'doc_id': doc_id, 'splittext': splittext, 'searchterm': searchterm, 'lastscrap': lastscrap, 'docname':docname, 'docpath':docpath, 'hashfile':hashfilename, 'fileid':matchfile_id,'docexists':authflag})
         else:
             return HttpResponse('Can\'t find document with ID '+doc_id+' COREID: '+coreID)
 
     except Exception as e:
-        print('error',e)
+        log.error(str(e))
         return HttpResponseRedirect('/') 
 
-
+def cleanup(searchterm,highlight):
+    cleaned=re.sub('(\n[\s]+\n)+', '\n\n', highlight) #cleaning up chunks of white space
+    lastscrap=''
+    try:
+        splittext=re.split(searchterm,cleaned,flags=re.IGNORECASE) #make a list of text scraps, removing search term
+        if len(splittext) > 1:
+            lastscrap=splittext.pop() #remove last entry if more than one, as this last is NOT followed by searchterm
+    except:
+        splittext=[cleaned]
+    return splittext,lastscrap
+    
 
 @login_required
 def testsearch(request,doc_id,searchterm):
@@ -279,8 +218,7 @@ def get_bigcontent(request,doc_id,searchterm): #make a page of highlights, for M
         mycore=corelist[coreID]
         
         results=solrSoup.bighighlights(doc_id,mycore,searchterm)
-#        print (str(results))
-#        return HttpResponse(str(results))
+
         if len(results)>0:
 
             result=results[0]
@@ -293,7 +231,7 @@ def get_bigcontent(request,doc_id,searchterm): #make a page of highlights, for M
 
         #check if file is registered and authorised to download
             
-            authflag,matchfile_id,hashfilename=authfile(request,hashcontents)
+            authflag,matchfile_id,hashfilename=authfile(request,hashcontents,docname)
 
             return render(request, 'bigcontentform.html', {'docsize':docsize, 'doc_id': doc_id, 'highlights': highlights, 'hashfile':hashfilename, 'fileid':matchfile_id,'searchterm': searchterm,'docname':docname, 'docpath':docpath, 'docexists':authflag})
         else:
@@ -313,4 +251,87 @@ def slugify(value):
     value = unicode(re.sub('[-\s]+', '-', value))
     return value+fileExt
 
+##set up solr indexes
+@login_required
+def authcores(request):
+    cores={}
+    choice_list=()
+    thisuser=request.user
+    groupids=[group.id for group in thisuser.groups.all()]
+    corelist=(SolrCore.objects.filter(usergroup_id__in=groupids))
+    
+    for core in corelist:
+        cores[core.id]=solrSoup.SolrCore(core.corename)
+        corenumber=str(core.id)
+        coredisplayname=core.coreDisplayName
+        choice_list +=((corenumber,coredisplayname),) #value/label
+    try:
+        defaultcoreID=int(config['Solr']['defaultcoreid'])
+        assert defaultcoreID in cores     
+    except Exception as e:
+        log.warning('default core ('+str(defaultcoreID)+') in userconfigs is not found in authorised indexes')
+        
+        try:
+            defaultcoreID=cores.keys()[0]  #take any old core, if default not found
+        except Exception as e:
+            log.error(str(e))
+            cores={}
+            defaultcoreID=0
+    return cores, defaultcoreID, choice_list
+
+#CHECK IF FILE WITH SAME HASH EXISTS IN DATABASE, AUTHORISED FOR DOWNLOAD AND IS PRESENT ON  MEDIA
+def authfile(request,hashcontents,docname,acceptothernames=True):
+    matchfiles=File.objects.filter(hash_contents=hashcontents) #find local registered files by hashcontents
+    if matchfiles:
+        log.debug('hashcontents: '+hashcontents)    
+    #get authorised cores
+        #user groups that user belongs to
+        authgroupids=[group.id for group in request.user.groups.all()]
+        #indexes that user is authorised for
+        authcoreids=[core.id for core in SolrCore.objects.filter(usergroup_id__in=authgroupids)]
+        log.debug(str(authcoreids)+'.. cores authorised for user')
+        
+    #find authorised file
+        altlist=[]
+        for f in matchfiles:
+            fcore=Collection.objects.get(id=f.collection_id).core_id  #get core of database file
+            if fcore in authcoreids and os.path.exists(f.filepath) and docname==f.filename:
+                #FILE AUTHORISED AND EXISTS LOCALLY
+                log.debug('matched authorised file'+f.filepath)
+                return True,f.id,f.hash_filename
+            elif fcore in authcoreids and os.path.exists(f.filepath):
+                altlist.append(f)
+         #if no filenames match, return a hashmatch
+        if acceptothernames and altlist:
+            log.debug('hashmatches with other filenames'+str(altlist))
+            #return any of them
+            log.debug('returning alternative filename match'+altlist[0].filepath)
+            return True,altlist[0].id,altlist[0].hash_filename
+        
+#        #ALTERNATIVE METHOD _ MATCH SET OF AUTHORISED CORES WITH CORES CONTAINING FILE 
+#        collection_ids=[matchfile.collection_id for matchfile in matchfiles]
+#        log.debug(str(collection_ids)+'.. collections containing file')
+#        #indexes that contain the file
+#        coreids=[collection.core_id for collection in Collection.objects.filter(id__in=collection_ids)]
+#        log.debug(str(coreids)+' .. cores containing file')
+#        #test if indexes containing file match authorised indexes
+#        if not set(authcoreids).isdisjoint(coreids):
+#            #I.E.??? RETURNS TRUE IF ANY IN FIRST LIST MATCHES ANY IN SECOND LIST (SET INTERSECTION)
+            
+    #return blanks
+    return False,'',''
+        
+def authid(request,doc):
+    coreid=Collection.objects.get(id=doc.collection_id).core_id
+    #print(coreid)
+    #user groups that user belongs to
+    authgroupids=[group.id for group in request.user.groups.all()]
+    #print(authgroupids)
+    #indexes that user is authorised for
+    authcoreids=[core.id for core in SolrCore.objects.filter(usergroup_id__in=authgroupids)]
+    #print(authcoreids)
+    if coreid in authcoreids:
+        return True
+    else:
+        return False
 
