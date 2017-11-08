@@ -23,7 +23,7 @@ def do_search(request,page=0,searchterm='',direction='',pagemax=0,sorttype=''):
 
     #GET AUTHORISED CORES AND DEFAULT
         corelist,defaultcoreID,choice_list=authcores(request)
-        print(str(choice_list))
+#        print(str(choice_list))
         log.debug(choice_list)
         
     #GET THE INDEX get the solr index, a SolrCore object, or choose the default
@@ -34,7 +34,7 @@ def do_search(request,page=0,searchterm='',direction='',pagemax=0,sorttype=''):
             mycore=corelist[coreID]
         else:
             log.warning('Cannot find coreID in corelist')
-            return HttpResponse('Missing config data for selected index ; retry')
+            return HttpResponse('Missing any config data for authorised index ; retry')
     
     #SET THE RESULT PAGE    
         page=int(page) #urls always returns strings only

@@ -11,6 +11,7 @@ from usersettings import userconfig as config
 from django.utils import timezone
 import pytz #support localising the timezone
 from datetime import datetime
+log = logging.getLogger('ownsearch.solrSoup')
 
 class MissingConfigData(Exception): 
     pass
@@ -57,9 +58,7 @@ class SolrCore:
             self.fields['docname']=self.docnamefield
             self.fields['docpath']=self.docpath
             self.fields['hashcontents']=self.hashcontentsfield
-            
 
-            
         except KeyError:
             raise MissingConfigData
     def test(self):
@@ -80,7 +79,7 @@ class SolrCore:
 #                print('Good connection')
                 return True
             else:
-                print('Core status: ',soup)
+                log.debug('Core status: ',soup)
                 return False
         except requests.exceptions.ConnectionError as e:
 #            print('no connection to solr server')
@@ -168,7 +167,7 @@ def solrSearch(q,sorttype,startnumber,core):
     except requests.exceptions.RequestException as e:
         reslist=[]
         numbers=-2
-        print 'Connection error to Solr'
+        log.warning('Connection error to Solr')
     return reslist,numbers
 
 def getSolrResponse(searchterm,arguments,core):
@@ -212,7 +211,7 @@ def getlist(soup,counter,core,linebreaks=False,big=False): #this parses the list
             results=[]
             numberfound=0        
     except Exception as e: 
-            print('error in get list',e)
+            log.warning('error in get list'+str(e))
             results=[]
             numberfound=0
 
@@ -365,7 +364,7 @@ def getcores():
             try:
                 cores[corenumber]=SolrCore(core)
             except MissingConfigData:
-                print('Missing data in usersettings.config for core number '+corenumber)
+                log.error('Missing data in usersettings.config for core number '+corenumber)
     except OperationalError: #catching if solrcore table not created yet
         pass
     return cores

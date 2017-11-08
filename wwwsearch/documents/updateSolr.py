@@ -375,15 +375,15 @@ def listmeta():
             print file.filename, 'ID:'+file.solrid,'PATHHASH'+file.hash_filename
             print'Solr meta data needs update'
 
-def test(solrid,mycore=s.getcores()['3']):
-#    cores=s.getcores() #fetch dictionary of installed solr indexes (cores)
-#    mycore=cores['1']
-    print (mycore.name)
-    changes=[('solrdocsize',"100100")] #('date', '2017-09-15T18:08:24Z')] #
-    data=makejson(solrid,changes,mycore)
-    print(data)
-    response,updatestatus=post_jsonupdate(data,mycore)
-    print(response,updatestatus)
-    checkstatus=checkupdate(solrid,changes,mycore)
-    return updatestatus,checkstatus
+#def test(solrid,mycore=s.getcores()['3']):
+##    cores=s.getcores() #fetch dictionary of installed solr indexes (cores)
+##    mycore=cores['1']
+#    print (mycore.name)
+#    changes=[('solrdocsize',"100100")] #('date', '2017-09-15T18:08:24Z')] #
+#    data=makejson(solrid,changes,mycore)
+#    print(data)
+#    response,updatestatus=post_jsonupdate(data,mycore)
+#    print(response,updatestatus)
+#    checkstatus=checkupdate(solrid,changes,mycore)
+#    return updatestatus,checkstatus
 
