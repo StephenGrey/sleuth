@@ -25,7 +25,8 @@ def do_search(request,page=0,searchterm='',direction='',pagemax=0,sorttype=''):
     #GET AUTHORISED CORES AND DEFAULT
         corelist,defaultcoreID,choice_list=authcores(request)
 #        print(str(choice_list))
-        log.debug('CORE CHOICE: '+str(choice_list)+' DEFAULT CORE ID:'+str(defaultcoreID))
+        log.debug('CORE CHOICE: '+str(choice_list))
+        log.debug(' DEFAULT CORE ID:'+str(defaultcoreID))
         
     #GET THE INDEX get the solr index, a SolrCore object, or choose the default
         if 'mycore' not in request.session:  #set default if no core selected
@@ -41,7 +42,7 @@ def do_search(request,page=0,searchterm='',direction='',pagemax=0,sorttype=''):
             coreID=defaultcoreID
         else:
             log.warning('Cannot find any valid coreID in authorised corelist')
-            return HttpResponse('Missing any config data for any authorised index ; retry')
+            return HttpResponse('Missing any config data for any authorised index: contact administrator')
     
     #SET THE RESULT PAGE    
         page=int(page) #urls always returns strings only
