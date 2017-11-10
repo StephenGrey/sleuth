@@ -19,17 +19,22 @@ from usersettings import userconfig as config
 #set up solr indexes
 cores=solr.getcores()
 defaultcoreID=config['Solr']['defaultcoreid']
+print(cores,defaultcoreID)
+log.debug(str(cores)+str(defaultcoreID))
+print(defaultcoreID in cores)
 if defaultcoreID not in cores:
     try:
         defaultcoreID=cores.keys()[0]  #take any old core, if default not found
     except Exception as e:
-        defaultcoreID='1' #and if no cores defined , just make it 1
+        log.warning('No indexes defined in database')
+        defaultcoreID='' #if no indexes, no valid default
 
 @staff_member_required()
 def index(request):
     #get the core , or set the the default
     if 'mycore' not in request.session:  #set default if no core selected
-        request.session['mycore']=defaultcoreID
+        if defaultcoreID: #if a default defined, then set as chosen core
+            request.session['mycore']=defaultcoreID
     coreID=request.session.get('mycore')
     if request.method=='POST': #if data posted # switch core
 #        print('post data')
@@ -49,12 +54,12 @@ def listfiles(request):
 #        print('Core set in request: ',request.session['mycore'])
     cores=solr.getcores() #fetch dictionary of installed solr indexes (cores)
     if 'mycore' in request.session:
-        coreID=request.session['mycore'] #currentlyselected core
+        coreID=request.session['mycore'] #currently selected core
     else:
         print ('ERROR no stored core in session')
         return HttpResponse( "No index selected...please go back")
 #        coreID=defaultcore
-    mycore=cores[coreID] # get the working core
+    mycore=cores[str(coreID)] # get the working core
     print ('using', mycore.name)
     try:
         if request.method == 'POST' and 'list' in request.POST and 'choice' in request.POST:

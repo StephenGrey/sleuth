@@ -19,12 +19,13 @@ docbasepath=config['Models']['collectionbasepath']
 
 @login_required
 def do_search(request,page=0,searchterm='',direction='',pagemax=0,sorttype=''):
+    log.debug('SESSION CACHE: '+str(vars(request.session)))
     try:
 
     #GET AUTHORISED CORES AND DEFAULT
         corelist,defaultcoreID,choice_list=authcores(request)
 #        print(str(choice_list))
-        log.debug(choice_list,defaultcoreID)
+        log.debug('CORE CHOICE: '+str(choice_list)+' DEFAULT CORE ID:'+str(defaultcoreID))
         
     #GET THE INDEX get the solr index, a SolrCore object, or choose the default
         if 'mycore' not in request.session:  #set default if no core selected
@@ -39,7 +40,7 @@ def do_search(request,page=0,searchterm='',direction='',pagemax=0,sorttype=''):
             request.session['mycore']=defaultcoreID
             coreID=defaultcoreID
         else:
-            log.warning('Cannot find coreID in corelist')
+            log.warning('Cannot find any valid coreID in authorised corelist')
             return HttpResponse('Missing any config data for any authorised index ; retry')
     
     #SET THE RESULT PAGE    
@@ -134,7 +135,7 @@ def download(request,doc_id,hashfilename): #download a document from the docstor
 
 @login_required
 def get_content(request,doc_id,searchterm): #make a page showing the extracted text, highlighting searchterm
-
+    
     #load solr index in use, SolrCore object
     try:
         #only show content if index defined in session:
@@ -276,11 +277,13 @@ def authcores(request):
         #print(defaultcoreID,cores)
         assert defaultcoreID in cores     
     except Exception as e:
-        log.warning('default core ('+str(defaultcoreID)+') in userconfigs is not found in authorised indexes')
-        
+        log.debug('Default core ('+str(defaultcoreID)+') set in userconfigs is not found in authorised indexes: first available is made default')
         try:
-            defaultcoreID=cores.keys()[0]  #take any old core, if default not found
+            log.debug(str(cores)+' '+str(choice_list))
+            defaultcoreID=int(choice_list[0][0])#if no default found, take first in list as new default
+#            defaultcoreID=cores.keys()[0]  #take any old core, if default not found
         except Exception as e:
+            log.error('No valid and authorised index set in database: fix in /admin interface')
             log.error(str(e))
             cores={}
             defaultcoreID=0
