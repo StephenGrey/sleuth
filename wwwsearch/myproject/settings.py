@@ -22,14 +22,14 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SECRET_KEY = config['Django']['secretkey']
 
 # SECURITY WARNING: don't run with debug turned on in production!
-#set DEBUG to False for logging functions to work
+#set DEBUG to False for full logging functions to work
 try:
-    if config['Django']['debug']=='True':
-        DEBUG =  True
+    if config['Django']['debug']=='False':
+        DEBUG =  False
     else:
-        DEBUG = False
+        DEBUG = True
 except:
-    DEBUG= False
+    DEBUG= True
     
 ALLOWED_HOSTS = config['Django']['allowed_hosts'].split(',')
 

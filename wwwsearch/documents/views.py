@@ -13,25 +13,14 @@ import datetime, hashlib, os, logging, requests
 import indexSolr, updateSolr, solrICIJ, solrDeDup, solrcursor
 import ownsearch.solrSoup as solr
 from django.contrib.admin.views.decorators import staff_member_required
-log = logging.getLogger('ownsearch')
+log = logging.getLogger('ownsearch.docs.views')
 from usersettings import userconfig as config
 
-#set up solr indexes
-cores=solr.getcores()
-defaultcoreID=config['Solr']['defaultcoreid']
-print(cores,defaultcoreID)
-log.debug(str(cores)+str(defaultcoreID))
-print(defaultcoreID in cores)
-if defaultcoreID not in cores:
-    try:
-        defaultcoreID=cores.keys()[0]  #take any old core, if default not found
-    except Exception as e:
-        log.warning('No indexes defined in database')
-        defaultcoreID='' #if no indexes, no valid default
 
 @staff_member_required()
 def index(request):
     #get the core , or set the the default
+    cores,defaultcoreID=getindexes()
     if 'mycore' not in request.session:  #set default if no core selected
         if defaultcoreID: #if a default defined, then set as chosen core
             request.session['mycore']=defaultcoreID
@@ -51,8 +40,9 @@ def index(request):
     return render(request, 'documents/scancollection.html',{'form': form, 'latest_collection_list': latest_collection_list})
 
 def listfiles(request):
-#        print('Core set in request: ',request.session['mycore'])
-    cores=solr.getcores() #fetch dictionary of installed solr indexes (cores)
+#   print('Core set in request: ',request.session['mycore'])
+#    cores=solr.getcores() #fetch dictionary of installed solr indexes (cores)
+    cores,defaultcoreID=getindexes()
     if 'mycore' in request.session:
         coreID=request.session['mycore'] #currently selected core
     else:
@@ -60,7 +50,7 @@ def listfiles(request):
         return HttpResponse( "No index selected...please go back")
 #        coreID=defaultcore
     mycore=cores[str(coreID)] # get the working core
-    print ('using', mycore.name)
+    log.info('using index: '+ str(mycore.name))
     try:
         if request.method == 'POST' and 'list' in request.POST and 'choice' in request.POST:
             #get the files in selected collection
@@ -196,7 +186,7 @@ def indexcheck(collection,thiscore):
                     #print ('PATH :'+file.filepath+' indexed successfully (HASHMATCH)', 'Solr \'id\': '+solrdata['id'])
                 #NO MATCHES< RETURN FAILURE
                 else:
-                    print (file.filepath,'.. not found in Solr index')
+                    log.info(str(file.filepath)+'.. not found in Solr index')
                     file.indexedSuccess=False
                     file.solrid='' #wipe any stored solr id; DEBUG: this wipes also oldsolr ids scheduled for delete
                     file.save()
@@ -207,7 +197,7 @@ def indexcheck(collection,thiscore):
 def indexdocs(collection,mycore,forceretry=False,useICIJ=False): #index into Solr documents not already indexed
     #need to check if mycore and collection are valid objects
     if isinstance(mycore,solr.SolrCore) == False or isinstance(collection,Collection) == False:
-        print('indexdocs() parameters invalid')
+        log.warning('indexdocs() parameters invalid')
         return 0,0,0
     if True:
         counter=0
@@ -227,10 +217,10 @@ def indexdocs(collection,mycore,forceretry=False,useICIJ=False): #index into Sol
                 skipped+=1
             elif indexSolr.ignorefile(file.filepath) is True:
                 #skip this file because it is on ignore list
-                print('Ignoring: ',file.filepath)
+                log.info('Ignoring: '+str(file.filepath))
                 skipped+=1
             else: #do try to index this file
-                print('Attempting index of',file.filepath)
+                log.info('Attempting index of '+str(file.filepath))
                 #print('trying ...',file.filepath)
                 #if was previously indexed, store old solr ID and then delete if new index successful
                 oldsolrid=file.solrid
@@ -271,7 +261,7 @@ def indexdocs(collection,mycore,forceretry=False,useICIJ=False): #index into Sol
                             print('Deleted solr doc with ID:'+oldsolrid)
                     file.save()
                 else:
-                    print ('PATH : '+file.filepath+' indexing failed')
+                    log.info('PATH : '+str(file.filepath)+' indexing failed')
                     failed+=1
                     file.indexedTry=True  #set flag to say we've tried
                     file.save()
@@ -282,3 +272,15 @@ def pathHash(path):
     m.update(path.encode('utf-8'))  #encoding avoids unicode error for unicode paths
     return m.hexdigest()
 
+#set up solr indexes
+def getindexes():
+    cores=solr.getcores()
+    defaultcoreID=config['Solr']['defaultcoreid']
+    log.debug('CORES: '+str(cores)+' DEFAULT CORE ID:'+str(defaultcoreID))
+    if defaultcoreID not in cores:
+        try:
+            defaultcoreID=cores.keys()[0]  #take any old core, if default not found
+        except Exception as e:
+            log.warning('No indexes defined in database')
+            defaultcoreID='' #if no indexes, no valid default
+    return cores,defaultcoreID
