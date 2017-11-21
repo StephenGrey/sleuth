@@ -87,7 +87,7 @@ def listfiles(request):
                 icount,iskipped,ifailed=indexdocs(thiscollection,mycore) #GO INDEX THE DOCS IN SOLR
                 return HttpResponse ("Indexing.. <p>indexed: "+str(icount)+"<p>skipped:"+str(iskipped)+"<p>failed:"+str(ifailed))
 
-    #INDEX DOCUMENTS IN COLLECTION IN SOLR
+    #INDEX VIA ISIJ 'EXTRACT' DOCUMENTS IN COLLECTION IN SOLR
         elif request.method == 'POST' and 'indexICIJ' in request.POST and 'choice' in request.POST:
             if True:
                 #print('try to index in Solr')

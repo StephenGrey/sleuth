@@ -12,6 +12,7 @@ from django.http import HttpResponse
 from django.http import HttpResponseRedirect
 from django.db.models.base import ObjectDoesNotExist
 import solrSoup, re, os, logging, unicodedata
+from documents import solrcursor
 from usersettings import userconfig as config
 log = logging.getLogger('ownsearch.views')
 docbasepath=config['Models']['collectionbasepath']
@@ -19,7 +20,7 @@ docbasepath=config['Models']['collectionbasepath']
 
 @login_required
 def do_search(request,page=0,searchterm='',direction='',pagemax=0,sorttype=''):
-    log.debug('SESSION CACHE: '+str(vars(request.session)))
+#    log.debug('SESSION CACHE: '+str(vars(request.session)))
     try:
 
     #GET AUTHORISED CORES AND DEFAULT
@@ -54,12 +55,30 @@ def do_search(request,page=0,searchterm='',direction='',pagemax=0,sorttype=''):
         #print('page',page)
     
     #DO SEARCH IF PAGE ESTABLISHED 
+        
         if page > 0: #if page value not default (0) then proceed directly with search
+            resultlist=[]
             form = SearchForm(choice_list,str(coreID))
-            log.info('User '+request.user.username+' searching with searchterm: '+searchterm+' on page '+str(page))            
-            resultlist,resultcount=solrSoup.solrSearch(searchterm,sorttype,(page-1)*10,core=mycore)
-            pagemax=int(resultcount/10)+1
-    
+            log.info('User '+request.user.username+' searching with searchterm: '+searchterm+' on page '+str(page))
+            try:
+                startnumber=(page-1)*10
+                if sorttype=='relevance':
+                    #return the results 'as is'
+                    resultlist,resultcount=solrSoup.solrSearch(searchterm,sorttype,startnumber,core=mycore)
+                    pagemax=int(resultcount/10)+1
+                else:
+                    results=request.session['results']
+                    resultcount=len(results)
+                    pagemax=int(resultcount/10)+1
+                    resultlist=results[startnumber:startnumber+10]
+            except Exception as e:
+                log.error(str(e))
+                log.debug(sorttype)
+                log.debug(str(resultlist))
+                resultlist=[]
+                resultcount=0
+                pagemax=0
+
     #PROCESS FORM DATA - INDEX AND SEARCHTERM CHOICES AND THEN DO FIRST SEARCH
         # if this is a POST request we need to process the form data
         elif request.method == 'POST': #if data posted from form
@@ -79,21 +98,45 @@ def do_search(request,page=0,searchterm='',direction='',pagemax=0,sorttype=''):
                     request.session['mycore']=coreID  #store the chosen index
                     mycore=corelist[coreID]  #select new SolrCore object
                     log.debug('selected core'+str(coreselect))
-                if True:
+                    
+                log.debug('SORTTYPE: '+sorttype)
+                if sorttype=='relevance':
                     log.info('User '+request.user.username+' searching with searchterm: '+searchterm)
                     resultlist,resultcount=solrSoup.solrSearch(searchterm,sorttype,0,core=mycore)
+                    #log.debug(str(resultlist))
                     pagemax=int(resultcount/10)+1
                     if resultcount > 10:
                         page = 1
                     else:
                         page = 0
-    
+                else:
+                #FOR SEARCHES ON OTHER KEY WORDS >> DO A COMPLETE CURSOR SEARCH, SORT, THEN STORE RESULTS
+                    log.info('User '+request.user.username+' searching with searchterm: '+searchterm+' and using sorttype '+sorttype)
+                    sortedresults=solrcursor.cursorSearch(searchterm,sorttype,mycore)
+                    resultcount=len(sortedresults)
+                    fullresultlist=[]
+                    if resultcount>0:
+                        for itemlist in sortedresults:
+                            for item in sortedresults[itemlist]:
+                                fullresultlist.append(item)
+                    #get the first page of results
+                    resultlist=fullresultlist[0:9]
+                    pagemax=int(resultcount/10)+1
+                    if resultcount > 10:
+                        page = 1
+                        request.session['results']=fullresultlist
+                    else:
+                        page = 0
+                    #log.debug('RESULT LIST: '+str(resultlist))
+                    
         # if a GET (or any other method) we'll create a blank form
         else:
             form = SearchForm(choice_list,str(coreID))
             resultlist = []
             resultcount=-1
+
         return render(request, 'searchform.html', {'form': form, 'pagemax': pagemax, 'results': resultlist, 'searchterm': searchterm, 'resultcount': resultcount, 'page':page, 'sorttype': sorttype})
+
     except solrSoup.SolrCoreNotFound as e:
         log.error('Index not found on solr server')
         return HttpResponse('Index not found on solr server : check configuration')
@@ -266,8 +309,9 @@ def authcores(request):
     choice_list=()
     thisuser=request.user
     groupids=[group.id for group in thisuser.groups.all()]
+    log.debug('authorised groups for user: '+str(groupids))
     corelist=(SolrCore.objects.filter(usergroup_id__in=groupids))
-    
+    log.debug('authorised core list '+str(corelist))
     for core in corelist:
         cores[core.id]=solrSoup.SolrCore(core.corename)
         corenumber=str(core.id)
@@ -298,6 +342,7 @@ def authfile(request,hashcontents,docname,acceptothernames=True):
     #get authorised cores
         #user groups that user belongs to
         authgroupids=[group.id for group in request.user.groups.all()]
+        log.debug('authorised groups for user: '+str(authgroupids))
         #indexes that user is authorised for
         authcoreids=[core.id for core in SolrCore.objects.filter(usergroup_id__in=authgroupids)]
         log.debug(str(authcoreids)+'.. cores authorised for user')

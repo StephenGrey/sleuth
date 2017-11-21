@@ -11,7 +11,7 @@ from usersettings import userconfig as config
 from django.utils import timezone
 import pytz #support localising the timezone
 from datetime import datetime
-log = logging.getLogger('ownsearch.solrSoup')
+#log = logging.getLogger('ownsearch.solrSoup')
 
 class MissingConfigData(Exception): 
     pass
@@ -144,7 +144,68 @@ class Solrdoc:
             else:
                 self.data['hashcontents']=''        
 
-log = logging.getLogger('ownsearch')
+
+class SolrResult:
+    def __init__(self,soup,mycore):
+#        print(soup)
+        self.soup=soup #store unparsed result
+        self.mycore=mycore #store the core
+        self.results=[]
+        self.counter=0
+        self.numberfound=0
+        result=soup.response.result
+        if result.has_attr('numfound'):
+            self.numberfound=int(result['numfound'])
+        else:
+            print('No results found in listresults')
+            return
+        #loop through each doc in resultset
+        for doc in result:
+            #get standardised result
+            self.results.append(Solrdoc(doc,mycore).data)
+            self.counter+=1
+        
+    def addhighlights(self,linebreaks=False):
+        #check for and add highlights
+        try:
+            soup=self.soup
+            nextlist=soup.response.result.next_sibling
+            print('NEXTLIST',nextlist)
+            if nextlist['name']=='highlighting':
+                highlights=nextlist
+                #print('HIGHLIGHTS',highlights)
+            else:
+                nextlist=soup.response.result.next_sibling.next_sibling
+                #print('NEXTLIST2',nextlist)
+                if nextlist['name']=='highlighting':
+                    highlights=nextlist
+                    #rint('HIGHLIGHTS',highlights)
+                else:
+                    highlights=''
+                    
+            if highlights:
+                log.debug('highlights exist')
+                highlightsdict=parsehighlights(highlights,linebreaks=linebreaks)
+                if highlightsdict:
+                    for n in range(len(self.results)):
+                        result=self.results[n]
+                        try:
+                            result['highlight']=highlightsdict[result['id']]
+                        except KeyError:
+                            result['highlight']=''
+                        self.results[n]=result
+        
+            
+        except Exception as e:
+            log.debug('No highlights found')
+            log.debug('Exception: '+str(e))
+            #no action required - no highlights
+            pass
+
+
+log = logging.getLogger('ownsearch.solrSoup')
+
+
 
 
 def getSortAttrib(sorttype,core):
@@ -155,6 +216,7 @@ def getSortAttrib(sorttype,core):
     else: #this is the default - sort by relevance
         sortattrib = ''
     return sortattrib
+
 
 def solrSearch(q,sorttype,startnumber,core):
     core.ping()
@@ -221,6 +283,7 @@ def getlist(soup,counter,core,linebreaks=False,big=False): #this parses the list
             highlights=getbighighlights(soup)
         else:
             highlights=gethighlights(soup,linebreaks=linebreaks)
+        #print(soup)
         if highlights:
               highlightedresults=[]
               for result in results:
@@ -236,16 +299,19 @@ def getlist(soup,counter,core,linebreaks=False,big=False): #this parses the list
 
 #print(results)
 def gethighlights(soup,linebreaks=False):
-    highlights={}
     highlights_all=soup.response.result.next_sibling
-    #print ('highlightsall',highlights_all)
+#    print ('highlightsall',highlights_all)
     try:
         highlights_all['name']=='highlighting'
+        return parsehighlights(highlights_all,linebreaks)
     except:
         #no highlights
         return {}
+    
+def parsehighlights(highlights_all,linebreaks):
+    highlights={}
     for item in highlights_all:
-        #print (item)
+#        print ('ITEM:',item)
         id=item['name']
         if item.arr:
 #remove line returns
@@ -259,6 +325,7 @@ def gethighlights(soup,linebreaks=False):
                 pass
         else:
             highlight=''
+        
         highlights[id]=highlight
     return highlights
 
