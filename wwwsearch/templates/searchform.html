@@ -7,16 +7,17 @@ Index:{{form.CoreChoice}}<p>
 {{form.search_term.label}}{{form.search_term}}<p>
 Sort by:
 {{form.SortType}}
+
 <input type="submit" value="Search" />
 
 {% if resultcount == 0 %}<p>No results for search on "{{searchterm}}" {%endif%}
 {% if resultcount == -2 %}<p>Connection error to index (Check Internet connection){%endif%}
 {% if results %} <h3>Results</h3>	
-<h4>{{resultcount}} results for search on "{{searchterm}}"</h4>
+<h4>{{resultcount}} results for search on "{{searchterm}}"{% if page != 0 %}: Page {{page}}{% endif %}</h4>
 
 {% for res in results %} 	
-<li><a href="/ownsearch/doc={{res.id}}&searchterm={{searchterm}}"><b>{{res.docname }}</b></a> {{res.solrdocsize}}<p>
-	{{ res.highlight.0 }}<b>{{ res.highlight.1 }}</b>{{ res.highlight.2 }}
+<li>{{res.data.resultnumber}}: <a href="/ownsearch/doc={{res.id}}&searchterm={{searchterm}}"><b>{{res.docname }}</b></a> {{res.data.solrdocsize}}<p>
+	{{ res.data.highlight.0 }}<b>{{ res.data.highlight.1 }}</b>{{ res.data.highlight.2 }}
 {% endfor %} 
 <p>
 {% if page > 1 %}<a href="/ownsearch/searchterm={{searchterm}}&backfrompage={{page}}&sorttype={{sorttype}}">back</a> 
@@ -29,3 +30,4 @@ Sort by:
 
 {% endif %} 
 {% endblock %}
+

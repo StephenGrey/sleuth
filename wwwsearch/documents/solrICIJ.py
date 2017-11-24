@@ -2,13 +2,16 @@
 from __future__ import unicode_literals, print_function
 from ownsearch import solrSoup as s
 from usersettings import userconfig as config
-import subprocess
+import subprocess, logging
+log = logging.getLogger('ownsearch.solrICIJ')
 
 #EXTRACT A FILE TO SOLR INDEX (defined in mycore (instance of solrSoup.SolrCore))
 #returns solrSoup.MissingConfigData error if path missing to extract.jar
-def ICIJextract(path,hashcontents,mycore):
+def ICIJextract(path,mycore):
     try:
         mycore.ping() #checks the connection is alive
+        if os.path.exists(path) == False:
+            raise IOError
         result=tryextract(path,mycore)
         return result #return True on success
     except IOError as e:
@@ -33,7 +36,7 @@ def tryextract(path,mycore):
 #    print(output) #DEBUG : LOG IT instead
     for mtype,message in output:
         if mtype=='SEVERE':  #PRINT OUT ONLY SEVERE MESSAGES
-            print (mtype+message)
+            print (mtype,message)
     if success == True:
         print ('Successful extract')
         #commit the results
@@ -65,10 +68,12 @@ def parse_out(result):
         #print (linestrip)
         if line != '':
             if line[:5]=='INFO:':
+                
                 #dump previous message
                 if message:
                     output.append((ltype,message))
                 message=line[5:]
+                log.info(message)
                 if message[:23]==' Document added to Solr':
                     postsolr = True
                 ltype='INFO'
@@ -78,12 +83,14 @@ def parse_out(result):
                     output.append((ltype,message))                
                 ltype='WARNING'
                 message=line[8:]
+                log.warning(message)
             elif line[:7]=='SEVERE:':
                 #dump previous message
                 if message:
                     output.append((ltype,message))                
                 ltype='SEVERE'
                 message=line[7:]
+                log.error(message)
             else: #NOT A HEADER
                 message+=line
 #            print ("test:", line.rstrip())

@@ -29,6 +29,9 @@ def do_search(request,page=0,searchterm='',direction='',pagemax=0,sorttype=''):
         log.debug('AUTHORISED CORE CHOICE: '+str(choice_list))
         log.debug('DEFAULT CORE ID:'+str(defaultcoreID))
         
+        #set initial default sorttype
+        if sorttype=='':
+            sorttype='relevance'
     #GET THE INDEX get the solr index, a SolrCore object, or choose the default
         if 'mycore' not in request.session:  #set default if no core selected
             log.debug('no core selected.. setting default')
@@ -58,7 +61,7 @@ def do_search(request,page=0,searchterm='',direction='',pagemax=0,sorttype=''):
         
         if page > 0: #if page value not default (0) then proceed directly with search
             resultlist=[]
-            form = SearchForm(choice_list,str(coreID))
+            form = SearchForm(choice_list,str(coreID),sorttype)
             log.info('User '+request.user.username+' searching with searchterm: '+searchterm+' on page '+str(page))
             try:
                 startnumber=(page-1)*10
@@ -67,10 +70,16 @@ def do_search(request,page=0,searchterm='',direction='',pagemax=0,sorttype=''):
                     resultlist,resultcount=solrSoup.solrSearch(searchterm,sorttype,startnumber,core=mycore)
                     pagemax=int(resultcount/10)+1
                 else:
-                    results=request.session['results']
-                    resultcount=len(results)
+                    fullresults=request.session['results']
+                    #log.debug(fullresults)
+                    resultlist=[]
+                    for id,data,date,docname in fullresults[startnumber:startnumber+10]:
+                        resultlist.append(solrSoup.Solrdoc(data,date=date,docname=docname,id=id))
+#                    log.debug(resultlist)
+                    resultcount=len(fullresults)
                     pagemax=int(resultcount/10)+1
-                    resultlist=results[startnumber:startnumber+10]
+#                    resultlist=results[startnumber:startnumber+10]
+
             except Exception as e:
                 log.error(str(e))
                 log.debug(sorttype)
@@ -84,11 +93,11 @@ def do_search(request,page=0,searchterm='',direction='',pagemax=0,sorttype=''):
         elif request.method == 'POST': #if data posted from form
     
             # create a form instance and populate it with data from the request:
-            form = SearchForm(choice_list,str(coreID),request.POST)
+            form = SearchForm(choice_list,str(coreID),sorttype,request.POST)
             # check whether it's valid:
             if form.is_valid():
                 # process the data in form.cleaned_data as required
-                #print(form)
+                #print(vars(form))
                 searchterm=form.cleaned_data['search_term']
                 sorttype=form.cleaned_data['SortType']
                 coreselect=int(form.cleaned_data['CoreChoice'])
@@ -113,25 +122,28 @@ def do_search(request,page=0,searchterm='',direction='',pagemax=0,sorttype=''):
                 #FOR SEARCHES ON OTHER KEY WORDS >> DO A COMPLETE CURSOR SEARCH, SORT, THEN STORE RESULTS
                     log.info('User '+request.user.username+' searching with searchterm: '+searchterm+' and using sorttype '+sorttype)
                     sortedresults=solrcursor.cursorSearch(searchterm,sorttype,mycore)
+                    #log.debug(sortedresults)
                     resultcount=len(sortedresults)
                     fullresultlist=[]
                     if resultcount>0:
-                        for itemlist in sortedresults:
+                        for n, itemlist in enumerate(sortedresults):
                             for item in sortedresults[itemlist]:
+                                item.data['resultnumber']=n+1
                                 fullresultlist.append(item)
                     #get the first page of results
-                    resultlist=fullresultlist[0:9]
+                    resultlist=fullresultlist[:10]
                     pagemax=int(resultcount/10)+1
                     if resultcount > 10:
                         page = 1
-                        request.session['results']=fullresultlist
+                        #store the full results  -- pulling the data elements from the solr response]
+                        request.session['results']=[(result.id,result.data,result.date,result.docname) for result in fullresultlist]
                     else:
                         page = 0
                     #log.debug('RESULT LIST: '+str(resultlist))
                     
         # if a GET (or any other method) we'll create a blank form
         else:
-            form = SearchForm(choice_list,str(coreID))
+            form = SearchForm(choice_list,str(coreID),sorttype)
             resultlist = []
             resultcount=-1
 
@@ -182,6 +194,7 @@ def get_content(request,doc_id,searchterm): #make a page showing the extracted t
     
     #load solr index in use, SolrCore object
     try:
+        #GET INDIEX
         #only show content if index defined in session:
         if request.session.get('mycore') is None:
             log.info('Get content request refused; no index defined in session')
@@ -190,39 +203,78 @@ def get_content(request,doc_id,searchterm): #make a page showing the extracted t
         corelist,defaultcoreID,choice_list=authcores(request)
         mycore=corelist[coreID]
 
-        contentsmax=50000
-        results=solrSoup.gettrimcontents(doc_id,mycore,searchterm)
-        if len(results)>0:
+        #GET DEFAULTS
+        #set max size of preview text to return (to avoid loading up full text of huge document in browser)
+        try:
+            contentsmax=int(config['Display']['maxcontents'])
+        except:
+            contentsmax=10000
+
+        #get a document content - up to max size characters
+        results=solrSoup.gettrimcontents(doc_id,mycore,contentsmax).results  #returns SolrResult object
+        try:
             result=results[0]
-            if 'highlight' in results[0]:
-                highlight=results[0]['highlight']
-            else:
-                highlight=''
             
-            #detect if large file (contents greater or equal to max size)
-            if len(highlight)==contentsmax:
-               #go get large highlights instead
-               res=get_bigcontent(request,doc_id,searchterm)
-               return res
-            docsize=result['solrdocsize']
-            docpath=result['docpath']
-            rawtext=result['rawtext']
-            docname=result['docname']
-            hashcontents=result['hashcontents']
+        except KeyError:
+            return HttpResponse('Can\'t find document with ID '+doc_id+' COREID: '+coreID)
+            
+        try:
+            highlight=result.data['highlight']
+        except KeyError:
+            highlight=''
+            log.debug('No highlight found')
+        
+        log.debug('Full result '+str(result.__dict__))    
+        log.debug('Highlight length: '+str(len(highlight)))
+        
+        #DIVERT ON BIG FILE
+        #detect if large file (contents greater or equal to max size)
+        if len(highlight)==contentsmax:
+           #go get large highlights instead
+           res=get_bigcontent(request,doc_id,searchterm,mycore,contentsmax)
+           return res
+           
+        docsize=result.data['solrdocsize']
+        docpath=result.data['docpath']
+        rawtext=result.data['rawtext']
+        docname=result.docname
+        hashcontents=result.data['hashcontents']
 
 #        #check if file is registered and authorised to download
-            authflag,matchfile_id,hashfilename=authfile(request,hashcontents,docname)
+        authflag,matchfile_id,hashfilename=authfile(request,hashcontents,docname)
 
-        #clean up the text for display
-            splittext,lastscrap=cleanup(searchterm,highlight)
-            
-            return render(request, 'contentform.html', {'docsize':docsize, 'doc_id': doc_id, 'splittext': splittext, 'searchterm': searchterm, 'lastscrap': lastscrap, 'docname':docname, 'docpath':docpath, 'hashfile':hashfilename, 'fileid':matchfile_id,'docexists':authflag})
-        else:
-            return HttpResponse('Can\'t find document with ID '+doc_id+' COREID: '+coreID)
+    #clean up the text for display
+        splittext,lastscrap=cleanup(searchterm,highlight)
+        
+        return render(request, 'contentform.html', {'docsize':docsize, 'doc_id': doc_id, 'splittext': splittext, 'searchterm': searchterm, 'lastscrap': lastscrap, 'docname':docname, 'docpath':docpath, 'hashfile':hashfilename, 'fileid':matchfile_id,'docexists':authflag})
+        
 
     except Exception as e:
         log.error(str(e))
         return HttpResponseRedirect('/') 
+
+@login_required
+def get_bigcontent(request,doc_id,searchterm,mycore,contentsmax): #make a page of highlights, for MEGA files
+#        
+    res=solrSoup.bighighlights(doc_id,mycore,searchterm,contentsmax)
+    log.debug(res)
+    if len(res.results)>0:
+        #if more than one result, take the first
+        result=res.results[0].data
+        docsize=result['solrdocsize']
+        docpath=result['docpath']
+        rawtext=result['rawtext']
+        docname=result['docname']
+        hashcontents=result['hashcontents']
+        highlights=result['highlight'] 
+
+    #check if file is registered and authorised to download
+        authflag,matchfile_id,hashfilename=authfile(request,hashcontents,docname)
+
+        return render(request, 'bigcontentform.html', {'docsize':docsize, 'doc_id': doc_id, 'highlights': highlights, 'hashfile':hashfilename, 'fileid':matchfile_id,'searchterm': searchterm,'docname':docname, 'docpath':docpath, 'docexists':authflag})
+    else:
+        return HttpResponse('Can\'t find document with ID '+doc_id+' COREID: '+coreID)
+
 
 def cleanup(searchterm,highlight):
     cleaned=re.sub('(\n[\s]+\n)+', '\n\n', highlight) #cleaning up chunks of white space
@@ -249,46 +301,13 @@ def testsearch(request,doc_id,searchterm):
         results=solrSoup.testresponse(doc_id,mycore,searchterm)
         print results
         if len(results)>0:
-            if 'highlight' in results[0]:
-                highlight=results[0]['highlight']
+            if 'highlight' in results[0].data:
+                highlight=results[0].data['highlight']
                 return HttpResponse(highlight)
         return HttpResponse(results)
     else:
         return HttpResponseRedirect('/')        
         
-@login_required
-def get_bigcontent(request,doc_id,searchterm): #make a page of highlights, for MEGA files
-  #load solr index in use, SolrCore object
-    corestring=request.session.get('mycore')
-    if corestring:
-        coreID=int(corestring)
-    else:
-        coreID=''
-    corelist,defaultcoreID,choice_list=authcores(request)
-    if coreID:
-        mycore=corelist[coreID]
-        
-        results=solrSoup.bighighlights(doc_id,mycore,searchterm)
-
-        if len(results)>0:
-
-            result=results[0]
-            docsize=result['solrdocsize']
-            docpath=result['docpath']
-            rawtext=result['rawtext']
-            docname=result['docname']
-            hashcontents=result['hashcontents']
-            highlights=result['highlight'] 
-
-        #check if file is registered and authorised to download
-            
-            authflag,matchfile_id,hashfilename=authfile(request,hashcontents,docname)
-
-            return render(request, 'bigcontentform.html', {'docsize':docsize, 'doc_id': doc_id, 'highlights': highlights, 'hashfile':hashfilename, 'fileid':matchfile_id,'searchterm': searchterm,'docname':docname, 'docpath':docpath, 'docexists':authflag})
-        else:
-            return HttpResponse('Can\'t find document with ID '+doc_id+' COREID: '+coreID)
-    else:
-        return HttpResponseRedirect('/') 
 
 
 def slugify(value):
@@ -355,6 +374,8 @@ def authfile(request,hashcontents,docname,acceptothernames=True):
                 #FILE AUTHORISED AND EXISTS LOCALLY
                 log.debug('matched authorised file'+f.filepath)
                 return True,f.id,f.hash_filename
+            
+            #finding authorised file that match hash and exist locally but have different filename
             elif fcore in authcoreids and os.path.exists(f.filepath):
                 altlist.append(f)
          #if no filenames match, return a hashmatch

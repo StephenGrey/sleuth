@@ -50,7 +50,7 @@ class SolrCore:
             self.hashcontentsfield=config[core]['hashcontents']
             self.datefield=config[core]['datefield']
             
-            #make reverse
+            #make reverse   DEBUG WE CAN uSE self.__dict__ instead
             self.fields={} #dictionary to reverse from solr field to standard field
             self.fields['date']=self.datefield
             self.fields['solrdocsize']=self.docsizefield
@@ -90,12 +90,27 @@ class SolrCore:
         return self.name
 
 class Solrdoc:
-    def __init__(self,doc,core):
-            self.id=doc.str.text
-            self.data={}
-            #print(doc)
+    def __init__(self,data='',date='',docname='',id=''):
+            self.id=id
+            if data:
+                self.data=data
+            else:
+                self.data={}
+            if date:
+                self.date=date
+            else:
+                self.date=''
+            if docname:
+                self.docname=docname
+            else:
+                self.docname=''
+            #print(self.docname,self.date)
+    def parse(self,doc,core):
+#            print(doc,self.id)
             #now go through all fields returned by the solr search
-            for arr in doc:
+#            self.id=doc.str.text
+            
+            for arr in doc: #detects string, datefields and long integers
                 if arr.str:
                     self.data[arr.attrs['name']]=arr.str.text
                 elif arr.date:
@@ -112,115 +127,104 @@ class Solrdoc:
                     self.data[arr.attrs['name']]=arr.text
                 #print(arr.text)
             #give the KEY ATTRIBS standard names
-            if core.docnamefield in self.data:
-                self.data['docname']=self.data[core.docnamefield]
-            else:
-                self.data['docname']=''
-            if core.docsizefield in self.data:
-                self.data['solrdocsize']=self.data[core.docsizefield]
-            else:
-                self.data['solrdocsize']=''
-            if core.rawtext in self.data:
-                self.data['rawtext']=self.data.pop(core.rawtext)
-            else:
-                self.data['rawtext']=''
-
-            if core.docnamefield in self.data:
-                self.data['docname']=self.data[core.docnamefield]
-            else:
-                self.data['docname']=''
-
-            if core.datefield in self.data:
-                self.data['date']=self.data.pop(core.datefield)
-            elif 'date' not in self.data:
-                self.data['date']=''
-
-            if core.docpath in self.data:
-                self.data['docpath']=self.data[core.docpath]
-            else:
-                self.data['docpath']=''
-            if core.hashcontentsfield in self.data:
-                self.data['hashcontents']=self.data[core.hashcontentsfield]
-            else:
-                self.data['hashcontents']=''        
-
+            self.docname=self.data.pop(core.docnamefield,'')
+            self.id=self.data.pop('id','')
+            self.date=self.data.pop(core.datefield,'')
+            self.data['solrdocsize']=self.data.pop(core.docsizefield,'')
+            self.data['rawtext']=self.data.pop(core.rawtext,'')                
+            self.data['docpath']=self.data.pop(core.docpath,'')
+            self.data['hashcontents']=self.data.pop(core.hashcontentsfield,'')
 
 class SolrResult:
-    def __init__(self,soup,mycore):
+    def __init__(self,soup,mycore,startcount=0):
 #        print(soup)
         self.soup=soup #store unparsed result
         self.mycore=mycore #store the core
-        self.results=[]
-        self.counter=0
+        self.results=[] #default no response
+        self.counter=startcount
         self.numberfound=0
-        result=soup.response.result
-        if result.has_attr('numfound'):
-            self.numberfound=int(result['numfound'])
-        else:
-            print('No results found in listresults')
-            return
-        #loop through each doc in resultset
-        for doc in result:
-            #get standardised result
-            self.results.append(Solrdoc(doc,mycore).data)
-            self.counter+=1
-        
-    def addhighlights(self,linebreaks=False):
-        #check for and add highlights
         try:
-            soup=self.soup
-            nextlist=soup.response.result.next_sibling
-            print('NEXTLIST',nextlist)
-            if nextlist['name']=='highlighting':
-                highlights=nextlist
-                #print('HIGHLIGHTS',highlights)
-            else:
-                nextlist=soup.response.result.next_sibling.next_sibling
-                #print('NEXTLIST2',nextlist)
+            if soup.response:
+                result=soup.response.result
+                if result.has_attr('numfound'):
+                    self.numberfound=int(result['numfound'])
+                    #loop through each doc in resultset
+                    if self.numberfound>0:
+                        for doc in result:
+                            #get standardised result
+                            resultsdoc=Solrdoc()
+                            resultsdoc.parse(doc,mycore)
+                            self.counter+=1
+                            resultsdoc.data['resultnumber']=self.counter
+                            self.results.append(resultsdoc)
+                            
+        except Exception as e:
+            log.error(str(e))
+            log.debug('Unparsed result: '+soup)
+            print(e)
+            
+    def addstoredmeta(self):
+        if True:
+            for i, document in enumerate(self.results):
+                filelist=File.objects.filter(hash_contents=document.data['hashcontents'])
+                    #print('FILE',filelist)
+                if len(filelist)>0:
+                    f=filelist[0]
+                    document.data['path']=f.filepath
+                    document.data['filesize']=f.filesize
+                else:
+                    document.data['path']=''
+                    document.data['filesize']=0
+                self.results[i]=document
+
+    def addhighlights(self,linebreaks=False,bighighlights=False):
+        #check for and add highlights
+        if self.results:
+            try:
+                soup=self.soup
+                nextlist=soup.response.result.next_sibling
+    #            print('NEXTLIST',nextlist)
                 if nextlist['name']=='highlighting':
                     highlights=nextlist
-                    #rint('HIGHLIGHTS',highlights)
+                    #print('HIGHLIGHTS',highlights)
                 else:
-                    highlights=''
-                    
-            if highlights:
-                log.debug('highlights exist')
-                highlightsdict=parsehighlights(highlights,linebreaks=linebreaks)
-                if highlightsdict:
-                    for n in range(len(self.results)):
-                        result=self.results[n]
-                        try:
-                            result['highlight']=highlightsdict[result['id']]
-                        except KeyError:
-                            result['highlight']=''
-                        self.results[n]=result
-        
-            
-        except Exception as e:
-            log.debug('No highlights found')
-            log.debug('Exception: '+str(e))
-            #no action required - no highlights
-            pass
+                    nextlist=soup.response.result.next_sibling.next_sibling
+                    #print('NEXTLIST2',nextlist)
+                    if nextlist['name']=='highlighting':
+                        highlights=nextlist
+                        #rint('HIGHLIGHTS',highlights)
+                    else:
+                        highlights=''
+                        
+                if highlights:
+                    log.debug('highlights exist')
+                    #log.debug(highlights)
+                    if bighighlights:
+                        highlightsdict=parsebighighlights(highlights)
+                    else:
+                        highlightsdict=parsehighlights(highlights,linebreaks=linebreaks)
+                    if highlightsdict:
+                        for n, document in enumerate(self.results):
+                            try:
+                                document.data['highlight']=highlightsdict[document.id]
+                            except KeyError:
+                                document.data['highlight']=''
+                            self.results[n]=document
+                
+            except KeyError as e:
+                log.debug('No highlights found')
+                log.debug('Exception: '+str(e))
+                #no action required - no highlights
+                pass
 
 
 log = logging.getLogger('ownsearch.solrSoup')
 
-
-
-
-def getSortAttrib(sorttype,core):
-    if sorttype == 'documentID':
-        sortattrib = core.docsort
-    elif sorttype == 'last_modified':
-        sortattrib = core.datesort
-    else: #this is the default - sort by relevance
-        sortattrib = ''
-    return sortattrib
-
-
+#MAIN SEARCH METHOD  (q is search term)
 def solrSearch(q,sorttype,startnumber,core):
     core.ping()
-    args=core.hlarguments+str(startnumber)+getSortAttrib(sorttype,core)
+    args=core.hlarguments+str(startnumber) #+getSortAttrib(sorttype,core)
+#ignoring sorttype - other sorting methods now handled by re-sorting
     #print('args',args)
     try:
         soup=getSolrResponse(q,args,core=core)
@@ -233,71 +237,58 @@ def solrSearch(q,sorttype,startnumber,core):
     return reslist,numbers
 
 def getSolrResponse(searchterm,arguments,core):
-    searchurl=core.url+'/select?q='+searchterm+arguments
+    searchurl='{}/select?q={}{}'.format(core.url,searchterm,arguments)
     #print (searchurl)
     ses = requests.Session()
     # the session instance holds the cookie. So use it to get/post later
     res=ses.get(searchurl)
+    #parse the result with beautiful soup
     soup=BS(res.content,"html.parser")
-    #print(soup.prettify())
     return soup
 
 
+#GET CONTENTS OF A DOCUMENT UP TO A MAX SIZE
+def gettrimcontents(docid,core,maxlength):
+    searchterm=r'id:'+docid
+    
+    #MAKE ARGUMENTS FOR TRIMMED CONTENTS
+    fieldargs='&fl=id,{},{},{},{}&start=0'.format(core.docnamefield,core.docsizefield,core.hashcontentsfield,core.docpath)
+#this exploits a quirk in solr to return length-restricted contents as a "highlight"; it depends on a null return on the nullfield (any field name that does not exist)
+    hlargs='&hl=on,hl.fl=nullfield&hl.fragsize=0&hl.alternateField={}&hl.maxAlternateFieldLength={}'.format(core.rawtext,maxlength)    
+    args=fieldargs+hlargs
+#    print (args)
+
+    #DO THE SOLR LOOKUP
+    sp=getSolrResponse(searchterm,args,core)
+    SR=SolrResult(sp,core,startcount=0)
+    SR.addstoredmeta()
+    SR.addhighlights(linebreaks=True,bighighlights=False)
+    #print(vars(SR))
+    return SR
+
+#GET CONTENTS OF LARGE DOCUMENT
+def bighighlights(docid,core,q,contentsmax):
+    searchterm=r'id:'+docid
+    #make snippets of max length 5000 with searchterm highlighted; if searchterm not found, return maxlength sample
+    args=core.hlarguments+'0&hl.fragsize=5000&hl.snippets=50&hl.q={}&hl.alternateField={}&hl.maxAlternateFieldLength={}'.format(q,core.rawtext,contentsmax)
+    sp=getSolrResponse(searchterm,args,core)
+#    res,numbers=getlist(sp,0,core=core,linebreaks=True, big=True)#
+    
+#    getlist(soup,counter,core,linebreaks=False,big=False)
+    
+    SR=SolrResult(sp,core,startcount=0)
+    SR.addstoredmeta()
+    SR.addhighlights(linebreaks=True,bighighlights=True)
+       
+    return SR
+
+
 def getlist(soup,counter,core,linebreaks=False,big=False): #this parses the list of results, starting at 'counter'
-    try:
-        if soup.response:
-            numberfound=int(soup.response.result['numfound'])
-            result=soup.response.result
-            results=[]
-            for doc in result:
-                counter+=1
-                solrid=doc.str.text
-                
-                document=Solrdoc(doc,core).data  #parse the solr result into standard fields, e.g. 'date' for date
-    
-    
-                #look up this in our model database, to see if additional data on this doc >>>
-                if True: #lookup to see if hash of filecontents is id 
-                    filelist=File.objects.filter(hash_contents=document['hashcontents'])
-                    #print('FILE',filelist)
-                    if len(filelist)>0:
-                        f=filelist[0]
-                        document['path']=f.filepath
-                        document['filesize']=f.filesize
-                    else:
-                        document['path']=''
-                        document['filesize']=0
-                document['resultnumber']=counter
-                results.append(document)
-        else:
-            results=[]
-            numberfound=0        
-    except Exception as e: 
-            log.warning('error in get list'+str(e))
-            results=[]
-            numberfound=0
+    SR=SolrResult(soup,core,startcount=counter)
+    SR.addstoredmeta()
+    SR.addhighlights(linebreaks=linebreaks,bighighlights=big)
+    return SR.results,SR.numberfound
 
-        #add the highlighting strings to the results 
-    if results:
-        if big is True:
-            highlights=getbighighlights(soup)
-        else:
-            highlights=gethighlights(soup,linebreaks=linebreaks)
-        #print(soup)
-        if highlights:
-              highlightedresults=[]
-              for result in results:
-                   try:
-                       result['highlight']=highlights[result['id']]
-                       highlightedresults.append(result)
-                   except KeyError:
-                       result['highlight']=''
-                       highlightedresults.append(result)
-              results=highlightedresults
-    #print (results)
-    return results,numberfound
-
-#print(results)
 def gethighlights(soup,linebreaks=False):
     highlights_all=soup.response.result.next_sibling
 #    print ('highlightsall',highlights_all)
@@ -348,27 +339,16 @@ def getmeta(docid,core):
     res,numbers=getlist(sp,0,core=core)
     return res
     
-def bighighlights(docid,core,q):
-    searchterm=r'id:'+docid
-    args=core.hlarguments+'0&hl.fragsize=5000&hl.snippets=50&hl.q={}&hl.alternateField={}&hl.maxAlternateFieldLength=50000'.format(q,core.rawtext)
-    #print(args)
-    sp=getSolrResponse(searchterm,args,core)
-    #print(sp)
-#    return getbighighlights(sp)
-#    res=getbighighlights(sp)
-    res,numbers=getlist(sp,0,core=core,linebreaks=True, big=True)#   
-#res,numbers=getlist(sp,0,core=core)
-    return res
 
-def getbighighlights(soup):
+def parsebighighlights(highlights_all):
     highlights={}
-    highlights_all=soup.response.result.next_sibling
-    #print ('highlightsall',highlights_all)
-    try:
-        highlights_all['name']=='highlighting'
-    except:
-        #no highlights
-        return {}
+#    highlights_all=soup.response.result.next_sibling
+#    #print ('highlightsall',highlights_all)
+#    try:
+#        highlights_all['name']=='highlighting'
+#    except:
+#        #no highlights
+#        return {}
     for highlightlist in highlights_all:
         #print (item)
         id=highlightlist['name']
@@ -394,20 +374,6 @@ def getbighighlights(soup):
         highlights[id]=hls
         #print('extracted highlights:',highlights)
     return highlights
-
-def gettrimcontents(docid,core,q):
-    searchterm=r'id:'+docid
-    
-    fieldargs='&fl=id,{},{},{},{}&start=0'.format(core.docnamefield,core.docsizefield,core.hashcontentsfield,core.docpath)
-#this exploits a quirk in solr to return length-restricted contents as a "highlight"; it depends on a null return on the emptyfield
-    hlargs='&hl=on,hl.fl=emptyfield&hl.fragsize=0&hl.alternateField={}&hl.maxAlternateFieldLength=50000'.format(core.rawtext)    
-    args=fieldargs+hlargs
-#    print (args)
-    sp=getSolrResponse(searchterm,args,core)
-    res,numbers=getlist(sp,0,core=core,linebreaks=True,big=False)
-#    print (sp)
-    return res
-
 
 def hashlookup(hex,core):
     searchterm='extract_id:'+hex
@@ -453,6 +419,14 @@ def timestring(timeobject):
 def timestringGMT(timeobject):
     return timeobject.strftime("%Y-%m-%dT%H:%M:%SZ")
     
+def getSortAttrib(sorttype,core):
+    if sorttype == 'documentID':
+        sortattrib = core.docsort
+    elif sorttype == 'last_modified':
+        sortattrib = core.datesort
+    else: #this is the default - sort by relevance
+        sortattrib = ''
+    return sortattrib
 
 
 

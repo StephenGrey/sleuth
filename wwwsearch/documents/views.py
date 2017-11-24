@@ -138,8 +138,8 @@ def indexcheck(collection,thiscore):
     try:#make a dictionary of filepaths from solr index
         indexpaths=solrcursor.cursor(thiscore)
     except Exception as e:
-        print('Failed to retrieve solr index')
-        print (str(e))
+        log.warning('Failed to retrieve solr index')
+        log.warning(str(e))
         return 0,0,0
 
     #now compare file list with solrindex
@@ -166,27 +166,28 @@ def indexcheck(collection,thiscore):
                 counter+=1
         #INDEX CHECK: METHOD TWO: CHECK IF FILE STORED IN SOLR INDEX UNDER CONTENTS HASH                
             else:
-                #print('trying hash method')
+                log.debug('trying hash method')
                 #is there a stored hash, if not get one
                 if not hash:
                     hash=hexfile(file.filepath)
                     file.hash_contents=hash
                     file.save()
                 #now lookup hash in solr index
+                log.debug('looking up hash : '+hash)
                 solrresult=solr.hashlookup(hash,thiscore)
-                #print(solrresult)
+                log.debug(solrresult)
                 if len(solrresult)>0:
                     #if some files, take the first one
                     solrdata=solrresult[0]
-                    #print('solrdata:',solrdata)
+                    print('solrdata:',vars(solrdata))
                     file.indexedSuccess=True
-                    file.solrid=solrdata['id']
+                    file.solrid=solrdata.id
                     file.save()
                     counter+=1
-                    #print ('PATH :'+file.filepath+' indexed successfully (HASHMATCH)', 'Solr \'id\': '+solrdata['id'])
+                    print ('PATH :'+file.filepath+' indexed successfully (HASHMATCH)', 'Solr \'id\': '+solrdata.id)
                 #NO MATCHES< RETURN FAILURE
                 else:
-                    log.info(str(file.filepath)+'.. not found in Solr index')
+                    log.info(file.filepath+'.. not found in Solr index')
                     file.indexedSuccess=False
                     file.solrid='' #wipe any stored solr id; DEBUG: this wipes also oldsolr ids scheduled for delete
                     file.save()
@@ -217,10 +218,10 @@ def indexdocs(collection,mycore,forceretry=False,useICIJ=False): #index into Sol
                 skipped+=1
             elif indexSolr.ignorefile(file.filepath) is True:
                 #skip this file because it is on ignore list
-                log.info('Ignoring: '+str(file.filepath))
+                log.info('Ignoring: '+file.filepath)
                 skipped+=1
             else: #do try to index this file
-                log.info('Attempting index of '+str(file.filepath))
+                log.info('Attempting index of '+file.filepath)
                 #print('trying ...',file.filepath)
                 #if was previously indexed, store old solr ID and then delete if new index successful
                 oldsolrid=file.solrid
@@ -230,8 +231,9 @@ def indexdocs(collection,mycore,forceretry=False,useICIJ=False): #index into Sol
                     file.save()
                 #now try the extract
                 if useICIJ:
-                    print('using ICIJ extract method..')
+                    log.info('using ICIJ extract method..')
                     result = solrICIJ.ICIJextract(file.filepath,file.hash_contents,mycore)
+
                 else:
                     try:
                         result=indexSolr.extract(file.filepath,file.hash_contents,mycore)
@@ -248,20 +250,24 @@ def indexdocs(collection,mycore,forceretry=False,useICIJ=False): #index into Sol
                     if not useICIJ:
                         file.solrid=file.hash_filename  #extract uses hashfilename for an id , so add it
                     else:
-                        file.solrid=''
-                    #DEBUG: above won't work for ICIJ method as does NOT use hasfilename as id
+                        try:
+                            new_id=solr.hashlookup(file.hash_contents,mycore)[0].id
+                            file.solrid=new_id
+                            log.info('New solr ID: '+new_id)
+                        except:
+                            log.warning('Extracted doc not found in index')
                     file.indexedSuccess=True
                     #now delete previous solr doc (if any): THIS IS ONLY NECESSARY IF ID CHANGES  
-                    print ('Old ID: '+oldsolrid,'New ID: '+file.solrid)
+                    log.info('Old ID: '+oldsolrid+' New ID: '+file.solrid)
                     if oldsolrid and oldsolrid!=file.solrid:
-                        print('now delete old solr doc',oldsolrid)
+                        log.info('now delete old solr doc'+str(oldsolrid))
                         #DEBUG: NOT TESTED YET
                         response,status=updateSolr.delete(oldsolrid,mycore)
                         if status:
-                            print('Deleted solr doc with ID:'+oldsolrid)
+                            log.info('Deleted solr doc with ID:'+oldsolrid)
                     file.save()
                 else:
-                    log.info('PATH : '+str(file.filepath)+' indexing failed')
+                    log.info('PATH : '+file.filepath+' indexing failed')
                     failed+=1
                     file.indexedTry=True  #set flag to say we've tried
                     file.save()
