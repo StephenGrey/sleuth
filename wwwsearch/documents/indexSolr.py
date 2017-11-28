@@ -5,7 +5,7 @@ import requests, os, logging
 import ownsearch.hashScan as dup
 import hashlib  #routines for calculating hash
 from documents.models import Collection,File
-log = logging.getLogger('ownsearch')
+log = logging.getLogger('ownsearch.indexsolr')
 from usersettings import userconfig as config
 from ownsearch.solrSoup import SolrConnectionError
 from ownsearch.solrSoup import SolrCoreNotFound
@@ -14,7 +14,7 @@ from fnmatch import fnmatch
 try:
     ignorelist=config['Solr']['ignore_list'].split(',')
 except Exception as e:
-    print('Configuration warning: no ignore list found')
+    log.warning('Configuration warning: no ignore list found')
     ignorelist=[]
     
 """
@@ -42,7 +42,7 @@ def scanPath(parentFolder):  #recursively check all files in a file folder and g
             #print (hexfile,path)
             result=extract(path)
             if result is True:
-                print ('PATH :'+path+'indexed successfully')
+                log.info ('PATH :'+path+'indexed successfully')
 
 
 #SOLR METHODS

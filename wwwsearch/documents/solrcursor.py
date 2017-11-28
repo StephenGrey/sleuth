@@ -34,32 +34,44 @@ def cursor(mycore,keyfield='docpath',searchterm='*',highlights=False): #iterates
         else:
             args=mycore.cursorargs+'&sort=id+asc&rows=100&cursorMark='+cursormark
         #print args
-        res=getSolrResponse(searchterm,args,mycore)
-        blocklist,resultsnumber,counter=listresults(res,mycore)
-        #print (resultsnumber,counter)
-        more=res.response.result.next_sibling
-        counted+=counter
-        #extract next cursor from the result
-        if more['name']=='nextCursorMark':
-            nextcursor=more.text
-        else:
-            print ('Missing next cursor mark')
-
-        if True:
-            for document in blocklist:
-                if keyfield in document:
-                    keystring=document[keyfield]
-                    
-                    if isinstance(keystring,basestring):
-                    #making a list of docs for each key, appending each new doc:
-                        longdict.setdefault(keystring,[]).append(document)
-                    else: #if it multivalued make dup for each key
-                        for keyitem in keystring:
-                            longdict.setdefault(keyitem,[]).append(document)
-                else:
-                    #print('Solrcursor: no '+key+' in Solr document with ID: '+str(document['id']))
-                    pass
-
+        try:
+            res=getSolrResponse(searchterm,args,mycore)
+#            blocklist,resultsnumber,counter=listresults(res,mycore)
+            
+            solrresult=solrSoup.SolrResult(res,mycore) #processresult
+            if highlights:
+                solrresult.addhighlights() #add the highlights to the results
+            blocklist=solrresult.results
+            counter=solrresult.counter
+            resultsnumber=solrresult.numberfound
+            
+            #print (resultsnumber,counter)
+            more=res.response.result.next_sibling
+            counted+=counter
+            #extract next cursor from the result
+            if more['name']=='nextCursorMark':
+                nextcursor=more.text
+            else:
+                print ('Missing next cursor mark')
+    
+            if True:
+                for document in blocklist:
+                    if keyfield in document.__dict__ :  #.data:
+                        keystring=document.__dict__[keyfield]
+                        
+                        if isinstance(keystring,basestring):
+                        #making a list of docs for each key, appending each new doc:
+                            longdict.setdefault(keystring,[]).append(document)
+                        else: #if it multivalued make dup for each key
+                            for keyitem in keystring:
+                                longdict.setdefault(keyitem,[]).append(document)
+                    else:
+                        #print('Solrcursor: no '+key+' in Solr document with ID: '+str(document['id']))
+                        pass
+        except Exception as e:
+            log.error(str(e))
+            break
+        
         #ESCAPE ROUTE ; only in event of errors from solr server
         #print (counted,resultsnumber)
         if counted>resultsnumber: #added escape to prevent endless loop
@@ -80,13 +92,13 @@ def getSolrResponse(searchterm,arguments,mycore):
     soup=BS(res.content,"html.parser")
     return soup
     
-def listresults(soup,mycore):
-    solrresult=solrSoup.SolrResult(soup,mycore)
-    solrresult.addhighlights()
-    results=solrresult.results
-    counter=solrresult.counter
-    numberfound=solrresult.numberfound
-    
+#def listresults(soup,mycore):
+#    solrresult=solrSoup.SolrResult(soup,mycore)
+#    solrresult.addhighlights()
+#    results=solrresult.results
+#    counter=solrresult.counter
+#    numberfound=solrresult.numberfound
+#    
 #    results=[]
 #    counter=0
 #    result=soup.response.result
@@ -130,7 +142,7 @@ def listresults(soup,mycore):
 #    return results,numberfound
 
 #RETURN ENTIRE SET OF RESULTS FOR A GIVEN SEARCH TERM, SORTED BY A FIELD (sorttype)
-def cursorSearch(q,keyfield,mycore,highlights=True):
+def cursorSearch(q,keyfield,mycore,highlights=False):
     #check variables are valid
     assert isinstance(mycore,solrSoup.SolrCore)
     mycore.ping()
@@ -139,6 +151,7 @@ def cursorSearch(q,keyfield,mycore,highlights=True):
     
     unsortedcursor=cursor(mycore,keyfield=keyfield,searchterm=q,highlights=highlights)
     #sorting by keyfield
+#    log.debug(unsortedcursor)
     sortedcursor=collections.OrderedDict(sorted(unsortedcursor.items(),key=lambda key: key[0].lower()))
     #log.debug(str(unsortedcursor))
     return sortedcursor

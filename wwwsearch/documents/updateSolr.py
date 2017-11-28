@@ -99,7 +99,7 @@ def makejson(solrid,changes,mycore):   #the changes use standard fields (e.g. 'd
     a=collections.OrderedDict()  #keeps the JSON file in a nice order
     a['id']=solrid 
     for field,value in changes:
-        solrfield=mycore.fields.get(field,field) #if defined in core, replace with standard field, or leave unchanged
+        solrfield=mycore.__dict__.get(field,field) #if defined in core, replace with standard field, or leave unchanged
         a[solrfield]={"set":value}
     data=json.dumps([a])
     return data
