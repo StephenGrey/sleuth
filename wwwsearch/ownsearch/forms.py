@@ -17,7 +17,7 @@ class SearchForm(forms.Form):
         self.initial_core=initial_core
         self.initial_sort=initial_sort
 #        self.choicelist=get_corechoices(self.request.user)
-        super(SearchForm, self).__init__(*args, **kwargs)
+        super(SearchForm, self).__init__(*args, **kwargs) #having overridden initialisation; now run parent initialisation
         #print ('choices',self.choicelist)
         #dynamically set core choice based on user
         self.fields['CoreChoice']=ChoiceField(label='Index: ',choices=self.choicelist,initial=self.initial_core)

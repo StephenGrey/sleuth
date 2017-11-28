@@ -151,7 +151,7 @@ def cursorSearch(q,keyfield,mycore,highlights=False):
     
     unsortedcursor=cursor(mycore,keyfield=keyfield,searchterm=q,highlights=highlights)
     #sorting by keyfield
-    log.debug(unsortedcursor)
+#    log.debug(unsortedcursor)
     sortedcursor=collections.OrderedDict(sorted(unsortedcursor.items(),key=lambda key: key[0].lower()))
     #log.debug(str(unsortedcursor))
     return sortedcursor

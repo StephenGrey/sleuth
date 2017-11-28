@@ -15,9 +15,9 @@ def ICIJextract(path,mycore):
         result=tryextract(path,mycore)
         return result #return True on success
     except IOError as e:
-        print ('File cannot be opened')
+        log.error('File cannot be opened')
     except s.SolrConnectionError as e:
-        print ('Connection error')
+        log.error('Connection error')
     return False  #if error return False
 
 def tryextract(path,mycore):

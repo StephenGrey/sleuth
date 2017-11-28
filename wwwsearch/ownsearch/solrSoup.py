@@ -50,14 +50,14 @@ class SolrCore:
             self.hashcontentsfield=config[core]['hashcontents']
             self.datefield=config[core]['datefield']
             
-            #make reverse   DEBUG WE CAN uSE self.__dict__ instead
-            self.fields={} #dictionary to reverse from solr field to standard field
-            self.fields['date']=self.datefield
-            self.fields['solrdocsize']=self.docsizefield
-            self.fields['rawtext']=self.rawtext
-            self.fields['docname']=self.docnamefield
-            self.fields['docpath']=self.docpath
-            self.fields['hashcontents']=self.hashcontentsfield
+#            #make reverse   DEBUG WE CAN uSE self.__dict__ instead
+#            self.fields={} #dictionary to reverse from solr field to standard field
+#            self.fields['date']=self.datefield
+#            self.fields['solrdocsize']=self.docsizefield
+#            self.fields['rawtext']=self.rawtext
+#            self.fields['docname']=self.docnamefield
+#            self.fields['docpath']=self.docpath
+#            self.fields['hashcontents']=self.hashcontentsfield
 
         except KeyError:
             raise MissingConfigData
@@ -90,26 +90,16 @@ class SolrCore:
         return self.name
 
 class Solrdoc:
-    def __init__(self,data='',date='',docname='',id=''):
+    def __init__(self,data={},date='',docname='',id=''):
             self.id=id
-            if data:
-                self.data=data
-            else:
-                self.data={}
-            if date:
-                self.date=date
-            else:
-                self.date=''
-            if docname:
-                self.docname=docname
-            else:
-                self.docname=''
-            #print(self.docname,self.date)
+            self.data=data
+            self.date=date
+            self.docname=docname
+            self.resultnumber=0
+
     def parse(self,doc,core):
-#            print(doc,self.id)
             #now go through all fields returned by the solr search
-#            self.id=doc.str.text
-            
+
             for arr in doc: #detects string, datefields and long integers
                 if arr.str:
                     self.data[arr.attrs['name']]=arr.str.text
@@ -134,6 +124,8 @@ class Solrdoc:
             self.data['rawtext']=self.data.pop(core.rawtext,'')                
             self.data['docpath']=self.data.pop(core.docpath,'')
             self.data['hashcontents']=self.data.pop(core.hashcontentsfield,'')
+#    def __str__(self):
+#        return self.docname
 
 class SolrResult:
     def __init__(self,soup,mycore,startcount=0):
@@ -152,15 +144,20 @@ class SolrResult:
                     if self.numberfound>0:
                         for doc in result:
                             #get standardised result
-                            resultsdoc=Solrdoc()
+                            resultsdoc=Solrdoc(data={})
                             resultsdoc.parse(doc,mycore)
+#                            print(resultsdoc.id)
+#                            log.debug(resultsdoc.__dict__)
                             self.counter+=1
                             resultsdoc.data['resultnumber']=self.counter
+                            resultsdoc.resultnumber=self.counter
+#                            log.debug(resultsdoc.data['resultnumber'])
                             self.results.append(resultsdoc)
-                            
+#                            log.debug([doc.__dict__ for doc in self.results])
+#            log.debug([doc.data['resultnumber'] for doc in self.results])                    
         except Exception as e:
             log.error(str(e))
-            log.debug('Unparsed result: '+soup)
+#            log.debug('Unparsed result: '+str(soup))
             print(e)
             
     def addstoredmeta(self):
@@ -175,6 +172,7 @@ class SolrResult:
                 else:
                     document.data['path']=''
                     document.data['filesize']=0
+#                log.debug(document.data)
                 self.results[i]=document
 
     def addhighlights(self,linebreaks=False,bighighlights=False):
@@ -285,6 +283,7 @@ def bighighlights(docid,core,q,contentsmax):
 
 def getlist(soup,counter,core,linebreaks=False,big=False): #this parses the list of results, starting at 'counter'
     SR=SolrResult(soup,core,startcount=counter)
+#    log.debug([doc.data['resultnumber'] for doc in SR.results])
     SR.addstoredmeta()
     SR.addhighlights(linebreaks=linebreaks,bighighlights=big)
     return SR.results,SR.numberfound

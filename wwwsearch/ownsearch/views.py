@@ -66,19 +66,46 @@ def do_search(request,page=0,searchterm='',direction='',pagemax=0,sorttype=''):
             try:
                 startnumber=(page-1)*10
                 if sorttype=='relevance':
-                    #return the results 'as is'
+                    #if 'relevance' search then return the results 'as is'
                     resultlist,resultcount=solrSoup.solrSearch(searchterm,sorttype,startnumber,core=mycore)
                     pagemax=int(resultcount/10)+1
                 else:
                     fullresults=request.session['results']
-                    #log.debug(fullresults)
-                    resultlist=[]
-                    for id,data,date,docname in fullresults[startnumber:startnumber+10]:
-                        resultlist.append(solrSoup.Solrdoc(data,date=date,docname=docname,id=id))
-#                    log.debug(resultlist)
-                    resultcount=len(fullresults)
-                    pagemax=int(resultcount/10)+1
-#                    resultlist=results[startnumber:startnumber+10]
+                    #try to retrieve full results from session (if search sorted by other than relevance)
+                    #if RESULTS EXIST THEN JUST EXTRACT RESULT SET 
+                    if fullresults: #search already done                    
+                        resultlist=[]
+                        for id,data,date,docname in fullresults[startnumber:startnumber+10]:
+                            resultlist.append(solrSoup.Solrdoc(data,date=date,docname=docname,id=id))
+    #                    log.debug(resultlist)
+                        resultcount=len(fullresults)
+                        pagemax=int(resultcount/10)+1
+                    #ELSE DO THE SEARCH FOR THE FIRST TIME AND THEN STORE
+                    else:
+                    #FOR SEARCHES ON OTHER KEY WORDS >> DO A COMPLETE CURSOR SEARCH, SORT, THEN STORE RESULTS
+                        log.info('User '+request.user.username+' searching with searchterm: '+searchterm+' and using sorttype '+sorttype)
+                        sortedresults=solrcursor.cursorSearch(searchterm,sorttype,mycore)
+                        #log.debug(sortedresults)
+                        resultcount=len(sortedresults)
+                        fullresultlist=[]
+                        if resultcount>0:
+                            for n, itemlist in enumerate(sortedresults):
+                                for item in sortedresults[itemlist]:
+                                    item.data['resultnumber']=n+1
+                                    fullresultlist.append(item)
+                        #get the first page of results
+                        resultlist=fullresultlist[:10]
+#                        log.debug(resultlist)
+#                        log.debug([doc.__dict__ for doc in resultlist])
+                        pagemax=int(resultcount/10)+1
+
+                        if resultcount > 10:
+#                            page = 1
+                            #store the full results  -- pulling the data elements from the solr response]
+                            request.session['results']=[(result.id,result.data,result.date,result.docname) for result in fullresultlist]
+#                        else:
+#                            page = 0
+
 
             except Exception as e:
                 log.error(str(e))
@@ -105,43 +132,51 @@ def do_search(request,page=0,searchterm='',direction='',pagemax=0,sorttype=''):
                     log.debug('change core')
                     coreID=coreselect  #new solr core ID
                     request.session['mycore']=coreID  #store the chosen index
-                    mycore=corelist[coreID]  #select new SolrCore object
+        #            mycore=corelist[coreID]  #select new SolrCore object
                     log.debug('selected core'+str(coreselect))
+                request.session['results']='' #clear results from any previous searches
+                #DEBUG
+                
+                return HttpResponseRedirect("/ownsearch/searchterm={}&nextafterpage=0&sorttype={}".format(searchterm,sorttype))
+                
+#                
+#                #DEBUG    
+#                log.debug('SORTTYPE: '+sorttype)
+#                if sorttype=='relevance':
+#                    log.info('User '+request.user.username+' searching with searchterm: '+searchterm)
+#                    resultlist,resultcount=solrSoup.solrSearch(searchterm,sorttype,0,core=mycore)
+#                    log.debug([doc.data['resultnumber'] for doc in resultlist])
+#                    pagemax=int(resultcount/10)+1
+#                    if resultcount > 10:
+#                        page = 1
+#                    else:
+#                        page = 0
+#                else:
+#                #FOR SEARCHES ON OTHER KEY WORDS >> DO A COMPLETE CURSOR SEARCH, SORT, THEN STORE RESULTS
+#                    log.info('User '+request.user.username+' searching with searchterm: '+searchterm+' and using sorttype '+sorttype)
+#                    sortedresults=solrcursor.cursorSearch(searchterm,sorttype,mycore)
+#                    #log.debug(sortedresults)
+#                    resultcount=len(sortedresults)
+#                    fullresultlist=[]
+#                    if resultcount>0:
+#                        for n, itemlist in enumerate(sortedresults):
+#                            for item in sortedresults[itemlist]:
+#                                item.data['resultnumber']=n+1
+#                                fullresultlist.append(item)
+#                    #get the first page of results
+#                    resultlist=fullresultlist[:10]
+#                    log.debug(resultlist)
+#                    log.debug([doc.__dict__ for doc in resultlist])
+#                    pagemax=int(resultcount/10)+1
+#                    if resultcount > 10:
+#                        page = 1
+#                        #store the full results  -- pulling the data elements from the solr response]
+#                        request.session['results']=[(result.id,result.data,result.date,result.docname) for result in fullresultlist]
+#                    else:
+#                        page = 0
+#                    #log.debug('RESULT LIST: '+str(resultlist))
                     
-                log.debug('SORTTYPE: '+sorttype)
-                if sorttype=='relevance':
-                    log.info('User '+request.user.username+' searching with searchterm: '+searchterm)
-                    resultlist,resultcount=solrSoup.solrSearch(searchterm,sorttype,0,core=mycore)
-                    #log.debug(str(resultlist))
-                    pagemax=int(resultcount/10)+1
-                    if resultcount > 10:
-                        page = 1
-                    else:
-                        page = 0
-                else:
-                #FOR SEARCHES ON OTHER KEY WORDS >> DO A COMPLETE CURSOR SEARCH, SORT, THEN STORE RESULTS
-                    log.info('User '+request.user.username+' searching with searchterm: '+searchterm+' and using sorttype '+sorttype)
-                    sortedresults=solrcursor.cursorSearch(searchterm,sorttype,mycore)
-                    #log.debug(sortedresults)
-                    resultcount=len(sortedresults)
-                    fullresultlist=[]
-                    if resultcount>0:
-                        for n, itemlist in enumerate(sortedresults):
-                            for item in sortedresults[itemlist]:
-                                item.data['resultnumber']=n+1
-                                fullresultlist.append(item)
-                    #get the first page of results
-                    resultlist=fullresultlist[:10]
-                    pagemax=int(resultcount/10)+1
-                    if resultcount > 10:
-                        page = 1
-                        #store the full results  -- pulling the data elements from the solr response]
-                        request.session['results']=[(result.id,result.data,result.date,result.docname) for result in fullresultlist]
-                    else:
-                        page = 0
-                    #log.debug('RESULT LIST: '+str(resultlist))
-                    
-        # if a GET (or any other method) we'll create a blank form
+        # START BLANK FORM if a GET (or any other method) we'll create a blank form
         else:
             form = SearchForm(choice_list,str(coreID),sorttype)
             resultlist = []
@@ -194,7 +229,7 @@ def get_content(request,doc_id,searchterm): #make a page showing the extracted t
     
     #load solr index in use, SolrCore object
     try:
-        #GET INDIEX
+        #GET INDEX
         #only show content if index defined in session:
         if request.session.get('mycore') is None:
             log.info('Get content request refused; no index defined in session')
@@ -224,7 +259,7 @@ def get_content(request,doc_id,searchterm): #make a page showing the extracted t
             highlight=''
             log.debug('No highlight found')
         
-        log.debug('Full result '+str(result.__dict__))    
+#        log.debug('Full result '+str(result.__dict__))    
         log.debug('Highlight length: '+str(len(highlight)))
         
         #DIVERT ON BIG FILE
@@ -260,13 +295,13 @@ def get_bigcontent(request,doc_id,searchterm,mycore,contentsmax): #make a page o
     log.debug(res)
     if len(res.results)>0:
         #if more than one result, take the first
-        result=res.results[0].data
-        docsize=result['solrdocsize']
-        docpath=result['docpath']
-        rawtext=result['rawtext']
-        docname=result['docname']
-        hashcontents=result['hashcontents']
-        highlights=result['highlight'] 
+        result=res.results[0]
+        docsize=result.data['solrdocsize']
+        docpath=result.data['docpath']
+        rawtext=result.data['rawtext']
+        docname=result.docname
+        hashcontents=result.data['hashcontents']
+        highlights=result.data['highlight'] 
 
     #check if file is registered and authorised to download
         authflag,matchfile_id,hashfilename=authfile(request,hashcontents,docname)

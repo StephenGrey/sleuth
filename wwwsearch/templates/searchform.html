@@ -16,7 +16,7 @@ Sort by:
 <h4>{{resultcount}} results for search on "{{searchterm}}"{% if page != 0 %}: Page {{page}}{% endif %}</h4>
 
 {% for res in results %} 	
-<li>{{res.data.resultnumber}}: <a href="/ownsearch/doc={{res.id}}&searchterm={{searchterm}}"><b>{{res.docname }}</b></a> {{res.data.solrdocsize}}<p>
+<li>{{res.data.resultnumber}}: <a href="/ownsearch/doc={{res.id}}&searchterm={{searchterm}}"><b>{% if res.docname  %}{{res.docname }}{% else %}No Filename Indexed{% endif %}</b></a> {{res.data.solrdocsize}}<p>
 	{{ res.data.highlight.0 }}<b>{{ res.data.highlight.1 }}</b>{{ res.data.highlight.2 }}
 {% endfor %} 
 <p>
