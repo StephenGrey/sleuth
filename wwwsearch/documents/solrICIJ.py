@@ -2,7 +2,7 @@
 from __future__ import unicode_literals, print_function
 from ownsearch import solrSoup as s
 from usersettings import userconfig as config
-import subprocess, logging
+import subprocess, logging, os
 log = logging.getLogger('ownsearch.solrICIJ')
 
 #EXTRACT A FILE TO SOLR INDEX (defined in mycore (instance of solrSoup.SolrCore))

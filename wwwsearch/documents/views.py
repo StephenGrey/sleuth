@@ -232,7 +232,7 @@ def indexdocs(collection,mycore,forceretry=False,useICIJ=False): #index into Sol
                 #now try the extract
                 if useICIJ:
                     log.info('using ICIJ extract method..')
-                    result = solrICIJ.ICIJextract(file.filepath,file.hash_contents,mycore)
+                    result = solrICIJ.ICIJextract(file.filepath,mycore)
 
                 else:
                     try:

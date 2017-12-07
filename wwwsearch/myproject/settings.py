@@ -45,6 +45,7 @@ INSTALLED_APPS = [
     'notes',
     'ownsearch',
     'documents.apps.DocumentsConfig',
+    'scraper.apps.ScraperConfig',
 ]
 
 MIDDLEWARE = [
