@@ -9,7 +9,7 @@ from documents.models import SolrCore as sc
 from django.db.utils import OperationalError
 from usersettings import userconfig as config
 from django.utils import timezone
-import pytz #support localising the timezone
+import pytz, iso8601 #support localising the timezone
 from datetime import datetime
 #log = logging.getLogger('ownsearch.solrSoup')
 
@@ -90,10 +90,11 @@ class SolrCore:
         return self.name
 
 class Solrdoc:
-    def __init__(self,data={},date='',docname='',id=''):
+    def __init__(self,data={},date='',datetext='',docname='',id=''):
             self.id=id
             self.data=data
             self.date=date
+            self.datetext=datetext
             self.docname=docname
             self.resultnumber=0
 
@@ -120,9 +121,12 @@ class Solrdoc:
             self.docname=self.data.pop(core.docnamefield,'')
             self.id=self.data.pop('id','')
             self.date=self.data.pop(core.datefield,'')
+            print(self.date)
             try:
-                self.datetext=easydate(self.date)
-            except:
+                self.datetext=easydate(parseISO(self.date[0]))
+                print(self.datetext)
+            except Exception as e:
+                print(e)
                 self.datetext=''
             self.data['solrdocsize']=self.data.pop(core.docsizefield,'')
             self.data['rawtext']=self.data.pop(core.rawtext,'')                
@@ -434,5 +438,8 @@ def getSortAttrib(sorttype,core):
 def ISOtimestring(timeobject_aware):
     return timeobject_aware.astimezone(pytz.utc).isoformat()[:19]+'Z'
 
-def easydate(timeobject)
+def easydate(timeobject):
     return timeobject.strftime("%b %d, %Y")
+
+def parseISO(timestring):
+    return iso8601.parse_date(timestring)
