@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+from __future__ import unicode_literals
 # extract from dupFinder.py
 # UPDATED WORKING 8/3/16
 # THIS PACKAGE contains functions to hash index file directories, and main routine does a search for orphans
@@ -130,6 +132,11 @@ def hashfile(path, blocksize = 65536):
         buf = afile.read(blocksize)
     afile.close()
     return hasher.hexdigest()
+
+def hash256(text):
+    hash_object = hashlib.sha256(text)
+    # Assumes the default UTF-8
+    return hash_object.hexdigest()
 
 def hashfile256(path,blocksize = 65536):
     afile = open(path, 'rb')

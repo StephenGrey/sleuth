@@ -120,6 +120,10 @@ class Solrdoc:
             self.docname=self.data.pop(core.docnamefield,'')
             self.id=self.data.pop('id','')
             self.date=self.data.pop(core.datefield,'')
+            try:
+                self.datetext=easydate(self.date)
+            except:
+                self.datetext=''
             self.data['solrdocsize']=self.data.pop(core.docsizefield,'')
             self.data['rawtext']=self.data.pop(core.rawtext,'')                
             self.data['docpath']=self.data.pop(core.docpath,'')
@@ -427,5 +431,8 @@ def getSortAttrib(sorttype,core):
         sortattrib = ''
     return sortattrib
 
+def ISOtimestring(timeobject_aware):
+    return timeobject_aware.astimezone(pytz.utc).isoformat()[:19]+'Z'
 
-
+def easydate(timeobject)
+    return timeobject.strftime("%b %d, %Y")

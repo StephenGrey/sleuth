@@ -137,6 +137,25 @@ def post_jsonupdate(data,mycore):
         print ('Exception: ',str(e))
         statusOK=False
         return '',statusOK
+
+def post_jsondoc(data,mycore):
+    updateurl=mycore.url+'/update/json/docs?commit=true'
+    url=updateurl
+    headers={'Content-type': 'application/json'}
+    try:
+        res=requests.post(url, data=data, headers=headers)
+        jres=res.json()
+        status=jres['responseHeader']['status']
+        if status==0:
+            statusOK = True
+        else:
+            statusOK = False
+        return res.json(), statusOK
+    except Exception as e:
+        print ('Exception: ',str(e))
+        statusOK=False
+        return '',statusOK
+
         
 #update the metadata in the  model database
 def metaupdate(collection):
