@@ -50,14 +50,6 @@ class SolrCore:
             self.hashcontentsfield=config[core]['hashcontents']
             self.datefield=config[core]['datefield']
             
-#            #make reverse   DEBUG WE CAN uSE self.__dict__ instead
-#            self.fields={} #dictionary to reverse from solr field to standard field
-#            self.fields['date']=self.datefield
-#            self.fields['solrdocsize']=self.docsizefield
-#            self.fields['rawtext']=self.rawtext
-#            self.fields['docname']=self.docnamefield
-#            self.fields['docpath']=self.docpath
-#            self.fields['hashcontents']=self.hashcontentsfield
 
         except KeyError:
             raise MissingConfigData
@@ -121,10 +113,8 @@ class Solrdoc:
             self.docname=self.data.pop(core.docnamefield,'')
             self.id=self.data.pop('id','')
             self.date=self.data.pop(core.datefield,'')
-            print(self.date)
             try:
                 self.datetext=easydate(parseISO(self.date[0]))
-                print(self.datetext)
             except Exception as e:
                 print(e)
                 self.datetext=''
@@ -258,7 +248,7 @@ def gettrimcontents(docid,core,maxlength):
     searchterm=r'id:'+docid
     
     #MAKE ARGUMENTS FOR TRIMMED CONTENTS
-    fieldargs='&fl=id,{},{},{},{}&start=0'.format(core.docnamefield,core.docsizefield,core.hashcontentsfield,core.docpath)
+    fieldargs='&fl=id,{},{},{},{},{},{},{}&start=0'.format(core.docnamefield,core.docsizefield,core.hashcontentsfield,core.docpath,'preview_html','SBdata_ID',core.datefield)
 #this exploits a quirk in solr to return length-restricted contents as a "highlight"; it depends on a null return on the nullfield (any field name that does not exist)
     hlargs='&hl=on,hl.fl=nullfield&hl.fragsize=0&hl.alternateField={}&hl.maxAlternateFieldLength={}'.format(core.rawtext,maxlength)    
     args=fieldargs+hlargs

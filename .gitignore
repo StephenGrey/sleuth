@@ -14,7 +14,7 @@ extract-master/
 wwwsearch/logfile*
 
 #ignore scraper for now
-wwwsearch/scraper*
+#wwwsearch/scraper*
 
 # ignore user settings - put defaults into usersettings.config.example
 wwwsearch/usersettings.config

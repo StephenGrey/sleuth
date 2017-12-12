@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% block content %}
-
+<b><h1>{{docname}}</h1></b>
+<b><p>PATH: {{docpath}}&emsp; SIZE(bytes):{{docsize}}&emsp; DATE: {{datetext}}<p></b>
 {{body | safe}}
 
 

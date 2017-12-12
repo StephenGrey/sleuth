@@ -213,20 +213,29 @@ def get_content(request,doc_id,searchterm): #make a page showing the extracted t
         results=solrSoup.gettrimcontents(doc_id,mycore,contentsmax).results  #returns SolrResult object
         try:
             result=results[0]
-            
+#            log.debug(vars(result))
         except KeyError:
             return HttpResponse('Can\'t find document with ID '+doc_id+' COREID: '+coreID)
             
+        docname=result.docname
+        docpath=result.data['docpath']
+        datetext=result.datetext
+        #DIVERT IF PREVIEW HTML IN SOLR INDEX (in case of scraped web pages, or other HTML)
+        html=result.data.get('preview_html','')
+        data_ID=result.data.get('SBdata_ID','') #pulling ref to doc if stored in local database
+        log.debug('Data ID '+str(data_ID)) 
+        if html:
+            return render(request, 'blogpost.html', {'body':html, 'docid':data_ID[0],'docname':docname,'docpath':docpath,'datetext':datetext})
+#        log.debug('Full result '+str(result.__dict__))    
+
+        #DIVERT ON BIG FILE
         try:
             highlight=result.data['highlight']
         except KeyError:
             highlight=''
             log.debug('No highlight found')
-        
-#        log.debug('Full result '+str(result.__dict__))    
+
         log.debug('Highlight length: '+str(len(highlight)))
-        
-        #DIVERT ON BIG FILE
         #detect if large file (contents greater or equal to max size)
         if len(highlight)==contentsmax:
            #go get large highlights instead
@@ -234,9 +243,7 @@ def get_content(request,doc_id,searchterm): #make a page showing the extracted t
            return res
            
         docsize=result.data['solrdocsize']
-        docpath=result.data['docpath']
         rawtext=result.data['rawtext']
-        docname=result.docname
         hashcontents=result.data['hashcontents']
 
 #        #check if file is registered and authorised to download
