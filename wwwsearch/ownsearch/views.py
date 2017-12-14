@@ -19,8 +19,9 @@ docbasepath=config['Models']['collectionbasepath']
 
 
 @login_required
-def do_search(request,page=0,searchterm='',direction='',pagemax=0,sorttype=''):
+def do_search(request,page=0,searchterm='',direction='',pagemax=0,sorttype='',tag1=''):
 #    log.debug('SESSION CACHE: '+str(vars(request.session)))
+    log.debug('TAG1: '+tag1)
     try:
 
     #GET AUTHORISED CORES AND DEFAULT
@@ -62,13 +63,20 @@ def do_search(request,page=0,searchterm='',direction='',pagemax=0,sorttype=''):
         if page > 0: #if page value not default (0) then proceed directly with search
             resultlist=[]
             form = SearchForm(choice_list,str(coreID),sorttype)
-            log.info('User '+request.user.username+' searching with searchterm: '+searchterm+' on page '+str(page))
+            log.info('User '+request.user.username+' searching with searchterm: '+searchterm+' and tag \"'+tag1+'\" on page '+str(page))
             try:
                 startnumber=(page-1)*10
                 if sorttype=='relevance':
                     #if 'relevance' search then return the results 'as is'
-                    resultlist,resultcount=solrSoup.solrSearch(searchterm,sorttype,startnumber,core=mycore)
+                    if tag1:
+                        filters={'tagnames_list':tag1}
+                    else:
+                        filters={}
+                    #filters={'tagnames_list':'Joseph Muscat'}
+                    resultlist,resultcount,facets=solrSoup.solrSearch(searchterm,sorttype,startnumber,core=mycore, filters=filters)
                     pagemax=int(resultcount/10)+1
+                    #tagcheck=[result.data for result in resultlist]
+                    #log.debug(str(tagcheck))
                 else:
                     fullresults=request.session['results']
                     #try to retrieve full results from session (if search sorted by other than relevance)
@@ -80,6 +88,7 @@ def do_search(request,page=0,searchterm='',direction='',pagemax=0,sorttype=''):
     #                    log.debug(resultlist)
                         resultcount=len(fullresults)
                         pagemax=int(resultcount/10)+1
+                        
                     #ELSE DO THE SEARCH FOR THE FIRST TIME AND THEN STORE
                     else:
                     #FOR SEARCHES ON OTHER KEY WORDS >> DO A COMPLETE CURSOR SEARCH, SORT, THEN STORE RESULTS
@@ -95,6 +104,7 @@ def do_search(request,page=0,searchterm='',direction='',pagemax=0,sorttype=''):
                                     fullresultlist.append(item)
                         #get the first page of results
                         resultlist=fullresultlist[:10]
+                        facets=[]
 #                        log.debug(resultlist)
 #                        log.debug([doc.__dict__ for doc in resultlist])
                         pagemax=int(resultcount/10)+1
@@ -108,10 +118,12 @@ def do_search(request,page=0,searchterm='',direction='',pagemax=0,sorttype=''):
 
 
             except Exception as e:
+                print(e)
                 log.error(str(e))
                 log.debug(sorttype)
                 log.debug(str(resultlist))
                 resultlist=[]
+                facets=[]
                 resultcount=0
                 pagemax=0
 
@@ -146,7 +158,7 @@ def do_search(request,page=0,searchterm='',direction='',pagemax=0,sorttype=''):
             resultlist = []
             resultcount=-1
 
-        return render(request, 'searchform.html', {'form': form, 'pagemax': pagemax, 'results': resultlist, 'searchterm': searchterm, 'resultcount': resultcount, 'page':page, 'sorttype': sorttype})
+        return render(request, 'searchform.html', {'form': form, 'tagfilter':tag1,'facets':facets,'pagemax': pagemax, 'results': resultlist, 'searchterm': searchterm, 'resultcount': resultcount, 'page':page, 'sorttype': sorttype})
 
     except solrSoup.SolrCoreNotFound as e:
         log.error('Index not found on solr server')

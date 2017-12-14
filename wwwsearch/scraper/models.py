@@ -13,6 +13,7 @@ class BlogPost(models.Model):
     body=models.TextField('html contents',blank=True)
     originalID=models.CharField('original ID',max_length=10,blank=True)
     name=models.CharField('blog title',max_length=100,default='Untitled')
+    solrID=models.CharField('solrID',max_length=64,blank=True)
 #    tag=models.ForeignKey(
 #        'Tags',
 #        on_delete=models.CASCADE,

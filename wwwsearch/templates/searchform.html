@@ -10,21 +10,32 @@ Sort by:
 
 <input type="submit" value="Search" />
 
-{% if resultcount == 0 %}<p>No results for search on "{{searchterm}}" {%endif%}
+{% if resultcount == 0 %}<p>No results for search on "{{searchterm}}" {%if tagfilter %}filtered by tag "{{tagfilter}} {%endif%}{%endif%}
 {% if resultcount == -2 %}<p>Connection error to index (Check Internet connection){%endif%}
 {% if results %} <h3>Results</h3>	
-<h4>{{resultcount}} results for search on "{{searchterm}}"{% if page != 0 %}: Page {{page}}{% endif %}</h4>
+<h4>{{resultcount}} results for search on "{{searchterm}}" {%if tagfilter %}filtered by tag "{{tagfilter}}"{% endif %}{% if page != 0 %}: Page {{page}}{% endif %}</h4>
 
+{% if facets %}
+	Tag scores: (click to filter) 
+	{% for tag,score in facets %}
+		 <a href="/ownsearch/searchterm={{searchterm}}&nextafterpage=0&sorttype={{sorttype}}&tag1={{tag}}">{{ tag }}</a> ({{score}})
+	{% endfor %}
+{% endif %}
+<p>
 {% for res in results %} 	
-<li>{{res.data.resultnumber}}: <a href="/ownsearch/doc={{res.id}}&searchterm={{searchterm}}"><b>{% if res.docname  %}{{res.docname }}{% else %}No Filename Indexed{% endif %}</b></a> {{res.data.solrdocsize}} {{res.datetext}}<p>
+<li>{{res.data.resultnumber}}: <a href="/ownsearch/doc={{res.id}}&searchterm={{searchterm}}"><b>{% if res.docname  %}{{res.docname }}{% else %}No Filename Indexed{% endif %}</b></a> 
+	{{res.data.solrdocsize}} {{res.datetext}}
+{% if res.data.tags1  %}<p>{% for tag in res.data.tags1 %}
+	<a href="/ownsearch/searchterm={{searchterm}}&nextafterpage=0&sorttype={{sorttype}}&tag1={{tag}}">{{ tag }}</a>
+	{% endfor %} {% endif %}<p>
 	{{ res.data.highlight.0 }}<b>{{ res.data.highlight.1 }}</b>{{ res.data.highlight.2 }}
 {% endfor %} 
 <p>
-{% if page > 1 %}<a href="/ownsearch/searchterm={{searchterm}}&backfrompage={{page}}&sorttype={{sorttype}}">back</a> 
+{% if page > 1 %}<a href="/ownsearch/searchterm={{searchterm}}&backfrompage={{page}}&sorttype={{sorttype}}{%if tagfilter %}&tag1={{tagfilter}}{%endif%}">back</a> 
 {% endif %} 
 {% if page > 0 %}
 	{% if page < pagemax %}
-	<a href="/ownsearch/searchterm={{searchterm}}&nextafterpage={{page}}&sorttype={{sorttype}}">next</a> 
+	<a href="/ownsearch/searchterm={{searchterm}}&nextafterpage={{page}}&sorttype={{sorttype}}{%if tagfilter %}&tag1={{tagfilter}}{%endif%}">next</a> 
 	{% endif %}
 	{% endif %}
 
