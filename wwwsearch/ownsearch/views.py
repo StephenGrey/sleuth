@@ -79,6 +79,7 @@ def do_search(request,page=0,searchterm='',direction='',pagemax=0,sorttype='',ta
                     #log.debug(str(tagcheck))
                 else:
                     fullresults=request.session['results']
+                    facets=[] #facets not yet set up except for relevanc search
                     #try to retrieve full results from session (if search sorted by other than relevance)
                     #if RESULTS EXIST THEN JUST EXTRACT RESULT SET 
                     if fullresults: #search already done                    
