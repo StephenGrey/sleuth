@@ -157,6 +157,8 @@ def do_search(request,page=0,searchterm='',direction='',pagemax=0,sorttype='',ta
             form = SearchForm(choice_list,str(coreID),sorttype)
             resultlist = []
             resultcount=-1
+            facets=[]
+            tag1=''
 
         return render(request, 'searchform.html', {'form': form, 'tagfilter':tag1,'facets':facets,'pagemax': pagemax, 'results': resultlist, 'searchterm': searchterm, 'resultcount': resultcount, 'page':page, 'sorttype': sorttype})
 
