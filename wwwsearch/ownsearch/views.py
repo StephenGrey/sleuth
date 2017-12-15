@@ -73,7 +73,7 @@ def do_search(request,page=0,searchterm='',direction='',pagemax=0,sorttype='',ta
                     else:
                         filters={}
                     #filters={'tagnames_list':'Joseph Muscat'}
-                    resultlist,resultcount,facets=solrSoup.solrSearch(searchterm,sorttype,startnumber,core=mycore, filters=filters)
+                    resultlist,resultcount,facets=solrSoup.solrSearch(searchterm,sorttype,startnumber,core=mycore, filters=filters, faceting=True)
                     pagemax=int(resultcount/10)+1
                     #tagcheck=[result.data for result in resultlist]
                     #log.debug(str(tagcheck))
@@ -118,8 +118,8 @@ def do_search(request,page=0,searchterm='',direction='',pagemax=0,sorttype='',ta
 
 
             except Exception as e:
-                print(e)
-                log.error(str(e))
+#                print(e)
+                log.error('Error {}'.format(e))
                 log.debug(sorttype)
                 log.debug(str(resultlist))
                 resultlist=[]

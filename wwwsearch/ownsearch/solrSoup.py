@@ -50,6 +50,8 @@ class SolrCore:
             self.hashcontentsfield=config[core]['hashcontents']
             self.datefield=config[core]['datefield']
             self.tags1field=config[core]['tags1field']
+            if not fieldexists(self.tags1field,self): #check if the tag field is defined in index
+                self.tags1field=''
 
         except KeyError:
             raise MissingConfigData
@@ -215,6 +217,7 @@ class SolrResult:
         if self.results:
             try:
                 soup=self.soup
+                
                 nextlist=soup.response.result.next_sibling
     #            print('NEXTLIST',nextlist)
                 if nextlist['name']=='highlighting':
@@ -253,10 +256,15 @@ class SolrResult:
 
 log = logging.getLogger('ownsearch.solrSoup')
 
+   
 #MAIN SEARCH METHOD  (q is search term)
-def solrSearch(q,sorttype,startnumber,core,filters={}):
+def solrSearch(q,sorttype,startnumber,core,filters={},faceting=False):
     core.ping()
-    args=core.hlarguments+str(startnumber) #+getSortAttrib(sorttype,core)
+    if core.tags1field and faceting:
+        facetargs='&facet.field={}&facet=on&facet.limit=10'.format(core.tags1field)
+    else:
+        facetargs=''
+    args='{}{}{}'.format(facetargs,core.hlarguments,startnumber) #+getSortAttrib(sorttype,core)
 #ignoring sorttype - other sorting methods now handled by re-sorting
     for filtertag in filters:
         args=args+'&fq={}:"{}"'.format(filtertag,filters[filtertag])
@@ -272,7 +280,7 @@ def solrSearch(q,sorttype,startnumber,core,filters={}):
     return reslist,numbers,facets
 
 def getSolrResponse(searchterm,arguments,core):
-    print(searchterm,arguments,core)
+#    print(searchterm,arguments,core)
     searchurl='{}/select?q={}{}'.format(core.url,searchterm,arguments)
 #    print (searchurl)
     ses = requests.Session()
@@ -282,6 +290,18 @@ def getSolrResponse(searchterm,arguments,core):
     soup=BS(res.content,"html.parser")
     return soup
 
+def fieldexists(field,core):
+    try:
+        soup = getSolrResponse(field+':[* TO *]','&rows=0',core)
+        assert soup.response.lst.int['name']=='status'
+        assert soup.response.lst.int.text=='0'
+        return True
+    except AssertionError as e:
+        log.debug('Field \"{}\" does not exist in index {}'.format(field,core))
+    except Exception as e:
+        log.debug('Error checking if field {} exists in index {}'.format(field,core))
+    return False
+ 
 
 #GET CONTENTS OF A DOCUMENT UP TO A MAX SIZE
 def gettrimcontents(docid,core,maxlength):
@@ -442,6 +462,8 @@ def getcores():
 
 #defaultcore=getcores()['1'] #config['Cores']['1'] #the name of the index to use within the Solr backend
 #mydefaultcore=SolrCore(defaultcore) #instantiate a default core object
+
+
 
 def timefromSolr(timestring):
     if timestring:
