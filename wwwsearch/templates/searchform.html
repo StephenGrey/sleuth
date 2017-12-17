@@ -5,6 +5,13 @@
     {% csrf_token %}
 Index:{{form.CoreChoice}}<p>
 {{form.search_term.label}}{{form.search_term}}<p>
+<p>
+(Accepts wildcards:
+'?' for any single character e.g T?p = 'Top','Tip' etc <br>
+'*' for many characters e.g T*p='Trump', Trop' etc.<br>
+Use double quotes " " to enclose a phrase)
+
+<p>
 Sort by:
 {{form.SortType}}
 
@@ -18,24 +25,24 @@ Sort by:
 {% if facets %}
 	Tag scores: (click to filter) 
 	{% for tag,score in facets %}
-		 <a href="/ownsearch/searchterm={{searchterm}}&nextafterpage=0&sorttype={{sorttype}}&tag1={{tag}}">{{ tag }}</a> ({{score}})
+		 <a href="/ownsearch/searchterm={{searchterm_urlsafe}}&nextafterpage=0&sorttype={{sorttype}}&tag1={{tag}}">{{ tag }}</a> ({{score}})
 	{% endfor %}
 {% endif %}
 <p>
 {% for res in results %} 	
-<li>{{res.data.resultnumber}}: <a href="/ownsearch/doc={{res.id}}&searchterm={{searchterm}}"><b>{% if res.docname  %}{{res.docname }}{% else %}No Filename Indexed{% endif %}</b></a> 
+<li>{{res.data.resultnumber}}: <a href="/ownsearch/doc={{res.id}}&searchterm={{searchterm_urlsafe}}"><b>{% if res.docname  %}{{res.docname }}{% else %}No Filename Indexed{% endif %}</b></a> 
 	{{res.data.solrdocsize}} {{res.datetext}}
 {% if res.data.tags1  %}<p>{% for tag in res.data.tags1 %}
-	<a href="/ownsearch/searchterm={{searchterm}}&nextafterpage=0&sorttype={{sorttype}}&tag1={{tag}}">{{ tag }}</a>
+	<a href="/ownsearch/searchterm={{searchterm_urlsafe}}&nextafterpage=0&sorttype={{sorttype}}&tag1={{tag}}">{{ tag }}</a>
 	{% endfor %} {% endif %}<p>
 	{{ res.data.highlight.0 }}<b>{{ res.data.highlight.1 }}</b>{{ res.data.highlight.2 }}
 {% endfor %} 
 <p>
-{% if page > 1 %}<a href="/ownsearch/searchterm={{searchterm}}&backfrompage={{page}}&sorttype={{sorttype}}{%if tagfilter %}&tag1={{tagfilter}}{%endif%}">back</a> 
+{% if page > 1 %}<a href="/ownsearch/searchterm={{searchterm_urlsafe}}&backfrompage={{page}}&sorttype={{sorttype}}{%if tagfilter %}&tag1={{tagfilter}}{%endif%}">back</a> 
 {% endif %} 
 {% if page > 0 %}
 	{% if page < pagemax %}
-	<a href="/ownsearch/searchterm={{searchterm}}&nextafterpage={{page}}&sorttype={{sorttype}}{%if tagfilter %}&tag1={{tagfilter}}{%endif%}">next</a> 
+	<a href="/ownsearch/searchterm={{searchterm_urlsafe}}&nextafterpage={{page}}&sorttype={{sorttype}}{%if tagfilter %}&tag1={{tagfilter}}{%endif%}">next</a> 
 	{% endif %}
 	{% endif %}
 

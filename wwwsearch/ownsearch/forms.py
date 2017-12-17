@@ -8,19 +8,20 @@ from django.db.utils import OperationalError
 
 
 
-SORT_CHOICES = (('relevance', 'Relevance'), ('docname', 'Document name'),('date','Last Modified'))
+SORT_CHOICES = (('relevance', 'Relevance'), ('docname', 'Document name'),('date','Date (received or modified)'))
 
 class SearchForm(forms.Form):
 
-    def __init__(self, choice_list, initial_core, initial_sort,*args, **kwargs):
+    def __init__(self, choice_list, initial_core, initial_sort, initial_search,*args, **kwargs):
         self.choicelist=choice_list
         self.initial_core=initial_core
         self.initial_sort=initial_sort
+        self.initial_search=initial_search
 #        self.choicelist=get_corechoices(self.request.user)
         super(SearchForm, self).__init__(*args, **kwargs) #having overridden initialisation; now run parent initialisation
         #print ('choices',self.choicelist)
         #dynamically set core choice based on user
         self.fields['CoreChoice']=ChoiceField(label='Index: ',choices=self.choicelist,initial=self.initial_core)
         self.fields['SortType']=ChoiceField(label='\nSort by :',widget=RadioSelect, initial=self.initial_sort,choices=SORT_CHOICES)   
-    search_term = forms.CharField(label='Search Term', max_length=100)
+        self.fields['search_term'] = forms.CharField(label='Search Term', max_length=100,initial=self.initial_search)
 #    SortType = ChoiceField(label='\nSort by :',widget=RadioSelect, initial=self.initial_sort,choices=SORT_CHOICES)

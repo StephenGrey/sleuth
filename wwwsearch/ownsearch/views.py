@@ -11,7 +11,7 @@ from django.contrib.auth.decorators import login_required
 from django.http import HttpResponse
 from django.http import HttpResponseRedirect
 from django.db.models.base import ObjectDoesNotExist
-import solrSoup, re, os, logging, unicodedata
+import solrSoup, re, os, logging, unicodedata, urllib
 from documents import solrcursor
 from usersettings import userconfig as config
 log = logging.getLogger('ownsearch.views')
@@ -62,7 +62,7 @@ def do_search(request,page=0,searchterm='',direction='',pagemax=0,sorttype='',ta
         
         if page > 0: #if page value not default (0) then proceed directly with search
             resultlist=[]
-            form = SearchForm(choice_list,str(coreID),sorttype)
+            form = SearchForm(choice_list,str(coreID),sorttype,searchterm)
             log.info('User '+request.user.username+' searching with searchterm: '+searchterm+' and tag \"'+tag1+'\" on page '+str(page))
             try:
                 startnumber=(page-1)*10
@@ -133,7 +133,7 @@ def do_search(request,page=0,searchterm='',direction='',pagemax=0,sorttype='',ta
         elif request.method == 'POST': #if data posted from form
     
             # create a form instance and populate it with data from the request:
-            form = SearchForm(choice_list,str(coreID),sorttype,request.POST)
+            form = SearchForm(choice_list,str(coreID),sorttype,searchterm,request.POST)
             # check whether it's valid:
             if form.is_valid():
                 # process the data in form.cleaned_data as required
@@ -150,18 +150,19 @@ def do_search(request,page=0,searchterm='',direction='',pagemax=0,sorttype='',ta
                 request.session['results']='' #clear results from any previous searches
                 #DEBUG
                 
-                return HttpResponseRedirect("/ownsearch/searchterm={}&nextafterpage=0&sorttype={}".format(searchterm,sorttype))
+                searchterm_urlsafe=urllib.quote_plus(searchterm)
+                return HttpResponseRedirect("/ownsearch/searchterm={}&nextafterpage=0&sorttype={}".format(searchterm_urlsafe,sorttype))
                 
                     
         # START BLANK FORM if a GET (or any other method) we'll create a blank form
         else:
-            form = SearchForm(choice_list,str(coreID),sorttype)
+            form = SearchForm(choice_list,str(coreID),sorttype,searchterm)
             resultlist = []
             resultcount=-1
             facets=[]
             tag1=''
-
-        return render(request, 'searchform.html', {'form': form, 'tagfilter':tag1,'facets':facets,'pagemax': pagemax, 'results': resultlist, 'searchterm': searchterm, 'resultcount': resultcount, 'page':page, 'sorttype': sorttype})
+        searchterm_urlsafe=urllib.quote_plus(searchterm)
+        return render(request, 'searchform.html', {'form': form, 'tagfilter':tag1,'facets':facets,'pagemax': pagemax, 'results': resultlist, 'searchterm': searchterm, 'searchterm_urlsafe': searchterm_urlsafe, 'resultcount': resultcount, 'page':page, 'sorttype': sorttype})
 
     except solrSoup.SolrCoreNotFound as e:
         log.error('Index not found on solr server')
