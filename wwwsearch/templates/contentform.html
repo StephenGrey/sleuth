@@ -6,13 +6,17 @@ This is a comment section
 {% endcomment %}
 
 {% if splittext %} <h3>Extracted Text</h3>
-<b>{{docname}}</b>
-<p>PATH: {{docpath}}&emsp; SIZE(bytes):{{docsize}}<p>
+{% if data.title  %}
+<br><b><h2>Title:</b>{{data.title}}</h2><br>
+{% endif %}
+{% if data.message_from  %}
+<b>From:</b> {{data.message_from}} <b><br>To:</b> {{data.message_to}}
+{% endif %}
+<br>PATH: {{docpath}}&emsp; SIZE(bytes):{{docsize}}<br>
 <!--DIRECT FROM APACHE--<a href="/docstore/{{docpath}}"><b>Download</b></a>	-->
-
+<b>Filename: {{docname}}</b> 
 {% if docexists%}<a href="/ownsearch/download={{fileid}}&{{hashfile}}"<b>Download</b></a><p>
 {% endif %}
-
 {% for scrap in splittext %}
 {{scrap|linebreaksbr}}</pre><b>{{searchterm}}</b>
 {% endfor %}

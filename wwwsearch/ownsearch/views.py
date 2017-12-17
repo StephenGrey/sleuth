@@ -21,6 +21,7 @@ docbasepath=config['Models']['collectionbasepath']
 @login_required
 def do_search(request,page=0,searchterm='',direction='',pagemax=0,sorttype='',tag1=''):
 #    log.debug('SESSION CACHE: '+str(vars(request.session)))
+    searchterm=urllib.unquote_plus(searchterm)
     log.debug('TAG1: '+tag1)
     try:
 
@@ -161,6 +162,7 @@ def do_search(request,page=0,searchterm='',direction='',pagemax=0,sorttype='',ta
             resultcount=-1
             facets=[]
             tag1=''
+        #print(resultlist)
         searchterm_urlsafe=urllib.quote_plus(searchterm)
         return render(request, 'searchform.html', {'form': form, 'tagfilter':tag1,'facets':facets,'pagemax': pagemax, 'results': resultlist, 'searchterm': searchterm, 'searchterm_urlsafe': searchterm_urlsafe, 'resultcount': resultcount, 'page':page, 'sorttype': sorttype})
 
@@ -241,7 +243,7 @@ def get_content(request,doc_id,searchterm): #make a page showing the extracted t
         data_ID=result.data.get('SBdata_ID','') #pulling ref to doc if stored in local database
         log.debug('Data ID '+str(data_ID)) 
         if html:
-            return render(request, 'blogpost.html', {'body':html, 'docid':data_ID[0],'docname':docname,'docpath':docpath,'datetext':datetext})
+            return render(request, 'blogpost.html', {'body':html, 'docid':data_ID[0],'docname':docname,'docpath':docpath,'datetext':datetext,'data':result.data})
 #        log.debug('Full result '+str(result.__dict__))    
 
         #DIVERT ON BIG FILE
@@ -268,7 +270,8 @@ def get_content(request,doc_id,searchterm): #make a page showing the extracted t
     #clean up the text for display
         splittext,lastscrap=cleanup(searchterm,highlight)
         
-        return render(request, 'contentform.html', {'docsize':docsize, 'doc_id': doc_id, 'splittext': splittext, 'searchterm': searchterm, 'lastscrap': lastscrap, 'docname':docname, 'docpath':docpath, 'hashfile':hashfilename, 'fileid':matchfile_id,'docexists':authflag})
+        print(result.data)
+        return render(request, 'contentform.html', {'docsize':docsize, 'doc_id': doc_id, 'splittext': splittext, 'searchterm': searchterm, 'lastscrap': lastscrap, 'docname':docname, 'docpath':docpath, 'hashfile':hashfilename, 'fileid':matchfile_id,'docexists':authflag, 'data':result.data})
         
 
     except Exception as e:

@@ -50,6 +50,7 @@ class SolrCore:
             self.hashcontentsfield=config[core]['hashcontents']
             self.datefield=config[core]['datefield']
             self.tags1field=config[core]['tags1field']
+            self.emailmeta=config[core].get('emailmeta','')
             if not fieldexists(self.tags1field,self): #check if the tag field is defined in index
                 self.tags1field=''
 
@@ -308,7 +309,7 @@ def gettrimcontents(docid,core,maxlength):
     searchterm=r'id:'+docid
     
     #MAKE ARGUMENTS FOR TRIMMED CONTENTS
-    fieldargs='&fl=id,{},{},{},{},{},{},{}&start=0'.format(core.docnamefield,core.docsizefield,core.hashcontentsfield,core.docpath,'preview_html','SBdata_ID',core.datefield)
+    fieldargs='&fl=id,{},{},{},{},{},{},{},{}&start=0'.format(core.docnamefield,core.docsizefield,core.hashcontentsfield,core.docpath,'preview_html','SBdata_ID',core.datefield,core.emailmeta)
 #this exploits a quirk in solr to return length-restricted contents as a "highlight"; it depends on a null return on the nullfield (any field name that does not exist)
     hlargs='&hl=on,hl.fl=nullfield&hl.fragsize=0&hl.alternateField={}&hl.maxAlternateFieldLength={}'.format(core.rawtext,maxlength)    
     args=fieldargs+hlargs
