@@ -11,7 +11,7 @@ from django.contrib.auth.decorators import login_required
 from django.http import HttpResponse
 from django.http import HttpResponseRedirect
 from django.db.models.base import ObjectDoesNotExist
-import solrSoup, re, os, logging, unicodedata
+import solrSoup, re, os, logging, unicodedata, urllib
 from documents import solrcursor
 from usersettings import userconfig as config
 log = logging.getLogger('ownsearch.views')
@@ -19,8 +19,10 @@ docbasepath=config['Models']['collectionbasepath']
 
 
 @login_required
-def do_search(request,page=0,searchterm='',direction='',pagemax=0,sorttype=''):
+def do_search(request,page=0,searchterm='',direction='',pagemax=0,sorttype='',tag1=''):
 #    log.debug('SESSION CACHE: '+str(vars(request.session)))
+    searchterm=urllib.unquote_plus(searchterm)
+    log.debug('TAG1: '+tag1)
     try:
 
     #GET AUTHORISED CORES AND DEFAULT
@@ -61,16 +63,24 @@ def do_search(request,page=0,searchterm='',direction='',pagemax=0,sorttype=''):
         
         if page > 0: #if page value not default (0) then proceed directly with search
             resultlist=[]
-            form = SearchForm(choice_list,str(coreID),sorttype)
-            log.info('User '+request.user.username+' searching with searchterm: '+searchterm+' on page '+str(page))
+            form = SearchForm(choice_list,str(coreID),sorttype,searchterm)
+            log.info('User '+request.user.username+' searching with searchterm: '+searchterm+' and tag \"'+tag1+'\" on page '+str(page))
             try:
                 startnumber=(page-1)*10
                 if sorttype=='relevance':
                     #if 'relevance' search then return the results 'as is'
-                    resultlist,resultcount=solrSoup.solrSearch(searchterm,sorttype,startnumber,core=mycore)
+                    if tag1:
+                        filters={'tagnames_list':tag1}
+                    else:
+                        filters={}
+                    #filters={'tagnames_list':'Joseph Muscat'}
+                    resultlist,resultcount,facets=solrSoup.solrSearch(searchterm,sorttype,startnumber,core=mycore, filters=filters, faceting=True)
                     pagemax=int(resultcount/10)+1
+                    #tagcheck=[result.data for result in resultlist]
+                    #log.debug(str(tagcheck))
                 else:
                     fullresults=request.session['results']
+                    facets=[] #facets not yet set up except for relevanc search
                     #try to retrieve full results from session (if search sorted by other than relevance)
                     #if RESULTS EXIST THEN JUST EXTRACT RESULT SET 
                     if fullresults: #search already done                    
@@ -80,6 +90,7 @@ def do_search(request,page=0,searchterm='',direction='',pagemax=0,sorttype=''):
     #                    log.debug(resultlist)
                         resultcount=len(fullresults)
                         pagemax=int(resultcount/10)+1
+                        
                     #ELSE DO THE SEARCH FOR THE FIRST TIME AND THEN STORE
                     else:
                     #FOR SEARCHES ON OTHER KEY WORDS >> DO A COMPLETE CURSOR SEARCH, SORT, THEN STORE RESULTS
@@ -95,6 +106,7 @@ def do_search(request,page=0,searchterm='',direction='',pagemax=0,sorttype=''):
                                     fullresultlist.append(item)
                         #get the first page of results
                         resultlist=fullresultlist[:10]
+                        facets=[]
 #                        log.debug(resultlist)
 #                        log.debug([doc.__dict__ for doc in resultlist])
                         pagemax=int(resultcount/10)+1
@@ -108,10 +120,12 @@ def do_search(request,page=0,searchterm='',direction='',pagemax=0,sorttype=''):
 
 
             except Exception as e:
-                log.error(str(e))
+#                print(e)
+                log.error('Error {}'.format(e))
                 log.debug(sorttype)
                 log.debug(str(resultlist))
                 resultlist=[]
+                facets=[]
                 resultcount=0
                 pagemax=0
 
@@ -120,7 +134,7 @@ def do_search(request,page=0,searchterm='',direction='',pagemax=0,sorttype=''):
         elif request.method == 'POST': #if data posted from form
     
             # create a form instance and populate it with data from the request:
-            form = SearchForm(choice_list,str(coreID),sorttype,request.POST)
+            form = SearchForm(choice_list,str(coreID),sorttype,searchterm,request.POST)
             # check whether it's valid:
             if form.is_valid():
                 # process the data in form.cleaned_data as required
@@ -137,16 +151,20 @@ def do_search(request,page=0,searchterm='',direction='',pagemax=0,sorttype=''):
                 request.session['results']='' #clear results from any previous searches
                 #DEBUG
                 
-                return HttpResponseRedirect("/ownsearch/searchterm={}&nextafterpage=0&sorttype={}".format(searchterm,sorttype))
+                searchterm_urlsafe=urllib.quote_plus(searchterm)
+                return HttpResponseRedirect("/ownsearch/searchterm={}&nextafterpage=0&sorttype={}".format(searchterm_urlsafe,sorttype))
                 
                     
         # START BLANK FORM if a GET (or any other method) we'll create a blank form
         else:
-            form = SearchForm(choice_list,str(coreID),sorttype)
+            form = SearchForm(choice_list,str(coreID),sorttype,searchterm)
             resultlist = []
             resultcount=-1
-
-        return render(request, 'searchform.html', {'form': form, 'pagemax': pagemax, 'results': resultlist, 'searchterm': searchterm, 'resultcount': resultcount, 'page':page, 'sorttype': sorttype})
+            facets=[]
+            tag1=''
+        #print(resultlist)
+        searchterm_urlsafe=urllib.quote_plus(searchterm)
+        return render(request, 'searchform.html', {'form': form, 'tagfilter':tag1,'facets':facets,'pagemax': pagemax, 'results': resultlist, 'searchterm': searchterm, 'searchterm_urlsafe': searchterm_urlsafe, 'resultcount': resultcount, 'page':page, 'sorttype': sorttype})
 
     except solrSoup.SolrCoreNotFound as e:
         log.error('Index not found on solr server')
@@ -225,7 +243,7 @@ def get_content(request,doc_id,searchterm): #make a page showing the extracted t
         data_ID=result.data.get('SBdata_ID','') #pulling ref to doc if stored in local database
         log.debug('Data ID '+str(data_ID)) 
         if html:
-            return render(request, 'blogpost.html', {'body':html, 'docid':data_ID[0],'docname':docname,'docpath':docpath,'datetext':datetext})
+            return render(request, 'blogpost.html', {'body':html, 'docid':data_ID[0],'docname':docname,'docpath':docpath,'datetext':datetext,'data':result.data})
 #        log.debug('Full result '+str(result.__dict__))    
 
         #DIVERT ON BIG FILE
@@ -252,7 +270,8 @@ def get_content(request,doc_id,searchterm): #make a page showing the extracted t
     #clean up the text for display
         splittext,lastscrap=cleanup(searchterm,highlight)
         
-        return render(request, 'contentform.html', {'docsize':docsize, 'doc_id': doc_id, 'splittext': splittext, 'searchterm': searchterm, 'lastscrap': lastscrap, 'docname':docname, 'docpath':docpath, 'hashfile':hashfilename, 'fileid':matchfile_id,'docexists':authflag})
+        print(result.data)
+        return render(request, 'contentform.html', {'docsize':docsize, 'doc_id': doc_id, 'splittext': splittext, 'searchterm': searchterm, 'lastscrap': lastscrap, 'docname':docname, 'docpath':docpath, 'hashfile':hashfilename, 'fileid':matchfile_id,'docexists':authflag, 'data':result.data})
         
 
     except Exception as e:
