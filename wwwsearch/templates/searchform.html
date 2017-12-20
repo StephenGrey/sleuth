@@ -1,9 +1,25 @@
 {% extends "base.html" %}
-{% block content %}
 
-<form action="/ownsearch/" method="post">
+	{% block sidebar %}
+	
+	<form action="/ownsearch/" method="post">
     {% csrf_token %}
 Index:{{form.CoreChoice}}<p>
+	      <ul class="sidebar-nav">
+	        {% if facets %}
+          	Tag scores: (click to filter) 
+          		{% for tag,score in facets %}
+          			 {% if score != "0" %}
+          			 <li><a class='tag' href="/ownsearch/searchterm={{searchterm_urlsafe}}&nextafterpage=0&sorttype={{sorttype}}&tag1={{tag}}">{{ tag }}</a> ({{score}})</li>
+          			 {% endif %}
+          		{% endfor %}
+          {% endif %}	          
+	      </ul>
+	{% endblock %}
+
+
+{% block content %}
+
 {{form.search_term.label}}{{form.search_term}}<p>
 <p>
 (Accepts wildcards:
@@ -17,19 +33,20 @@ Sort by:
 
 <input type="submit" value="Search" />
 
+
 {% if resultcount == 0 %}<p>No results for search on "{{searchterm}}" {%if tagfilter %}filtered by tag "{{tagfilter}} {%endif%}{%endif%}
 {% if resultcount == -2 %}<p>Connection error to index (Check Internet connection){%endif%}
 {% if results %} <h3>Results</h3>	
 <h4>{{resultcount}} results for search on "{{searchterm}}" {%if tagfilter %}filtered by tag "{{tagfilter}}"{% endif %}{% if page != 0 %}: Page {{page}}{% endif %}</h4>
-
+<!--
 {% if facets %}
 	Tag scores: (click to filter) 
 	{% for tag,score in facets %}
 		 {% if score != "0" %}
-		 <a href="/ownsearch/searchterm={{searchterm_urlsafe}}&nextafterpage=0&sorttype={{sorttype}}&tag1={{tag}}">{{ tag }}</a> ({{score}})
+		 <a class='tag' href="/ownsearch/searchterm={{searchterm_urlsafe}}&nextafterpage=0&sorttype={{sorttype}}&tag1={{tag}}">{{ tag }}</a> ({{score}})
 		 {% endif %}
 	{% endfor %}
-{% endif %}
+{% endif %}-->
 <p>
 {% for res in results %} 	
 <li>{{res.data.resultnumber}}: <a href="/ownsearch/doc={{res.id}}&searchterm={{searchterm_urlsafe}}"><b>{% if res.docname  %}{{res.docname }}{% else %}No Filename Indexed{% endif %}</b></a> 
@@ -38,7 +55,7 @@ Sort by:
 <br><b>Message title:</b>{{res.data.title}}<br><b>From:</b> {{res.data.message_from}} <b>To:</b> {{res.data.message_to}}
 {% endif %}
 {% if res.data.tags1  %}<br>{% for tag in res.data.tags1 %}
-	<a href="/ownsearch/searchterm={{searchterm_urlsafe}}&nextafterpage=0&sorttype={{sorttype}}&tag1={{tag}}">{{ tag }}</a>
+	<a class='tag' href="/ownsearch/searchterm={{searchterm_urlsafe}}&nextafterpage=0&sorttype={{sorttype}}&tag1={{tag}}">{{ tag }}</a>
 	{% endfor %} {% endif %}<p>
 	{{ res.data.highlight.0 }}<b>{{ res.data.highlight.1 }}</b>{{ res.data.highlight.2 }}
 {% endfor %} 

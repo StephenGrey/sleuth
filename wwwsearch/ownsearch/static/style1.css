@@ -1,0 +1,21 @@
+<html>
+<style>
+
+h3 {
+	color: red 
+}
+.login {
+	position: absolute; top: 0; right: 10; 
+	width: 200px; text-align:right;
+}
+.tag {
+		color: orange;
+		}
+.sidebar-nav {
+    margin-top: 20px;
+    padding: 0;
+    list-style: none;
+}
+
+
+</style>

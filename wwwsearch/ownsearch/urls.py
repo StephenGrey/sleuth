@@ -1,5 +1,6 @@
 from django.conf.urls import url
 from . import views
+from django.contrib.staticfiles.urls import staticfiles_urlpatterns
 
 urlpatterns = [
     url(r'^$', views.do_search, name='searchview'),
@@ -11,3 +12,4 @@ urlpatterns = [
     url(r'^download=(?P<doc_id>.*)&(?P<hashfilename>.*)$', views.download, name='download'),
    ]
 
+urlpatterns += staticfiles_urlpatterns()
