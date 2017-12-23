@@ -208,7 +208,7 @@ def download(request,doc_id,hashfilename): #download a document from the docstor
 
 @login_required
 def get_content(request,doc_id,searchterm): #make a page showing the extracted text, highlighting searchterm
-    
+    searchterm=urllib.unquote_plus(searchterm)
     #load solr index in use, SolrCore object
     try:
         #GET INDEX
@@ -268,10 +268,10 @@ def get_content(request,doc_id,searchterm): #make a page showing the extracted t
         authflag,matchfile_id,hashfilename=authfile(request,hashcontents,docname)
 
     #clean up the text for display
-        splittext,lastscrap=cleanup(searchterm,highlight)
+        splittext,lastscrap,cleanterm=cleanup(searchterm,highlight)
         
-        print(result.data)
-        return render(request, 'contentform.html', {'docsize':docsize, 'doc_id': doc_id, 'splittext': splittext, 'searchterm': searchterm, 'lastscrap': lastscrap, 'docname':docname, 'docpath':docpath, 'hashfile':hashfilename, 'fileid':matchfile_id,'docexists':authflag, 'data':result.data})
+        #print(result.data)
+        return render(request, 'contentform.html', {'docsize':docsize, 'doc_id': doc_id, 'splittext': splittext, 'searchterm': cleanterm, 'lastscrap': lastscrap, 'docname':docname, 'docpath':docpath, 'hashfile':hashfilename, 'fileid':matchfile_id,'docexists':authflag, 'data':result.data})
         
 
     except Exception as e:
@@ -281,8 +281,9 @@ def get_content(request,doc_id,searchterm): #make a page showing the extracted t
 @login_required
 def get_bigcontent(request,doc_id,searchterm,mycore,contentsmax): #make a page of highlights, for MEGA files
 #        
+    log.debug('GET BIGCONTENT')
     res=solrSoup.bighighlights(doc_id,mycore,searchterm,contentsmax)
-    log.debug(res)
+    #log.debug(res)
     if len(res.results)>0:
         #if more than one result, take the first
         result=res.results[0]
@@ -301,16 +302,48 @@ def get_bigcontent(request,doc_id,searchterm,mycore,contentsmax): #make a page o
         return HttpResponse('Can\'t find document with ID '+doc_id+' COREID: '+coreID)
 
 
+def cleansterm(searchterm):
+    #    log.debug(searchterm)
+    # take term in double quotes as search term
+    try:
+        cleanterm=re.search('\"(.+)\"',searchterm).group(0)[1:][:-1]
+    except AttributeError as e:
+        cleanterm=searchterm
+    except Exception as e:
+        log.debug(str(e))
+        cleanterm=searchterm
+    return cleanterm
+
 def cleanup(searchterm,highlight):
-    cleaned=re.sub('(\n[\s]+\n)+', '\n\n', highlight) #cleaning up chunks of white space
+    # CLEANUP TEXT
+#    log.debug(repr(highlight[:400]))
+    highlight=re.sub('\n \xc2\xa0 \n','\n',highlight) #clean up extraneous non breaking spaces 
+    highlight=re.sub('\n \xa0 \n','\n',highlight) #clean up extraneous non breaking spaces 
+#    print('SPACECLEANE'+repr(highlight[:400]))
+    cleaned=re.sub('(\n[\s]+\n)+', '\n', highlight) #cleaning up chunks of white space
+#    print('STRINGCLEANED'+repr(cleaned[:400]))
+    #cleanup search term
+    
+    #take the first item within quotes as the search term to highlight
+#    log.debug(searchterm)
+#    try:
+#        cleansearchterm=re.search('\"(.+)\"',searchterm).group(0)[1:][:-1]
+#    except AttributeError as e:
+#        cleansearchterm=searchterm
+#    except Exception as e:
+#        log.debug(str(e))
+#        cleansearchterm=searchterm
+        
+    cleansearchterm=cleansterm(searchterm)
+    log.debug(cleansearchterm)
     lastscrap=''
     try:
-        splittext=re.split(searchterm,cleaned,flags=re.IGNORECASE) #make a list of text scraps, removing search term
+        splittext=re.split(cleansearchterm,cleaned,flags=re.IGNORECASE) #make a list of text scraps, removing search term
         if len(splittext) > 1:
             lastscrap=splittext.pop() #remove last entry if more than one, as this last is NOT followed by searchterm
     except:
         splittext=[cleaned]
-    return splittext,lastscrap
+    return splittext,lastscrap,cleansearchterm
     
 
 @login_required

@@ -325,9 +325,11 @@ def gettrimcontents(docid,core,maxlength):
 
 #GET CONTENTS OF LARGE DOCUMENT
 def bighighlights(docid,core,q,contentsmax):
+    #contents max = max length of snippet to avoid loading up huge file
     searchterm=r'id:'+docid
     #make snippets of max length 5000 with searchterm highlighted; if searchterm not found, return maxlength sample
     args=core.hlarguments+'0&hl.fragsize=5000&hl.snippets=50&hl.q={}&hl.alternateField={}&hl.maxAlternateFieldLength={}'.format(q,core.rawtext,contentsmax)
+    print(searchterm,args,core.url)
     sp=getSolrResponse(searchterm,args,core)
 #    res,numbers=getlist(sp,0,core=core,linebreaks=True, big=True)#
     
