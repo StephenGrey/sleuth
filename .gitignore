@@ -25,6 +25,8 @@ wwwsearch/db.sqlite3
 # ignore Solr data and PID files
 solr/solr-*/server/solr/*/data/*
 solr/solr-*/bin/solr-*.pid
+solr/solr-*/server/solr/*
+solr/solr-*/server/logs/*
 
 
 wwwsearch/documents/.DS_Store

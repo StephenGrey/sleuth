@@ -11,7 +11,7 @@ from django.contrib.auth.decorators import login_required
 from django.http import HttpResponse
 from django.http import HttpResponseRedirect
 from django.db.models.base import ObjectDoesNotExist
-import solrSoup, re, os, logging, unicodedata, urllib
+import solrJson, re, os, logging, unicodedata, urllib
 from documents import solrcursor
 from usersettings import userconfig as config
 log = logging.getLogger('ownsearch.views')
@@ -67,57 +67,56 @@ def do_search(request,page=0,searchterm='',direction='',pagemax=0,sorttype='',ta
             log.info('User '+request.user.username+' searching with searchterm: '+searchterm+' and tag \"'+tag1+'\" on page '+str(page))
             try:
                 startnumber=(page-1)*10
-                if sorttype=='relevance':
-                    #if 'relevance' search then return the results 'as is'
+#                if sorttype=='relevance':
+                if True:
                     if tag1:
                         filters={'tagnames_list':tag1}
                     else:
                         filters={}
-                    #filters={'tagnames_list':'Joseph Muscat'}
-                    resultlist,resultcount,facets=solrSoup.solrSearch(searchterm,sorttype,startnumber,core=mycore, filters=filters, faceting=True)
+                    resultlist,resultcount,facets=solrJson.solrSearch(searchterm,sorttype,startnumber,core=mycore, filters=filters, faceting=True)
                     pagemax=int(resultcount/10)+1
                     #tagcheck=[result.data for result in resultlist]
                     #log.debug(str(tagcheck))
-                else:
-                    fullresults=request.session['results']
-                    facets=[] #facets not yet set up except for relevanc search
-                    #try to retrieve full results from session (if search sorted by other than relevance)
-                    #if RESULTS EXIST THEN JUST EXTRACT RESULT SET 
-                    if fullresults: #search already done                    
-                        resultlist=[]
-                        for id,data,date,datetext,docname in fullresults[startnumber:startnumber+10]:
-                            resultlist.append(solrSoup.Solrdoc(data,date=date,datetext=datetext,docname=docname,id=id))
-    #                    log.debug(resultlist)
-                        resultcount=len(fullresults)
-                        pagemax=int(resultcount/10)+1
-                        
-                    #ELSE DO THE SEARCH FOR THE FIRST TIME AND THEN STORE
-                    else:
-                    #FOR SEARCHES ON OTHER KEY WORDS >> DO A COMPLETE CURSOR SEARCH, SORT, THEN STORE RESULTS
-                        log.info('User '+request.user.username+' searching with searchterm: '+searchterm+' and using sorttype '+sorttype)
-                        sortedresults=solrcursor.cursorSearch(searchterm,sorttype,mycore)
-                        #log.debug(sortedresults)
-                        resultcount=len(sortedresults)
-                        fullresultlist=[]
-                        if resultcount>0:
-                            for n, itemlist in enumerate(sortedresults):
-                                for item in sortedresults[itemlist]:
-                                    item.data['resultnumber']=n+1
-                                    fullresultlist.append(item)
-                        #get the first page of results
-                        resultlist=fullresultlist[:10]
-                        facets=[]
-#                        log.debug(resultlist)
-#                        log.debug([doc.__dict__ for doc in resultlist])
-                        pagemax=int(resultcount/10)+1
-
-                        if resultcount > 10:
-#                            page = 1
-                            #store the full results  -- pulling the data elements from the solr response]
-                            request.session['results']=[(result.id,result.data,result.date,result.datetext,result.docname) for result in fullresultlist]
-#                        else:
-#                            page = 0
-
+#                else:
+#                    fullresults=request.session['results']
+#                    facets=[] #facets not yet set up except for relevanc search
+#                    #try to retrieve full results from session (if search sorted by other than relevance)
+#                    #if RESULTS EXIST THEN JUST EXTRACT RESULT SET 
+#                    if fullresults: #search already done                    
+#                        resultlist=[]
+#                        for id,data,date,datetext,docname in fullresults[startnumber:startnumber+10]:
+#                            resultlist.append(solrJson.Solrdoc(data,date=date,datetext=datetext,docname=docname,id=id))
+#    #                    log.debug(resultlist)
+#                        resultcount=len(fullresults)
+#                        pagemax=int(resultcount/10)+1
+#                        
+#                    #ELSE DO THE SEARCH FOR THE FIRST TIME AND THEN STORE
+#                    else:
+#                    #FOR SEARCHES ON OTHER KEY WORDS >> DO A COMPLETE CURSOR SEARCH, SORT, THEN STORE RESULTS
+#                        log.info('User '+request.user.username+' searching with searchterm: '+searchterm+' and using sorttype '+sorttype)
+#                        sortedresults=solrcursor.cursorSearch(searchterm,sorttype,mycore)
+#                        #log.debug(sortedresults)
+#                        resultcount=len(sortedresults)
+#                        fullresultlist=[]
+#                        if resultcount>0:
+#                            for n, itemlist in enumerate(sortedresults):
+#                                for item in sortedresults[itemlist]:
+#                                    item.data['resultnumber']=n+1
+#                                    fullresultlist.append(item)
+#                        #get the first page of results
+#                        resultlist=fullresultlist[:10]
+#                        facets=[]
+##                        log.debug(resultlist)
+##                        log.debug([doc.__dict__ for doc in resultlist])
+#                        pagemax=int(resultcount/10)+1
+#
+#                        if resultcount > 10:
+##                            page = 1
+#                            #store the full results  -- pulling the data elements from the solr response]
+#                            request.session['results']=[(result.id,result.data,result.date,result.datetext,result.docname) for result in fullresultlist]
+##                        else:
+##                            page = 0
+#
 
             except Exception as e:
 #                print(e)
@@ -129,7 +128,7 @@ def do_search(request,page=0,searchterm='',direction='',pagemax=0,sorttype='',ta
                 resultcount=0
                 pagemax=0
 
-    #PROCESS FORM DATA - INDEX AND SEARCHTERM CHOICES AND THEN DO FIRST SEARCH
+    #PROCESS FORM DATA - INDEX AND SEARCHTERM CHOICES AND THEN REDIDRECT WITH A GET TO DO FIRST SEARCH
         # if this is a POST request we need to process the form data
         elif request.method == 'POST': #if data posted from form
     
@@ -166,10 +165,10 @@ def do_search(request,page=0,searchterm='',direction='',pagemax=0,sorttype='',ta
         searchterm_urlsafe=urllib.quote_plus(searchterm)
         return render(request, 'searchform.html', {'form': form, 'tagfilter':tag1,'facets':facets,'pagemax': pagemax, 'results': resultlist, 'searchterm': searchterm, 'searchterm_urlsafe': searchterm_urlsafe, 'resultcount': resultcount, 'page':page, 'sorttype': sorttype})
 
-    except solrSoup.SolrCoreNotFound as e:
+    except solrJson.SolrCoreNotFound as e:
         log.error('Index not found on solr server')
         return HttpResponse('Index not found on solr server : check configuration')
-    except solrSoup.SolrConnectionError as e:
+    except solrJson.SolrConnectionError as e:
         log.error(e)
         return HttpResponse('No response from solr server : check network connection, solr status')
 
@@ -208,9 +207,10 @@ def download(request,doc_id,hashfilename): #download a document from the docstor
 
 @login_required
 def get_content(request,doc_id,searchterm): #make a page showing the extracted text, highlighting searchterm
+    log.debug('Get content for doc id: '+str(doc_id)+' from search term '+str(searchterm))
     searchterm=urllib.unquote_plus(searchterm)
     #load solr index in use, SolrCore object
-    try:
+    if True:
         #GET INDEX
         #only show content if index defined in session:
         if request.session.get('mycore') is None:
@@ -228,10 +228,10 @@ def get_content(request,doc_id,searchterm): #make a page showing the extracted t
             contentsmax=10000
 
         #get a document content - up to max size characters
-        results=solrSoup.gettrimcontents(doc_id,mycore,contentsmax).results  #returns SolrResult object
+        results=solrJson.gettrimcontents(doc_id,mycore,contentsmax).results  #returns SolrResult object
         try:
             result=results[0]
-#            log.debug(vars(result))
+            #log.debug(vars(result))
         except KeyError:
             return HttpResponse('Can\'t find document with ID '+doc_id+' COREID: '+coreID)
             
@@ -241,9 +241,12 @@ def get_content(request,doc_id,searchterm): #make a page showing the extracted t
         #DIVERT IF PREVIEW HTML IN SOLR INDEX (in case of scraped web pages, or other HTML)
         html=result.data.get('preview_html','')
         data_ID=result.data.get('SBdata_ID','') #pulling ref to doc if stored in local database
+        #if multivalued, take the first one
+        if isinstance(data_ID,list):
+            data_ID=data_ID[0]
         log.debug('Data ID '+str(data_ID)) 
         if html:
-            return render(request, 'blogpost.html', {'body':html, 'docid':data_ID[0],'docname':docname,'docpath':docpath,'datetext':datetext,'data':result.data})
+            return render(request, 'blogpost.html', {'body':html, 'docid':data_ID,'docname':docname,'docpath':docpath,'datetext':datetext,'data':result.data})
 #        log.debug('Full result '+str(result.__dict__))    
 
         #DIVERT ON BIG FILE
@@ -274,15 +277,15 @@ def get_content(request,doc_id,searchterm): #make a page showing the extracted t
         return render(request, 'contentform.html', {'docsize':docsize, 'doc_id': doc_id, 'splittext': splittext, 'searchterm': cleanterm, 'lastscrap': lastscrap, 'docname':docname, 'docpath':docpath, 'hashfile':hashfilename, 'fileid':matchfile_id,'docexists':authflag, 'data':result.data})
         
 
-    except Exception as e:
-        log.error(str(e))
-        return HttpResponseRedirect('/') 
+#    except Exception as e:
+#        log.error(str(e))
+#        return HttpResponseRedirect('/') 
 
 @login_required
 def get_bigcontent(request,doc_id,searchterm,mycore,contentsmax): #make a page of highlights, for MEGA files
 #        
     log.debug('GET BIGCONTENT')
-    res=solrSoup.bighighlights(doc_id,mycore,searchterm,contentsmax)
+    res=solrJson.bighighlights(doc_id,mycore,searchterm,contentsmax)
     #log.debug(res)
     if len(res.results)>0:
         #if more than one result, take the first
@@ -356,7 +359,7 @@ def testsearch(request,doc_id,searchterm):
         coreID=''
     if coreID:
         mycore=cores[coreID]
-        results=solrSoup.testresponse(doc_id,mycore,searchterm)
+        results=solrJson.testresponse(doc_id,mycore,searchterm)
         print results
         if len(results)>0:
             if 'highlight' in results[0].data:
@@ -390,7 +393,7 @@ def authcores(request):
     corelist=(SolrCore.objects.filter(usergroup_id__in=groupids))
     log.debug('authorised core list '+str(corelist))
     for core in corelist:
-        cores[core.id]=solrSoup.SolrCore(core.corename)
+        cores[core.id]=solrJson.SolrCore(core.corename)
         corenumber=str(core.id)
         coredisplayname=core.coreDisplayName
         choice_list +=((corenumber,coredisplayname),) #value/label

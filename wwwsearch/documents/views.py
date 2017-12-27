@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+#PROCESS SOLR INDEX: EXTRACT FILES TO INDEX AND UPDATE INDEX
 from __future__ import unicode_literals, print_function
 from django.http import HttpResponse
 from .forms import IndexForm
@@ -11,7 +12,7 @@ from ownsearch.hashScan import hashfile256 as hexfile
 from ownsearch.hashScan import FileSpecTable as filetable
 import datetime, hashlib, os, logging, requests
 import indexSolr, updateSolr, solrICIJ, solrDeDup, solrcursor
-import ownsearch.solrSoup as solr
+import ownsearch.solrJson as solr
 from django.contrib.admin.views.decorators import staff_member_required
 log = logging.getLogger('ownsearch.docs.views')
 from usersettings import userconfig as config

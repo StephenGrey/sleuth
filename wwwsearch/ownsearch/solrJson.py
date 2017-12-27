@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 from __future__ import unicode_literals
-from bs4 import BeautifulSoup as BS
+#from bs4 import BeautifulSoup as BS
 import requests, requests.exceptions
 import os, logging
 import re, json
@@ -40,7 +40,7 @@ class SolrCore:
                         
             #variables that can take the defautls
             self.hlarguments=config[core]['highlightingargs']
-#            self.dfltsearchterm=config['Test']['testsearchterm']
+            self.dfltsearchterm='animal' #any old search term
             self.docpath=config[core]['docpath']
             self.docnamefield=config[core]['docname']
             self.contentarguments=config[core]['contentarguments']
@@ -60,9 +60,9 @@ class SolrCore:
             raise MissingConfigData
     def test(self):
         args=self.hlarguments+'0'
-        soup=getSolrResponse(self.dfltsearchterm,args,core=self)
-        res,numbers,facets=getlist(soup,0,core=self)
-        return res,soup
+        jres=getJSolrResponse(self.dfltsearchterm,args,core=self)
+        res,numbers,facets=getlist(jres,0,core=self)
+        return res,jres
     def ping(self):
         try:
             res=requests.get(self.url+'/admin/ping')
@@ -93,37 +93,33 @@ class Solrdoc:
 
     def parse(self,doc,core):
             #now go through all fields returned by the solr search
+            log.debug('{}'.format(doc))
             for field in doc: #detects string, datefields and long integers
                 if True:
                     try:
                         if isinstance(doc[field],list):
-                            self.data[field]=[item for item in doc[field]]
+                            if len(doc[field])>1:
+                                self.data[field]=[item for item in doc[field]]
+                            else:
+                                self.data[field]=doc[field][0]
                         else:
                             self.data[field]=doc[field]
                     except Exception as e:
                         print(e)
-#                elif arr.date:
-#                    dates=[]
-#                    for date in arr:
-#                        dates.append(date.text)
-#                    self.data[arr.attrs['name']]=dates
-#                elif arr.long:
-#                    ints=[]
-#                    for longn in arr:
-#                        ints.append(longn.text)
-#                    self.data[arr.attrs['name']]=ints
-#                else:
-#                    self.data[arr.attrs['name']]=arr.text
-#                #print(arr.text))
             #give the KEY ATTRIBS standard names
             self.docname=self.data.pop(core.docnamefield,'')
             self.id=self.data.pop('id','')
             self.date=self.data.pop(core.datefield,'')
+            if isinstance(self.date,list):
+                self.date=self.date[0]
             try:
-                self.datetext=easydate(parseISO(self.date[0]))
+                self.datetext=easydate(parseISO(self.date))
+            except iso8601.ParseError:
+                log.debug('Cannot parse datetext from datefield: \"{}\"'.format(self.date))
+                self.datetext=''
             except Exception as e:
                 log.debug(str(e))
-                print(e)
+                log.debug(str(self.date))
                 self.datetext=''
             self.data['solrdocsize']=self.data.pop(core.docsizefield,'')
             self.data['rawtext']=self.data.pop(core.rawtext,'')                
@@ -160,8 +156,7 @@ class SolrResult:
                             resultsdoc.resultnumber=self.counter
 #                            log.debug(resultsdoc.data['resultnumber'])
                             self.results.append(resultsdoc)
-                            
-                            print([doc.__dict__ for doc in self.results])
+#                            print([doc.__dict__ for doc in self.results])
 #                            log.debug([doc.__dict__ for doc in self.results])
 #            log.debug([doc.data['resultnumber'] for doc in self.results])                    
         except Exception as e:
@@ -189,24 +184,31 @@ class SolrResult:
         if self.results:
             try:
                 jres=self.json
-                nextlist=soup.response.result.next_sibling
-                if nextlist['name']=='facet_counts':
-                    facets=nextlist
+                if 'facet_counts' in jres:
+                    facets=jres['facet_counts']
                 else:
                     facets=''
+                    log.debug('No facets found')
                 if facets:
                     log.debug('facets exist')
-                    taglist=facets.lst.next.lst
-                    if taglist['name']=='tagnames_list':
-                        for tag in taglist:
-                            self.facets.append((tag['name'],tag.text))
-                    log.debug(self.facets)
-            except KeyError as e:
+                    try:
+                        taglist=facets['facet_fields'][self.mycore.tags1field]
+                        n=0
+                        while n<len(taglist):
+                            tag=taglist[n]
+                            count=taglist[n+1]
+                            assert isinstance(tag,basestring)
+                            assert isinstance(count,int)
+                            n+=2
+                            self.facets.append((tag,count))
+                        log.debug(self.facets)
+                    except Exception as e:
+                        log.debug(str(e))
+            except Exception as e:
                 log.debug('No facets found')
                 log.debug('Exception: '+str(e))
-                #no action required - no highlights
+                #no action required - no facets
                 pass
-
 
 
     def addhighlights(self,linebreaks=False,bighighlights=False):
@@ -216,7 +218,7 @@ class SolrResult:
                 jres=self.json
                 if 'highlighting' in jres:
                     highlights=jres['highlighting']
-                    print('HIGHLIGHTS',highlights)
+                    #print('HIGHLIGHTS',highlights)
                 else:
                     highlights=''
                 if highlights:
@@ -241,7 +243,7 @@ class SolrResult:
                 pass
 
 
-log = logging.getLogger('ownsearch.solrSoup')
+log = logging.getLogger('ownsearch.solrJson')
 
    
 #MAIN SEARCH METHOD  (q is search term)
@@ -254,7 +256,14 @@ def solrSearch(q,sorttype,startnumber,core,filters={},faceting=False):
     else:
         facetargs=''
     args='{}{}{}'.format(facetargs,core.hlarguments,startnumber) #+getSortAttrib(sorttype,core)
-#ignoring sorttype - other sorting methods now handled by re-sorting
+    if sorttype=='date':
+        args+='&sort={} asc'.format(core.datefield)
+    elif sorttype=='dateR':
+        args+='&sort={} desc'.format(core.datefield)
+    elif sorttype=='docname':
+        args+='&sort={} asc'.format(core.docnamefield)
+    elif sorttype=='docnameR':
+        args+='&sort={} desc'.format(core.docnamefield)
     for filtertag in filters:
         args=args+'&fq={}:"{}"'.format(filtertag,filters[filtertag])
     #print('args',args)
@@ -262,7 +271,7 @@ def solrSearch(q,sorttype,startnumber,core,filters={},faceting=False):
 # get the response
     try:
         jres=getJSolrResponse(q,args,core=core)
-        print(jres)
+        #print(jres)
         #print(soup.prettify())    
         reslist,numbers,facets=getlist(jres,startnumber,core=core)
     except requests.exceptions.RequestException as e:
@@ -271,40 +280,38 @@ def solrSearch(q,sorttype,startnumber,core,filters={},faceting=False):
         log.warning('Connection error to Solr')
     return reslist,numbers,facets
 
-#XML parsed by solr Soup
-def getSolrResponse(searchterm,arguments,core):
-#    print(searchterm,arguments,core)
-#XML FORMAT
-    searchurl='{}/select?wt=xml&q={}{}'.format(core.url,searchterm,arguments)
-    print (searchurl)
-    ses = requests.Session()
-    # the session instance holds the cookie. So use it to get/post later
-    res=ses.get(searchurl)
-    #parse the result with beautiful soup
-    print(res.__dict__)
-    soup=BS(res.content,"html.parser")
-    return soup
+##XML parsed by solr Soup
+#def getSolrResponse(searchterm,arguments,core):
+##    print(searchterm,arguments,core)
+##XML FORMAT
+#    searchurl='{}/select?wt=xml&q={}{}'.format(core.url,searchterm,arguments)
+#    print (searchurl)
+#    ses = requests.Session()
+#    # the session instance holds the cookie. So use it to get/post later
+#    res=ses.get(searchurl)
+#    #parse the result with beautiful soup
+#    #print(res.__dict__)
+#    soup=BS(res.content,"html.parser")
+#    return soup
 
 #JSON 
 def getJSolrResponse(searchterm,arguments,core):
 #    print(searchterm,arguments,core)
     searchurl='{}/select?&q={}{}'.format(core.url,searchterm,arguments)
-    log.debug(searchurl)
+    log.debug('GET URL '+searchurl)
     try:
         ses = requests.Session()
         # the session instance holds the cookie. So use it to get/post later
         res=ses.get(searchurl)
         if res.status_code==404:
-            raise Solr404('URL not found')
+            raise Solr404('404 error - URL not found')
         else:
             jres=json.loads(res.content)
             return jres
     except requests.exceptions.ConnectionError as e:
 #            print('no connection to solr server')
         raise SolrConnectionError('Solr Connection Error')
-    except Exception as e:
-        log.error('Error in solr response '+str(e))
-        return None
+
 
 def fieldexists(field,core):
     try:
@@ -332,7 +339,7 @@ def gettrimcontents(docid,core,maxlength):
 #    print (args)
 
     #DO THE SOLR LOOKUP
-    sp=getSolrResponse(searchterm,args,core)
+    sp=getJSolrResponse(searchterm,args,core)
     SR=SolrResult(sp,core,startcount=0)
     SR.addstoredmeta()
     SR.addhighlights(linebreaks=True,bighighlights=False)
@@ -347,12 +354,8 @@ def bighighlights(docid,core,q,contentsmax):
     maxanalyse=1000000 #number of characters checked for the highlight phrase
     args=core.hlarguments+'0&hl.fragsize=5000&hl.snippets=50&hl.q={}&hl.alternateField={}&hl.maxAlternateFieldLength={}&hl.maxAnalyzedChars={}'.format(q,core.rawtext,contentsmax,maxanalyse)
     print(searchterm,args,core.url)
-    sp=getSolrResponse(searchterm,args,core)
-#    res,numbers=getlist(sp,0,core=core,linebreaks=True, big=True)#
-    
-#    getlist(soup,counter,core,linebreaks=False,big=False)
-    
-    SR=SolrResult(sp,core,startcount=0)
+    jres=getJSolrResponse(searchterm,args,core)
+    SR=SolrResult(jres,core,startcount=0)
     SR.addstoredmeta()
     SR.addhighlights(linebreaks=True,bighighlights=True)
        
@@ -360,7 +363,6 @@ def bighighlights(docid,core,q,contentsmax):
 
 
 def getlist(jres,counter,core,linebreaks=False,big=False): #this parses the list of results, starting at 'counter'
-    soup=''
     SR=SolrResult(jres,core,startcount=counter)
 #    log.debug([doc.data['resultnumber'] for doc in SR.results])
     SR.addstoredmeta()
@@ -385,7 +387,7 @@ def parsehighlights(highlights_all,linebreaks):
         highlightdict=highlights_all[id]
 #remove line returns
         if highlightdict:
-            print (highlightdict)
+            #print (highlightdict)
             for field in highlightdict:
                 highlight=highlightdict[field][0]
                 #just take the first highlight
@@ -400,7 +402,7 @@ def parsehighlights(highlights_all,linebreaks):
         else:
             highlight=''
         highlights[id]=highlight
-    print highlights
+    #print highlights
     return highlights
 
 
@@ -408,38 +410,31 @@ def getcontents(docid,core):
     searchterm=r'id:"'+docid+r'"'
     #print (searchterm,contentarguments)
     args=core.contentarguments
-    sp=getSolrResponse(searchterm,args,core=core)
+    jres=getJSolrResponse(searchterm,args,core=core)
     #print(args,sp)
-    res,numbers,facets=getlist(sp,0,core=core)
+    res,numbers,facets=getlist(jres,0,core=core)
     return res
 
 def getmeta(docid,core):
     searchterm=r'id:"'+docid+r'"'
     args='&fl=id'
     args+=","+core.docpath+","+core.datefield+","+core.docsizefield+","+core.datefield+","+core.docnamefield
-    sp=getSolrResponse(searchterm,args,core=core)
+    jres=getJSolrResponse(searchterm,args,core=core)
     #print(args,sp)
-    res,numbers,facets=getlist(sp,0,core=core)
+    res,numbers,facets=getlist(jres,0,core=core)
     return res
     
 
 def parsebighighlights(highlights_all):
     highlights={}
-#    highlights_all=soup.response.result.next_sibling
-#    #print ('highlightsall',highlights_all)
-#    try:
-#        highlights_all['name']=='highlighting'
-#    except:
-#        #no highlights
-#        return {}
-    for highlightlist in highlights_all:
-        #print (item)
-        id=highlightlist['name']
+    for id in highlights_all:
+        highlightdict=highlights_all[id]
         hls=[]
-        if highlightlist.arr:
-            for highlighttag in highlightlist.arr:
-                hl=[]
-                highlight=highlighttag.text #.replace('\n','').replace('\t',' ')
+        if highlightdict:
+            for field in highlightdict:
+                highlight=highlightdict[field][0]
+                #just take the first highlight
+                break
 #remove huge chunks of white space
                 highlight=re.sub('(\n[\s]+\n)+', '\n', highlight)
 #split by em tags to enable highlighting
@@ -463,8 +458,8 @@ def hashlookup(hex,core):
     #print (searchterm,contentarguments)
     args=core.hlarguments+'0'
     #print (args)
-    sp=getSolrResponse(searchterm,args,core=core)
-    res,numbers,facets=getlist(sp,0,core=core)
+    jres=getJSolrResponse(searchterm,args,core=core)
+    res,numbers,facets=getlist(jres,0,core=core)
     return res
 
 #make a dictionary of SolrCore objects, so different indexes can be selected from form

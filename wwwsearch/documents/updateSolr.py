@@ -2,7 +2,7 @@
 from __future__ import unicode_literals
 import requests, os, logging
 import json, collections
-import ownsearch.solrSoup as s
+import ownsearch.solrJson as s
 from datetime import datetime, date, time
 from models import File,Collection
 from ownsearch.hashScan import HexFolderTable as hex
