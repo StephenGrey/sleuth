@@ -93,7 +93,7 @@ class Solrdoc:
 
     def parse(self,doc,core):
             #now go through all fields returned by the solr search
-            log.debug('{}'.format(doc))
+            #log.debug('{}'.format(doc))
             for field in doc: #detects string, datefields and long integers
                 if True:
                     try:
@@ -113,7 +113,10 @@ class Solrdoc:
             if isinstance(self.date,list):
                 self.date=self.date[0]
             try:
-                self.datetext=easydate(parseISO(self.date))
+                if self.date:
+                    self.datetext=easydate(parseISO(self.date))
+                else:
+                    self.datetext=''
             except iso8601.ParseError:
                 log.debug('Cannot parse datetext from datefield: \"{}\"'.format(self.date))
                 self.datetext=''

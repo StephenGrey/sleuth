@@ -57,7 +57,7 @@ def do_search(request,page=0,searchterm='',direction='',pagemax=0,sorttype='',ta
             page=page+1
         if direction == 'back':
             page=page-1
-        #print('page',page)
+        print('page',page)
     
     #DO SEARCH IF PAGE ESTABLISHED 
         

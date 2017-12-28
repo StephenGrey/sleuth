@@ -37,7 +37,7 @@ Sort by:
 {% if resultcount == 0 %}<p>No results for search on "{{searchterm}}" {%if tagfilter %}filtered by tag "{{tagfilter}} {%endif%}{%endif%}
 {% if resultcount == -2 %}<p>Connection error to index (Check Internet connection){%endif%}
 {% if results %} <h3>Results</h3>	
-<h4>{{resultcount}} results for search on "{{searchterm}}" {%if tagfilter %}filtered by tag "{{tagfilter}}"{% endif %}{% if page != 0 %}: Page {{page}}{% endif %}</h4>
+<h4>{{resultcount}} results for search on "{{searchterm}}" {%if tagfilter %}filtered by tag "{{tagfilter}}"{% endif %}{% if page > 1 %}: Page {{page}}{% endif %}</h4>
 <!--
 {% if facets %}
 	Tag scores: (click to filter) 
