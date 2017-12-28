@@ -11,7 +11,7 @@ from ownsearch.hashScan import pathHash
 from ownsearch.hashScan import FileSpecTable as filetable
 from django.utils import timezone
 import pytz #support localising the timezone
-log = logging.getLogger('ownsearch')
+log = logging.getLogger('ownsearch.updateSolr')
 from usersettings import userconfig as config
 
 docstore=config['Models']['collectionbasepath'] #get base path of the docstore
@@ -135,8 +135,7 @@ def post_jsonupdate(data,mycore):
         return res.json(), statusOK
     except Exception as e:
         print ('Exception: ',str(e))
-        statusOK=False
-        return '',statusOK
+        return '',False
 
 def post_jsondoc(data,mycore):
     updateurl=mycore.url+'/update/json/docs?commit=true'
@@ -196,31 +195,34 @@ def metaupdate(collection):
                 print ('[metaupdate]file not found in solr index')
 #            hashcontents=result['hashcontents']
 
-#take a solr result,compare with filedatabae, return change list [(standardisedfield,newvalue),..]
+#take a Solr Result object,compare with filedatabae, return change list [(standardisedfield,newvalue),..]
 def parsechanges(solrresult,file,mycore): 
     #print(solrresult)
-    solrdocsize=solrresult['solrdocsize'][-1] #solrdocsize is a list; take the last item
+    solrdocsize=solrresult.data['solrdocsize']
     olddocsize=int(solrdocsize) if solrdocsize else 0
-    olddocpath=solrresult['docpath']
-    olddate=solrresult['date'][-1] if len(solrresult['date'])>0 else ''#dates are multivalued;use the flast in list
-    try:
-        oldlastmodified=s.timefromSolr(olddate) #convert raw time text from solr into time object
-    except Exception as e:
-        print ('Error with date stored in solr',olddate, e)
+    olddocpath=solrresult.data['docpath']
+    olddate=solrresult.date 
+    if olddate:
+        try:
+            oldlastmodified=s.parseISO(olddate)#convert raw time text from solr into time object
+        except s.iso8601.ParseError as e:
+            log.debug('date stored in solr cannot be parsed')
+            oldlastmodified=''
+        except Exception as e:
+            log.debug('Error with date stored in solr {}, {}'.format(olddate, e))
+            oldlastmodified=''
+    else:
         oldlastmodified='' 
-    olddocname=solrresult['docname']
-    #print olddocsize,olddocpath,olddocname
-
+    olddocname=solrresult.docname
+#    print olddocsize,olddocpath,olddocname, oldlastmodified
     #compare solr data with new metadata & make list of changes
     changes=[] #changes=[('tika_metadata_content_length',100099)]
     relpath=os.path.relpath(file.filepath,start=docstore) #extract the relative path from the docstore
     if olddocpath != relpath:
-        print('need to update filepath')
-        print('from old: ',olddocpath,'to new:',relpath)
+        log.info('need to update filepath from old: {} to new: {}'.format(olddocpath,relpath))
         changes.append(('docpath',relpath))
     if olddocsize != file.filesize:
-        print('need to update filesize')
-        print('old',olddocsize,'new',file.filesize)
+        log.info('need to update filesize from old {} to new {}'.format(olddocsize,file.filesize))
         changes.append(('solrdocsize',file.filesize))
     newlastmodified=s.timestringGMT(file.last_modified)
 #    file.last_modified.strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -228,12 +230,12 @@ def parsechanges(solrresult,file,mycore):
 #debug - timezones not quite fixed here
     if olddate !=newlastmodified:
 #    oldlastmodified != file.last_modified:
-        print(oldlastmodified,file.last_modified)
-        print('need to update last_modified from '+str(oldlastmodified)+' to '+str(newlastmodified))
+#        log.info(oldlastmodified,file.last_modified)
+        log.info('need to update last_modified from \"{}\"  to \"{}\"'.format(oldlastmodified, newlastmodified))
         changes.append(('date',newlastmodified))
     newfilename=file.filename
     if olddocname != newfilename:
-        print('need to update filename from'+olddocname+' to '+newfilename)
+        log.info('need to update filename from {} to {}'.format(olddocname,newfilename))
         changes.append(('docname',newfilename))
     return changes
 
@@ -274,12 +276,12 @@ def updates(change,collection):
             file.save()
             
     if changedfiles:
-        print(str(len(changedfiles))+' changed file(s)')
+        log.debug('{} changed file(s) '.format(len(changedfiles)))
         for filepath in changedfiles:
             print(filepath)
             file=filelist.get(filepath=filepath)
             updatesuccess=updatefiledata(file,filepath)
-            
+
             #check if contents have changed and solr index needs changing
             oldhash=file.hash_contents
             newhash=hexfile(filepath)
@@ -298,15 +300,14 @@ def updates(change,collection):
 #calculate all the metadata and update database; default don't make hash
 def updatefiledata(file,path,makehash=False):
     try:
-        file.filepath=path #get the HASH OF PATH
-        file.hash_filename=pathHash(path)
+        file.filepath=path #
+        file.hash_filename=pathHash(path) #get the HASH OF PATH
         filename=os.path.basename(path)
         file.filename=filename
         shortName, fileExt = os.path.splitext(filename)
         file.fileext=fileExt    
         modTime = os.path.getmtime(path) #last modified time
-        lastmod=datetime.fromtimestamp(modTime)
-        file.last_modified=pytz.timezone("Europe/London").localize(lastmod, is_dst=False)
+        file.last_modified=s.timestamp2aware(modTime)
         if makehash:
             hash=hexfile(path) #GET THE HASH OF FULL CONTENTS
             file.hash_contents=hash
@@ -333,9 +334,7 @@ def changes(collection):
         #grab and remove the filepath from filedict if already in database
         latest_file=filedict.pop(path, None)
         if latest_file:  #if stored path exists in current folder
-                latest_lastm=latest_file[4] #gets last modified info
-                latest_lastmod=datetime.fromtimestamp(latest_lastm)
-                latest_lastmodified=pytz.timezone("Europe/London").localize(latest_lastmod, is_dst=True)
+                latest_lastmodified=s.timestamp2aware(latest_file[4]) #gets last modified info as stamp, makes GMT time object
                 latestfilesize=latest_file[1]
                 if lastm==latest_lastmodified and latestfilesize==size:
                     #print(path+' hasnt changed')
@@ -343,14 +342,13 @@ def changes(collection):
                 else:
                     #print(path+' still there but has changed')
                     changedfiles.append(path)
+                    log.debug('Changed file: \nStored date: {} New date {}\n Stored filesize: {} New filesize: {}'.format(lastm,latest_lastmodified,size,latestfilesize))
                 #print(path,lastm-latest_lastmodified)
-                #filename=filedict[path][2]
-                #fileext=filedict[path][3]
         else: #file has been deleted or moved
             #print(path+' is missing')
             missingfiles[path]=hash
 
-    #make contents hash of left (found on disk, not in database)
+    #make contents hash of files remaining of list on disk(found on disk, not in database)
     for newpath in filedict:
         #print (newpath+' is new')
         newhash=hexfile(newpath)
@@ -372,11 +370,11 @@ def changes(collection):
         newpath=newfileshash[newhash]
         newfiles.append(newpath)
     
-    print('NEWFILES>>>>>',newfiles)
-    print('DELETEDFILES>>>>>>>',deletedfiles)
-    print('MOVED>>>>:',movedfiles)
+    log.info('NEWFILES>>>>>{}'.format(newfiles))
+    log.info('DELETEDFILES>>>>>>>{}'.format(deletedfiles))
+    log.info('MOVED>>>>:{}'.format(movedfiles))
     #print('NOCHANGE>>>',unchanged)
-    print('CHANGEDFILES>>>>>>',changedfiles)
+    log.info('CHANGEDFILES>>>>>>{}'.format(changedfiles))
     return {'newfiles':newfiles,'deletedfiles':deletedfiles,'movedfiles':movedfiles,'unchanged':unchanged,'changedfiles':changedfiles}
   
 def countchanges(changes):

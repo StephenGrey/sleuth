@@ -252,7 +252,6 @@ log = logging.getLogger('ownsearch.solrJson')
 #MAIN SEARCH METHOD  (q is search term)
 def solrSearch(q,sorttype,startnumber,core,filters={},faceting=False):
     core.ping()
-    
     #create arguments
     if core.tags1field and faceting:
         facetargs='&facet.field={}&facet=on&facet.limit=10'.format(core.tags1field)
@@ -301,7 +300,7 @@ def solrSearch(q,sorttype,startnumber,core,filters={},faceting=False):
 def getJSolrResponse(searchterm,arguments,core):
 #    print(searchterm,arguments,core)
     searchurl='{}/select?&q={}{}'.format(core.url,searchterm,arguments)
-    log.debug('GET URL '+searchurl)
+#    log.debug('GET URL '+searchurl)
     try:
         ses = requests.Session()
         # the session instance holds the cookie. So use it to get/post later
@@ -326,8 +325,9 @@ def fieldexists(field,core):
     except requests.exceptions.ConnectionError as e:
         raise SolrConnectionError('Solr Connection Error')
     except Exception as e:
-        log.debug(str(e))
-    log.debug('Error checking if field {} exists in index {}'.format(field,core))
+        pass
+#        log.debug(str(e))
+#    log.debug('Error checking if field {} exists in index {}'.format(field,core))
     return False
  
 #GET CONTENTS OF A DOCUMENT UP TO A MAX SIZE
@@ -488,13 +488,23 @@ def getcores():
 
 
 
-def timefromSolr(timestring):
-    if timestring:
-        parseraw=datetime.strptime(timestring, "%Y-%m-%dT%H:%M:%SZ")
-        parsetimezone=pytz.timezone("Europe/London").localize(parseraw, is_dst=True)
-        return parsetimezone
-    else:
-        return ''
+#def timefromSolr(timestring):
+#    if timestring:
+#        parseraw=datetime.strptime(timestring, "%Y-%m-%dT%H:%M:%SZ")
+#        parsetimezone=pytz.timezone("Europe/London").localize(parseraw, is_dst=True)
+#        return parsetimezone
+#    else:
+#        return ''
+
+def timestamp2aware(timestamp):
+    return timeaware(timefromstamp(timestamp))
+
+def timefromstamp(timestamp):
+    return datetime.fromtimestamp(timestamp)
+
+def timeaware(dumbtimeobject):
+    return pytz.timezone("GMT").localize(dumbtimeobject)
+#Mac / Linux stores all file times etc in GMT, so localise to GMT
 
 def timestring(timeobject):
     return "{:%B %d,%Y %I:%M%p}".format(timeobject)
