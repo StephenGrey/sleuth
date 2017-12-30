@@ -300,7 +300,7 @@ def solrSearch(q,sorttype,startnumber,core,filters={},faceting=False):
 def getJSolrResponse(searchterm,arguments,core):
 #    print(searchterm,arguments,core)
     searchurl='{}/select?&q={}{}'.format(core.url,searchterm,arguments)
-#    log.debug('GET URL '+searchurl)
+    log.debug('GET URL '+searchurl)
     try:
         ses = requests.Session()
         # the session instance holds the cookie. So use it to get/post later
@@ -313,6 +313,7 @@ def getJSolrResponse(searchterm,arguments,core):
     except requests.exceptions.ConnectionError as e:
 #            print('no connection to solr server')
         raise SolrConnectionError('Solr Connection Error')
+
 
 
 def fieldexists(field,core):
@@ -335,7 +336,7 @@ def gettrimcontents(docid,core,maxlength):
     searchterm=r'id:'+docid
     
     #MAKE ARGUMENTS FOR TRIMMED CONTENTS
-    fieldargs='&fl=id,{},{},{},{},{},{},{},{}&start=0'.format(core.docnamefield,core.docsizefield,core.hashcontentsfield,core.docpath,'preview_html','SBdata_ID',core.datefield,core.emailmeta)
+    fieldargs='&fl=id,{},{},{},{},{},{},{},{},{}&start=0'.format(core.docnamefield,core.docsizefield,core.hashcontentsfield,core.docpath,core.tags1field,'preview_html','SBdata_ID',core.datefield,core.emailmeta)
 #this exploits a quirk in solr to return length-restricted contents as a "highlight"; it depends on a null return on the nullfield (any field name that does not exist)
     hlargs='&hl=on,hl.fl=nullfield&hl.fragsize=0&hl.alternateField={}&hl.maxAlternateFieldLength={}'.format(core.rawtext,maxlength)    
     args=fieldargs+hlargs
@@ -346,7 +347,7 @@ def gettrimcontents(docid,core,maxlength):
     SR=SolrResult(sp,core,startcount=0)
     SR.addstoredmeta()
     SR.addhighlights(linebreaks=True,bighighlights=False)
-    #print(vars(SR))
+#    log.debug('{}'.format(SR.results[0].__dict__))
     return SR
 
 #GET CONTENTS OF LARGE DOCUMENT
@@ -356,12 +357,11 @@ def bighighlights(docid,core,q,contentsmax):
     #make snippets of max length 5000 with searchterm highlighted; if searchterm not found, return maxlength sample
     maxanalyse=1000000 #number of characters checked for the highlight phrase
     args=core.hlarguments+'0&hl.fragsize=5000&hl.snippets=50&hl.q={}&hl.alternateField={}&hl.maxAlternateFieldLength={}&hl.maxAnalyzedChars={}'.format(q,core.rawtext,contentsmax,maxanalyse)
-    print(searchterm,args,core.url)
+    log.debug('{} {} {}'.format(searchterm,args,core.url))
     jres=getJSolrResponse(searchterm,args,core)
     SR=SolrResult(jres,core,startcount=0)
     SR.addstoredmeta()
     SR.addhighlights(linebreaks=True,bighighlights=True)
-       
     return SR
 
 
@@ -430,18 +430,25 @@ def getmeta(docid,core):
 
 def parsebighighlights(highlights_all):
     highlights={}
+    #log.debug(highlights_all)
     for id in highlights_all:
         highlightdict=highlights_all[id]
         hls=[]
         if highlightdict:
             for field in highlightdict:
                 highlight=highlightdict[field][0]
+                #log.debug(highlight)
                 #just take the first highlight
-                break
 #remove huge chunks of white space
-                highlight=re.sub('(\n[\s]+\n)+', '\n', highlight)
+                #highlight=re.sub('(\n[\s]+\n)+', '\n', highlight)
+                highlight=re.sub('\n \xc2\xa0 \n','\n',highlight) #clean up extraneous non breaking spaces 
+                highlight=re.sub('\n \xa0 \n','\n',highlight) #clean up extraneous non breaking spaces 
+            #    print('SPACECLEANE'+repr(highlight[:400]))
+                highlight=re.sub('(\n[\s]+\n)+', '\n', highlight) #cleaning up chunks of white space
+
 #split by em tags to enable highlighting
             #print highlight
+                hl=[]
                 for scrap in highlight.split('<em>'):
                 #print 'scrap',scrap
                     scrap=scrap.split('</em>')

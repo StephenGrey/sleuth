@@ -4,7 +4,7 @@ SEARCH VIEWS
 
 """
 from __future__ import unicode_literals
-from .forms import SearchForm
+from .forms import SearchForm,TagForm
 from documents.models import File,Collection,SolrCore
 from django.shortcuts import render
 from django.contrib.auth.decorators import login_required
@@ -70,7 +70,7 @@ def do_search(request,page=0,searchterm='',direction='',pagemax=0,sorttype='',ta
 #                if sorttype=='relevance':
                 if True:
                     if tag1:
-                        filters={'tagnames_list':tag1}
+                        filters={mycore.tags1field:tag1}
                     else:
                         filters={}
                     resultlist,resultcount,facets=solrJson.solrSearch(searchterm,sorttype,startnumber,core=mycore, filters=filters, faceting=True)
@@ -246,7 +246,10 @@ def get_content(request,doc_id,searchterm): #make a page showing the extracted t
             data_ID=data_ID[0]
         log.debug('Data ID '+str(data_ID)) 
         if html:
-            return render(request, 'blogpost.html', {'body':html, 'docid':data_ID,'docname':docname,'docpath':docpath,'datetext':datetext,'data':result.data})
+            initialtags='a tag, another tag'
+            form = TagForm(initialtags)
+            searchterm_urlsafe=urllib.quote_plus(searchterm)
+            return render(request, 'blogpost.html', {'form':form,'body':html, 'docid':data_ID,'solrid':doc_id,'docname':docname,'docpath':docpath,'datetext':datetext,'data':result.data,'searchterm': searchterm, 'searchterm_urlsafe': searchterm_urlsafe,})
 #        log.debug('Full result '+str(result.__dict__))    
 
         #DIVERT ON BIG FILE
@@ -286,10 +289,11 @@ def get_bigcontent(request,doc_id,searchterm,mycore,contentsmax): #make a page o
 #        
     log.debug('GET BIGCONTENT')
     res=solrJson.bighighlights(doc_id,mycore,searchterm,contentsmax)
-    #log.debug(res)
+#    log.debug('{}'.format(res.__dict__))
     if len(res.results)>0:
         #if more than one result, take the first
         result=res.results[0]
+#        log.debug(result.data)
         docsize=result.data['solrdocsize']
         docpath=result.data['docpath']
         rawtext=result.data['rawtext']
@@ -325,17 +329,6 @@ def cleanup(searchterm,highlight):
 #    print('SPACECLEANE'+repr(highlight[:400]))
     cleaned=re.sub('(\n[\s]+\n)+', '\n', highlight) #cleaning up chunks of white space
 #    print('STRINGCLEANED'+repr(cleaned[:400]))
-    #cleanup search term
-    
-    #take the first item within quotes as the search term to highlight
-#    log.debug(searchterm)
-#    try:
-#        cleansearchterm=re.search('\"(.+)\"',searchterm).group(0)[1:][:-1]
-#    except AttributeError as e:
-#        cleansearchterm=searchterm
-#    except Exception as e:
-#        log.debug(str(e))
-#        cleansearchterm=searchterm
         
     cleansearchterm=cleansterm(searchterm)
     log.debug(cleansearchterm)

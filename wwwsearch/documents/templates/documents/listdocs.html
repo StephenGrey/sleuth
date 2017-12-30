@@ -1,12 +1,13 @@
 {% extends "base.html" %}
 {% block content %}
 
-<h3>COLLECTION: <b>{{collection}}</b></h3>
-<p>
+<h3>COLLECTION: <b class='tag'>{{collection}}</b></h3>
+<br>
 {%if results%}
 {% for file in results %}
-file{{file.id}}:  {{file.filename}}{{file.fileext}}{%if file.indexedSuccess%}   INDEXED     {%else%} NOT INDEXED{%endif%}
-{%if file.solrid%}  SOLRID: {{file.solrid}}{%endif%}<p>
+file{{file.id}}:  {{file.filename}}{%if file.indexedSuccess%}<span class='tag'>   INDEXED     </span>{%else%} NOT INDEXED{%endif%}
+{%if file.solrid%}  SOLRID: {{file.solrid}}{%endif%}
+</p><p>
 {% endfor %}
 {%else%}
 No files scanned

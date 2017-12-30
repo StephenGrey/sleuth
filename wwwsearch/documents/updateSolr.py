@@ -20,7 +20,7 @@ docstore=config['Models']['collectionbasepath'] #get base path of the docstore
 def scandocs(collection,deletes=True):
     change=changes(collection)  #get dictionary of changes to file collection (compare disk folder to meta database)
     
-    #make the changes to file database
+    #make any changes to local file database
     try:
         updates(change,collection) 
     except Exception as e:
@@ -178,8 +178,10 @@ def metaupdate(collection):
                 changes=parsechanges(solrdoc,file,mycore) #returns list of tuples [(field,newvalue),]
                 if changes:
                     #make changes to the solr index
+                    log.debug('{}'.format(solrdoc.__dict))
                     json2post=makejson(solrdoc['id'],changes,mycore)
-                    response,updatestatus=post_jsonupdate(json2post,mycore)
+                    log.debug('{}'.format(json2post)) 
+#                    response,updatestatus=post_jsonupdate(json2post,mycore)
                     if checkupdate(solrdoc['id'],changes,mycore):
                         print('solr successfully updated')
                         file.indexUpdateMeta=False
@@ -226,11 +228,7 @@ def parsechanges(solrresult,file,mycore):
         changes.append(('solrdocsize',file.filesize))
     newlastmodified=s.timestringGMT(file.last_modified)
 #    file.last_modified.strftime("%Y-%m-%dT%H:%M:%SZ")
-
-#debug - timezones not quite fixed here
     if olddate !=newlastmodified:
-#    oldlastmodified != file.last_modified:
-#        log.info(oldlastmodified,file.last_modified)
         log.info('need to update last_modified from \"{}\"  to \"{}\"'.format(oldlastmodified, newlastmodified))
         changes.append(('date',newlastmodified))
     newfilename=file.filename
@@ -278,7 +276,7 @@ def updates(change,collection):
     if changedfiles:
         log.debug('{} changed file(s) '.format(len(changedfiles)))
         for filepath in changedfiles:
-            print(filepath)
+            log.debug('{}'.format(filepath))
             file=filelist.get(filepath=filepath)
             updatesuccess=updatefiledata(file,filepath)
 
@@ -289,6 +287,7 @@ def updates(change,collection):
                 #contents change, flag for index
                 file.indexedSuccess=False
                 file.hash_contents=newhash
+                file.indexUpdateMeta=True  #flag to correct solrindex
             #the solrid field is not cleared = the index process can check if it exists and delete it
             #else-if the file has been already indexed, flag to correct solr index meta
             elif file.indexedSuccess==True:
@@ -355,7 +354,7 @@ def changes(collection):
         #print(newhash)
         newfileshash[newhash]=newpath
 
-    #now work out which of new files are moved
+    #now work out which new files have been moved
     for missingfilepath in missingfiles:
         missinghash=missingfiles[missingfilepath]
         newpath=newfileshash.pop(missinghash, None)

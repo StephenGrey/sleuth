@@ -2,7 +2,7 @@
 from __future__ import unicode_literals, print_function
 from .models import BlogPost
 import csv, iso8601,pytz, os, ast
-from ownsearch import solrSoup as s
+from ownsearch import solrJson as s
 from ownsearch.hashScan import hash256
 import json, collections
 from documents import updateSolr as u
@@ -60,6 +60,8 @@ def getsolrID(postID):
         
 
 
+#update solr docs from CSV, first line contains row names; 
+#solr ID field is taken from the model database and referenced by original ID field.
 def addTagsFromCSV(path,mycore):
         assert os.path.exists(path)
         assert mycore.ping()
@@ -69,7 +71,7 @@ def addTagsFromCSV(path,mycore):
             row=next(reader)
             fieldnames=row
             try:
-                assert 'originalID' in fieldnames
+                assert 'sb_databaseid' in fieldnames
             except:
                 return False
             maxloop=25000
@@ -95,7 +97,7 @@ def addTagsFromCSV(path,mycore):
                                 trylist=value
                             doc[fieldnames[n]]={"set":trylist}
                     if len(doc)>1:#only update if some valid fields to set
-                        doc['id']=getsolrID(doc.pop('originalID')['set'])
+                        doc['id']=getsolrID(doc.pop('sb_databaseid')['set'])
                     #changes.append(doc)
                         jsondoc=json.dumps([doc])
                         print(jsondoc)
@@ -120,8 +122,7 @@ def checkbase():
             print('Blogpost with ID '+str(x)+'  not found')
 
 
-def extractbase(idstart=0,idstop=1):
-    mycore=s.SolrCore('test1')
+def extractbase(idstart=0,idstop=2,mycore=s.SolrCore('test1')):
     mycore.ping()
 #    print(vars(mycore))   
     for x in range(idstart,idstop):
@@ -141,9 +142,12 @@ def extractpost(post,mycore):
 #    except BlogPost.DoesNotExist:
 #        print('post does not exist')
 #        return False
-#    print(vars(post))
+    #print(vars(post))
     doc=collections.OrderedDict()  #keeps the JSON file in a nice order
-    doc['id']=post.solrID #hash256(post.body.encode('utf-8')) #using the hash of the HTML body as the doc ID
+    if not post.solrID:
+        doc['id']=hash256(post.body.encode('utf-8')) #using the hash of the HTML body as the doc ID
+    else:
+        doc['id']=post.solrID #hash256(post.body.encode('utf-8')) #using the hash of the HTML body as the doc ID
     doc[mycore.hashcontentsfield]=doc['id'] #also store hash in its own standard field
     doc[mycore.rawtext]=post.text
     doc['preview_html']=post.body
@@ -157,21 +161,29 @@ def extractpost(post,mycore):
     jsondoc=json.dumps([doc])
     result,status=u.post_jsondoc(jsondoc,mycore)
     return result,status
-
+"""
+>>> i.BlogPost.objects.all()[0].__dict__
+'solrID': u'', ', 'name': u'That crook Schembri was in court today, pleading that he is not a crook', 'pubdate': None, 'url': u'https://daphnecaruanagalizia.com/', 'text': u'Former Opposition leader Simon Busuttil testified in court this morning, as did the Prime Minister\u2019s More', '_state': <django.db.models.base.ModelState object at 0x106040e10>, 'id': 7432, 'originalID': u'0'}
+"""
 
 def updateindex(post,mycore):
-    for post in BlogPost.objects.all():d
-        if post.solrID:
-            doc=collections.OrderedDict()  #keeps the JSON file in a nice order
-            doc['id']=post.solrID #hash256(post.body.encode('utf-8')) #using the hash of the HTML body as the doc ID
-            doc[mycore.rawtext]={"set":post.text}
-            if post.pubdate:
-                doc[mycore.datefield]={"set":s.ISOtimestring(post.pubdate)}
-#            print(doc)
-            jsondoc=json.dumps([doc])
-#            print(jsondoc)
-            result,status=u.post_jsonupdate(jsondoc,mycore)
-            print (result,status)
+    solrid=getsolrID(post.originalID)
+    print('SolrID',solrid)
+    doc=collections.OrderedDict()  #keeps the JSON file in a nice order
+    doc['id']=solrid #hash256(post.body.encode('utf-8')) #using the hash of the HTML body as the doc ID
+    doc[mycore.rawtext]={"set":post.text}
+    doc[mycore.hashcontentsfield]={"set":doc['id']} #also store hash in its own standard field
+    doc[mycore.docnamefield]={"set":post.name}
+    if post.pubdate:
+        doc[mycore.datefield]={"set":s.ISOtimestring(post.pubdate)}
+    else:
+        print('missing pubdate')
+    jsondoc=json.dumps([doc])
+    #print(jsondoc)
+    result,status=u.post_jsonupdate(jsondoc,mycore)
+    print (result,status)
+    return
+
 
 #add a new document ('doc') to the solr index
 def makejson(doc):   #the changes use standard fields (e.g. 'date'); so parse into actual solr fields
@@ -186,7 +198,32 @@ def makejson(doc):   #the changes use standard fields (e.g. 'date'); so parse in
 def addtags(solrid,tags,mycore):
     doc=collections.OrderedDict()  #keeps the JSON file in a nice order
     doc['id']=solrid #using the hash of the HTML body as the doc ID
-    doc['tags1']={"set":tags}
+    doc['sb_taglist1']={"set":tags}
     jsondoc=json.dumps([doc])
 #    print(jsondoc)
     result,status=u.post_jsonupdate(jsondoc,mycore)
+
+def checksolr(mycore):
+    maxcount=25000
+    counter=0
+    for post in BlogPost.objects.all():
+        counter+=1
+        if counter>maxcount:
+            break
+#        print(post.id,post.name,post.pubdate)
+        solrID=getsolrID(post.originalID)
+        try:
+            docs=s.getmeta(solrID,mycore)
+            doc=docs[0]
+            if not doc.docname or not doc.date:
+                print('missing meta:',post.id,post.name,post.pubdate)
+                print(doc.docname,doc.date)
+                try:
+                    updateindex(post,mycore)
+                except Exception as e:
+                    print(e)                	
+        except Exception as e:
+            print(e)
+            print('no solr doc found for post ',post.id,post.name)
+        
+    return
