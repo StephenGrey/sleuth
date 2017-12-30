@@ -1,13 +1,20 @@
 {% extends "base.html" %}
+
 {% block content %}
 <b><h1>{{docname}}</h1></b>
 <b><p>PATH: {{docpath}}&emsp; SIZE(bytes):{{docsize}}&emsp; DATE: {{datetext}}<p></b>
 {% if data.message_from  %}
 <br><b>Message title:</b>{{data.title}}<br><b>From:</b> {{data.message_from}} <b>To:</b> {{data.message_to}}
 {% endif %}
-
+<br>
+<form action="" method="post"> {% csrf_token %}
+{% if data.tags1  %}Indexed keywords: 
+	{% for tag in data.tags1 %}
+		<span class='tag'> {{tag}}</span>
+	{% endfor %}
+{% endif %}
+</form>
 {{body | safe}}
-
 
 {% endblock %}
 

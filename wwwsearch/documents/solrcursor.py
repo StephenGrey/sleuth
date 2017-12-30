@@ -3,12 +3,15 @@ from __future__ import unicode_literals
 from bs4 import BeautifulSoup as BS
 import requests, requests.exceptions, logging, collections
 from usersettings import userconfig as config
-from ownsearch import solrSoup
+from ownsearch import solrJson
 log = logging.getLogger('ownsearch.solrcursor')
 #print(config)
 #core=config['Cores']['1'] #the name of the index to use within the Solr backend
 #url=config['Solr']['url']+core+'/select?q=' #Solr:url is the network address of Solr backend
 #hlarguments=config[core]['highlightingargs']
+class MissingCursorMark(Exception):
+    pass
+
 try:
     dfltsearchterm=config['Test']['testsearchterm']
 except:
@@ -18,7 +21,7 @@ except:
 #arguments='&fl=id,date,content'
 
 def getcore(corename):
-    return solrSoup.SolrCore(corename)
+    return solrJson.SolrCore(corename)
 
 def cursor(mycore,keyfield='docpath',searchterm='*',highlights=False): #iterates through entire solr index in blocks of e.g. 100
     #if highlights is True, returns more complete data including highlights
@@ -35,25 +38,24 @@ def cursor(mycore,keyfield='docpath',searchterm='*',highlights=False): #iterates
             args=mycore.cursorargs+'&sort=id+asc&rows=100&cursorMark='+cursormark
         #print args
         try:
-            res=getSolrResponse(searchterm,args,mycore)
+            jres=solrJson.getJSolrResponse(searchterm,args,mycore)
+            print(jres)
 #            blocklist,resultsnumber,counter=listresults(res,mycore)
+            solrresult=solrJson.SolrResult(jres,mycore) #processresult
             
-            solrresult=solrSoup.SolrResult(res,mycore) #processresult
             if highlights:
                 solrresult.addhighlights() #add the highlights to the results
             blocklist=solrresult.results
             counter=solrresult.counter
             resultsnumber=solrresult.numberfound
-            
-            #print (resultsnumber,counter)
-            more=res.response.result.next_sibling
             counted+=counter
+            #print (resultsnumber,counter)
             #extract next cursor from the result
-            if more['name']=='nextCursorMark':
-                nextcursor=more.text
+            if 'nextCursorMark' in jres:
+                nextcursor=jres['nextCursorMark']
             else:
-                print ('Missing next cursor mark')
-    
+                log.error('Missing next cursor mark')
+                raise MissingCursorMark
             if True:
                 for document in blocklist:
                     if keyfield in document.__dict__ :  #.data:
@@ -84,16 +86,16 @@ def cursor(mycore,keyfield='docpath',searchterm='*',highlights=False): #iterates
             cursormark=nextcursor
     return longdict
 
-def getSolrResponse(searchterm,arguments,mycore):
-    searchurl=mycore.url+'/select?q='+searchterm+arguments
-    ses = requests.Session()
-    # the session instance holds the cookie. So use it to get/post later
-    res=ses.get(searchurl)
-    soup=BS(res.content,"html.parser")
-    return soup
+#def getSolrResponse(searchterm,arguments,mycore):
+#    searchurl=mycore.url+'/select?q='+searchterm+arguments
+#    ses = requests.Session()
+#    # the session instance holds the cookie. So use it to get/post later
+#    res=ses.get(searchurl)
+#    soup=BS(res.content,"html.parser")
+#    return soup
     
 #def listresults(soup,mycore):
-#    solrresult=solrSoup.SolrResult(soup,mycore)
+#    solrresult=solrJson.SolrResult(soup,mycore)
 #    solrresult.addhighlights()
 #    results=solrresult.results
 #    counter=solrresult.counter
@@ -112,7 +114,7 @@ def getSolrResponse(searchterm,arguments,mycore):
 #    for doc in result:
 #        #print('DOC',doc)
 #        #get standardised result
-#        parsedoc=solrSoup.Solrdoc(doc,mycore)
+#        parsedoc=solrJson.Solrdoc(doc,mycore)
 ##        
 #        results.append(parsedoc.data)
 #        counter+=1
@@ -144,7 +146,7 @@ def getSolrResponse(searchterm,arguments,mycore):
 #RETURN ENTIRE SET OF RESULTS FOR A GIVEN SEARCH TERM, SORTED BY A FIELD (sorttype)
 def cursorSearch(q,keyfield,mycore,highlights=False):
     #check variables are valid
-    assert isinstance(mycore,solrSoup.SolrCore)
+    assert isinstance(mycore,solrJson.SolrCore)
     mycore.ping()
     assert isinstance(keyfield,basestring)
     assert isinstance(q,basestring)

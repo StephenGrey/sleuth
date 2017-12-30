@@ -1,14 +1,16 @@
 # -*- coding: utf-8 -*-
 from __future__ import unicode_literals
-from bs4 import BeautifulSoup as BS
-import requests, os, logging
+#from bs4 import BeautifulSoup as BS
+from django.conf import settings
+import requests, os, logging, json
 import ownsearch.hashScan as dup
 import hashlib  #routines for calculating hash
-from documents.models import Collection,File
+#from documents.models import Collection,File
 log = logging.getLogger('ownsearch.indexsolr')
 from usersettings import userconfig as config
-from ownsearch.solrSoup import SolrConnectionError
-from ownsearch.solrSoup import SolrCoreNotFound
+from ownsearch.solrJson import SolrConnectionError
+from ownsearch.solrJson import SolrCoreNotFound
+from ownsearch import solrJson as s
 from fnmatch import fnmatch
 
 try:
@@ -24,6 +26,9 @@ main method is extract(path,contentsHash,mycore,test=False)
 """
 
 class ExtractInterruption(Exception):
+    pass
+
+class PostFailure(Exception):
     pass
     
 #FILE METHODS
@@ -46,11 +51,32 @@ def scanPath(parentFolder):  #recursively check all files in a file folder and g
 
 
 #SOLR METHODS
+def extract_test(test=True):
+    #get path to test file
+    path=settings.BASE_DIR+'/tests/testdocs/TESTFILE_BBCNews1.pdf'
+    assert os.path.exists(path)
+    print(config['Solr'])
+    
+    #get hash
+    hash=dup.hashfile256(path)
+    print(hash)
+    
+    #get default index
+    defaultID=config['Solr']['defaultcoreid']
+    cores=s.getcores()
+    mycore=cores[defaultID]
+    #checks solr index is alive
+    mycore.ping()
+    
+    result=extract(path,hash,mycore,test=test)
+    return result
+
 def extract(path,contentsHash,mycore,test=False):
+    assert isinstance(mycore,s.SolrCore)
     #print(path)
     docstore=config['Models']['collectionbasepath'] #get base path of the docstore
 #    extracturl=mycore.url+'/update/extract?'
-    extractargs='commit=true'
+    extractargs='commit=true&wt=json'
     try:
         filenamefield=mycore.docnamefield
         hashcontentsfield=mycore.hashcontentsfield
@@ -70,86 +96,83 @@ def extract(path,contentsHash,mycore,test=False):
         return False
     if test==True:
         args=extractargs+'&extractOnly=true' #does not index on test
+        print ('extract args: '+args,'path: ',path,'mycore: ',mycore)
     else:
         relpath=os.path.relpath(path,start=docstore) #extract a relative path from the docstore
         args=extractargs+'&literal.id='+pathHash(path)+'&literal.'+filenamefield+'='+os.path.basename(path)
         args+='&literal.'+filepathfield+'='+relpath+'&literal.'+hashcontentsfield+'='+contentsHash
         #>>>>go index, use MD5 of path as unique ID
         #and calculate filename to put in index
-        #print ('extract args: '+args,'path: ',path,'mycore: ',mycore)
-    sp,statusOK=postSolr(args,path,mycore) #POST TO THE INDEX
-    #print (sp)
+        print ('extract args: '+args,'path: ',path,'mycore: ',mycore)
+    statusOK=postSolr(args,path,mycore) #POST TO THE INDEX
     if statusOK is not True:
         print ('Error in extract() posting file with args: ',args,' and path: ',path)
-        print ('Response from solr:',sp)
+        log.debug('Extract test FAILED')
         return False
-    response,success,message=parseresponse(sp) #turn the response into a dictionary
-    if success is True:
-        print(message)
-        return True
     else:
-        print(message,response)
-        return False
+        log.debug('Extract test SUCCEEDED')
+        return True
     
-#turn request xml response from solr api into a dictionary
-def parseresponse(soup):
-    if soup.response:
-        result={}
-        if soup.response.find_all('lst'):
-            lists={}
-            success=False
-            #parse lists in resposne
-            for lst in soup.response.find_all('lst'):
-                 tags={}
-                 for item in lst:
-                     value=''
-                     if item.name=='int':
-                         value=int(item.text)
-                     if item.name=='str':
-                         value=item.text
-                     if item.has_attr('name'):
-                         tags[item['name']]=value
-                     else:
-                         print('tag has no name attribute')
-                 lists[lst['name']]=tags
-            result['lists']=lists
-            #check for errors 
-            if 'responseHeader' in lists:
-                 header=lists['responseHeader']
-                 status=header['status']
-                 if status==0:
-                     success=True
-                     return result,success,'success'
-                 else:
-                     success=False
-            if 'error' in lists:
-                errorlist=lists['error']
-                errormessage=errorlist['msg']
-                errorcode=errorlist['code']
-                message=errormessage+'  CODE:'+str(errorcode)
-            else:
-                message='Error message not parsed'
-            #NB THERE IS A METADATA LIST THAT COULD ALSO BE PARSED AND LOGGGED
-            return result,success,message
-        return result,False,'no lists found'
-    return {},False,'no response found'
+    
+##turn request json response from solr api into a dictionary
+#def parseresponse(jres):
+#    if soup.response:
+#        result={}
+#        if soup.response.find_all('lst'):
+#            lists={}
+#            success=False
+#            #parse lists in resposne
+#            for lst in soup.response.find_all('lst'):
+#                 tags={}
+#                 for item in lst:
+#                     value=''
+#                     if item.name=='int':
+#                         value=int(item.text)
+#                     if item.name=='str':
+#                         value=item.text
+#                     if item.has_attr('name'):
+#                         tags[item['name']]=value
+#                     else:
+#                         print('tag has no name attribute')
+#                 lists[lst['name']]=tags
+#            result['lists']=lists
+#            #check for errors 
+#            if 'responseHeader' in lists:
+#                 header=lists['responseHeader']
+#                 status=header['status']
+#                 if status==0:
+#                     success=True
+#                     return result,success,'success'
+#                 else:
+#                     success=False
+#            if 'error' in lists:
+#                errorlist=lists['error']
+#                errormessage=errorlist['msg']
+#                errorcode=errorlist['code']
+#                message=errormessage+'  CODE:'+str(errorcode)
+#            else:
+#                message='Error message not parsed'
+#            #NB THERE IS A METADATA LIST THAT COULD ALSO BE PARSED AND LOGGGED
+#            return result,success,message
+#        return result,False,'no lists found'
+#    return {},False,'no response found'
 
-
-def getSolrResponse(args,mycore):
-    searchurl=extracturl+args
-    #USE IF COOKIES OR LOGIN REQUIRED ses = requests.Session()
-    # the session instance holds the cookie. So use it to get/post later
-    #res=ses.get(searchurl)
-    res=requests.get(searchurl)
-    soup=BS(res.content,"html.parser")
-    return soup
+#
+#def getSolrResponse(args,mycore):
+#    searchurl=extracturl+args
+#    #USE IF COOKIES OR LOGIN REQUIRED ses = requests.Session()
+#    # the session instance holds the cookie. So use it to get/post later
+#    #res=ses.get(searchurl)
+#    res=requests.get(searchurl)
+#    soup=BS(res.content,"html.parser")
+#    return soup
 
 #DEBUG NOTE: requests won't successfully post if unicode filenames in the header; so converted below
 #should consider using basefilename not file path below
 def postSolr(args,path,mycore):
     extracturl=mycore.url+'/update/extract?'
     url=extracturl+args
-    #print('POSTURL',url)
+    print('POSTURL',url)
     try:
         simplefilename=path.encode('ascii','ignore')
     except:
@@ -158,14 +181,27 @@ def postSolr(args,path,mycore):
         with open(path,'rb') as f:
             file = {'myfile': (simplefilename,f)}
             res=requests.post(url, files=file)
-        soup=BS(res.content,"html.parser")
-        statusOK = True
-        return soup, statusOK
-
+        resstatus=res.status_code
+        log.debug('RESULT STATUS: '+str(resstatus))
+        solrstatus=json.loads(res._content)['responseHeader']['status']
+        log.debug('SOLR STATUS: '+str(solrstatus))
+        if resstatus==404:
+            raise s.Solr404('404 error - URL not found')        
+        if solrstatus==0 and resstatus==200:
+            return True 
+        else:
+            raise PostFailure('Errors in posting file for extraction')
     except requests.exceptions.RequestException as e:
-        print ('Exception in postSolr: ',str(e),e)
-        statusOK=False
-        return '',statusOK
+        log.debug('Exception in postSolr: {}{}'.format(str(e),e))
+        return False
+    except PostFailure as e:
+        log.error(str(e))
+        log.error('Post result {}'.format(res.content))
+        return False
+    except ValueError as e:
+        log.error(str(e))
+        log.debug('Post result {}'.format(res.content))
+        return False
 
 #check if filepath fits an ignore pattern (no check to see if file exists)
 def ignorefile(path):

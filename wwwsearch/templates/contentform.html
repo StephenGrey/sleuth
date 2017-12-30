@@ -18,7 +18,7 @@ This is a comment section
 {% if docexists%}<a href="/ownsearch/download={{fileid}}&{{hashfile}}"<b>Download</b></a><p>
 {% endif %}
 {% for scrap in splittext %}
-{{scrap|linebreaksbr}}</pre><b>{{searchterm}}</b>
+{{scrap|linebreaksbr}}</pre><b class="highlight">{{searchterm}}</b>
 {% endfor %}
 {{lastscrap}}
 {% endif %}

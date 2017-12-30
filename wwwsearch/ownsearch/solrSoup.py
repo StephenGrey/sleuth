@@ -3,7 +3,7 @@ from __future__ import unicode_literals
 from bs4 import BeautifulSoup as BS
 import requests, requests.exceptions
 import os, logging
-import re
+import re, json
 from documents.models import File,Collection
 from documents.models import SolrCore as sc
 from django.db.utils import OperationalError
@@ -20,6 +20,8 @@ class SolrConnectionError(Exception):
     pass
 
 class SolrCoreNotFound(Exception):
+    pass
+class Solr404(Exception):
     pass
 
 class SolrCore:
@@ -64,21 +66,17 @@ class SolrCore:
     def ping(self):
         try:
             res=requests.get(self.url+'/admin/ping')
-            soup=BS(res.content,"html.parser")
-#            print(soup)
-            if soup.title:
-                if soup.title.text == u'Error 404 Not Found':
-                    raise SolrCoreNotFound('core not found')
-            statusline=soup.response.lst.next_sibling
-            if statusline.attrs['name']==u'status' and statusline.text=='OK':
-#                print('Good connection')
+            if res.status_code==404:
+                raise SolrCoreNotFound('Core not found')
+            jres=json.loads(res.content)
+            if jres['status']=='OK':
                 return True
             else:
-                log.debug('Core status: ',soup)
+                log.debug('Core status: '+str(jres))
                 return False
         except requests.exceptions.ConnectionError as e:
 #            print('no connection to solr server')
-            raise SolrConnectionError('solr connection error')
+            raise SolrConnectionError('Solr Connection Error')
             return False
 
     def __str__(self):
@@ -95,30 +93,28 @@ class Solrdoc:
 
     def parse(self,doc,core):
             #now go through all fields returned by the solr search
-            #print(doc)
-            for arr in doc: #detects string, datefields and long integers
-                if arr.str:
+            for field in doc: #detects string, datefields and long integers
+                if True:
                     try:
-                        if len(arr)>1: #its a list of strings
-                            self.data[arr.attrs['name']]=[item.text for item in arr]
+                        if isinstance(doc[field],list):
+                            self.data[field]=[item for item in doc[field]]
                         else:
-                            self.data[arr.attrs['name']]=arr.str.text
+                            self.data[field]=doc[field]
                     except Exception as e:
                         print(e)
-                elif arr.date:
-                    dates=[]
-                    for date in arr:
-                        dates.append(date.text)
-                    self.data[arr.attrs['name']]=dates
-                elif arr.long:
-                    ints=[]
-                    for longn in arr:
-                        ints.append(longn.text)
-                    self.data[arr.attrs['name']]=ints
-                else:
-                    self.data[arr.attrs['name']]=arr.text
-                #print(arr.text)
-#            print(self.data)
+#                elif arr.date:
+#                    dates=[]
+#                    for date in arr:
+#                        dates.append(date.text)
+#                    self.data[arr.attrs['name']]=dates
+#                elif arr.long:
+#                    ints=[]
+#                    for longn in arr:
+#                        ints.append(longn.text)
+#                    self.data[arr.attrs['name']]=ints
+#                else:
+#                    self.data[arr.attrs['name']]=arr.text
+#                #print(arr.text))
             #give the KEY ATTRIBS standard names
             self.docname=self.data.pop(core.docnamefield,'')
             self.id=self.data.pop('id','')
@@ -136,26 +132,24 @@ class Solrdoc:
             self.data['tags1']=self.data.pop(core.tags1field,'')
             if isinstance(self.data['tags1'], basestring):
                 self.data['tags1']=[self.data['tags1']]
-#    def __str__(self):
-#        return self.docname
 
 class SolrResult:
-    def __init__(self,soup,mycore,startcount=0):
+    def __init__(self,jres,mycore,startcount=0):
 #        print(soup)
-        self.soup=soup #store unparsed result
+        self.json=jres #store unparsed result
         self.mycore=mycore #store the core
         self.results=[] #default no response
         self.counter=startcount
         self.numberfound=0
         #if True:
         try:
-            if soup.response:
-                result=soup.response.result
-                if result.has_attr('numfound'):
-                    self.numberfound=int(result['numfound'])
+            if 'response' in jres:
+                result=jres['response']
+                if 'numFound' in result:
+                    self.numberfound=int(result['numFound'])
                     #loop through each doc in resultset
                     if self.numberfound>0:
-                        for doc in result:
+                        for doc in result['docs']:
                             #get standardised result
                             resultsdoc=Solrdoc(data={})
                             resultsdoc.parse(doc,mycore)
@@ -166,6 +160,8 @@ class SolrResult:
                             resultsdoc.resultnumber=self.counter
 #                            log.debug(resultsdoc.data['resultnumber'])
                             self.results.append(resultsdoc)
+                            
+                            print([doc.__dict__ for doc in self.results])
 #                            log.debug([doc.__dict__ for doc in self.results])
 #            log.debug([doc.data['resultnumber'] for doc in self.results])                    
         except Exception as e:
@@ -192,7 +188,7 @@ class SolrResult:
         self.facets=[]
         if self.results:
             try:
-                soup=self.soup
+                jres=self.json
                 nextlist=soup.response.result.next_sibling
                 if nextlist['name']=='facet_counts':
                     facets=nextlist
@@ -217,22 +213,12 @@ class SolrResult:
         #check for and add highlights
         if self.results:
             try:
-                soup=self.soup
-                
-                nextlist=soup.response.result.next_sibling
-    #            print('NEXTLIST',nextlist)
-                if nextlist['name']=='highlighting':
-                    highlights=nextlist
-                    #print('HIGHLIGHTS',highlights)
+                jres=self.json
+                if 'highlighting' in jres:
+                    highlights=jres['highlighting']
+                    print('HIGHLIGHTS',highlights)
                 else:
-                    nextlist=soup.response.result.next_sibling.next_sibling
-                    #print('NEXTLIST2',nextlist)
-                    if nextlist['name']=='highlighting':
-                        highlights=nextlist
-                        #rint('HIGHLIGHTS',highlights)
-                    else:
-                        highlights=''
-                        
+                    highlights=''
                 if highlights:
                     log.debug('highlights exist')
                     #log.debug(highlights)
@@ -261,6 +247,8 @@ log = logging.getLogger('ownsearch.solrSoup')
 #MAIN SEARCH METHOD  (q is search term)
 def solrSearch(q,sorttype,startnumber,core,filters={},faceting=False):
     core.ping()
+    
+    #create arguments
     if core.tags1field and faceting:
         facetargs='&facet.field={}&facet=on&facet.limit=10'.format(core.tags1field)
     else:
@@ -270,40 +258,68 @@ def solrSearch(q,sorttype,startnumber,core,filters={},faceting=False):
     for filtertag in filters:
         args=args+'&fq={}:"{}"'.format(filtertag,filters[filtertag])
     #print('args',args)
+
+# get the response
     try:
-        soup=getSolrResponse(q,args,core=core)
+        jres=getJSolrResponse(q,args,core=core)
+        print(jres)
         #print(soup.prettify())    
-        reslist,numbers,facets=getlist(soup,startnumber,core=core)
+        reslist,numbers,facets=getlist(jres,startnumber,core=core)
     except requests.exceptions.RequestException as e:
         reslist=[]
         numbers=-2
         log.warning('Connection error to Solr')
     return reslist,numbers,facets
 
+#XML parsed by solr Soup
 def getSolrResponse(searchterm,arguments,core):
 #    print(searchterm,arguments,core)
-    searchurl='{}/select?q={}{}'.format(core.url,searchterm,arguments)
-#    print (searchurl)
+#XML FORMAT
+    searchurl='{}/select?wt=xml&q={}{}'.format(core.url,searchterm,arguments)
+    print (searchurl)
     ses = requests.Session()
     # the session instance holds the cookie. So use it to get/post later
     res=ses.get(searchurl)
     #parse the result with beautiful soup
+    print(res.__dict__)
     soup=BS(res.content,"html.parser")
     return soup
 
+#JSON 
+def getJSolrResponse(searchterm,arguments,core):
+#    print(searchterm,arguments,core)
+    searchurl='{}/select?&q={}{}'.format(core.url,searchterm,arguments)
+    log.debug(searchurl)
+    try:
+        ses = requests.Session()
+        # the session instance holds the cookie. So use it to get/post later
+        res=ses.get(searchurl)
+        if res.status_code==404:
+            raise Solr404('URL not found')
+        else:
+            jres=json.loads(res.content)
+            return jres
+    except requests.exceptions.ConnectionError as e:
+#            print('no connection to solr server')
+        raise SolrConnectionError('Solr Connection Error')
+    except Exception as e:
+        log.error('Error in solr response '+str(e))
+        return None
+
 def fieldexists(field,core):
     try:
-        soup = getSolrResponse(field+':[* TO *]','&rows=0',core)
-        assert soup.response.lst.int['name']=='status'
-        assert soup.response.lst.int.text=='0'
+        jres = getJSolrResponse(field+':[* TO *]','&rows=0',core)
+        assert jres['responseHeader']['status']==0
         return True
     except AssertionError as e:
         log.debug('Field \"{}\" does not exist in index {}'.format(field,core))
+    except requests.exceptions.ConnectionError as e:
+        raise SolrConnectionError('Solr Connection Error')
     except Exception as e:
-        log.debug('Error checking if field {} exists in index {}'.format(field,core))
+        log.debug(str(e))
+    log.debug('Error checking if field {} exists in index {}'.format(field,core))
     return False
  
-
 #GET CONTENTS OF A DOCUMENT UP TO A MAX SIZE
 def gettrimcontents(docid,core,maxlength):
     searchterm=r'id:'+docid
@@ -325,9 +341,12 @@ def gettrimcontents(docid,core,maxlength):
 
 #GET CONTENTS OF LARGE DOCUMENT
 def bighighlights(docid,core,q,contentsmax):
+    #contents max = max length of snippet to avoid loading up huge file
     searchterm=r'id:'+docid
     #make snippets of max length 5000 with searchterm highlighted; if searchterm not found, return maxlength sample
-    args=core.hlarguments+'0&hl.fragsize=5000&hl.snippets=50&hl.q={}&hl.alternateField={}&hl.maxAlternateFieldLength={}'.format(q,core.rawtext,contentsmax)
+    maxanalyse=1000000 #number of characters checked for the highlight phrase
+    args=core.hlarguments+'0&hl.fragsize=5000&hl.snippets=50&hl.q={}&hl.alternateField={}&hl.maxAlternateFieldLength={}&hl.maxAnalyzedChars={}'.format(q,core.rawtext,contentsmax,maxanalyse)
+    print(searchterm,args,core.url)
     sp=getSolrResponse(searchterm,args,core)
 #    res,numbers=getlist(sp,0,core=core,linebreaks=True, big=True)#
     
@@ -340,8 +359,9 @@ def bighighlights(docid,core,q,contentsmax):
     return SR
 
 
-def getlist(soup,counter,core,linebreaks=False,big=False): #this parses the list of results, starting at 'counter'
-    SR=SolrResult(soup,core,startcount=counter)
+def getlist(jres,counter,core,linebreaks=False,big=False): #this parses the list of results, starting at 'counter'
+    soup=''
+    SR=SolrResult(jres,core,startcount=counter)
 #    log.debug([doc.data['resultnumber'] for doc in SR.results])
     SR.addstoredmeta()
     SR.addfacets()
@@ -360,23 +380,27 @@ def gethighlights(soup,linebreaks=False):
     
 def parsehighlights(highlights_all,linebreaks):
     highlights={}
-    for item in highlights_all:
+    for id in highlights_all:
 #        print ('ITEM:',item)
-        id=item['name']
-        if item.arr:
+        highlightdict=highlights_all[id]
 #remove line returns
-            highlight=item.arr.text
+        if highlightdict:
+            print (highlightdict)
+            for field in highlightdict:
+                highlight=highlightdict[field][0]
+                #just take the first highlight
+                break
             if linebreaks is False:
                 highlight=highlight.replace('\n','') 
-#split by em tags to enable highlighting
+    #split by em tags to enable highlighting
             try:
                 highlight=[highlight.split('<em>')[0]]+highlight.split('<em>')[1].split('</em>')
             except IndexError:
                 pass
         else:
             highlight=''
-        
         highlights[id]=highlight
+    print highlights
     return highlights
 
 
