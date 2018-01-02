@@ -19,11 +19,16 @@ class MissingConfigData(Exception):
 class SolrConnectionError(Exception):
     pass
 
+class SolrTimeOut(Exception):
+    pass
+    
 class SolrCoreNotFound(Exception):
     pass
 class Solr404(Exception):
     pass
-
+class PostFailure(Exception):
+    pass
+    
 class SolrCore:
     def __init__(self,mycore):
         try:
@@ -282,39 +287,60 @@ def solrSearch(q,sorttype,startnumber,core,filters={},faceting=False):
         log.warning('Connection error to Solr')
     return reslist,numbers,facets
 
-##XML parsed by solr Soup
-#def getSolrResponse(searchterm,arguments,core):
-##    print(searchterm,arguments,core)
-##XML FORMAT
-#    searchurl='{}/select?wt=xml&q={}{}'.format(core.url,searchterm,arguments)
-#    print (searchurl)
-#    ses = requests.Session()
-#    # the session instance holds the cookie. So use it to get/post later
-#    res=ses.get(searchurl)
-#    #parse the result with beautiful soup
-#    #print(res.__dict__)
-#    soup=BS(res.content,"html.parser")
-#    return soup
-
 #JSON 
 def getJSolrResponse(searchterm,arguments,core):
 #    print(searchterm,arguments,core)
     searchurl='{}/select?&q={}{}'.format(core.url,searchterm,arguments)
     log.debug('GET URL '+searchurl)
+    content=resGet(searchurl)
+    jres=json.loads(content)
+    return jres
+
+def resGet(url,timeout=1):
+    ses = requests.Session()
+# the session instance holds the cookie. So use it to get/post later
     try:
-        ses = requests.Session()
-        # the session instance holds the cookie. So use it to get/post later
-        res=ses.get(searchurl)
+        res=ses.get(url, timeout=timeout)
         if res.status_code==404:
             raise Solr404('404 error - URL not found')
         else:
-            jres=json.loads(res.content)
-            return jres
+            return res.content
+    except requests.exceptions.ConnectTimeout as e:
+        raise SolrTimeOut
     except requests.exceptions.ConnectionError as e:
 #            print('no connection to solr server')
         raise SolrConnectionError('Solr Connection Error')
 
-
+#Requests won't successfully post if unicode filenames in the header; so converted below
+def resPostfile(url,path,timeout=1):
+    try:
+        simplefilename=os.path.basename(path).encode('ascii','ignore')
+#        simplefilename=path.encode('ascii','ignore')
+    except:
+        simplefilename='Unicode filename DECODE error'
+    try:
+        with open(path,'rb') as f:
+            file = {'myfile': (simplefilename,f)}
+            res=requests.post(url, files=file,timeout=timeout)
+            resstatus=res.status_code
+            log.debug('RESULT STATUS: {}'.format(resstatus))
+            if resstatus==404:
+                raise Solr404('404 error - URL not found')
+            elif resstatus==200:
+                return res       
+            else:
+                raise PostFailure(resstatus)
+    except requests.exceptions.ConnectTimeout as e:
+        raise SolrTimeOut
+    except requests.exceptions.ReadTimeout as e:
+        raise SolrTimeOut
+    except requests.exceptions.RequestException as e:
+        log.debug('Exception in postSolr: {}{}'.format(str(e),e))
+        raise PostFailure
+    except ValueError as e:
+        log.error(str(e))
+        log.debug('Post result {}'.format(res.content))
+        raise PostFailure
 
 def fieldexists(field,core):
     try:

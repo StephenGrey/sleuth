@@ -206,7 +206,31 @@ def download(request,doc_id,hashfilename): #download a document from the docstor
 
 
 @login_required
-def get_content(request,doc_id,searchterm): #make a page showing the extracted text, highlighting searchterm
+def get_content(request,doc_id,searchterm,tagedit='False'): #make a page showing the extracted text, highlighting searchterm
+    useredit=request.session.get('useredit','')
+    log.debug('useredit: {}'.format(useredit))
+    if useredit=='True':
+        useredit=True	
+    else:
+        useredit= False
+    if request.method == 'POST': #if data posted from form
+        # create a form instance and populate it with data from the request:
+        form = TagForm('',request.POST)
+        print(request.POST)
+            # check whether it's valid:
+        if request.POST.get('edit','')=='Edit':
+            log.debug('Editing user tags')
+            request.session['useredit']='True'
+            return HttpResponseRedirect("/ownsearch/doc={}&searchterm={}".format(doc_id,searchterm))
+        elif request.POST.get('save','')=='Save':
+            log.debug('Save user tags')
+            request.session['useredit']=''
+            if form.is_valid():
+                # process the data in form.cleaned_data as required
+                keywords=form.cleaned_data['keywords']
+                print(keywords)            
+            return HttpResponseRedirect("/ownsearch/doc={}&searchterm={}".format(doc_id,searchterm))
+
     log.debug('Get content for doc id: '+str(doc_id)+' from search term '+str(searchterm))
     searchterm=urllib.unquote_plus(searchterm)
     #load solr index in use, SolrCore object
@@ -247,9 +271,14 @@ def get_content(request,doc_id,searchterm): #make a page showing the extracted t
         log.debug('Data ID '+str(data_ID)) 
         if html:
             initialtags='a tag, another tag'
+            
             form = TagForm(initialtags)
+            tags1=result.data.get('tags1',[False])[0]
+            if tags1=='':
+                tags1=False
+            log.debug('tag1: {}'.format(tags1))
             searchterm_urlsafe=urllib.quote_plus(searchterm)
-            return render(request, 'blogpost.html', {'form':form,'body':html, 'docid':data_ID,'solrid':doc_id,'docname':docname,'docpath':docpath,'datetext':datetext,'data':result.data,'searchterm': searchterm, 'searchterm_urlsafe': searchterm_urlsafe,})
+            return render(request, 'blogpost.html', {'form':form,'body':html, 'tags1':tags1,'initialtags': initialtags,'useredit':useredit,'docid':data_ID,'solrid':doc_id,'docname':docname,'docpath':docpath,'datetext':datetext,'data':result.data,'searchterm': searchterm, 'searchterm_urlsafe': searchterm_urlsafe,})
 #        log.debug('Full result '+str(result.__dict__))    
 
         #DIVERT ON BIG FILE

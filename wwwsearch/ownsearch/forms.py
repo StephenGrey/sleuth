@@ -31,4 +31,4 @@ class TagForm(forms.Form):
     def __init__(self, initialtags,*args, **kwargs):
         self.initialtags=initialtags
         super(TagForm, self).__init__(*args, **kwargs) #having overridden initialisation; now run parent initialisation
-        self.fields['keywords'] = forms.CharField(label='User tags', max_length=100,initial=self.initialtags)
+        self.fields['keywords'] = forms.CharField(label='User tags', max_length=100,initial=self.initialtags,widget=forms.Textarea(attrs={'rows': 1, 'cols': 80}))
