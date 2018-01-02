@@ -228,7 +228,8 @@ def get_content(request,doc_id,searchterm,tagedit='False'): #make a page showing
             if form.is_valid():
                 # process the data in form.cleaned_data as required
                 keywords=form.cleaned_data['keywords']
-                print(keywords)            
+                keyclean=[re.sub(r'[^a-zA-Z0-9, ]','',item) for item in keywords]
+                log.debug('user tags saved: {}'.format(keyclean))
             return HttpResponseRedirect("/ownsearch/doc={}&searchterm={}".format(doc_id,searchterm))
 
     log.debug('Get content for doc id: '+str(doc_id)+' from search term '+str(searchterm))
