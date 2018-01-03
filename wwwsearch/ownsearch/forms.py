@@ -25,7 +25,7 @@ class SearchForm(forms.Form):
         #dynamically set core choice based on user
         self.fields['CoreChoice']=ChoiceField(label='Index: ',choices=self.choicelist,initial=self.initial_core)
         self.fields['SortType']=ChoiceField(label='\nSort by :',widget=RadioSelect, initial=self.initial_sort,choices=SORT_CHOICES)   
-        self.fields['search_term'] = forms.CharField(label='Search Term', max_length=100,initial=self.initial_search)
+        self.fields['search_term'] = forms.CharField(label='Search Terms:', max_length=100,initial=self.initial_search,widget=forms.Textarea(attrs={'rows': 1, 'cols': 60}))
 #    SortType = ChoiceField(label='\nSort by :',widget=RadioSelect, initial=self.initial_sort,choices=SORT_CHOICES)
 
 

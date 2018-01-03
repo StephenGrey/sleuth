@@ -1,5 +1,9 @@
 {% extends "base.html" %}
 
+	{% block sidebar %}
+	<a href="{{searchurl}}">Back to Results</a>
+		{% endblock %}
+
 {% block content %}
 <b><h1>{{docname}}</h1></b>
 <b><p>PATH: {{docpath}}&emsp; SIZE(bytes):{{docsize}}&emsp; DATE: {{datetext}}<p></b>

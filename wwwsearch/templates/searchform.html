@@ -19,7 +19,7 @@ Index:{{form.CoreChoice}}<p>
           	User tags: (click to filter) 
           		{% for tag,score in facets2 %}
           			 {% if score != 0 %}
-          			 <li><a class='tag' href="/ownsearch/searchterm={{searchterm_urlsafe}}&nextafterpage=0&sorttype={{sorttype}}&tag2={{tag}}">{{ tag }}</a> ({{score}})</li>
+          			 <li><a class='tag2' href="/ownsearch/searchterm={{searchterm_urlsafe}}&nextafterpage=0&sorttype={{sorttype}}&tag2={{tag}}">{{ tag }}</a> ({{score}})</li>
           			 {% endif %}
           		{% endfor %}
           {% endif %}	          
@@ -29,11 +29,12 @@ Index:{{form.CoreChoice}}<p>
 
 {% block content %}
 
-{{form.search_term.label}}{{form.search_term}}<p>
+<b>{{form.search_term.label}}</b> {{form.search_term}}<p>
 <p>
 (Accepts wildcards:
 '?' for any single character e.g T?p = 'Top','Tip' etc <br>
 '*' for many characters e.g T*p='Trump', Trop' etc.<br>
+'-' to exclude a term e.g. 'Trump -Donald'<br>
 Use double quotes " " to enclose a phrase)
 
 <p>
@@ -43,10 +44,10 @@ Sort by:
 <input type="submit" value="Search" />
 
 
-{% if resultcount == 0 %}<p>No results for search on "{{searchterm}}" {%if tagfilter %}filtered by tag "{{tagfilter}} {%endif%}{%endif%}
+{% if resultcount == 0 %}<p>No results for search on "{{searchterm}}" {%if tagfilter %} filtered by tag "{{tagfilter}}" {%endif%}{%if tagfilter2 %} and filtered by user tag "<span class='tag2'>{{tagfilter2}}</span>" {%endif%}{%endif%}
 {% if resultcount == -2 %}<p>Connection error to index (Check Internet connection){%endif%}
 {% if results %} <h3>Results</h3>	
-<h4>{{resultcount}} results for search on "{{searchterm}}" {%if tagfilter %}filtered by tag "{{tagfilter}}"{% endif %}{% if page > 1 %}: Page {{page}}{% endif %}</h4>
+<h4>{{resultcount}} results for search on "{{searchterm}}" {%if tagfilter %}filtered by tag "{{tagfilter}}"{% endif %}{%if tagfilter2 %}and filtered by user tag "<span class='tag2'>{{tagfilter2}}</span>"{%endif%}{% if page > 1 %}: Page {{page}}{% endif %}</h4>
 <!--
 {% if facets %}
 	Tag scores: (click to filter) 
