@@ -22,7 +22,12 @@ Indexed keywords:
    <span class="glyphicon glyphicon-pencil">Save</span>
 </button>
 {% else %}
- User tags:<span class='tag'> {{ initialtags }}</span>
+ User tags:<span class='tag'> 
+ 	{% if initialtags %}
+ 		{% for tag in initialtags %}
+ 			{{ tag }}, 
+ 		{% endfor %}
+ 	{% endif %}</span>
 <button type="submit" name='edit' value='Edit' class="btn btn-default btn-sm">
    <span class="glyphicon glyphicon-pencil">Edit</span>
 </button>

@@ -56,7 +56,10 @@ class SolrCore:
             self.docsizefield=config[core]['docsize']
             self.hashcontentsfield=config[core]['hashcontents']
             self.datefield=config[core]['datefield']
-            self.tags1field=config[core]['tags1field']
+#optional:
+            self.docnamesourcefield=config[core].get('docnamesource','')
+            self.tags1field=config[core].get('tags1field','')
+            self.usertags1field=config[core].get('usertags1field','')
             self.emailmeta=config[core].get('emailmeta','')
             if not fieldexists(self.tags1field,self): #check if the tag field is defined in index
                 self.tags1field=''
@@ -66,7 +69,7 @@ class SolrCore:
     def test(self):
         args=self.hlarguments+'0'
         jres=getJSolrResponse(self.dfltsearchterm,args,core=self)
-        res,numbers,facets=getlist(jres,0,core=self)
+        res,numbers,facets,facets2=getlist(jres,0,core=self)
         return res,jres
     def ping(self):
         try:
@@ -189,6 +192,7 @@ class SolrResult:
     def addfacets(self):
         #check for facets
         self.facets=[]
+        self.facets2=[]
         if self.results:
             try:
                 jres=self.json
@@ -199,7 +203,9 @@ class SolrResult:
                     log.debug('No facets found')
                 if facets:
                     log.debug('facets exist')
+#GET FIRST LIST OF FACETS
                     try:
+                        log.debug('All facets :{}'.format(facets['facet_fields']))
                         taglist=facets['facet_fields'][self.mycore.tags1field]
                         n=0
                         while n<len(taglist):
@@ -212,6 +218,21 @@ class SolrResult:
                         log.debug(self.facets)
                     except Exception as e:
                         log.debug(str(e))
+#GET SECOND LIST OF FACETS
+                    try:
+                        taglist=facets['facet_fields'][self.mycore.usertags1field]
+                        n=0
+                        while n<len(taglist):
+                            tag=taglist[n]
+                            count=taglist[n+1]
+                            assert isinstance(tag,basestring)
+                            assert isinstance(count,int)
+                            n+=2
+                            self.facets2.append((tag,count))
+                        log.debug(self.facets2)
+                    except Exception as e:
+                        log.debug(str(e))
+
             except Exception as e:
                 log.debug('No facets found')
                 log.debug('Exception: '+str(e))
@@ -258,10 +279,13 @@ log = logging.getLogger('ownsearch.solrJson')
 def solrSearch(q,sorttype,startnumber,core,filters={},faceting=False):
     core.ping()
     #create arguments
-    if core.tags1field and faceting:
-        facetargs='&facet.field={}&facet=on&facet.limit=10'.format(core.tags1field)
-    else:
-        facetargs=''
+    facetargs=''
+    if faceting:
+        facetargs='&facet=on&facet.limit=10'
+        if core.tags1field:
+            facetargs+='&facet.field={}'.format(core.tags1field)
+        if core.usertags1field:
+            facetargs+='&facet.field={}'.format(core.usertags1field)
     args='{}{}{}'.format(facetargs,core.hlarguments,startnumber) #+getSortAttrib(sorttype,core)
     if sorttype=='date':
         args+='&sort={} asc'.format(core.datefield)
@@ -280,12 +304,12 @@ def solrSearch(q,sorttype,startnumber,core,filters={},faceting=False):
         jres=getJSolrResponse(q,args,core=core)
         #print(jres)
         #print(soup.prettify())    
-        reslist,numbers,facets=getlist(jres,startnumber,core=core)
+        reslist,numbers,facets,facets2=getlist(jres,startnumber,core=core)
     except requests.exceptions.RequestException as e:
         reslist=[]
         numbers=-2
         log.warning('Connection error to Solr')
-    return reslist,numbers,facets
+    return reslist,numbers,facets,facets2
 
 #JSON 
 def getJSolrResponse(searchterm,arguments,core):
@@ -362,7 +386,7 @@ def gettrimcontents(docid,core,maxlength):
     searchterm=r'id:'+docid
     
     #MAKE ARGUMENTS FOR TRIMMED CONTENTS
-    fieldargs='&fl=id,{},{},{},{},{},{},{},{},{}&start=0'.format(core.docnamefield,core.docsizefield,core.hashcontentsfield,core.docpath,core.tags1field,'preview_html','SBdata_ID',core.datefield,core.emailmeta)
+    fieldargs='&fl=id,{},{},{},{},{},{},{},{},{},{}&start=0'.format(core.docnamefield,core.docsizefield,core.hashcontentsfield,core.docpath,core.tags1field, core.usertags1field,'preview_html','SBdata_ID',core.datefield,core.emailmeta)
 #this exploits a quirk in solr to return length-restricted contents as a "highlight"; it depends on a null return on the nullfield (any field name that does not exist)
     hlargs='&hl=on,hl.fl=nullfield&hl.fragsize=0&hl.alternateField={}&hl.maxAlternateFieldLength={}'.format(core.rawtext,maxlength)    
     args=fieldargs+hlargs
@@ -397,7 +421,7 @@ def getlist(jres,counter,core,linebreaks=False,big=False): #this parses the list
     SR.addstoredmeta()
     SR.addfacets()
     SR.addhighlights(linebreaks=linebreaks,bighighlights=big)
-    return SR.results,SR.numberfound,SR.facets
+    return SR.results,SR.numberfound,SR.facets,SR.facets2
 
 def gethighlights(soup,linebreaks=False):
     highlights_all=soup.response.result.next_sibling
@@ -441,7 +465,7 @@ def getcontents(docid,core):
     args=core.contentarguments
     jres=getJSolrResponse(searchterm,args,core=core)
     #print(args,sp)
-    res,numbers,facets=getlist(jres,0,core=core)
+    res,numbers,facets,facets2=getlist(jres,0,core=core)
     return res
 
 def getmeta(docid,core):
@@ -450,7 +474,7 @@ def getmeta(docid,core):
     args+=","+core.docpath+","+core.datefield+","+core.docsizefield+","+core.datefield+","+core.docnamefield
     jres=getJSolrResponse(searchterm,args,core=core)
     #print(args,sp)
-    res,numbers,facets=getlist(jres,0,core=core)
+    res,numbers,facets,facets2=getlist(jres,0,core=core)
     return res
     
 
@@ -495,7 +519,7 @@ def hashlookup(hex,core):
     args=core.hlarguments+'0'
     #print (args)
     jres=getJSolrResponse(searchterm,args,core=core)
-    res,numbers,facets=getlist(jres,0,core=core)
+    res,numbers,facets,facets2=getlist(jres,0,core=core)
     return res
 
 #make a dictionary of SolrCore objects, so different indexes can be selected from form

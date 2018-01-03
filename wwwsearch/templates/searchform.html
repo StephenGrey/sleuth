@@ -13,6 +13,15 @@ Index:{{form.CoreChoice}}<p>
           			 <li><a class='tag' href="/ownsearch/searchterm={{searchterm_urlsafe}}&nextafterpage=0&sorttype={{sorttype}}&tag1={{tag}}">{{ tag }}</a> ({{score}})</li>
           			 {% endif %}
           		{% endfor %}
+          {% endif %}
+          <br>	          
+	        {% if facets2 %}
+          	User tags: (click to filter) 
+          		{% for tag,score in facets2 %}
+          			 {% if score != 0 %}
+          			 <li><a class='tag' href="/ownsearch/searchterm={{searchterm_urlsafe}}&nextafterpage=0&sorttype={{sorttype}}&tag2={{tag}}">{{ tag }}</a> ({{score}})</li>
+          			 {% endif %}
+          		{% endfor %}
           {% endif %}	          
 	      </ul>
 	{% endblock %}

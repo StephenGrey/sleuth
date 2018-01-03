@@ -120,12 +120,12 @@ def deletejson(solrid):
  "delete": { "id":"ID" },
 """
 
-def post_jsonupdate(data,mycore):
+def post_jsonupdate(data,mycore,timeout=10):
     updateurl=mycore.url+'/update/json?commit=true'
     url=updateurl
     headers={'Content-type': 'application/json'}
     try:
-        res=requests.post(url, data=data, headers=headers)
+        res=requests.post(url, data=data, headers=headers,timeout=timeout)
         jres=res.json()
         status=jres['responseHeader']['status']
         if status==0:
@@ -197,7 +197,7 @@ def metaupdate(collection):
                 print ('[metaupdate]file not found in solr index')
 #            hashcontents=result['hashcontents']
 
-#take a Solr Result object,compare with filedatabae, return change list [(standardisedfield,newvalue),..]
+#take a Solr Result object,compare with file database, return change list [(standardisedfield,newvalue),..]
 def parsechanges(solrresult,file,mycore): 
     #print(solrresult)
     solrdocsize=solrresult.data['solrdocsize']
@@ -391,15 +391,29 @@ def listmeta():
             print file.filename, 'ID:'+file.solrid,'PATHHASH'+file.hash_filename
             print'Solr meta data needs update'
 
-#def test(solrid,mycore=s.getcores()['3']):
-##    cores=s.getcores() #fetch dictionary of installed solr indexes (cores)
-##    mycore=cores['1']
-#    print (mycore.name)
-#    changes=[('solrdocsize',"100100")] #('date', '2017-09-15T18:08:24Z')] #
-#    data=makejson(solrid,changes,mycore)
-#    print(data)
-#    response,updatestatus=post_jsonupdate(data,mycore)
-#    print(response,updatestatus)
-#    checkstatus=checkupdate(solrid,changes,mycore)
-#    return updatestatus,checkstatus
+#HANDLE USER TAGS
+
+def updatetags(solrid,mycore,value=['test','anothertest'],standardfield='usertags1field',newfield=False):
+    #check the parameters
+    field=mycore.__dict__.get(standardfield,standardfield) #decode the standard field, or use the name'as is'.
+    if newfield==False:
+        try:
+            assert s.fieldexists(field,mycore) #check the field exists in the index
+        except AssertionError as e:
+            log.info('Field \"{}\" does not exist in index'.format(field))
+            return False
+    #make the json
+    doc=collections.OrderedDict()  #keeps the JSON file in a nice order
+    doc['id']=solrid
+    doc[field]={"set":value}
+    jsondoc=json.dumps([doc])
+    log.debug('Json to post: {}'.format(jsondoc))
+
+    #post the update
+    result,status=post_jsonupdate(jsondoc,mycore,timeout=10)
+    
+    #check the result
+    log.info('Solr doc update: result: {}, status: {}'.format(result,status))
+    
+    return status
 
