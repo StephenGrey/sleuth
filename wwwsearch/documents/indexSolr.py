@@ -136,7 +136,8 @@ def postSolr(args,path,mycore,timeout=1):
         log.error('Error in posting 404 error - URL not workking: {}'.format(e))
         return False,0
     except s.PostFailure as e:
-        log.error('Fost Failure : {}'.format(e))
+        log.error('Post Failure : {}'.format(e))
+        log.error('Result  {}'.format(res._content))
         return False,0
     log.debug('SOLR STATUS: {}  ELAPSED TIME: {:.2f} secs'.format(solrstatus,solrelapsed))
     if solrstatus==0:

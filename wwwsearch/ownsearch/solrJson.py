@@ -60,6 +60,7 @@ class SolrCore:
             self.docnamesourcefield=config[core].get('docnamesource','')
             self.tags1field=config[core].get('tags1field','')
             self.usertags1field=config[core].get('usertags1field','')
+            self.sourcefield=config[core].get('sourcefield','')
             self.emailmeta=config[core].get('emailmeta','')
             if not fieldexists(self.tags1field,self): #check if the tag field is defined in index
                 self.tags1field=''
@@ -142,13 +143,13 @@ class Solrdoc:
 
 class SolrResult:
     def __init__(self,jres,mycore,startcount=0):
-#        print(soup)
+        print(jres)
         self.json=jres #store unparsed result
         self.mycore=mycore #store the core
         self.results=[] #default no response
         self.counter=startcount
         self.numberfound=0
-        #if True:
+        self.nextcursormark=self.json.get('nextCursorMark','')
         try:
             if 'response' in jres:
                 result=jres['response']
@@ -205,7 +206,7 @@ class SolrResult:
                     log.debug('facets exist')
 #GET FIRST LIST OF FACETS
                     try:
-                        log.debug('All facets :{}'.format(facets['facet_fields']))
+#                        log.debug('All facets :{}'.format(facets['facet_fields']))
                         taglist=facets['facet_fields'][self.mycore.tags1field]
                         n=0
                         while n<len(taglist):
@@ -215,7 +216,7 @@ class SolrResult:
                             assert isinstance(count,int)
                             n+=2
                             self.facets.append((tag,count))
-                        log.debug(self.facets)
+#                        log.debug(self.facets)
                     except Exception as e:
                         log.debug(str(e))
 #GET SECOND LIST OF FACETS
@@ -295,10 +296,18 @@ def solrSearch(q,sorttype,startnumber,core,filters={},faceting=False):
         args+='&sort={} asc'.format(core.docnamefield)
     elif sorttype=='docnameR':
         args+='&sort={} desc'.format(core.docnamefield)
+    log.debug('Filter dict: {}'.format(filters))
     for filtertag in filters:
-        args=args+'&fq={}:"{}"'.format(filtertag,filters[filtertag])
-    #print('args',args)
-
+        filtertext=filters[filtertag]
+        if filtertag=='tag1':
+            filterfield=core.tags1field
+        elif filtertag=='tag2':
+            filterfield=core.usertags1field
+        else:
+            continue
+        args=args+'&fq={}:"{}"'.format(filterfield,filtertext)
+    print('args',args)
+    
 # get the response
     try:
         jres=getJSolrResponse(q,args,core=core)
@@ -315,7 +324,7 @@ def solrSearch(q,sorttype,startnumber,core,filters={},faceting=False):
 def getJSolrResponse(searchterm,arguments,core):
 #    print(searchterm,arguments,core)
     searchurl='{}/select?&q={}{}'.format(core.url,searchterm,arguments)
-    log.debug('GET URL '+searchurl)
+#    log.debug('GET URL '+searchurl)
     content=resGet(searchurl)
     jres=json.loads(content)
     return jres

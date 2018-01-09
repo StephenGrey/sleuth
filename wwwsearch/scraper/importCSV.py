@@ -6,6 +6,7 @@ from ownsearch import solrJson as s
 from ownsearch.hashScan import hash256
 import json, collections
 from documents import updateSolr as u
+from documents.models import Source as Source
 
 def impCSV(path):
     with open(path) as f:
@@ -253,6 +254,39 @@ def fixfilename(mycore):
             print('no solr doc found for post ',post.id,post.name)        
     return
     
-    
+def addsource(mycore):
+    maxcount=30000
+    counter=0
+    for post in BlogPost.objects.all():
+        counter+=1
+        if counter>maxcount:
+            break
+#        print(post.__dict__)
+        if post.source:
+#            print(post.source.sourceDisplayName)
+#        print(post.id,post.name,post.pubdate)
+            solrID=getsolrID(post.originalID)
+            try:
+                print(post.name,solrID)
+                result=u.updatetags(solrID,mycore,value=post.source.sourceDisplayName,standardfield='sourcefield',newfield=False)
+                if result == False:
+                    print('Update failed for post name: {} and ID: {}'.format(post.name,solrID))
+            except Exception as e:
+                print(e)                	
+            except Exception as e:
+                print(e)
+                print('no solr doc found for post ',post.id,post.name)        
+    return
 #    doc[mycore.docnamesourcefield]={"set":post.name} #NEED TO STORE DATA IN COPY FROM FIELD
 
+def addblogsource(source):
+    assert isinstance(source,Source)
+    for post in BlogPost.objects.all():
+        try:
+            post.source=source
+            post.save()
+        except:
+            print ('Errror with post: {}'.format(post))
+    return
+    
+    

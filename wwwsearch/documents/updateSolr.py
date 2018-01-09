@@ -3,6 +3,7 @@ from __future__ import unicode_literals
 import requests, os, logging
 import json, collections
 import ownsearch.solrJson as s
+import documents.solrcursor as sc
 from datetime import datetime, date, time
 from models import File,Collection
 from ownsearch.hashScan import HexFolderTable as hex
@@ -416,4 +417,33 @@ def updatetags(solrid,mycore,value=['test','anothertest'],standardfield='usertag
     log.info('Solr doc update: result: {}, status: {}'.format(result,status))
     
     return status
+
+#ADD A SOURCE RETROSPECTIVELY
+def updatefield(mycore,solrfield):
+
+    cursormark='*' #start a cursor scan with * and next cursor to begin with is returned
+    nextcursor=''
+    counted=0
+    while True:
+        try:
+            resultlist,counter,resultsnumber,nextcursor=sc.cursorResult(mycore,cursormark,searchterm='*')
+            counted+=counter
+            for document in blocklist:
+                solrid=document.id
+                print(solrid)
+        except Exception as e:
+            log.error('Solr Cursor exception: {}'.format(e))
+            break
+        
+        #ESCAPE ROUTE ; only in event of errors from solr server
+        #print (counted,resultsnumber)
+        if counted>resultsnumber: #added escape to prevent endless loop
+            log.error('Breaking on long list')
+            break
+        #BREAK WHEN NEXT CURSOR IS SAME AS PREVIOUS NEXT CURSOR, which signals end of results 
+        if cursormark==nextcursor:
+            break
+        else:
+            cursormark=nextcursor
+
 

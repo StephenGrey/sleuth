@@ -19,10 +19,19 @@ docbasepath=config['Models']['collectionbasepath']
 
 
 @login_required
-def do_search(request,page=0,searchterm='',direction='',pagemax=0,sorttype='',tag1='',tag2=''):
+def do_search(request,page=0,searchterm='',direction='',pagemax=0,sorttype='',tag1field='',tag1='',tag2field='',tag2='',tag3field='',tag3=''):
 #    log.debug('SESSION CACHE: '+str(vars(request.session)))
+
+    #GET PARAMETERS
     searchterm=urllib.unquote_plus(searchterm)
-    log.debug('TAG1: '+tag1)
+    filters={tag1field:tag1,tag2field:tag2,tag3field:tag3}
+    filters.pop('','') #remove blank filters
+    print(filters)
+    if tag1 or tag2 or tag3:
+        tagfilters=True
+    else:
+        tagfilters=False
+    log.debug('Filters: {}'.format(filters))
     try:
 
     #GET AUTHORISED CORES AND DEFAULT
@@ -52,33 +61,41 @@ def do_search(request,page=0,searchterm='',direction='',pagemax=0,sorttype='',ta
     
     #SET THE RESULT PAGE    
         page=int(page) #urls always returns strings only
-        #print('page',page,'searchterm',searchterm,'direction',direction)
-        if direction == 'next':
-            page=page+1
-        if direction == 'back':
-            page=page-1
-        print('page',page)
+#        #print('page',page,'searchterm',searchterm,'direction',direction)
+#        if direction == 'next':
+#            page=page+1
+#        if direction == 'back':
+#            page=page-1
+        log.info('Page: {}'.format(page))
     
     #DO SEARCH IF PAGE ESTABLISHED 
         
         if page > 0: #if page value not default (0) then proceed directly with search
             resultlist=[]
             form = SearchForm(choice_list,str(coreID),sorttype,searchterm)
-            log.info('User {} searching with searchterm: {} and tag \"{}\" and tag2 \"{}\" on page '.format(request.user.username,searchterm,tag1,tag2,page))
+            log.info('User {} searching with searchterm: {} and tag \"{}\" and tag2 \"{}\" on page {}'.format(request.user.username,searchterm,tag1,tag2,page))
             try:
                 startnumber=(page-1)*10
 #                if sorttype=='relevance':
                 if True:
-                    if tag1:
-                        filters={mycore.tags1field:tag1}
-                    elif tag2:
-                        filters={mycore.usertags1field:tag2}
-                    else:
-                        filters={}
+#                    if tag1:
+#                        filters={mycore.tags1field:tag1}
+#                    elif tag2:
+#                        filters={mycore.usertags1field:tag2}
+#                    else:
+#                        filters={}
                     resultlist,resultcount,facets,facets2=solrJson.solrSearch(searchterm,sorttype,startnumber,core=mycore, filters=filters, faceting=True)
                     pagemax=int(resultcount/10)+1
                     #tagcheck=[result.data for result in resultlist]
                     #log.debug(str(tagcheck))
+                    if page>1:
+                        backpage=page-1
+                    else:
+                        backpage=''
+                    if page<pagemax:
+                        nextpage=page+1
+                    else:
+                        nextpage=''
 
             except Exception as e:
 #                print(e)
@@ -90,6 +107,7 @@ def do_search(request,page=0,searchterm='',direction='',pagemax=0,sorttype='',ta
                 facets2=[]
                 resultcount=0
                 pagemax=0
+                backpage,nextpage='',''
 
     #PROCESS FORM DATA - INDEX AND SEARCHTERM CHOICES AND THEN REDIDRECT WITH A GET TO DO FIRST SEARCH
         # if this is a POST request we need to process the form data
@@ -113,7 +131,7 @@ def do_search(request,page=0,searchterm='',direction='',pagemax=0,sorttype='',ta
 #                request.session['results']='' #clear results from any previous searches
                 
                 searchterm_urlsafe=urllib.quote_plus(searchterm)
-                searchurl="/ownsearch/searchterm={}&nextafterpage=0&sorttype={}".format(searchterm_urlsafe,sorttype)
+                searchurl="/ownsearch/searchterm={}&page=1&sorttype={}".format(searchterm_urlsafe,sorttype)
                 request.session['lastsearch']=searchurl
                 return HttpResponseRedirect(searchurl)
                 
@@ -127,9 +145,12 @@ def do_search(request,page=0,searchterm='',direction='',pagemax=0,sorttype='',ta
             facets2=[]
             tag1=''
             request.session['lastsearch']=''
+            backpage,nextpage='',''
         #print(resultlist)
         searchterm_urlsafe=urllib.quote_plus(searchterm)
-        return render(request, 'searchform.html', {'form': form, 'tagfilter':tag1, 'tagfilter2':tag2,'facets':facets, 'facets2':facets2,'pagemax': pagemax, 'results': resultlist, 'searchterm': searchterm, 'searchterm_urlsafe': searchterm_urlsafe, 'resultcount': resultcount, 'page':page, 'sorttype': sorttype})
+        filterlist=[(tag,filters[tag]) for tag in filters]
+        log.debug('Filter list : {}'.format(filterlist))
+        return render(request, 'searchform.html', {'form': form,'filters':filterlist, 'filtering':tagfilters,'facets':facets, 'facets2':facets2,'pagemax': pagemax, 'results': resultlist, 'searchterm': searchterm, 'searchterm_urlsafe': searchterm_urlsafe, 'resultcount': resultcount, 'page':page, 'sorttype': sorttype,'backpage':backpage,'nextpage':nextpage})
 
     except solrJson.SolrCoreNotFound as e:
         log.error('Index not found on solr server')

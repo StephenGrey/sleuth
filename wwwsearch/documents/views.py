@@ -2,6 +2,7 @@
 #PROCESS SOLR INDEX: EXTRACT FILES TO INDEX AND UPDATE INDEX
 from __future__ import unicode_literals, print_function
 from django.http import HttpResponse
+from django.core.urlresolvers import reverse
 from .forms import IndexForm
 from django.shortcuts import render, redirect
 from django.utils import timezone
@@ -117,6 +118,8 @@ def listfiles(request):
             #print (thiscollection,mycore)
                 dupcount,deletecount=solrDeDup.filepathdups(mycore,delete=True) #GO REMOVE DUPLICATES
                 return HttpResponse ("Checking solr index for duplicate paths/filenames in solr index \""+str(mycore)+"\"<p>duplicates found: "+str(dupcount)+"<p>files removed: "+str(deletecount))
+
+
         else:
             return redirect('index')
     except solr.SolrConnectionError:
@@ -257,7 +260,7 @@ def indexdocs(collection,mycore,forceretry=False,useICIJ=False): #index into Sol
                         file.solrid=file.hash_filename  #extract uses hashfilename for an id , so add it
                     else:
                         try:
-                            new_id=solr.hashlookup(file.hash_contents,mycore)[0].id
+                            new_id=solr.hashlookup(file.hash_contents,mycore)[0].id #id of the first result returned
                             file.solrid=new_id
                             log.info('New solr ID: '+new_id)
                         except:
@@ -297,3 +300,12 @@ def getindexes():
             log.warning('No indexes defined in database')
             defaultcoreID='' #if no indexes, no valid default
     return cores,defaultcoreID
+
+@staff_member_required()    
+def testlist(request,testid):
+    print (testid)
+    if testid=='switch':
+        return redirect(reverse('index'))
+    return HttpResponse('Test'+str(testid))
+    
+    
