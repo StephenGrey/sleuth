@@ -121,7 +121,6 @@ def childprocess(hashcontents,sourcetext,core):
         try:
             result=u.updatetags(solrdoc.id,core,value=sourcetext,standardfield='sourcefield',newfield=False)
             if result==True:
-                print('True')
                 log.info('Added source \"{}\" to child-document \"{}\", id {}'.format(sourcetext,solrdoc.docname,solrdoc.id))
             else:
                 log.error('Failed to add source to child document id: {}'.format(solrdoc.id))

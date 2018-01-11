@@ -383,6 +383,7 @@ def resPostfile(url,path,timeout=1):
             elif resstatus==200:
                 return res       
             else:
+                log.debug('Post result {}'.format(res.content))
                 raise PostFailure(resstatus)
     except requests.exceptions.ConnectTimeout as e:
         raise SolrTimeOut
