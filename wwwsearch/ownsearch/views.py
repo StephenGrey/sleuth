@@ -84,7 +84,7 @@ def do_search(request,page=0,searchterm='',direction='',pagemax=0,sorttype='',ta
 #                        filters={mycore.usertags1field:tag2}
 #                    else:
 #                        filters={}
-                    resultlist,resultcount,facets,facets2=solrJson.solrSearch(searchterm,sorttype,startnumber,core=mycore, filters=filters, faceting=True)
+                    resultlist,resultcount,facets,facets2,facets3=solrJson.solrSearch(searchterm,sorttype,startnumber,core=mycore, filters=filters, faceting=True)
                     pagemax=int(resultcount/10)+1
                     #tagcheck=[result.data for result in resultlist]
                     #log.debug(str(tagcheck))
@@ -105,6 +105,7 @@ def do_search(request,page=0,searchterm='',direction='',pagemax=0,sorttype='',ta
                 resultlist=[]
                 facets=[]
                 facets2=[]
+                facets3=[]
                 resultcount=0
                 pagemax=0
                 backpage,nextpage='',''
@@ -143,6 +144,7 @@ def do_search(request,page=0,searchterm='',direction='',pagemax=0,sorttype='',ta
             resultcount=-1
             facets=[]
             facets2=[]
+            facets3=[]
             tag1=''
             request.session['lastsearch']=''
             backpage,nextpage='',''
@@ -150,7 +152,7 @@ def do_search(request,page=0,searchterm='',direction='',pagemax=0,sorttype='',ta
         searchterm_urlsafe=urllib.quote_plus(searchterm)
         filterlist=[(tag,filters[tag]) for tag in filters]
         log.debug('Filter list : {}'.format(filterlist))
-        return render(request, 'searchform.html', {'form': form,'filters':filterlist, 'filtering':tagfilters,'facets':facets, 'facets2':facets2,'pagemax': pagemax, 'results': resultlist, 'searchterm': searchterm, 'searchterm_urlsafe': searchterm_urlsafe, 'resultcount': resultcount, 'page':page, 'sorttype': sorttype,'backpage':backpage,'nextpage':nextpage})
+        return render(request, 'searchform.html', {'form': form,'filters':filterlist, 'filtering':tagfilters,'facets':facets, 'facets2':facets2, 'facets3':facets3,'pagemax': pagemax, 'results': resultlist, 'searchterm': searchterm, 'searchterm_urlsafe': searchterm_urlsafe, 'resultcount': resultcount, 'page':page, 'sorttype': sorttype,'backpage':backpage,'nextpage':nextpage})
 
     except solrJson.SolrCoreNotFound as e:
         log.error('Index not found on solr server')

@@ -30,6 +30,20 @@ Index:{{form.CoreChoice}}<p>
           			 {% endif %}
           		{% endfor %}
           {% endif %}	          
+          <br>	          
+	        {% if facets3 %}
+          	Sources: (click to filter) 
+          		{% for tag,score in facets3 %}
+          			 {% if score != 0 %}
+          			 <li>
+          			 	<a class='tag2' 
+          			 	<a href="{% url 'searchpagefilters' searchterm=searchterm_urlsafe page=1 sorttype=sorttype tag1field='tag3' tag1=tag tag2field=filters.0.0 tag2=filters.0.1 tag3field=filters.1.0 tag3=filters.1.1  %}">{{ tag }}</a>
+          			 	
+          			 	 ({{score}})</li>
+          			 {% endif %}
+          		{% endfor %}
+          {% endif %}	          
+
 	      </ul>
 	{% endblock %}
 

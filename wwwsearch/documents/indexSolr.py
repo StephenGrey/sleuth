@@ -2,7 +2,7 @@
 from __future__ import unicode_literals
 #from bs4 import BeautifulSoup as BS
 from django.conf import settings
-import requests, os, logging, json
+import requests, os, logging, json, urllib
 import ownsearch.hashScan as dup
 import hashlib  #routines for calculating hash
 #from documents.models import Collection,File
@@ -73,7 +73,7 @@ def extract_test(test=True,timeout=''):
     return result
 
 #extract a path to solr index (mycore), storing hash of contents (avoiding timewasting recompute, optional testrun, timeout); throws exception if no connection to solr index, otherwise failures return False
-def extract(path,contentsHash,mycore,test=False,timeout=''):
+def extract(path,contentsHash,mycore,test=False,timeout='',sourcetext=''):
     try:
         assert isinstance(mycore,s.SolrCore)
         assert os.path.exists(path) #check file exists
@@ -91,9 +91,10 @@ def extract(path,contentsHash,mycore,test=False,timeout=''):
         log.error ('Missing data in solr config')
         return False
     try:
-        filenamefield=mycore.docnamefield
+        docnamesourcefield=mycore.docnamesourcefield
         hashcontentsfield=mycore.hashcontentsfield
         filepathfield=mycore.docpath
+        sourcefield=mycore.sourcefield
     except AttributeError as e:
         log.error('Exception: {}'.format(e))
         log.error('Solr index is missing default fields')
@@ -107,8 +108,13 @@ def extract(path,contentsHash,mycore,test=False,timeout=''):
         #>>>>go index, use MD5 of path as unique ID
         #and calculate filename to put in index
         relpath=os.path.relpath(path,start=docstore) #extract a relative path from the docstore root
-        args=extractargs+'&literal.id='+pathHash(path)+'&literal.'+filenamefield+'='+os.path.basename(path)
-        args+='&literal.'+filepathfield+'='+relpath+'&literal.'+hashcontentsfield+'='+contentsHash
+        args='{}&literal.id={}&literal.{}={}'.format(extractargs,pathHash(path),docnamesourcefield,os.path.basename(path))
+        args+='&literal.{}={}&literal.{}={}'.format(filepathfield,relpath,hashcontentsfield,contentsHash)
+        #if sourcefield is define and sourcetext is not empty string, add that to the arguments
+        #make the sourcetext args safe, for example inserting %20 for spaces 
+        if sourcefield and sourcetext:
+            args+='&literal.{}={}'.format(sourcefield,urllib.quote(sourcetext))
+        
         log.debug('extract args: {}, path: {}, solr core: {}'.format(args,path,mycore))
     result,elapsed=postSolr(args,path,mycore,timeout=timeout) #POST TO THE INDEX (returns True on success)
     if result:
@@ -137,7 +143,6 @@ def postSolr(args,path,mycore,timeout=1):
         return False,0
     except s.PostFailure as e:
         log.error('Post Failure : {}'.format(e))
-        log.error('Result  {}'.format(res._content))
         return False,0
     log.debug('SOLR STATUS: {}  ELAPSED TIME: {:.2f} secs'.format(solrstatus,solrelapsed))
     if solrstatus==0:

@@ -52,6 +52,7 @@ class File(models.Model):
     filesize = models.IntegerField('Filesize',default=0)
     last_modified=models.DateTimeField('date modified',blank=True)
     solrid=models.CharField('Solr ID',max_length=100,default='',blank=True)
+    child=models.BooleanField('Child document',default=False) #if an extracted child doc (e.g. attachment or embedded image)
 
     def __str__(self):
         return self.filepath

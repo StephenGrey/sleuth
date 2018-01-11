@@ -166,7 +166,7 @@ def indexcheck(collection,thiscore):
                 solrdata=indexpaths[relpath][0] #take the first of list of docs with this path
                 #print ('PATH :'+file.filepath+' found in Solr index', 'Solr \'id\': '+solrdata['id'])
                 file.indexedSuccess=True
-                file.solrid=solrdata['id']
+                file.solrid=solrdata.id
                 file.save()
                 counter+=1
         #INDEX CHECK: METHOD TWO: CHECK IF FILE STORED IN SOLR INDEX UNDER CONTENTS HASH                
@@ -179,7 +179,7 @@ def indexcheck(collection,thiscore):
                     file.save()
                 #now lookup hash in solr index
                 log.debug('looking up hash : '+hash)
-                solrresult=solr.hashlookup(hash,thiscore)
+                solrresult=solr.hashlookup(hash,thiscore).results
                 log.debug(solrresult)
                 if len(solrresult)>0:
                     #if some files, take the first one
@@ -234,6 +234,12 @@ def indexdocs(collection,mycore,forceretry=False,useICIJ=False): #index into Sol
                 #print('trying ...',file.filepath)
                 #if was previously indexed, store old solr ID and then delete if new index successful
                 oldsolrid=file.solrid
+                #get source
+                try:
+                    sourcetext=file.collection.source.sourceDisplayName
+                except:
+                    sourcetext=''
+                    log.debug('No source defined for file: {}'.format(file.filename))
                 #getfile hash if not already done
                 if not file.hash_contents:
                     file.hash_contents=hexfile(file.filepath)
@@ -242,10 +248,30 @@ def indexdocs(collection,mycore,forceretry=False,useICIJ=False): #index into Sol
                 if useICIJ:
                     log.info('using ICIJ extract method..')
                     result = solrICIJ.ICIJextract(file.filepath,mycore)
-
+                    if result is True:
+                        try:
+                            new_id=solr.hashlookup(file.hash_contents,mycore).results[0].id #id of the first result returned
+                            file.solrid=new_id
+                            log.info('(ICIJ extract) New solr ID: '+new_id)
+                        except:
+                            log.warning('Extracted doc not found in index')
+                            result=False
+                    if result is True:
+                    #post extract process -- add meta data field to solr doc, e.g. source field
+                        try:
+                            sourcetext=file.collection.source.sourceDisplayName
+                        except:
+                            sourcetext=''
+                        if sourcetext:
+                            try:
+                                result=solrICIJ.postprocess(new_id,sourcetext,file.hash_contents,mycore)
+                                if result==True:
+                                    log.debug('Added source: \"{}\" to docid: {}'.format(sourcetext,new_id))
+                            except Exception as e:
+                                log.error('Cannot add meta data to solrdoc: {}, error: {}'.format(new_id,e))
                 else:
                     try:
-                        result=indexSolr.extract(file.filepath,file.hash_contents,mycore)
+                        result=indexSolr.extract(file.filepath,file.hash_contents,mycore,sourcetext=sourcetext)
                     except solr.SolrCoreNotFound as e:
                         raise indexSolr.ExtractInterruption('Indexing interrupted after '+str(counter)+' files extracted, '+str(skipped)+' files skipped and '+str(failed)+' files failed.')
                     except solr.SolrConnectionError as e:
@@ -258,13 +284,7 @@ def indexdocs(collection,mycore,forceretry=False,useICIJ=False): #index into Sol
                     #print ('PATH :'+file.filepath+' indexed successfully')
                     if not useICIJ:
                         file.solrid=file.hash_filename  #extract uses hashfilename for an id , so add it
-                    else:
-                        try:
-                            new_id=solr.hashlookup(file.hash_contents,mycore)[0].id #id of the first result returned
-                            file.solrid=new_id
-                            log.info('New solr ID: '+new_id)
-                        except:
-                            log.warning('Extracted doc not found in index')
+
                     file.indexedSuccess=True
                     #now delete previous solr doc (if any): THIS IS ONLY NECESSARY IF ID CHANGES  
                     log.info('Old ID: '+oldsolrid+' New ID: '+file.solrid)
@@ -279,6 +299,7 @@ def indexdocs(collection,mycore,forceretry=False,useICIJ=False): #index into Sol
                     log.info('PATH : '+file.filepath+' indexing failed')
                     failed+=1
                     file.indexedTry=True  #set flag to say we've tried
+                    log.debug('Saving updated file info in database')
                     file.save()
                     failedlist.append(file.filepath)
         return counter,skipped,failed,skippedlist,failedlist

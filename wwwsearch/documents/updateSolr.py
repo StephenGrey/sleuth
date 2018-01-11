@@ -392,8 +392,10 @@ def listmeta():
             print file.filename, 'ID:'+file.solrid,'PATHHASH'+file.hash_filename
             print'Solr meta data needs update'
 
-#HANDLE USER TAGS
+#POST EXTRACTION PROCESSING
 
+#ADD ADDITIONAL METADATA TO SOLR RECORDS 
+#NB the following is imported elsewhere
 def updatetags(solrid,mycore,value=['test','anothertest'],standardfield='usertags1field',newfield=False):
     #check the parameters
     field=mycore.__dict__.get(standardfield,standardfield) #decode the standard field, or use the name'as is'.
@@ -419,31 +421,50 @@ def updatetags(solrid,mycore,value=['test','anothertest'],standardfield='usertag
     return status
 
 #ADD A SOURCE RETROSPECTIVELY
-def updatefield(mycore,solrfield):
-
-    cursormark='*' #start a cursor scan with * and next cursor to begin with is returned
-    nextcursor=''
-    counted=0
+def updatefield(mycore,newvalue):
+    counter=0
+    maxcount=30000
+    res=False
+    args='&fl=id,database_originalID, sb_filename'
     while True:
-        try:
-            resultlist,counter,resultsnumber,nextcursor=sc.cursorResult(mycore,cursormark,searchterm='*')
-            counted+=counter
-            for document in blocklist:
-                solrid=document.id
-                print(solrid)
-        except Exception as e:
-            log.error('Solr Cursor exception: {}'.format(e))
+        res = sc.cursornext(mycore,searchterm='*',highlights=False,lastresult=res)
+        if res == False:
             break
-        
-        #ESCAPE ROUTE ; only in event of errors from solr server
-        #print (counted,resultsnumber)
-        if counted>resultsnumber: #added escape to prevent endless loop
-            log.error('Breaking on long list')
+        #ESCAPE ROUTES ;
+        if not res.results:
             break
-        #BREAK WHEN NEXT CURSOR IS SAME AS PREVIOUS NEXT CURSOR, which signals end of results 
-        if cursormark==nextcursor:
+        counter+=1
+        if counter>maxcount:
             break
-        else:
-            cursormark=nextcursor
+#        print(res.results)
+
+        for doc in res.results:
+            solrid=doc.id
+#            print(solrid)
+            #EXAMPLE FILTER = TEST IF ANY DATA IN FIELD - DATABASE_ORIGINALID _ AND UPDATE OTHERS
+            searchterm=r'id:"'+solrid+r'"'
+            jres=s.getJSolrResponse(searchterm,args,core=mycore)
+            results=s.SolrResult(jres,mycore).results[0]
+            data_id=results.data.get('database_originalID','NONE')
+            
+            if data_id=='NONE':
+#            	data_id=='' or data_id=='NONE':
+                try: 
+                    #print(solrid)
+                    #print (results.__dict__)
+                    deleteres=delete(solrid,mycore)
+                    if deleteres:
+                        print('deleted {}'.format(solrid))
+#                    result=updatetags(solrid,mycore,value=newvalue,standardfield='sourcefield',newfield=False)
+#                    if result == False:
+#                        print('Update failed for solrID: {}'.format(solrid))
+                except Exception as e:
+                    print(e)                	
+                except Exception as e:
+                    print(e)
+                    print('no solr doc found for post ',post.id,post.name)        
+            else:
+                #print('skipped solrid: {} dataID: {}'.format(solrid,data_id))
+                pass
 
 
