@@ -95,6 +95,8 @@ def extract(path,contentsHash,mycore,test=False,timeout='',sourcetext=''):
         hashcontentsfield=mycore.hashcontentsfield
         filepathfield=mycore.docpath
         sourcefield=mycore.sourcefield
+        id_field=mycore.unique_id
+        pathhashfield=mycore.pathhashfield
     except AttributeError as e:
         log.error('Exception: {}'.format(e))
         log.error('Solr index is missing default fields')
@@ -108,8 +110,8 @@ def extract(path,contentsHash,mycore,test=False,timeout='',sourcetext=''):
         #>>>>go index, use MD5 of path as unique ID
         #and calculate filename to put in index
         relpath=os.path.relpath(path,start=docstore) #extract a relative path from the docstore root
-        args='{}&literal.id={}&literal.{}={}'.format(extractargs,pathHash(path),docnamesourcefield,os.path.basename(path))
-        args+='&literal.{}={}&literal.{}={}'.format(filepathfield,relpath,hashcontentsfield,contentsHash)
+        args='{}&literal.{}={}&literal.{}={}'.format(extractargs,id_field,contentsHash,docnamesourcefield,os.path.basename(path))
+        args+='&literal.{}={}&literal.{}={}'.format(filepathfield,relpath,pathhashfield,pathHash(path))
         #if sourcefield is define and sourcetext is not empty string, add that to the arguments
         #make the sourcetext args safe, for example inserting %20 for spaces 
         if sourcefield and sourcetext:

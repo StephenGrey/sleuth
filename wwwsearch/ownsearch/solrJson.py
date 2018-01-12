@@ -44,6 +44,8 @@ class SolrCore:
             self.name=mycore
                         
             #variables that can take the defautls
+            
+            self.unique_id=config[core]['unique_id']
             self.hlarguments=config[core]['highlightingargs']
             self.dfltsearchterm='animal' #any old search term
             self.docpath=config[core]['docpath']
@@ -55,6 +57,7 @@ class SolrCore:
             self.cursorargs=config[core]['cursorargs']
             self.docsizefield=config[core]['docsize']
             self.hashcontentsfield=config[core]['hashcontents']
+            self.pathhashfield=config[core]['hashpath']
             self.datefield=config[core]['datefield']
             self.docnamesourcefield=config[core]['docnamesource']
             #optional:
@@ -117,7 +120,7 @@ class Solrdoc:
                         print(e)
             #give the KEY ATTRIBS standard names
             self.docname=self.data.pop(core.docnamefield,'')
-            self.id=self.data.pop('id','')
+            self.id=self.data.pop(core.unique_id,'')
             self.date=self.data.pop(core.datefield,'')
             if isinstance(self.date,list):
                 self.date=self.date[0]
@@ -414,10 +417,10 @@ def fieldexists(field,core):
  
 #GET CONTENTS OF A DOCUMENT UP TO A MAX SIZE
 def gettrimcontents(docid,core,maxlength):
-    searchterm=r'id:'+docid
+    searchterm=r'extract_id:'+docid
     
     #MAKE ARGUMENTS FOR TRIMMED CONTENTS
-    fieldargs='&fl=id,{},{},{},{},{},{},{},{},{},{},{}&start=0'.format(core.docnamefield,core.docsizefield,core.hashcontentsfield,core.docpath,core.tags1field, core.usertags1field,core.sourcefield,'preview_html','SBdata_ID',core.datefield,core.emailmeta)
+    fieldargs='&fl={},{},{},{},{},{},{},{},{},{},{},{}&start=0'.format(core.unique_id,core.docnamefield,core.docsizefield,core.hashcontentsfield,core.docpath,core.tags1field, core.usertags1field,core.sourcefield,'preview_html','SBdata_ID',core.datefield,core.emailmeta)
 #this exploits a quirk in solr to return length-restricted contents as a "highlight"; it depends on a null return on the nullfield (any field name that does not exist)
     hlargs='&hl=on,hl.fl=nullfield&hl.fragsize=0&hl.alternateField={}&hl.maxAlternateFieldLength={}'.format(core.rawtext,maxlength)    
     args=fieldargs+hlargs
@@ -434,7 +437,7 @@ def gettrimcontents(docid,core,maxlength):
 #GET CONTENTS OF LARGE DOCUMENT
 def bighighlights(docid,core,q,contentsmax):
     #contents max = max length of snippet to avoid loading up huge file
-    searchterm=r'id:'+docid
+    searchterm=r'{}:{}'.format(core.unique_id,docid)
     #make snippets of max length 5000 with searchterm highlighted; if searchterm not found, return maxlength sample
     maxanalyse=1000000 #number of characters checked for the highlight phrase
     args=core.hlarguments+'0&hl.fragsize=5000&hl.snippets=50&hl.q={}&hl.alternateField={}&hl.maxAlternateFieldLength={}&hl.maxAnalyzedChars={}'.format(q,core.rawtext,contentsmax,maxanalyse)
@@ -490,7 +493,7 @@ def parsehighlights(highlights_all,linebreaks):
 
 
 def getcontents(docid,core):
-    searchterm=r'id:"'+docid+r'"'
+    searchterm=r'extract_id:"'+docid+r'"'
     #print (searchterm,contentarguments)
     args=core.contentarguments
     jres=getJSolrResponse(searchterm,args,core=core)
@@ -499,8 +502,8 @@ def getcontents(docid,core):
     return res
 
 def getmeta(docid,core):
-    searchterm=r'id:"'+docid+r'"'
-    args='&fl=id'
+    searchterm=r'extract_id:"'+docid+r'"'
+    args='&fl=extract_id'
     args+=","+core.docpath+","+core.datefield+","+core.docsizefield+","+core.datefield+","+core.docnamefield
     jres=getJSolrResponse(searchterm,args,core=core)
     #print(args,sp)
