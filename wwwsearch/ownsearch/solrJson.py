@@ -19,11 +19,16 @@ class MissingConfigData(Exception):
 class SolrConnectionError(Exception):
     pass
 
+class SolrTimeOut(Exception):
+    pass
+    
 class SolrCoreNotFound(Exception):
     pass
 class Solr404(Exception):
     pass
-
+class PostFailure(Exception):
+    pass
+    
 class SolrCore:
     def __init__(self,mycore):
         try:
@@ -51,7 +56,11 @@ class SolrCore:
             self.docsizefield=config[core]['docsize']
             self.hashcontentsfield=config[core]['hashcontents']
             self.datefield=config[core]['datefield']
-            self.tags1field=config[core]['tags1field']
+            self.docnamesourcefield=config[core]['docnamesource']
+            #optional:
+            self.tags1field=config[core].get('tags1field','')
+            self.usertags1field=config[core].get('usertags1field','')
+            self.sourcefield=config[core].get('sourcefield','')
             self.emailmeta=config[core].get('emailmeta','')
             if not fieldexists(self.tags1field,self): #check if the tag field is defined in index
                 self.tags1field=''
@@ -61,7 +70,7 @@ class SolrCore:
     def test(self):
         args=self.hlarguments+'0'
         jres=getJSolrResponse(self.dfltsearchterm,args,core=self)
-        res,numbers,facets=getlist(jres,0,core=self)
+        res,numbers,facets,facets2,facets3=getlist(jres,0,core=self)
         return res,jres
     def ping(self):
         try:
@@ -134,13 +143,12 @@ class Solrdoc:
 
 class SolrResult:
     def __init__(self,jres,mycore,startcount=0):
-#        print(soup)
         self.json=jres #store unparsed result
         self.mycore=mycore #store the core
         self.results=[] #default no response
         self.counter=startcount
         self.numberfound=0
-        #if True:
+        self.nextcursormark=self.json.get('nextCursorMark','')
         try:
             if 'response' in jres:
                 result=jres['response']
@@ -166,10 +174,13 @@ class SolrResult:
             log.error(str(e))
             print(e)
             
-    def addstoredmeta(self):
+    def addstoredmeta(self,collection=False):
         if True:
             for i, document in enumerate(self.results):
-                filelist=File.objects.filter(hash_contents=document.data['hashcontents'])
+                if collection:
+                    filelist=File.objects.filter(hash_contents=document.data['hashcontents'],collection=collection)
+                else:
+                    filelist=File.objects.filter(hash_contents=document.data['hashcontents'])
                     #print('FILE',filelist)
                 if len(filelist)>0:
                     f=filelist[0]
@@ -184,6 +195,8 @@ class SolrResult:
     def addfacets(self):
         #check for facets
         self.facets=[]
+        self.facets2=[]
+        self.facets3=[]
         if self.results:
             try:
                 jres=self.json
@@ -194,7 +207,9 @@ class SolrResult:
                     log.debug('No facets found')
                 if facets:
                     log.debug('facets exist')
+#GET FIRST LIST OF FACETS
                     try:
+#                        log.debug('All facets :{}'.format(facets['facet_fields']))
                         taglist=facets['facet_fields'][self.mycore.tags1field]
                         n=0
                         while n<len(taglist):
@@ -204,9 +219,38 @@ class SolrResult:
                             assert isinstance(count,int)
                             n+=2
                             self.facets.append((tag,count))
-                        log.debug(self.facets)
+#                        log.debug(self.facets)
                     except Exception as e:
                         log.debug(str(e))
+#GET SECOND LIST OF FACETS
+                    try:
+                        taglist=facets['facet_fields'][self.mycore.usertags1field]
+                        n=0
+                        while n<len(taglist):
+                            tag=taglist[n]
+                            count=taglist[n+1]
+                            assert isinstance(tag,basestring)
+                            assert isinstance(count,int)
+                            n+=2
+                            self.facets2.append((tag,count))
+                        log.debug(self.facets2)
+                    except Exception as e:
+                        log.debug(str(e))
+#GET SOURCE FACETS
+                    try:
+                        taglist=facets['facet_fields'][self.mycore.sourcefield]
+                        n=0
+                        while n<len(taglist):
+                            tag=taglist[n]
+                            count=taglist[n+1]
+                            assert isinstance(tag,basestring)
+                            assert isinstance(count,int)
+                            n+=2
+                            self.facets3.append((tag,count))
+                        log.debug(self.facets3)
+                    except Exception as e:
+                        log.debug(str(e))
+
             except Exception as e:
                 log.debug('No facets found')
                 log.debug('Exception: '+str(e))
@@ -253,10 +297,15 @@ log = logging.getLogger('ownsearch.solrJson')
 def solrSearch(q,sorttype,startnumber,core,filters={},faceting=False):
     core.ping()
     #create arguments
-    if core.tags1field and faceting:
-        facetargs='&facet.field={}&facet=on&facet.limit=10'.format(core.tags1field)
-    else:
-        facetargs=''
+    facetargs=''
+    if faceting:
+        facetargs='&facet=on&facet.limit=10'
+        if core.tags1field:
+            facetargs+='&facet.field={}'.format(core.tags1field)
+        if core.usertags1field:
+            facetargs+='&facet.field={}'.format(core.usertags1field)
+        if core.sourcefield:
+            facetargs+='&facet.field={}'.format(core.sourcefield)
     args='{}{}{}'.format(facetargs,core.hlarguments,startnumber) #+getSortAttrib(sorttype,core)
     if sorttype=='date':
         args+='&sort={} asc'.format(core.datefield)
@@ -266,55 +315,87 @@ def solrSearch(q,sorttype,startnumber,core,filters={},faceting=False):
         args+='&sort={} asc'.format(core.docnamefield)
     elif sorttype=='docnameR':
         args+='&sort={} desc'.format(core.docnamefield)
+    log.debug('Filter dict: {}'.format(filters))
     for filtertag in filters:
-        args=args+'&fq={}:"{}"'.format(filtertag,filters[filtertag])
-    #print('args',args)
-
+        filtertext=filters[filtertag]
+        if filtertag=='tag1':
+            filterfield=core.tags1field
+        elif filtertag=='tag2':
+            filterfield=core.usertags1field
+        elif filtertag=='tag3':
+            filterfield=core.sourcefield
+        else:
+            continue
+        args=args+'&fq={}:"{}"'.format(filterfield,filtertext)
+    log.debug('args: {}'.format(args))
+    
 # get the response
     try:
         jres=getJSolrResponse(q,args,core=core)
         #print(jres)
         #print(soup.prettify())    
-        reslist,numbers,facets=getlist(jres,startnumber,core=core)
+        reslist,numbers,facets,facets2,facets3=getlist(jres,startnumber,core=core)
     except requests.exceptions.RequestException as e:
         reslist=[]
         numbers=-2
         log.warning('Connection error to Solr')
-    return reslist,numbers,facets
-
-##XML parsed by solr Soup
-#def getSolrResponse(searchterm,arguments,core):
-##    print(searchterm,arguments,core)
-##XML FORMAT
-#    searchurl='{}/select?wt=xml&q={}{}'.format(core.url,searchterm,arguments)
-#    print (searchurl)
-#    ses = requests.Session()
-#    # the session instance holds the cookie. So use it to get/post later
-#    res=ses.get(searchurl)
-#    #parse the result with beautiful soup
-#    #print(res.__dict__)
-#    soup=BS(res.content,"html.parser")
-#    return soup
+    return reslist,numbers,facets,facets2,facets3
 
 #JSON 
 def getJSolrResponse(searchterm,arguments,core):
 #    print(searchterm,arguments,core)
     searchurl='{}/select?&q={}{}'.format(core.url,searchterm,arguments)
-    log.debug('GET URL '+searchurl)
+#    log.debug('GET URL '+searchurl)
+    content=resGet(searchurl)
+    jres=json.loads(content)
+    return jres
+
+def resGet(url,timeout=1):
+    ses = requests.Session()
+# the session instance holds the cookie. So use it to get/post later
     try:
-        ses = requests.Session()
-        # the session instance holds the cookie. So use it to get/post later
-        res=ses.get(searchurl)
+        res=ses.get(url, timeout=timeout)
         if res.status_code==404:
             raise Solr404('404 error - URL not found')
         else:
-            jres=json.loads(res.content)
-            return jres
+            return res.content
+    except requests.exceptions.ConnectTimeout as e:
+        raise SolrTimeOut
     except requests.exceptions.ConnectionError as e:
 #            print('no connection to solr server')
         raise SolrConnectionError('Solr Connection Error')
 
-
+#Requests won't successfully post if unicode filenames in the header; so converted below
+def resPostfile(url,path,timeout=1):
+    try:
+        simplefilename=os.path.basename(path).encode('ascii','ignore')
+#        simplefilename=path.encode('ascii','ignore')
+    except:
+        simplefilename='Unicode filename DECODE error'
+    try:
+        with open(path,'rb') as f:
+            file = {'myfile': (simplefilename,f)}
+            res=requests.post(url, files=file,timeout=timeout)
+            resstatus=res.status_code
+            log.debug('RESULT STATUS: {}'.format(resstatus))
+            if resstatus==404:
+                raise Solr404('404 error - URL not found')
+            elif resstatus==200:
+                return res       
+            else:
+                log.debug('Post result {}'.format(res.content))
+                raise PostFailure(resstatus)
+    except requests.exceptions.ConnectTimeout as e:
+        raise SolrTimeOut
+    except requests.exceptions.ReadTimeout as e:
+        raise SolrTimeOut
+    except requests.exceptions.RequestException as e:
+        log.debug('Exception in postSolr: {}{}'.format(str(e),e))
+        raise PostFailure
+    except ValueError as e:
+        log.error(str(e))
+        log.debug('Post result {}'.format(res.content))
+        raise PostFailure
 
 def fieldexists(field,core):
     try:
@@ -336,7 +417,7 @@ def gettrimcontents(docid,core,maxlength):
     searchterm=r'id:'+docid
     
     #MAKE ARGUMENTS FOR TRIMMED CONTENTS
-    fieldargs='&fl=id,{},{},{},{},{},{},{},{},{}&start=0'.format(core.docnamefield,core.docsizefield,core.hashcontentsfield,core.docpath,core.tags1field,'preview_html','SBdata_ID',core.datefield,core.emailmeta)
+    fieldargs='&fl=id,{},{},{},{},{},{},{},{},{},{},{}&start=0'.format(core.docnamefield,core.docsizefield,core.hashcontentsfield,core.docpath,core.tags1field, core.usertags1field,core.sourcefield,'preview_html','SBdata_ID',core.datefield,core.emailmeta)
 #this exploits a quirk in solr to return length-restricted contents as a "highlight"; it depends on a null return on the nullfield (any field name that does not exist)
     hlargs='&hl=on,hl.fl=nullfield&hl.fragsize=0&hl.alternateField={}&hl.maxAlternateFieldLength={}'.format(core.rawtext,maxlength)    
     args=fieldargs+hlargs
@@ -364,14 +445,13 @@ def bighighlights(docid,core,q,contentsmax):
     SR.addhighlights(linebreaks=True,bighighlights=True)
     return SR
 
-
 def getlist(jres,counter,core,linebreaks=False,big=False): #this parses the list of results, starting at 'counter'
     SR=SolrResult(jres,core,startcount=counter)
 #    log.debug([doc.data['resultnumber'] for doc in SR.results])
     SR.addstoredmeta()
     SR.addfacets()
     SR.addhighlights(linebreaks=linebreaks,bighighlights=big)
-    return SR.results,SR.numberfound,SR.facets
+    return SR.results,SR.numberfound,SR.facets,SR.facets2,SR.facets3
 
 def gethighlights(soup,linebreaks=False):
     highlights_all=soup.response.result.next_sibling
@@ -415,7 +495,7 @@ def getcontents(docid,core):
     args=core.contentarguments
     jres=getJSolrResponse(searchterm,args,core=core)
     #print(args,sp)
-    res,numbers,facets=getlist(jres,0,core=core)
+    res,numbers,facets,facets2,facets3=getlist(jres,0,core=core)
     return res
 
 def getmeta(docid,core):
@@ -424,7 +504,7 @@ def getmeta(docid,core):
     args+=","+core.docpath+","+core.datefield+","+core.docsizefield+","+core.datefield+","+core.docnamefield
     jres=getJSolrResponse(searchterm,args,core=core)
     #print(args,sp)
-    res,numbers,facets=getlist(jres,0,core=core)
+    res,numbers,facets,facets2,facets3=getlist(jres,0,core=core)
     return res
     
 
@@ -463,14 +543,15 @@ def parsebighighlights(highlights_all):
         #print('extracted highlights:',highlights)
     return highlights
 
-def hashlookup(hex,core):
-    searchterm='extract_id:'+hex
-    #print (searchterm,contentarguments)
+#find a extracted solr doc from hex of original doc ; and optionally find its children (attachments or embeded images etc)
+def hashlookup(hex,core,children=False):
+    if children:
+        searchterm='{}:{}'.format('extract_root',hex)
+    else:
+        searchterm='{}:{}'.format(core.hashcontentsfield,hex)
     args=core.hlarguments+'0'
-    #print (args)
-    jres=getJSolrResponse(searchterm,args,core=core)
-    res,numbers,facets=getlist(jres,0,core=core)
-    return res
+    SR=SolrResult(getJSolrResponse(searchterm,args,core=core),core)
+    return SR
 
 #make a dictionary of SolrCore objects, so different indexes can be selected from form
 def getcores():

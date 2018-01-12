@@ -14,12 +14,23 @@ class Collection(models.Model):
         'SolrCore',
         on_delete=models.CASCADE,
     )
+    source = models.ForeignKey(
+        'Source',
+        on_delete=models.CASCADE,
+        null=False,
+    )
     def __str__(self):
         return self.path
 
+class Source(models.Model):
+    sourceDisplayName=models.CharField('Source Display Name',max_length=30,default='',blank=True)
+    sourcename=models.CharField('Sourcename',max_length=10,default='')
+    def __str__(self):
+        return self.sourcename
+
 class SolrCore(models.Model):
     coreID=models.CharField('Core ID (1-10)',max_length=10,default='')
-    coreDisplayName=models.CharField('Core Display Name',max_length=10,default='',blank=True)
+    coreDisplayName=models.CharField('Core Display Name',max_length=30,default='',blank=True)
     corename=models.CharField('Corename',max_length=20,default='')
     usergroup=models.ForeignKey(Group)
     def __str__(self):
@@ -41,6 +52,7 @@ class File(models.Model):
     filesize = models.IntegerField('Filesize',default=0)
     last_modified=models.DateTimeField('date modified',blank=True)
     solrid=models.CharField('Solr ID',max_length=100,default='',blank=True)
+    child=models.BooleanField('Child document',default=False) #if an extracted child doc (e.g. attachment or embedded image)
 
     def __str__(self):
         return self.filepath

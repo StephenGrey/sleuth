@@ -6,6 +6,7 @@ from ownsearch import solrJson as s
 from ownsearch.hashScan import hash256
 import json, collections
 from documents import updateSolr as u
+from documents.models import Source as Source
 
 def impCSV(path):
     with open(path) as f:
@@ -62,6 +63,7 @@ def getsolrID(postID):
 
 #update solr docs from CSV, first line contains row names; 
 #solr ID field is taken from the model database and referenced by original ID field.
+#copy all data into the COPY FROM field (e.g. tika_metadata_resourcename, not the copy TO field (SB_filename))
 def addTagsFromCSV(path,mycore):
         assert os.path.exists(path)
         assert mycore.ping()
@@ -168,20 +170,21 @@ def extractpost(post,mycore):
 
 def updateindex(post,mycore):
     solrid=getsolrID(post.originalID)
-    print('SolrID',solrid)
+    #print('SolrID',solrid)
     doc=collections.OrderedDict()  #keeps the JSON file in a nice order
     doc['id']=solrid #hash256(post.body.encode('utf-8')) #using the hash of the HTML body as the doc ID
-    doc[mycore.rawtext]={"set":post.text}
-    doc[mycore.hashcontentsfield]={"set":doc['id']} #also store hash in its own standard field
-    doc[mycore.docnamefield]={"set":post.name}
+#    doc[mycore.rawtext]={"set":post.text}
+#    doc[mycore.hashcontentsfield]={"set":doc['id']} #also store hash in its own standard field
+    doc[mycore.docnamesourcefield]={"set":post.name} #NEED TO STORE DATA IN COPY FROM FIELD
     if post.pubdate:
-        doc[mycore.datefield]={"set":s.ISOtimestring(post.pubdate)}
+        doc['tika_metadata_last_modified']={"set":s.ISOtimestring(post.pubdate)}
     else:
         print('missing pubdate')
     jsondoc=json.dumps([doc])
     #print(jsondoc)
     result,status=u.post_jsonupdate(jsondoc,mycore)
-    print (result,status)
+    if status==False:
+        print (solrid,result,status)
     return
 
 
@@ -204,7 +207,7 @@ def addtags(solrid,tags,mycore):
     result,status=u.post_jsonupdate(jsondoc,mycore)
 
 def checksolr(mycore):
-    maxcount=25000
+    maxcount=28000
     counter=0
     for post in BlogPost.objects.all():
         counter+=1
@@ -213,11 +216,12 @@ def checksolr(mycore):
 #        print(post.id,post.name,post.pubdate)
         solrID=getsolrID(post.originalID)
         try:
-            docs=s.getmeta(solrID,mycore)
-            doc=docs[0]
-            if not doc.docname or not doc.date:
-                print('missing meta:',post.id,post.name,post.pubdate)
-                print(doc.docname,doc.date)
+#            docs=s.getmeta(solrID,mycore)
+#            doc=docs[0]
+#            if not doc.docname or not doc.date:
+#                print('missing meta:',post.id,post.name,post.pubdate)
+#                print(doc.docname,doc.date)
+            if True:
                 try:
                     updateindex(post,mycore)
                 except Exception as e:
@@ -227,3 +231,62 @@ def checksolr(mycore):
             print('no solr doc found for post ',post.id,post.name)
         
     return
+    
+    
+def fixfilename(mycore):
+    maxcount=30000
+    counter=0
+    for post in BlogPost.objects.all():
+        counter+=1
+        if counter>maxcount:
+            break
+#        print(post.id,post.name,post.pubdate)
+        solrID=getsolrID(post.originalID)
+        try:
+            #print(post.name,solrID)
+            result=u.updatetags(solrID,mycore,value=post.name,standardfield='docnamesourcefield',newfield=False)
+            if result == False:
+               print('Update failed for post name: {} and ID: {}'.format(post.name,solrID))
+        except Exception as e:
+            print(e)                	
+        except Exception as e:
+            print(e)
+            print('no solr doc found for post ',post.id,post.name)        
+    return
+    
+def addsource(mycore):
+    maxcount=30000
+    counter=0
+    for post in BlogPost.objects.all():
+        counter+=1
+        if counter>maxcount:
+            break
+#        print(post.__dict__)
+        if post.source:
+#            print(post.source.sourceDisplayName)
+#        print(post.id,post.name,post.pubdate)
+            solrID=getsolrID(post.originalID)
+            try:
+                print(post.name,solrID)
+                result=u.updatetags(solrID,mycore,value=post.source.sourceDisplayName,standardfield='sourcefield',newfield=False)
+                if result == False:
+                    print('Update failed for post name: {} and ID: {}'.format(post.name,solrID))
+            except Exception as e:
+                print(e)                	
+            except Exception as e:
+                print(e)
+                print('no solr doc found for post ',post.id,post.name)        
+    return
+#    doc[mycore.docnamesourcefield]={"set":post.name} #NEED TO STORE DATA IN COPY FROM FIELD
+
+def addblogsource(source):
+    assert isinstance(source,Source)
+    for post in BlogPost.objects.all():
+        try:
+            post.source=source
+            post.save()
+        except:
+            print ('Errror with post: {}'.format(post))
+    return
+    
+    

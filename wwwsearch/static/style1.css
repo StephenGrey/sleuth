@@ -11,6 +11,9 @@ h3 {
 .tag {
 		color: orange;
 		}
+.tag2 {
+		color: light-blue;
+		}
 .redtext {
 		color: red;
 	}
@@ -19,6 +22,9 @@ h3 {
     padding: 0;
     list-style: none;
 }
-
+.no-deco {
+    text-decoration: none;
+    color: inherit;
+}
 
 </style>

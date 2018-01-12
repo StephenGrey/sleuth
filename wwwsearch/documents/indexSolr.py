@@ -2,7 +2,7 @@
 from __future__ import unicode_literals
 #from bs4 import BeautifulSoup as BS
 from django.conf import settings
-import requests, os, logging, json
+import requests, os, logging, json, urllib
 import ownsearch.hashScan as dup
 import hashlib  #routines for calculating hash
 #from documents.models import Collection,File
@@ -51,7 +51,7 @@ def scanPath(parentFolder):  #recursively check all files in a file folder and g
 
 
 #SOLR METHODS
-def extract_test(test=True):
+def extract_test(test=True,timeout=''):
     #get path to test file
     path=settings.BASE_DIR+'/tests/testdocs/TESTFILE_BBCNews1.pdf'
     assert os.path.exists(path)
@@ -66,142 +66,89 @@ def extract_test(test=True):
     cores=s.getcores()
     mycore=cores[defaultID]
     #checks solr index is alive
+    log.debug('Testing extract to {}'.format(mycore.name))
     mycore.ping()
     
-    result=extract(path,hash,mycore,test=test)
+    result=extract(path,hash,mycore,test=test,timeout=timeout)
     return result
 
-def extract(path,contentsHash,mycore,test=False):
-    assert isinstance(mycore,s.SolrCore)
-    #print(path)
-    docstore=config['Models']['collectionbasepath'] #get base path of the docstore
-#    extracturl=mycore.url+'/update/extract?'
-    extractargs='commit=true&wt=json'
+#extract a path to solr index (mycore), storing hash of contents (avoiding timewasting recompute, optional testrun, timeout); throws exception if no connection to solr index, otherwise failures return False
+def extract(path,contentsHash,mycore,test=False,timeout='',sourcetext=''):
     try:
-        filenamefield=mycore.docnamefield
-        hashcontentsfield=mycore.hashcontentsfield
-        filepathfield=mycore.docpath
-    except Exception as e:
-        print ('Exception: ',str(e))
-        print('core missing default fields')
+        assert isinstance(mycore,s.SolrCore)
+        assert os.path.exists(path) #check file exists
+    except AssertionError:
+        log.debug ('Extract: bad parameters: {},{}'.format(path,mycore))
         return False
     #establish connnection to solr index
-    if True:
-        mycore.ping()
-#    except SolrConnectionError as e:
-#        print('No connection')
-#        return False
-    if os.path.exists(path)==False: #check file exists
-        print ('path '+path+' does not exist')
+    mycore.ping() #       throws a SolrConnectionError if solr is down; throw error to higher level.
+    try: 
+        docstore=config['Models']['collectionbasepath'] #get base path of the docstore
+        #load default timeout unless specified
+        if timeout=='':
+            timeout=float(config['Solr']['solrtimeout'])
+    except KeyError:
+        log.error ('Missing data in solr config')
         return False
+    try:
+        docnamesourcefield=mycore.docnamesourcefield
+        hashcontentsfield=mycore.hashcontentsfield
+        filepathfield=mycore.docpath
+        sourcefield=mycore.sourcefield
+    except AttributeError as e:
+        log.error('Exception: {}'.format(e))
+        log.error('Solr index is missing default fields')
+        return False
+#    extracturl=mycore.url+'/update/extract?'
+    extractargs='commit=true&wt=json'
     if test==True:
         args=extractargs+'&extractOnly=true' #does not index on test
-        print ('extract args: '+args,'path: ',path,'mycore: ',mycore)
+        print ('Testing extract args: '+args,'path: ',path,'mycore: ',mycore)
     else:
-        relpath=os.path.relpath(path,start=docstore) #extract a relative path from the docstore
-        args=extractargs+'&literal.id='+pathHash(path)+'&literal.'+filenamefield+'='+os.path.basename(path)
-        args+='&literal.'+filepathfield+'='+relpath+'&literal.'+hashcontentsfield+'='+contentsHash
         #>>>>go index, use MD5 of path as unique ID
         #and calculate filename to put in index
-        print ('extract args: '+args,'path: ',path,'mycore: ',mycore)
-    statusOK=postSolr(args,path,mycore) #POST TO THE INDEX
-    if statusOK is not True:
-        print ('Error in extract() posting file with args: ',args,' and path: ',path)
-        log.debug('Extract test FAILED')
-        return False
-    else:
-        log.debug('Extract test SUCCEEDED')
+        relpath=os.path.relpath(path,start=docstore) #extract a relative path from the docstore root
+        args='{}&literal.id={}&literal.{}={}'.format(extractargs,pathHash(path),docnamesourcefield,os.path.basename(path))
+        args+='&literal.{}={}&literal.{}={}'.format(filepathfield,relpath,hashcontentsfield,contentsHash)
+        #if sourcefield is define and sourcetext is not empty string, add that to the arguments
+        #make the sourcetext args safe, for example inserting %20 for spaces 
+        if sourcefield and sourcetext:
+            args+='&literal.{}={}'.format(sourcefield,urllib.quote(sourcetext))
+        
+        log.debug('extract args: {}, path: {}, solr core: {}'.format(args,path,mycore))
+    result,elapsed=postSolr(args,path,mycore,timeout=timeout) #POST TO THE INDEX (returns True on success)
+    if result:
+        log.info('Extract SUCCEEDED in {:.2f} seconds'.format(elapsed))
         return True
-    
-    
-##turn request json response from solr api into a dictionary
-#def parseresponse(jres):
-#    if soup.response:
-#        result={}
-#        if soup.response.find_all('lst'):
-#            lists={}
-#            success=False
-#            #parse lists in resposne
-#            for lst in soup.response.find_all('lst'):
-#                 tags={}
-#                 for item in lst:
-#                     value=''
-#                     if item.name=='int':
-#                         value=int(item.text)
-#                     if item.name=='str':
-#                         value=item.text
-#                     if item.has_attr('name'):
-#                         tags[item['name']]=value
-#                     else:
-#                         print('tag has no name attribute')
-#                 lists[lst['name']]=tags
-#            result['lists']=lists
-#            #check for errors 
-#            if 'responseHeader' in lists:
-#                 header=lists['responseHeader']
-#                 status=header['status']
-#                 if status==0:
-#                     success=True
-#                     return result,success,'success'
-#                 else:
-#                     success=False
-#            if 'error' in lists:
-#                errorlist=lists['error']
-#                errormessage=errorlist['msg']
-#                errorcode=errorlist['code']
-#                message=errormessage+'  CODE:'+str(errorcode)
-#            else:
-#                message='Error message not parsed'
-#            #NB THERE IS A METADATA LIST THAT COULD ALSO BE PARSED AND LOGGGED
-#            return result,success,message
-#        return result,False,'no lists found'
-#    return {},False,'no response found'
+    else:
+        log.info('Error in extract() posting file with args: {} and path: {}'.format(args,path))
+        log.info('Extract FAILED')
+        return False
 
-#
-#def getSolrResponse(args,mycore):
-#    searchurl=extracturl+args
-#    #USE IF COOKIES OR LOGIN REQUIRED ses = requests.Session()
-#    # the session instance holds the cookie. So use it to get/post later
-#    #res=ses.get(searchurl)
-#    res=requests.get(searchurl)
-#    soup=BS(res.content,"html.parser")
-#    return soup
 
-#DEBUG NOTE: requests won't successfully post if unicode filenames in the header; so converted below
-#should consider using basefilename not file path below
-def postSolr(args,path,mycore):
+def postSolr(args,path,mycore,timeout=1):
     extracturl=mycore.url+'/update/extract?'
     url=extracturl+args
-    print('POSTURL',url)
+    log.debug('POSTURL: {}  TIMEOUT: {}'.format(url,timeout))
     try:
-        simplefilename=path.encode('ascii','ignore')
-    except:
-        simplefilename='Unicode filename DECODE error'
-    try: 
-        with open(path,'rb') as f:
-            file = {'myfile': (simplefilename,f)}
-            res=requests.post(url, files=file)
-        resstatus=res.status_code
-        log.debug('RESULT STATUS: '+str(resstatus))
+        res=s.resPostfile(url,path,timeout=timeout) #timeout=
         solrstatus=json.loads(res._content)['responseHeader']['status']
-        log.debug('SOLR STATUS: '+str(solrstatus))
-        if resstatus==404:
-            raise s.Solr404('404 error - URL not found')        
-        if solrstatus==0 and resstatus==200:
-            return True 
-        else:
-            raise PostFailure('Errors in posting file for extraction')
-    except requests.exceptions.RequestException as e:
-        log.debug('Exception in postSolr: {}{}'.format(str(e),e))
-        return False
-    except PostFailure as e:
-        log.error(str(e))
-        log.error('Post result {}'.format(res.content))
-        return False
-    except ValueError as e:
-        log.error(str(e))
-        log.debug('Post result {}'.format(res.content))
-        return False
+        print(res.elapsed.total_seconds())
+        solrelapsed=res.elapsed.total_seconds()
+    except s.SolrTimeOut as e:
+        log.error('Solr post timeout ')
+        return False,0
+    except s.Solr404 as e:
+        log.error('Error in posting 404 error - URL not workking: {}'.format(e))
+        return False,0
+    except s.PostFailure as e:
+        log.error('Post Failure : {}'.format(e))
+        return False,0
+    log.debug('SOLR STATUS: {}  ELAPSED TIME: {:.2f} secs'.format(solrstatus,solrelapsed))
+    if solrstatus==0:
+        return True,solrelapsed 
+    else:
+        return False,0
 
 #check if filepath fits an ignore pattern (no check to see if file exists)
 def ignorefile(path):

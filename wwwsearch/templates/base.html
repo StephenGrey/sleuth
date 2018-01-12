@@ -13,7 +13,7 @@
 <link rel="stylesheet" type="text/css" href="{% static 'style1.css' %}" />
 
 </head>
-<h2>SearchBox</h2>
+<h2><a class='no-deco' href="/ownsearch/">SearchBox</a></h2>
 {% if user.is_authenticated %}
 <div class='login'>    Logged in as: {{ user.username }}  <a href="{% url 'logout' %}?next=/ownsearch/"">[logout]</a>
 </div>

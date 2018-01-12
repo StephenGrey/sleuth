@@ -12,17 +12,26 @@ from django.http import HttpResponse
 from django.http import HttpResponseRedirect
 from django.db.models.base import ObjectDoesNotExist
 import solrJson, re, os, logging, unicodedata, urllib
-from documents import solrcursor
+from documents import solrcursor,updateSolr
 from usersettings import userconfig as config
 log = logging.getLogger('ownsearch.views')
 docbasepath=config['Models']['collectionbasepath']
 
 
 @login_required
-def do_search(request,page=0,searchterm='',direction='',pagemax=0,sorttype='',tag1=''):
+def do_search(request,page=0,searchterm='',direction='',pagemax=0,sorttype='',tag1field='',tag1='',tag2field='',tag2='',tag3field='',tag3=''):
 #    log.debug('SESSION CACHE: '+str(vars(request.session)))
+
+    #GET PARAMETERS
     searchterm=urllib.unquote_plus(searchterm)
-    log.debug('TAG1: '+tag1)
+    filters={tag1field:tag1,tag2field:tag2,tag3field:tag3}
+    filters.pop('','') #remove blank filters
+    print(filters)
+    if tag1 or tag2 or tag3:
+        tagfilters=True
+    else:
+        tagfilters=False
+    log.debug('Filters: {}'.format(filters))
     try:
 
     #GET AUTHORISED CORES AND DEFAULT
@@ -52,71 +61,41 @@ def do_search(request,page=0,searchterm='',direction='',pagemax=0,sorttype='',ta
     
     #SET THE RESULT PAGE    
         page=int(page) #urls always returns strings only
-        #print('page',page,'searchterm',searchterm,'direction',direction)
-        if direction == 'next':
-            page=page+1
-        if direction == 'back':
-            page=page-1
-        print('page',page)
+#        #print('page',page,'searchterm',searchterm,'direction',direction)
+#        if direction == 'next':
+#            page=page+1
+#        if direction == 'back':
+#            page=page-1
+        log.info('Page: {}'.format(page))
     
     #DO SEARCH IF PAGE ESTABLISHED 
         
         if page > 0: #if page value not default (0) then proceed directly with search
             resultlist=[]
             form = SearchForm(choice_list,str(coreID),sorttype,searchterm)
-            log.info('User '+request.user.username+' searching with searchterm: '+searchterm+' and tag \"'+tag1+'\" on page '+str(page))
+            log.info('User {} searching with searchterm: {} and tag \"{}\" and tag2 \"{}\" on page {}'.format(request.user.username,searchterm,tag1,tag2,page))
             try:
                 startnumber=(page-1)*10
 #                if sorttype=='relevance':
                 if True:
-                    if tag1:
-                        filters={mycore.tags1field:tag1}
-                    else:
-                        filters={}
-                    resultlist,resultcount,facets=solrJson.solrSearch(searchterm,sorttype,startnumber,core=mycore, filters=filters, faceting=True)
+#                    if tag1:
+#                        filters={mycore.tags1field:tag1}
+#                    elif tag2:
+#                        filters={mycore.usertags1field:tag2}
+#                    else:
+#                        filters={}
+                    resultlist,resultcount,facets,facets2,facets3=solrJson.solrSearch(searchterm,sorttype,startnumber,core=mycore, filters=filters, faceting=True)
                     pagemax=int(resultcount/10)+1
                     #tagcheck=[result.data for result in resultlist]
                     #log.debug(str(tagcheck))
-#                else:
-#                    fullresults=request.session['results']
-#                    facets=[] #facets not yet set up except for relevanc search
-#                    #try to retrieve full results from session (if search sorted by other than relevance)
-#                    #if RESULTS EXIST THEN JUST EXTRACT RESULT SET 
-#                    if fullresults: #search already done                    
-#                        resultlist=[]
-#                        for id,data,date,datetext,docname in fullresults[startnumber:startnumber+10]:
-#                            resultlist.append(solrJson.Solrdoc(data,date=date,datetext=datetext,docname=docname,id=id))
-#    #                    log.debug(resultlist)
-#                        resultcount=len(fullresults)
-#                        pagemax=int(resultcount/10)+1
-#                        
-#                    #ELSE DO THE SEARCH FOR THE FIRST TIME AND THEN STORE
-#                    else:
-#                    #FOR SEARCHES ON OTHER KEY WORDS >> DO A COMPLETE CURSOR SEARCH, SORT, THEN STORE RESULTS
-#                        log.info('User '+request.user.username+' searching with searchterm: '+searchterm+' and using sorttype '+sorttype)
-#                        sortedresults=solrcursor.cursorSearch(searchterm,sorttype,mycore)
-#                        #log.debug(sortedresults)
-#                        resultcount=len(sortedresults)
-#                        fullresultlist=[]
-#                        if resultcount>0:
-#                            for n, itemlist in enumerate(sortedresults):
-#                                for item in sortedresults[itemlist]:
-#                                    item.data['resultnumber']=n+1
-#                                    fullresultlist.append(item)
-#                        #get the first page of results
-#                        resultlist=fullresultlist[:10]
-#                        facets=[]
-##                        log.debug(resultlist)
-##                        log.debug([doc.__dict__ for doc in resultlist])
-#                        pagemax=int(resultcount/10)+1
-#
-#                        if resultcount > 10:
-##                            page = 1
-#                            #store the full results  -- pulling the data elements from the solr response]
-#                            request.session['results']=[(result.id,result.data,result.date,result.datetext,result.docname) for result in fullresultlist]
-##                        else:
-##                            page = 0
-#
+                    if page>1:
+                        backpage=page-1
+                    else:
+                        backpage=''
+                    if page<pagemax:
+                        nextpage=page+1
+                    else:
+                        nextpage=''
 
             except Exception as e:
 #                print(e)
@@ -125,8 +104,11 @@ def do_search(request,page=0,searchterm='',direction='',pagemax=0,sorttype='',ta
                 log.debug(str(resultlist))
                 resultlist=[]
                 facets=[]
+                facets2=[]
+                facets3=[]
                 resultcount=0
                 pagemax=0
+                backpage,nextpage='',''
 
     #PROCESS FORM DATA - INDEX AND SEARCHTERM CHOICES AND THEN REDIDRECT WITH A GET TO DO FIRST SEARCH
         # if this is a POST request we need to process the form data
@@ -147,23 +129,30 @@ def do_search(request,page=0,searchterm='',direction='',pagemax=0,sorttype='',ta
                     request.session['mycore']=coreID  #store the chosen index
         #            mycore=corelist[coreID]  #select new SolrCore object
                     log.debug('selected core'+str(coreselect))
-                request.session['results']='' #clear results from any previous searches
-                #DEBUG
+#                request.session['results']='' #clear results from any previous searches
                 
                 searchterm_urlsafe=urllib.quote_plus(searchterm)
-                return HttpResponseRedirect("/ownsearch/searchterm={}&nextafterpage=0&sorttype={}".format(searchterm_urlsafe,sorttype))
+                searchurl="/ownsearch/searchterm={}&page=1&sorttype={}".format(searchterm_urlsafe,sorttype)
+                request.session['lastsearch']=searchurl
+                return HttpResponseRedirect(searchurl)
                 
                     
-        # START BLANK FORM if a GET (or any other method) we'll create a blank form
+        # START BLANK FORM if a GET (or any other method) we'll create a blank form; and clear last search
         else:
             form = SearchForm(choice_list,str(coreID),sorttype,searchterm)
             resultlist = []
             resultcount=-1
             facets=[]
+            facets2=[]
+            facets3=[]
             tag1=''
+            request.session['lastsearch']=''
+            backpage,nextpage='',''
         #print(resultlist)
         searchterm_urlsafe=urllib.quote_plus(searchterm)
-        return render(request, 'searchform.html', {'form': form, 'tagfilter':tag1,'facets':facets,'pagemax': pagemax, 'results': resultlist, 'searchterm': searchterm, 'searchterm_urlsafe': searchterm_urlsafe, 'resultcount': resultcount, 'page':page, 'sorttype': sorttype})
+        filterlist=[(tag,filters[tag]) for tag in filters]
+        log.debug('Filter list : {}'.format(filterlist))
+        return render(request, 'searchform.html', {'form': form,'filters':filterlist, 'filtering':tagfilters,'facets':facets, 'facets2':facets2, 'facets3':facets3,'pagemax': pagemax, 'results': resultlist, 'searchterm': searchterm, 'searchterm_urlsafe': searchterm_urlsafe, 'resultcount': resultcount, 'page':page, 'sorttype': sorttype,'backpage':backpage,'nextpage':nextpage})
 
     except solrJson.SolrCoreNotFound as e:
         log.error('Index not found on solr server')
@@ -206,9 +195,10 @@ def download(request,doc_id,hashfilename): #download a document from the docstor
 
 
 @login_required
-def get_content(request,doc_id,searchterm): #make a page showing the extracted text, highlighting searchterm
+def get_content(request,doc_id,searchterm,tagedit='False'): #make a page showing the extracted text, highlighting searchterm
     log.debug('Get content for doc id: '+str(doc_id)+' from search term '+str(searchterm))
     searchterm=urllib.unquote_plus(searchterm)
+    searchurl=request.session.get('lastsearch','/ownsearch') #get the search page to return to, or home page
     #load solr index in use, SolrCore object
     if True:
         #GET INDEX
@@ -220,6 +210,35 @@ def get_content(request,doc_id,searchterm): #make a page showing the extracted t
         corelist,defaultcoreID,choice_list=authcores(request)
         mycore=corelist[coreID]
 
+    useredit=request.session.get('useredit','')
+    log.debug('useredit: {}'.format(useredit))
+    if useredit=='True':
+        useredit=True	
+    else:
+        useredit= False
+    if request.method == 'POST': #if data posted from form
+        # create a form instance and populate it with data from the request:
+        form = TagForm('',request.POST)
+        print(request.POST)
+            # check whether it's valid:
+        if request.POST.get('edit','')=='Edit':
+            log.debug('Editing user tags')
+            request.session['useredit']='True'
+            return HttpResponseRedirect("/ownsearch/doc={}&searchterm={}".format(doc_id,searchterm))
+        elif request.POST.get('save','')=='Save':
+            log.debug('Save user tags')
+            request.session['useredit']=''
+            if form.is_valid():
+                # process the data in form.cleaned_data as required
+                keywords=form.cleaned_data['keywords']
+                keyclean=[re.sub(r'[^a-zA-Z0-9, ]','',item) for item in keywords]
+                updateresult=updateSolr.updatetags(doc_id,mycore,keyclean)
+                if updateresult:
+                    log.debug('Update success of user tags: {} in solrdoc: {}'.format(keyclean,doc_id))
+                else:
+                    log.debug('Update failed of user tags: {} in solrdoc: {}'.format(keyclean,doc_id))
+            return HttpResponseRedirect("/ownsearch/doc={}&searchterm={}".format(doc_id,searchterm))
+    else:
         #GET DEFAULTS
         #set max size of preview text to return (to avoid loading up full text of huge document in browser)
         try:
@@ -246,10 +265,19 @@ def get_content(request,doc_id,searchterm): #make a page showing the extracted t
             data_ID=data_ID[0]
         log.debug('Data ID '+str(data_ID)) 
         if html:
-            initialtags='a tag, another tag'
-            form = TagForm(initialtags)
+            initialtags=result.data.get(mycore.usertags1field,'')
+            if not isinstance(initialtags,list):
+                initialtags=[initialtags]
+            tagstring=','.join(map(str, initialtags))
+#            log.debug('{},{}'.format(initialtags,tagstring))
+            form = TagForm(tagstring)
+            
+            tags1=result.data.get('tags1',[False])[0]
+            if tags1=='':
+                tags1=False
+#            log.debug('tag1: {}'.format(tags1))
             searchterm_urlsafe=urllib.quote_plus(searchterm)
-            return render(request, 'blogpost.html', {'form':form,'body':html, 'docid':data_ID,'solrid':doc_id,'docname':docname,'docpath':docpath,'datetext':datetext,'data':result.data,'searchterm': searchterm, 'searchterm_urlsafe': searchterm_urlsafe,})
+            return render(request, 'blogpost.html', {'form':form,'body':html, 'tags1':tags1,'tagstring':tagstring,'initialtags': initialtags,'useredit':useredit,'docid':data_ID,'solrid':doc_id,'docname':docname,'docpath':docpath,'datetext':datetext,'data':result.data,'searchterm': searchterm, 'searchterm_urlsafe': searchterm_urlsafe, 'searchurl':searchurl})
 #        log.debug('Full result '+str(result.__dict__))    
 
         #DIVERT ON BIG FILE

@@ -1,5 +1,9 @@
 {% extends "base.html" %}
 
+	{% block sidebar %}
+	<a href="{{searchurl}}">Back to Results</a>
+		{% endblock %}
+
 {% block content %}
 <b><h1>{{docname}}</h1></b>
 <b><p>PATH: {{docpath}}&emsp; SIZE(bytes):{{docsize}}&emsp; DATE: {{datetext}}<p></b>
@@ -8,11 +12,31 @@
 {% endif %}
 <br>
 <form action="" method="post"> {% csrf_token %}
-{% if data.tags1  %}Indexed keywords: 
+{% if tags1 %}
+Indexed keywords: 
 	{% for tag in data.tags1 %}
 		<span class='tag'> {{tag}}</span>
 	{% endfor %}
 {% endif %}
+
+&nbsp; 
+{% if useredit %}
+	{{form.keywords.label}}{{form.keywords}}
+<button type="submit" name='save' value='Save' class="btn btn-default btn-sm">
+   <span class="glyphicon glyphicon-pencil">Save</span>
+</button>
+{% else %}
+ User tags:<span class='tag'> 
+ 	{% if initialtags %}
+ 		{% for tag in initialtags %}
+ 			{{ tag }}, 
+ 		{% endfor %}
+ 	{% endif %}</span>
+<button type="submit" name='edit' value='Edit' class="btn btn-default btn-sm">
+   <span class="glyphicon glyphicon-pencil">Edit</span>
+</button>
+{% endif %}
+
 </form>
 {{body | safe}}
 

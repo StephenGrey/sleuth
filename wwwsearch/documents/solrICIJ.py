@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from __future__ import unicode_literals, print_function
-from ownsearch import solrSoup as s
+from ownsearch import solrJson as s
+from documents import updateSolr as u
 from usersettings import userconfig as config
 import subprocess, logging, os
 log = logging.getLogger('ownsearch.solrICIJ')
@@ -99,3 +100,32 @@ def parse_out(result):
 #    print (vars(result))
 #    print (output)
     return output, postsolr
+
+#ADD ADDITIONAL META NOT ADDED AUTOMATICALLY BY THE EXTRACT PROGRAM
+def postprocess(solrid,sourcetext,hashcontents, core):
+    #add source info to the extracted document
+    result=u.updatetags(solrid,core,value=sourcetext,standardfield='sourcefield',newfield=False)
+    if result == False:
+        print('Update failed for solrID: {}'.format(solrid))
+        return False
+    #now add source to any children
+    result=childprocess(hashcontents,sourcetext,core)
+    return result
+    
+    
+def childprocess(hashcontents,sourcetext,core):
+    #also add source to child documents created
+    solr_result=s.hashlookup(hashcontents, core,children=True)
+    for solrdoc in solr_result.results:
+        #add source info to the extracted document
+        try:
+            result=u.updatetags(solrdoc.id,core,value=sourcetext,standardfield='sourcefield',newfield=False)
+            if result==True:
+                log.info('Added source \"{}\" to child-document \"{}\", id {}'.format(sourcetext,solrdoc.docname,solrdoc.id))
+            else:
+                log.error('Failed to add source to child document id: {}'.format(solrdoc.id))
+                return False
+        except Exception as e:
+            print(e)
+            return False
+    return True

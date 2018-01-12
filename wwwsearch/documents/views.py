@@ -2,11 +2,12 @@
 #PROCESS SOLR INDEX: EXTRACT FILES TO INDEX AND UPDATE INDEX
 from __future__ import unicode_literals, print_function
 from django.http import HttpResponse
+from django.core.urlresolvers import reverse
 from .forms import IndexForm
 from django.shortcuts import render, redirect
 from django.utils import timezone
 import pytz #support localising the timezone
-from models import Collection,File
+from models import Collection,File,SolrCore
 from ownsearch.hashScan import HexFolderTable as hex
 from ownsearch.hashScan import hashfile256 as hexfile
 from ownsearch.hashScan import FileSpecTable as filetable
@@ -26,6 +27,7 @@ def index(request):
         if defaultcoreID: #if a default defined, then set as chosen core
             request.session['mycore']=defaultcoreID
     coreID=request.session.get('mycore')
+    log.debug('CORE ID: {}'.format(coreID))
     if request.method=='POST': #if data posted # switch core
 #        print('post data')
         form=IndexForm(request.POST)
@@ -37,7 +39,7 @@ def index(request):
 #        print(request.session['mycore'])
         form=IndexForm(initial={'CoreChoice':coreID})
 #        print('Core set in request: ',request.session['mycore'])
-    latest_collection_list = Collection.objects.filter(core=coreID)
+    latest_collection_list = Collection.objects.filter(core=SolrCore.objects.get(coreID=coreID))
     return render(request, 'documents/scancollection.html',{'form': form, 'latest_collection_list': latest_collection_list})
 
 def listfiles(request):
@@ -85,8 +87,8 @@ def listfiles(request):
                 mycore.ping()
                 selected_collection=int(request.POST[u'choice'])
                 thiscollection=Collection.objects.get(id=selected_collection)
-                icount,iskipped,ifailed=indexdocs(thiscollection,mycore) #GO INDEX THE DOCS IN SOLR
-                return HttpResponse ("Indexing.. <p>indexed: "+str(icount)+"<p>skipped:"+str(iskipped)+"<p>failed:"+str(ifailed))
+                icount,iskipped,ifailed,skippedlist,failedlist=indexdocs(thiscollection,mycore) #GO INDEX THE DOCS IN SOLR
+                return HttpResponse ("Indexing.. <p>indexed: {} <p>skipped: {}<p>{}<p>failed: {}<p>{}".format(icount,iskipped,skippedlist,ifailed,failedlist))
 
     #INDEX VIA ISIJ 'EXTRACT' DOCUMENTS IN COLLECTION IN SOLR
         elif request.method == 'POST' and 'indexICIJ' in request.POST and 'choice' in request.POST:
@@ -95,8 +97,8 @@ def listfiles(request):
                 mycore.ping()
                 selected_collection=int(request.POST[u'choice'])
                 thiscollection=Collection.objects.get(id=selected_collection)
-                icount,iskipped,ifailed=indexdocs(thiscollection,mycore,forceretry=True,useICIJ=True) #GO INDEX THE DOCS IN SOLR
-                return HttpResponse ("Indexing w ICIJ tool .. <p>indexed: "+str(icount)+"<p>skipped:"+str(iskipped)+"<p>failed:"+str(ifailed))
+                icount,iskipped,ifailed,skippedlist,failedlist=indexdocs(thiscollection,mycore,forceretry=True,useICIJ=True) #GO INDEX THE DOCS IN SOLR
+                return HttpResponse ("Indexing with ICIJ tool.. <p>indexed: {} <p>skipped: {}<p>{}<p>failed: {}<p>{}".format(icount,iskipped,skippedlist,ifailed,failedlist))
     
     #CURSOR SEARCH OF SOLR INDEX
         elif request.method == 'POST' and 'solrcursor' in request.POST and 'choice' in request.POST:
@@ -116,6 +118,8 @@ def listfiles(request):
             #print (thiscollection,mycore)
                 dupcount,deletecount=solrDeDup.filepathdups(mycore,delete=True) #GO REMOVE DUPLICATES
                 return HttpResponse ("Checking solr index for duplicate paths/filenames in solr index \""+str(mycore)+"\"<p>duplicates found: "+str(dupcount)+"<p>files removed: "+str(deletecount))
+
+
         else:
             return redirect('index')
     except solr.SolrConnectionError:
@@ -123,7 +127,7 @@ def listfiles(request):
     except solr.SolrCoreNotFound:
         return HttpResponse("Solr index not found: check index name in /admin")
     except indexSolr.ExtractInterruption as e:
-        return HttpResponse ("Indexing w ICIJ tool interrupted -- Solr Server not available. \n"+e.message)
+        return HttpResponse ("Indexing interrupted -- Solr Server not available. \n"+e.message)
     except requests.exceptions.RequestException as e:
         print ('caught requests connection error')
         return HttpResponse ("Indexing interrupted -- Solr Server not available")
@@ -162,7 +166,7 @@ def indexcheck(collection,thiscore):
                 solrdata=indexpaths[relpath][0] #take the first of list of docs with this path
                 #print ('PATH :'+file.filepath+' found in Solr index', 'Solr \'id\': '+solrdata['id'])
                 file.indexedSuccess=True
-                file.solrid=solrdata['id']
+                file.solrid=solrdata.id
                 file.save()
                 counter+=1
         #INDEX CHECK: METHOD TWO: CHECK IF FILE STORED IN SOLR INDEX UNDER CONTENTS HASH                
@@ -175,7 +179,7 @@ def indexcheck(collection,thiscore):
                     file.save()
                 #now lookup hash in solr index
                 log.debug('looking up hash : '+hash)
-                solrresult=solr.hashlookup(hash,thiscore)
+                solrresult=solr.hashlookup(hash,thiscore).results
                 log.debug(solrresult)
                 if len(solrresult)>0:
                     #if some files, take the first one
@@ -200,11 +204,12 @@ def indexdocs(collection,mycore,forceretry=False,useICIJ=False): #index into Sol
     #need to check if mycore and collection are valid objects
     if isinstance(mycore,solr.SolrCore) == False or isinstance(collection,Collection) == False:
         log.warning('indexdocs() parameters invalid')
-        return 0,0,0
+        return 0,0,0,[],[]
     if True:
         counter=0
         skipped=0
         failed=0
+        skippedlist,failedlist=[],[]
         #print(collection)
         filelist=File.objects.filter(collection=collection)
         #main loop
@@ -213,19 +218,28 @@ def indexdocs(collection,mycore,forceretry=False,useICIJ=False): #index into Sol
                 #skip this file, it's already indexed
                 #print('Already indexed')
                 skipped+=1
+                skippedlist.append(file.filepath)
             elif file.indexedTry==True and forceretry==False:
                 #skip this file, tried before and not forceing retry
-                #print('Previous failed index attempt, not forcing retry:',file.filepath)
+                log.info('Skipped on previous index failure; no retry: {}'.format(file.filepath))
                 skipped+=1
+                skippedlist.append(file.filepath)
             elif indexSolr.ignorefile(file.filepath) is True:
                 #skip this file because it is on ignore list
-                log.info('Ignoring: '+file.filepath)
+                log.info('Ignoring: {}'.format(file.filepath))
                 skipped+=1
+                skippedlist.append(file.filepath)
             else: #do try to index this file
-                log.info('Attempting index of '+file.filepath)
+                log.info('Attempting index of {}'.format(file.filepath))
                 #print('trying ...',file.filepath)
                 #if was previously indexed, store old solr ID and then delete if new index successful
                 oldsolrid=file.solrid
+                #get source
+                try:
+                    sourcetext=file.collection.source.sourceDisplayName
+                except:
+                    sourcetext=''
+                    log.debug('No source defined for file: {}'.format(file.filename))
                 #getfile hash if not already done
                 if not file.hash_contents:
                     file.hash_contents=hexfile(file.filepath)
@@ -234,10 +248,30 @@ def indexdocs(collection,mycore,forceretry=False,useICIJ=False): #index into Sol
                 if useICIJ:
                     log.info('using ICIJ extract method..')
                     result = solrICIJ.ICIJextract(file.filepath,mycore)
-
+                    if result is True:
+                        try:
+                            new_id=solr.hashlookup(file.hash_contents,mycore).results[0].id #id of the first result returned
+                            file.solrid=new_id
+                            log.info('(ICIJ extract) New solr ID: '+new_id)
+                        except:
+                            log.warning('Extracted doc not found in index')
+                            result=False
+                    if result is True:
+                    #post extract process -- add meta data field to solr doc, e.g. source field
+                        try:
+                            sourcetext=file.collection.source.sourceDisplayName
+                        except:
+                            sourcetext=''
+                        if sourcetext:
+                            try:
+                                result=solrICIJ.postprocess(new_id,sourcetext,file.hash_contents,mycore)
+                                if result==True:
+                                    log.debug('Added source: \"{}\" to docid: {}'.format(sourcetext,new_id))
+                            except Exception as e:
+                                log.error('Cannot add meta data to solrdoc: {}, error: {}'.format(new_id,e))
                 else:
                     try:
-                        result=indexSolr.extract(file.filepath,file.hash_contents,mycore)
+                        result=indexSolr.extract(file.filepath,file.hash_contents,mycore,sourcetext=sourcetext)
                     except solr.SolrCoreNotFound as e:
                         raise indexSolr.ExtractInterruption('Indexing interrupted after '+str(counter)+' files extracted, '+str(skipped)+' files skipped and '+str(failed)+' files failed.')
                     except solr.SolrConnectionError as e:
@@ -250,13 +284,7 @@ def indexdocs(collection,mycore,forceretry=False,useICIJ=False): #index into Sol
                     #print ('PATH :'+file.filepath+' indexed successfully')
                     if not useICIJ:
                         file.solrid=file.hash_filename  #extract uses hashfilename for an id , so add it
-                    else:
-                        try:
-                            new_id=solr.hashlookup(file.hash_contents,mycore)[0].id
-                            file.solrid=new_id
-                            log.info('New solr ID: '+new_id)
-                        except:
-                            log.warning('Extracted doc not found in index')
+
                     file.indexedSuccess=True
                     #now delete previous solr doc (if any): THIS IS ONLY NECESSARY IF ID CHANGES  
                     log.info('Old ID: '+oldsolrid+' New ID: '+file.solrid)
@@ -271,8 +299,10 @@ def indexdocs(collection,mycore,forceretry=False,useICIJ=False): #index into Sol
                     log.info('PATH : '+file.filepath+' indexing failed')
                     failed+=1
                     file.indexedTry=True  #set flag to say we've tried
+                    log.debug('Saving updated file info in database')
                     file.save()
-        return counter,skipped,failed
+                    failedlist.append(file.filepath)
+        return counter,skipped,failed,skippedlist,failedlist
     
 def pathHash(path):
     m=hashlib.md5()
@@ -291,3 +321,12 @@ def getindexes():
             log.warning('No indexes defined in database')
             defaultcoreID='' #if no indexes, no valid default
     return cores,defaultcoreID
+
+@staff_member_required()    
+def testlist(request,testid):
+    print (testid)
+    if testid=='switch':
+        return redirect(reverse('index'))
+    return HttpResponse('Test'+str(testid))
+    
+    
