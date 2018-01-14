@@ -64,7 +64,7 @@ def getsolrID(postID):
 #update solr docs from CSV, first line contains row names; 
 #solr ID field is taken from the model database and referenced by original ID field.
 #copy all data into the COPY FROM field (e.g. tika_metadata_resourcename, not the copy TO field (SB_filename))
-def addTagsFromCSV(path,mycore):
+def addTagsFromCSV(path,mycore,test=False):
         assert os.path.exists(path)
         assert mycore.ping()
         with open(path) as f:
@@ -76,7 +76,7 @@ def addTagsFromCSV(path,mycore):
                 assert 'sb_databaseid' in fieldnames
             except:
                 return False
-            maxloop=25000
+            maxloop=29000
             counter=0
             changes=[]
             print(row)
@@ -99,14 +99,16 @@ def addTagsFromCSV(path,mycore):
                                 trylist=value
                             doc[fieldnames[n]]={"set":trylist}
                     if len(doc)>1:#only update if some valid fields to set
-                        doc['id']=getsolrID(doc.pop('sb_databaseid')['set'])
+                        doc[mycore.unique_id]=getsolrID(doc.pop('sb_databaseid')['set'])
                     #changes.append(doc)
                         jsondoc=json.dumps([doc])
                         print(jsondoc)
                         counter+=1
-                        result,status=u.post_jsonupdate(jsondoc,mycore)
-                        if status is False:
-                            print (result,status)
+                        if test==False:
+                            #POST THE UPDATE TO SOLR INDEX
+                            result,status=u.post_jsonupdate(jsondoc,mycore)
+                            if status is False:
+                                print (result,status)
                 except Exception as e:
                     print('reached row '+str(counter))
                     print(e)
@@ -123,22 +125,22 @@ def checkbase():
             print(e)
             print('Blogpost with ID '+str(x)+'  not found')
 
-
-def extractbase(idstart=0,idstop=2,mycore=s.SolrCore('test1')):
+#EXTRACT SOLR DOC FROM DATABASE OF BLOGPOSTS
+def extractbase(idstart=0,idstop=2,mycore=s.SolrCore('test2'),sourcetext='Test source'):
     mycore.ping()
 #    print(vars(mycore))   
     for x in range(idstart,idstop):
         try:
             b=BlogPost.objects.get(originalID=x)
-            result,status=extractpost(b,mycore)
+            result,status=extractpost(b,mycore,sourcetext=sourcetext)
             print('Extracting to solr, title\"'+b.name+'\",\nID: '+str(b.id))
             print(result,status)
         except BlogPost.DoesNotExist as e:
             print(e)
             print('Blogpost with ID '+str(x)+'  not found')
     
-
-def extractpost(post,mycore):
+#EXTRACT INDIVIDUAL SOLR DOC FROM BLOGPOST
+def extractpost(post,mycore,sourcetext='Test source'):
 #    try:
 #        post=BlogPost.objects.get(id=id)
 #    except BlogPost.DoesNotExist:
@@ -147,27 +149,26 @@ def extractpost(post,mycore):
     #print(vars(post))
     doc=collections.OrderedDict()  #keeps the JSON file in a nice order
     if not post.solrID:
-        doc['id']=hash256(post.body.encode('utf-8')) #using the hash of the HTML body as the doc ID
+        doc[mycore.unique_id]=hash256(post.body.encode('utf-8')) #using the hash of the HTML body as the doc ID
     else:
-        doc['id']=post.solrID #hash256(post.body.encode('utf-8')) #using the hash of the HTML body as the doc ID
-    doc[mycore.hashcontentsfield]=doc['id'] #also store hash in its own standard field
+        doc[mycore.unique_id]=post.solrID  #using the hash of the HTML body as the doc ID
+    if mycore.hashcontentsfield != mycore.unique_id:
+        doc[mycore.hashcontentsfield]=doc[mycore.unique_id] #also store hash in its own standard field
     doc[mycore.rawtext]=post.text
     doc['preview_html']=post.body
     doc['database_originalID']=post.originalID
     doc['SBdata_ID']=post.id
+    doc[mycore.sourcefield]=sourcetext
     if post.pubdate:
         doc[mycore.datefield]=s.ISOtimestring(post.pubdate)
     doc[mycore.docpath]=post.url,
     doc['thumbnailurl']=post.thumburl
-    doc[mycore.docnamefield]=post.name    
+    doc[mycore.docnamesourcefield]=post.name    
     jsondoc=json.dumps([doc])
     result,status=u.post_jsondoc(jsondoc,mycore)
     return result,status
-"""
->>> i.BlogPost.objects.all()[0].__dict__
-'solrID': u'', ', 'name': u'That crook Schembri was in court today, pleading that he is not a crook', 'pubdate': None, 'url': u'https://daphnecaruanagalizia.com/', 'text': u'Former Opposition leader Simon Busuttil testified in court this morning, as did the Prime Minister\u2019s More', '_state': <django.db.models.base.ModelState object at 0x106040e10>, 'id': 7432, 'originalID': u'0'}
-"""
 
+#UPDATE A SOLR DOC WITH META FROM DATABASE
 def updateindex(post,mycore):
     solrid=getsolrID(post.originalID)
     #print('SolrID',solrid)
@@ -253,6 +254,32 @@ def fixfilename(mycore):
             print(e)
             print('no solr doc found for post ',post.id,post.name)        
     return
+
+def fixdate(mycore):
+    maxcount=30000
+    counter=0
+    for post in BlogPost.objects.all():
+        counter+=1
+        if counter>maxcount:
+            break
+        if post.pubdate:
+            value=s.ISOtimestring(post.pubdate)
+            solrID=getsolrID(post.originalID)
+            try:
+                #print(post.name,solrID)
+                result=u.updatetags(solrID,mycore,value=value,standardfield=mycore.datesourcefield,newfield=False)
+                if result == False:
+                   print('Update failed for post name: {} and ID: {}'.format(post.name,solrID))
+            except Exception as e:
+                print(e)                	
+            except Exception as e:
+                print(e)
+                print('no solr doc found for post ',post.id,post.name) 
+        else:
+            pass
+            #print('missing pubdate')
+    return
+
     
 def addsource(mycore):
     maxcount=30000

@@ -60,6 +60,7 @@ class SolrCore:
             self.pathhashfield=config[core]['hashpath']
             self.datefield=config[core]['datefield']
             self.docnamesourcefield=config[core]['docnamesource']
+            self.datesourcefield=config[core]['datesourcefield']
             #optional:
             self.tags1field=config[core].get('tags1field','')
             self.usertags1field=config[core].get('usertags1field','')

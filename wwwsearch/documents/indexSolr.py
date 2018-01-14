@@ -112,6 +112,9 @@ def extract(path,contentsHash,mycore,test=False,timeout='',sourcetext=''):
         relpath=os.path.relpath(path,start=docstore) #extract a relative path from the docstore root
         args='{}&literal.{}={}&literal.{}={}'.format(extractargs,id_field,contentsHash,docnamesourcefield,os.path.basename(path))
         args+='&literal.{}={}&literal.{}={}'.format(filepathfield,relpath,pathhashfield,pathHash(path))
+        #if a different field for hashcontents other than the unique ID (key) then store also in that field
+        if id_field != hashcontentsfield:
+            args+='&literal.{}={}'.format(hashcontentsfield,contentsHash)
         #if sourcefield is define and sourcetext is not empty string, add that to the arguments
         #make the sourcetext args safe, for example inserting %20 for spaces 
         if sourcefield and sourcetext:
