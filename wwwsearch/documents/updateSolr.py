@@ -98,7 +98,7 @@ def update(id,changes,mycore):  #solrid, list of changes [(standardfield,value),
 
 def makejson(solrid,changes,mycore):   #the changes use standard fields (e.g. 'date'); so parse into actual solr fields
     a=collections.OrderedDict()  #keeps the JSON file in a nice order
-    a['id']=solrid 
+    a['extract_id']=solrid 
     for field,value in changes:
         solrfield=mycore.__dict__.get(field,field) #if defined in core, replace with standard field, or leave unchanged
         a[solrfield]={"set":value}
@@ -114,7 +114,7 @@ def delete(solrid,mycore):
 #build json to delete a file from solr index
 def deletejson(solrid):
     a=collections.OrderedDict()  #keeps the JSON file in a nice order
-    a['delete']={'id':solrid}
+    a['delete']={'extract_id':solrid}
     data=json.dumps(a)
     return data
 """
@@ -407,7 +407,7 @@ def updatetags(solrid,mycore,value=['test','anothertest'],standardfield='usertag
             return False
     #make the json
     doc=collections.OrderedDict()  #keeps the JSON file in a nice order
-    doc['id']=solrid
+    doc['extract_id']=solrid
     doc[field]={"set":value}
     jsondoc=json.dumps([doc])
     log.debug('Json to post: {}'.format(jsondoc))
@@ -425,7 +425,7 @@ def updatefield(mycore,newvalue):
     counter=0
     maxcount=30000
     res=False
-    args='&fl=id,database_originalID, sb_filename'
+    args='&fl=extract_id,database_originalID, sb_filename'
     while True:
         res = sc.cursornext(mycore,searchterm='*',highlights=False,lastresult=res)
         if res == False:
@@ -442,7 +442,7 @@ def updatefield(mycore,newvalue):
             solrid=doc.id
 #            print(solrid)
             #EXAMPLE FILTER = TEST IF ANY DATA IN FIELD - DATABASE_ORIGINALID _ AND UPDATE OTHERS
-            searchterm=r'id:"'+solrid+r'"'
+            searchterm=r'extract_id:"'+solrid+r'"'
             jres=s.getJSolrResponse(searchterm,args,core=mycore)
             results=s.SolrResult(jres,mycore).results[0]
             data_id=results.data.get('database_originalID','NONE')
