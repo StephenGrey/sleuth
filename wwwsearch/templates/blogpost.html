@@ -25,6 +25,7 @@ Indexed keywords:
 <button type="submit" name='save' value='Save' class="btn btn-default btn-sm">
    <span class="glyphicon glyphicon-pencil">Save</span>
 </button>
+	</form>
 {% else %}
  User tags:<span class='tag'> 
  	{% if initialtags %}
@@ -37,7 +38,6 @@ Indexed keywords:
 </button>
 {% endif %}
 
-</form>
 {{body | safe}}
 
 {% endblock %}

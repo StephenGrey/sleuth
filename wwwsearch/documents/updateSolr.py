@@ -70,10 +70,12 @@ def checkupdate(id,changes,mycore):
     res=s.getmeta(id,mycore)
     #print (changes,res[0])
     if len(res)>0: #check there are solr docs returned
+        doc=res[0]
         for field,value in changes:
             #print('Change',field,value)
-            if field in res[0]:
-                newvalue=res[0][field] # mycore.fields[field]]
+            
+            newvalue=doc.__dict__.get(field,doc.data.get(field,''))
+            if newvalue:
                 if not isinstance(newvalue, basestring): #check for a list e.g date(not a string)
                     newvalue=newvalue[-1] if len(newvalue)>0 else '' #use the last in list
                 #print (newvalue,value)
@@ -165,10 +167,11 @@ def metaupdate(collection):
     #main code
     filelist=File.objects.filter(collection=collection)
     for file in filelist: #loop through files in collection
-        if file.indexUpdateMeta: #do action if indexUpdateMeta flag is true
+        if file.indexUpdateMeta and file.solrid: #do action if indexUpdateMeta flag is true; and there is a stored solrID
             #print (file.filename, file.filepath)
             #print()
             print('ID:'+file.solrid)
+            print(file.__dict__)
             #,'PATHHASH'+file.hash_filename
             print'Solr meta data flagged for update'
             #get solr data on file - and then modify if changed
@@ -179,11 +182,10 @@ def metaupdate(collection):
                 changes=parsechanges(solrdoc,file,mycore) #returns list of tuples [(field,newvalue),]
                 if changes:
                     #make changes to the solr index
-                    log.debug('{}'.format(solrdoc.__dict))
-                    json2post=makejson(solrdoc['id'],changes,mycore)
+                    json2post=makejson(solrdoc.id,changes,mycore)
                     log.debug('{}'.format(json2post)) 
 #                    response,updatestatus=post_jsonupdate(json2post,mycore)
-                    if checkupdate(solrdoc['id'],changes,mycore):
+                    if checkupdate(solrdoc.id,changes,mycore):
                         print('solr successfully updated')
                         file.indexUpdateMeta=False
                         file.save()
@@ -288,8 +290,8 @@ def updates(change,collection):
                 #contents change, flag for index
                 file.indexedSuccess=False
                 file.hash_contents=newhash
-                file.indexUpdateMeta=True  #flag to correct solrindex
-            #the solrid field is not cleared = the index process can check if it exists and delete it
+#                file.indexUpdateMeta=True  #flag to correct solrindex
+            #the solrid field is not cleared = the index process can check if it exists and delete the old doc
             #else-if the file has been already indexed, flag to correct solr index meta
             elif file.indexedSuccess==True:
                 file.indexUpdateMeta=True  #flag to correct solrindex

@@ -2,7 +2,7 @@
 from __future__ import unicode_literals
 from django.db import models
 from usersettings import userconfig as config
-from django.contrib.auth.models import Group
+from django.contrib.auth.models import Group, User
 
 # Create your models here.
 collectionbasepath=config['Models']['collectionbasepath']
@@ -57,6 +57,12 @@ class File(models.Model):
     def __str__(self):
         return self.filepath
 
+class UserEdit(models.Model):
+    solrid=models.CharField('Solr ID',max_length=100,default='',blank=True)
+    usertags = models.CharField('New user tags',max_length=31,default='',blank=True)
+    username= models.CharField('user name',max_length=50,default='',blank=True)
+    time_modified=models.DateTimeField('time modified',blank=True,null=True)
+    corename=models.CharField('Corename',max_length=20,default='')
 
-
-
+    def __str__(self):
+        return self.usertags+self.usertags

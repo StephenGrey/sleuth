@@ -1,4 +1,9 @@
 {% extends "base.html" %}
+
+	{% block sidebar %}
+	<a href="{{searchurl}}">Back to Results</a>
+		{% endblock %}
+
 {% block content %}
 
 {% comment %}
@@ -15,6 +20,27 @@ This is a comment section
 <br>PATH: {{docpath}}&emsp; SIZE(bytes):{{docsize}}<br>
 <!--DIRECT FROM APACHE--<a href="/docstore/{{docpath}}"><b>Download</b></a>	-->
 <b>Filename: {{docname}}</b> 
+<form action="" method="post"> {% csrf_token %}
+&nbsp; 
+{% if useredit %}
+	{{form.keywords.label}}{{form.keywords}}
+<button type="submit" name='save' value='Save' class="btn btn-default btn-sm">
+   <span class="glyphicon glyphicon-pencil">Save</span>
+</button>
+
+{% else %}<br>
+ User tags:<span class='tag'> 
+ 	{% if initialtags %}
+ 		{% for tag in initialtags %}
+ 			{{ tag }}, 
+ 		{% endfor %}
+ 	{% endif %}</span>
+<button type="submit" name='edit' value='Edit' class="btn btn-default btn-sm">
+   <span class="glyphicon glyphicon-pencil">Edit</span>
+</button>
+{% endif %}
+	</form>
+
 {% if docexists%}<a href="/ownsearch/download={{fileid}}&{{hashfile}}"<b>Download</b></a><p>
 {% endif %}
 {% for scrap in splittext %}

@@ -5,7 +5,7 @@ SEARCH VIEWS
 """
 from __future__ import unicode_literals
 from .forms import SearchForm,TagForm
-from documents.models import File,Collection,SolrCore
+from documents.models import File,Collection,SolrCore,UserEdit
 from django.shortcuts import render
 from django.contrib.auth.decorators import login_required
 from django.http import HttpResponse
@@ -13,6 +13,7 @@ from django.http import HttpResponseRedirect
 from django.db.models.base import ObjectDoesNotExist
 import solrJson, re, os, logging, unicodedata, urllib
 from documents import solrcursor,updateSolr
+from datetime import datetime
 from usersettings import userconfig as config
 log = logging.getLogger('ownsearch.views')
 docbasepath=config['Models']['collectionbasepath']
@@ -234,7 +235,11 @@ def get_content(request,doc_id,searchterm,tagedit='False'): #make a page showing
                 keyclean=[re.sub(r'[^a-zA-Z0-9, ]','',item) for item in keywords]
                 updateresult=updateSolr.updatetags(doc_id,mycore,keyclean)
                 if updateresult:
-                    log.debug('Update success of user tags: {} in solrdoc: {}'.format(keyclean,doc_id))
+                    log.info('Update success of user tags: {} in solrdoc: {} by user {}'.format(keyclean,doc_id,request.user.username))
+                    edit=UserEdit(solrid=doc_id,usertags=keyclean,corename=mycore.name)
+                    edit.username=request.user.username
+                    edit.time_modified=solrJson.timeaware(datetime.now())
+                    edit.save()
                 else:
                     log.debug('Update failed of user tags: {} in solrdoc: {}'.format(keyclean,doc_id))
             return HttpResponseRedirect("/ownsearch/doc={}&searchterm={}".format(doc_id,searchterm))
@@ -264,7 +269,7 @@ def get_content(request,doc_id,searchterm,tagedit='False'): #make a page showing
         if isinstance(data_ID,list):
             data_ID=data_ID[0]
         log.debug('Data ID '+str(data_ID)) 
-        if html:
+        if True:
             initialtags=result.data.get(mycore.usertags1field,'')
             if not isinstance(initialtags,list):
                 initialtags=[initialtags]
@@ -276,6 +281,7 @@ def get_content(request,doc_id,searchterm,tagedit='False'): #make a page showing
             if tags1=='':
                 tags1=False
 #            log.debug('tag1: {}'.format(tags1))
+        if html:
             searchterm_urlsafe=urllib.quote_plus(searchterm)
             return render(request, 'blogpost.html', {'form':form,'body':html, 'tags1':tags1,'tagstring':tagstring,'initialtags': initialtags,'useredit':useredit,'docid':data_ID,'solrid':doc_id,'docname':docname,'docpath':docpath,'datetext':datetext,'data':result.data,'searchterm': searchterm, 'searchterm_urlsafe': searchterm_urlsafe, 'searchurl':searchurl})
 #        log.debug('Full result '+str(result.__dict__))    
@@ -305,7 +311,7 @@ def get_content(request,doc_id,searchterm,tagedit='False'): #make a page showing
         splittext,lastscrap,cleanterm=cleanup(searchterm,highlight)
         
         #print(result.data)
-        return render(request, 'contentform.html', {'docsize':docsize, 'doc_id': doc_id, 'splittext': splittext, 'searchterm': cleanterm, 'lastscrap': lastscrap, 'docname':docname, 'docpath':docpath, 'hashfile':hashfilename, 'fileid':matchfile_id,'docexists':authflag, 'data':result.data})
+        return render(request, 'contentform.html', {'docsize':docsize, 'doc_id': doc_id, 'splittext': splittext, 'searchterm': cleanterm, 'lastscrap': lastscrap, 'docname':docname, 'docpath':docpath, 'hashfile':hashfilename, 'fileid':matchfile_id,'tags1':tags1,'tagstring':tagstring,'initialtags': initialtags,'useredit': useredit,'docexists':authflag, 'data':result.data, 'form':form, 'searchurl':searchurl})
         
 
 #    except Exception as e:
