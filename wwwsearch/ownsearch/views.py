@@ -131,7 +131,7 @@ def do_search(request,page=0,searchterm='',direction='',pagemax=0,sorttype='',ta
                     log.debug('selected core'+str(coreselect))
 #                request.session['results']='' #clear results from any previous searches
                 
-                searchterm_urlsafe=urllib.quote_plus(searchterm)
+                searchterm_urlsafe=urllib.quote_plus(searchterm.encode('utf-8'))
                 searchurl="/ownsearch/searchterm={}&page=1&sorttype={}".format(searchterm_urlsafe,sorttype)
                 request.session['lastsearch']=searchurl
                 return HttpResponseRedirect(searchurl)
@@ -149,7 +149,7 @@ def do_search(request,page=0,searchterm='',direction='',pagemax=0,sorttype='',ta
             request.session['lastsearch']=''
             backpage,nextpage='',''
         #print(resultlist)
-        searchterm_urlsafe=urllib.quote_plus(searchterm)
+        searchterm_urlsafe=urllib.quote_plus(searchterm.encode('utf-8'))
         filterlist=[(tag,filters[tag]) for tag in filters]
         log.debug('Filter list : {}'.format(filterlist))
         return render(request, 'searchform.html', {'form': form,'filters':filterlist, 'filtering':tagfilters,'facets':facets, 'facets2':facets2, 'facets3':facets3,'pagemax': pagemax, 'results': resultlist, 'searchterm': searchterm, 'searchterm_urlsafe': searchterm_urlsafe, 'resultcount': resultcount, 'page':page, 'sorttype': sorttype,'backpage':backpage,'nextpage':nextpage})
@@ -196,7 +196,7 @@ def download(request,doc_id,hashfilename): #download a document from the docstor
 
 @login_required
 def get_content(request,doc_id,searchterm,tagedit='False'): #make a page showing the extracted text, highlighting searchterm
-    log.debug('Get content for doc id: '+str(doc_id)+' from search term '+str(searchterm))
+    log.debug('Get content for doc id: {} from search term {}'.format(doc_id,searchterm))
     searchterm=urllib.unquote_plus(searchterm)
     searchurl=request.session.get('lastsearch','/ownsearch') #get the search page to return to, or home page
     #load solr index in use, SolrCore object

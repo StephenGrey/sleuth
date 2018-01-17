@@ -1,4 +1,7 @@
 <?xml version="1.0" encoding="UTF-8" ?>
+
+
+
 <!--
  Licensed to the Apache Software Foundation (ASF) under one or more
  contributor license agreements.  See the NOTICE file distributed with
@@ -21,6 +24,8 @@
      this file, see http://wiki.apache.org/solr/SolrConfigXml.
 -->
 <config>
+      <schemaFactory class="ClassicIndexSchemaFactory">
+      </schemaFactory>
   <!-- In all configuration below, a prefix of "solr." for class names
        is an alias that causes solr to search appropriate packages,
        including org.apache.solr.(search|update|request|core|analysis)
@@ -1159,6 +1164,7 @@
       <str>yyyy-MM-dd</str>
     </arr>
   </updateProcessor>
+  
   <updateProcessor class="solr.AddSchemaFieldsUpdateProcessorFactory" name="add-schema-fields">
     <lst name="typeMapping">
       <str name="valueClass">java.lang.String</str>
@@ -1189,8 +1195,9 @@
     </lst>
   </updateProcessor>
 
+  
   <!-- The update.autoCreateFields property can be turned to false to disable schemaless mode -->
-  <updateRequestProcessorChain name="add-unknown-fields-to-the-schema" default="${update.autoCreateFields:true}"
+  <updateRequestProcessorChain name="add-unknown-fields-to-the-schema" default="${update.autoCreateFields:false}"
            processor="uuid,remove-blank,field-name-mutating,parse-boolean,parse-long,parse-double,parse-date,add-schema-fields">
     <processor class="solr.LogUpdateProcessorFactory"/>
     <processor class="solr.DistributedUpdateProcessorFactory"/>

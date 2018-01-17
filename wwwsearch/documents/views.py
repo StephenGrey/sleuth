@@ -33,12 +33,12 @@ def index(request):
         form=IndexForm(request.POST)
         if form.is_valid():
             coreID=form.cleaned_data['CoreChoice']
-#            print ('change core to',coreID)
+            print ('change core to',coreID)
             request.session['mycore']=coreID
     else:
 #        print(request.session['mycore'])
         form=IndexForm(initial={'CoreChoice':coreID})
-#        print('Core set in request: ',request.session['mycore'])
+        print('Core set in request: ',request.session['mycore'])
     latest_collection_list = Collection.objects.filter(core=SolrCore.objects.get(coreID=coreID))
     return render(request, 'documents/scancollection.html',{'form': form, 'latest_collection_list': latest_collection_list})
 
@@ -47,7 +47,9 @@ def listfiles(request):
 #    cores=solr.getcores() #fetch dictionary of installed solr indexes (cores)
     cores,defaultcoreID=getindexes()
     if 'mycore' in request.session:
+        
         coreID=request.session['mycore'] #currently selected core
+        print(coreID)
     else:
         print ('ERROR no stored core in session')
         return HttpResponse( "No index selected...please go back")
