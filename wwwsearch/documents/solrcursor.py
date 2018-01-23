@@ -123,13 +123,13 @@ def cursor(mycore,keyfield='docpath',searchterm='*',highlights=False): #iterates
 
 def cursorResult(mycore,cursormark,searchterm,highlights=False):
     if highlights:
-        args=mycore.cursorargs+'&hl.fl='+mycore.rawtext+'&hl=on&sort=extract_id+asc&rows=100&cursorMark='+cursormark        
+        args=mycore.cursorargs+'&hl.fl='+mycore.rawtext+'&hl=on&sort='+mycore.unique_id+'+asc&rows=100&cursorMark='+cursormark        
     else:
-        args=mycore.cursorargs+'&sort=extract_id+asc&rows=100&cursorMark='+cursormark
+        args=mycore.cursorargs+'&sort='+mycore.unique_id+'+asc&rows=100&cursorMark='+cursormark
 
     jres=solrJson.getJSolrResponse(searchterm,args,mycore)
-#    print(jres)
-#            blocklist,resultsnumber,counter=listresults(res,mycore)
+#    log.debug('Searchterm: {} Args: {} Mycore:{}'.format(searchterm,args,mycore))
+#    log.debug('Result: {}'.format(jres))
     solrresult=solrJson.SolrResult(jres,mycore) #processresult
     if highlights:
         solrresult.addhighlights() #add the highlights to the results

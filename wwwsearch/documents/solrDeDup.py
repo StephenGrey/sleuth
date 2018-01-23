@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from __future__ import unicode_literals, print_function
 from documents import solrcursor,updateSolr
-from ownsearch import solrSoup
+from ownsearch import solrJson
 from usersettings import userconfig as config
 import os
 #get cursor of solr index, indexing that by key which can be any field, usually a filename or contentshash
@@ -22,12 +22,13 @@ def filepathdups(core,delete=False):
     namefield='docname'
     datefield='date'
     dups=dupkeys(core,pathfield,key2field=namefield)
+    dupcount,deletecount=0,0
     
     for path,name,duplist in dups:
         #IGNORE DUPS IF NO FILENAME OR PATH STORED  (avoids emails)
         #IGNORE IF FILE PATH DOES NOT EXIST ON LOCAL (avoids false dups on mis-stored paths e.g unicode filenames)
         #FILENAME MUST MATCH BASENAME IN PATH (avoids attachment, subfiles )
-        dupcount,deletecount=0,0
+        
         if path!='' and name!='' and os.path.exists(path) and os.path.basename(path)==name:
             print('\nDUPLICATE: (key1)',path,'(key2)',name)
     #        print(duplist)
@@ -54,12 +55,10 @@ def filepathdups(core,delete=False):
                 
                 #NOW DELETE THE DUP
                 if delete==True and deletethis==True:
-                    if updateSolr.delete(dup['id'],core):
+                    if updateSolr.delete(dup[core.unique_id],core):
                         print('... deleted from solr index')
                         deletecount+=1
-                    
-                    
-                
+
     return dupcount,deletecount
 
 def dupkeys(core,keyfield1,key2field=''):
@@ -81,11 +80,10 @@ def dupkeys(core,keyfield1,key2field=''):
                 #check for duplicate under second key e.g filename
                 sortagain={}
                 for solrdoc in solrdict[indexkey]: #e.g for docs in folder
-                    if key2field in solrdoc: #if the second key is present in solr doc
-                        
+                    key2value=getattr(solrdoc,key2field)
+                    if key2value: #if the second key is present in solr doc
                         #making a dictionary of second key and list of solr records(denoted by id)
-                        sortagain.setdefault(solrdoc[key2field],[]).append(solrdoc)
-                #print('resorted',sortagain)
+                        sortagain.setdefault(key2value,[]).append(solrdoc)
                 for otherkey in sortagain:
                     if len(sortagain[otherkey])>1: #more than one entry for 2ndkey e.g filename
                         duplist=[]
@@ -98,7 +96,6 @@ def dupkeys(core,keyfield1,key2field=''):
                 for solrdoc in solrdict[indexkey]: #e.g for docs in folder
                     duplist.append(solrdoc)
                 dups.append((indexkey,'',duplist))
-            
             
 #    print(dups)
     return dups

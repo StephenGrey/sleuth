@@ -1,10 +1,8 @@
 # -*- coding: utf-8 -*-
 from __future__ import unicode_literals
 # extract from dupFinder.py
-# UPDATED WORKING 8/3/16
-# THIS PACKAGE contains functions to hash index file directories, and main routine does a search for orphans
 import os, sys, logging
-import hashlib  #routines for calculating hash
+import hashlib
 import time
 log = logging.getLogger('ownsearch')
 
@@ -69,8 +67,8 @@ def findDup(parentFolder):  #check duplicates in a file folder  MAIN ROUTINE FOR
                 lendups[file_hash]=[os.path.getsize(path)]
     return dups,lendups
  
-def HexFolderTable(parentFolder):  #check duplicates in a file folder  MAIN ROUTINE FOR BUILDING SIMPLE FILE SPECS TABLE KEYED TO HEX OF CONTENT
-    # deetict  in format OLD {hash:[[pathlist],filesize]}
+def HexFolderTable(parentFolder):
+    """ Build a simple file specs dictionary, keyed to hash of contents """
     deetdict = {}  #dictionary of dups
     for dirName, subdirs, fileList in os.walk(parentFolder): #go through every subfolder in a folder
         try:

@@ -80,6 +80,8 @@ def extract(path,contentsHash,mycore,test=False,timeout='',sourcetext=''):
     except AssertionError:
         log.debug ('Extract: bad parameters: {},{}'.format(path,mycore))
         return False
+    if contentsHash =='':
+        contentsHash=dup.hashfile256(path)
     #establish connnection to solr index
     mycore.ping() #       throws a SolrConnectionError if solr is down; throw error to higher level.
     try: 

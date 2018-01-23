@@ -575,18 +575,9 @@ def getcores():
         pass
     return cores
 
-#defaultcore=getcores()['1'] #config['Cores']['1'] #the name of the index to use within the Solr backend
-#mydefaultcore=SolrCore(defaultcore) #instantiate a default core object
 
 
-
-#def timefromSolr(timestring):
-#    if timestring:
-#        parseraw=datetime.strptime(timestring, "%Y-%m-%dT%H:%M:%SZ")
-#        parsetimezone=pytz.timezone("Europe/London").localize(parseraw, is_dst=True)
-#        return parsetimezone
-#    else:
-#        return ''
+##TIME FUNCTIONS
 
 def timestamp2aware(timestamp):
     return timeaware(timefromstamp(timestamp))
