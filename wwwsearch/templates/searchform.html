@@ -6,36 +6,36 @@
     {% csrf_token %}
 Index:{{form.CoreChoice}}<p>
 	      <ul class="sidebar-nav">
-	        {% if facets %}
+	        {% if page.facets %}
           	Tag scores: (click to filter) 
-          		{% for tag,score in facets %}
+          		{% for tag,score in page.facets %}
           			 {% if score != 0 %}
           			 <li>
-          			 	<a class='tag' href="{% url 'searchpagefilters' searchterm=searchterm_urlsafe page=1 sorttype=sorttype tag1field='tag1' tag1=tag tag2field=filters.0.0 tag2=filters.0.1 tag3field=filters.1.0 tag3=filters.1.1  %}">{{ tag }}</a>
+          			 	<a class='tag' href="{% url 'searchpagefilters' searchterm=page.searchterm_urlsafe page=1 sorttype=page.sorttype tag1field='tag1' tag1=page.tag tag2field=page.filters.0.0 tag2=page.filters.0.1 tag3field=page.filters.1.0 tag3=page.filters.1.1  %}">{{ tag }}</a>
           			 	 ({{score}})</li>
           			 {% endif %}
           		{% endfor %}
           {% endif %}
           <br>	          
-	        {% if facets2 %}
+	        {% if page.facets2 %}
           	User tags: (click to filter) 
-          		{% for tag,score in facets2 %}
+          		{% for tag,score in page.facets2 %}
           			 {% if score != 0 %}
           			 <li>
-          			 	<a class='tag2' href="{% url 'searchpagefilters' searchterm=searchterm_urlsafe page=1 sorttype=sorttype tag1field='tag2' tag1=tag tag2field=filters.0.0 tag2=filters.0.1 tag3field=filters.1.0 tag3=filters.1.1  %}">{{ tag }}</a>
+          			 	<a class='tag2' href="{% url 'searchpagefilters' searchterm=page.searchterm_urlsafe page=1 sorttype=page.sorttype tag1field='tag2' tag1=page.tag tag2field=page.filters.0.0 tag2=page.filters.0.1 tag3field=page.filters.1.0 tag3=page.filters.1.1  %}">{{ tag }}</a>
           			 	
           			 	 ({{score}})</li>
           			 {% endif %}
           		{% endfor %}
           {% endif %}	          
           <br>	          
-	        {% if facets3 %}
+	        {% if page.facets3 %}
           	Sources: (click to filter) 
-          		{% for tag,score in facets3 %}
+          		{% for tag,score in page.facets3 %}
           			 {% if score != 0 %}
           			 <li>
           			 	<a class='tag2' 
-          			 	<a href="{% url 'searchpagefilters' searchterm=searchterm_urlsafe page=1 sorttype=sorttype tag1field='tag3' tag1=tag tag2field=filters.0.0 tag2=filters.0.1 tag3field=filters.1.0 tag3=filters.1.1  %}">{{ tag }}</a>
+          			 	<a href="{% url 'searchpagefilters' searchterm=page.searchterm_urlsafe page=1 sorttype=page.sorttype tag1field='tag3' tag1=page.tag tag2field=page.filters.0.0 tag2=page.filters.0.1 tag3field=page.filters.1.0 tag3=page.filters.1.1  %}">{{ tag }}</a>
           			 	
           			 	 ({{score}})</li>
           			 {% endif %}
@@ -63,10 +63,10 @@ Sort by:
 <input type="submit" value="Search" />
 
 
-{% if resultcount == 0 %}<p>No results for search on "{{searchterm}}" {%if tagfilter %} filtered by tag "{{tagfilter}}" {%endif%}{%if tagfilter2 %} and filtered by user tag "<span class='tag2'>{{tagfilter2}}</span>" {%endif%}{%endif%}
+{% if page.resultcount == 0 %}<p>No results for search on "{{page.searchterm}}" {%if page.tagfilter %} filtered by tag "{{page.tagfilter}}" {%endif%}{%if page.tagfilter2 %} and filtered by user tag "<span class='tag2'>{{page.tagfilter2}}</span>" {%endif%}{%endif%}
 {% if resultcount == -2 %}<p>Connection error to index (Check Internet connection){%endif%}
-{% if results %} <h3>Results</h3>	
-<h4>{{resultcount}} results for search on "{{searchterm}}" {%if filtering %}filtered by tags:  "{%for tag in filters %}{{tag.1}}, {% endfor %}"{% endif %}{%if tagfilter2 %}and filtered by user tag "<span class='tag2'>{{tagfilter2}}</span>"{%endif%}{% if page > 1 %}: Page {{page}}{% endif %}</h4>
+{% if page.results %} <h3>Results</h3>	
+<h4>{{page.resultcount}} results for search on "{{page.searchterm}}" {%if page.filtering %}filtered by tags:  "{%for tag in page.filters %}{{page.tag.1}}, {% endfor %}"{% endif %}{%if page.tagfilter2 %}and filtered by user tag "<span class='tag2'>{{page.tagfilter2}}</span>"{%endif%}{% if page > 1 %}: Page {{page.page}}{% endif %}</h4>
 <!--
 {% if facets %}
 	Tag scores: (click to filter) 
@@ -77,33 +77,33 @@ Sort by:
 	{% endfor %}
 {% endif %}-->
 <p>
-{% for res in results %} 	
-<li>{{res.data.resultnumber}}: <a href="/ownsearch/doc={{res.id}}&searchterm={{searchterm_urlsafe}}"><b>{% if res.docname  %}{{res.docname }}{% else %}No Filename Indexed{% endif %}</b></a> 
+{% for res in page.results %} 	
+<li>{{res.data.resultnumber}}: <a href="/ownsearch/doc={{res.id}}&searchterm={{page.searchterm_urlsafe}}"><b>{% if res.docname  %}{{res.docname }}{% else %}No Filename Indexed{% endif %}</b></a> 
 	{{res.data.solrdocsize}} {{res.datetext}}
 {% if res.data.message_from  %}
 <br><b>Message title:</b>{{res.data.title}}<br><b>From:</b> {{res.data.message_from}} <b>To:</b> {{res.data.message_to}}
 {% endif %}
 {% if res.data.tags1  %}<br>{% for tag in res.data.tags1 %}
-	<a class='tag' href="{% url 'searchpagefilters' searchterm=searchterm_urlsafe page=1 sorttype=sorttype tag1field='tag1' tag1=tag tag2field=filters.0.0 tag2=filters.0.1 tag3field=filters.1.0 tag3=filters.1.1  %}">{{ tag }}</a>
+	<a class='tag' href="{% url 'searchpagefilters' searchterm=page.searchterm_urlsafe page=1 sorttype=page.sorttype tag1field='tag1' tag1=tag tag2field=page.filters.0.0 tag2=page.filters.0.1 tag3field=page.filters.1.0 tag3=page.filters.1.1  %}">{{ tag }}</a>
 	{% endfor %} {% endif %}<p>
 	{{ res.data.highlight.0 }}<b>{{ res.data.highlight.1 }}</b>{{ res.data.highlight.2 }}
 {% endfor %} 
 <p>
 
-{% if backpage %}
-	{% if filtering %}
-	<a href="{% url 'searchpagefilters' searchterm=searchterm_urlsafe page=backpage sorttype=sorttype tag1field=filters.0.0 tag1=filters.0.1 tag2field=filters.1.0 tag2=filters.1.1 tag3field=filters.2.0 tag3=.2.1 %}">Back</a>
+{% if page.backpage %}
+	{% if page.filtering %}
+	<a href="{% url 'searchpagefilters' searchterm=page.searchterm_urlsafe page=page.backpage sorttype=page.sorttype tag1field=page.filters.0.0 tag1=page.filters.0.1 tag2field=page.filters.1.0 tag2=page.filters.1.1 tag3field=page.filters.2.0 tag3=page.filters.2.1 %}">Back</a>
   {% else %}
-	<a href="{% url 'searchpageview' searchterm=searchterm_urlsafe page=backpage sorttype=sorttype %}">Back</a>
+	<a href="{% url 'searchpageview' searchterm=page.searchterm_urlsafe page=page.backpage sorttype=page.sorttype %}">Back</a>
 	{% endif %}
 {% endif %}
 
 
-{% if nextpage %}
-	{% if filtering %}
-	<a href="{% url 'searchpagefilters' searchterm=searchterm_urlsafe page=nextpage sorttype=sorttype tag1field=filters.0.0 tag1=filters.0.1 tag2field=filters.1.0 tag2=filters.1.1 tag3field=filters.2.0 tag3=.2.1 %}">Next</a>
+{% if page.nextpage %}
+	{% if page.filtering %}
+	<a href="{% url 'searchpagefilters' searchterm=page.searchterm_urlsafe page=page.nextpage sorttype=page.sorttype tag1field=page.filters.0.0 tag1=page.filters.0.1 tag2field=page.filters.1.0 tag2=page.filters.1.1 tag3field=page.filters.2.0 tag3=page.filters.2.1 %}">Next</a>
   {% else %}
-	<a href="{% url 'searchpageview' searchterm=searchterm_urlsafe page=nextpage sorttype=sorttype %}">Next</a>
+	<a href="{% url 'searchpageview' searchterm=page.searchterm_urlsafe page=page.nextpage sorttype=page.sorttype %}">Next</a>
 	{% endif %}
 {% endif %}
 

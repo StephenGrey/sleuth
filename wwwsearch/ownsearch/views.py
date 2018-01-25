@@ -17,143 +17,119 @@ from datetime import datetime
 from usersettings import userconfig as config
 log = logging.getLogger('ownsearch.views')
 docbasepath=config['Models']['collectionbasepath']
-
+import pages
 
 @login_required
-def do_search(request,page=0,searchterm='',direction='',pagemax=0,sorttype='',tag1field='',tag1='',tag2field='',tag2='',tag3field='',tag3=''):
+def do_search(request,page=0,searchterm='',direction='',pagemax=0,sorttype='relevance',tag1field='',tag1='',tag2field='',tag2='',tag3field='',tag3=''):
 #    log.debug('SESSION CACHE: '+str(vars(request.session)))
-
+    searchpage=pages.Page(page_number=page,searchterm=searchterm,direction=direction,pagemax=pagemax,sorttype=sorttype,tag1field=tag1field,tag1=tag1,tag2field=tag2field,tag2=tag2,tag3field=tag3field,tag3=tag3)
+    
     #GET PARAMETERS
-    searchterm=urllib.unquote_plus(searchterm)
-    filters={tag1field:tag1,tag2field:tag2,tag3field:tag3}
-    filters.pop('','') #remove blank filters
-    print(filters)
+    searchpage.searchterm=urllib.unquote_plus(searchterm)
+    searchpage.filters={tag1field:tag1,tag2field:tag2,tag3field:tag3}
+    searchpage.filters.pop('','') #remove blank filters
+    #print(searchpage.filters)
     if tag1 or tag2 or tag3:
-        tagfilters=True
+        searchpage.tagfilters=True
     else:
-        tagfilters=False
-    log.debug('Filters: {}'.format(filters))
+        searchpage.tagfilters=False
+    log.debug('Filters: {}'.format(searchpage.filters))
     try:
-
     #GET AUTHORISED CORES AND DEFAULT
-        corelist,defaultcoreID,choice_list=authcores(request)
+        corelist,DEFAULTCOREID,choice_list=authcores(request)
 #        print(str(choice_list))
         log.debug('AUTHORISED CORE CHOICE: '+str(choice_list))
-        log.debug('DEFAULT CORE ID:'+str(defaultcoreID))
-        
-        #set initial default sorttype
-        if sorttype=='':
-            sorttype='relevance'
+        log.debug('DEFAULT CORE ID:'+str(DEFAULTCOREID))
+
     #GET THE INDEX get the solr index, a SolrCore object, or choose the default
         if 'mycore' not in request.session:  #set default if no core selected
             log.debug('no core selected.. setting default')
-            request.session['mycore']=defaultcoreID
-        coreID=int(request.session.get('mycore'))
+            request.session['mycore']=DEFAULTCOREID
+        searchpage.coreID=int(request.session.get('mycore'))
         #print(vars(request.session),'COREID:'+str(coreID),' CORELIST:'+str(corelist))
-        if coreID in corelist:
-            mycore=corelist[coreID]
-        elif defaultcoreID in corelist:
-            mycore=corelist[defaultcoreID]
-            request.session['mycore']=defaultcoreID
-            coreID=defaultcoreID
+        if searchpage.coreID in corelist:
+            searchpage.mycore=corelist[searchpage.coreID]
+        elif DEFAULTCOREID in corelist:
+            searchpage.mycore=corelist[DEFAULTCOREID]
+            request.session['mycore']=DEFAULTCOREID
+            searchpage.coreID=DEFAULTCOREID
         else:
             log.warning('Cannot find any valid coreID in authorised corelist')
             return HttpResponse('Missing any config data for any authorised index: contact administrator')
     
     #SET THE RESULT PAGE    
-        page=int(page) #urls always returns strings only
-#        #print('page',page,'searchterm',searchterm,'direction',direction)
-#        if direction == 'next':
-#            page=page+1
-#        if direction == 'back':
-#            page=page-1
-        log.info('Page: {}'.format(page))
+        searchpage.page_number=int(searchpage.page_number) #urls always returns strings only
+        log.info('Page: {}'.format(searchpage.page_number))
     
     #DO SEARCH IF PAGE ESTABLISHED 
         
-        if page > 0: #if page value not default (0) then proceed directly with search
-            resultlist=[]
-            form = SearchForm(choice_list,str(coreID),sorttype,searchterm)
-            log.info('User {} searching with searchterm: {} and tag \"{}\" and tag2 \"{}\" on page {}'.format(request.user.username,searchterm,tag1,tag2,page))
+        if searchpage.page_number > 0: #if page value not default (0) then proceed directly with search
+            searchpage.resultlist=[]
+            form = SearchForm(choice_list,str(searchpage.coreID),searchpage.sorttype,searchpage.searchterm)
+            log.info('User {} searching with searchterm: {} and tag \"{}\" and tag2 \"{}\" on page {}'.format(request.user.username,searchpage.searchterm,searchpage.tag1,searchpage.tag2,searchpage.page_number))
             try:
-                startnumber=(page-1)*10
+                searchpage.startnumber=(searchpage.page_number-1)*10
 #                if sorttype=='relevance':
                 if True:
-#                    if tag1:
-#                        filters={mycore.tags1field:tag1}
-#                    elif tag2:
-#                        filters={mycore.usertags1field:tag2}
-#                    else:
-#                        filters={}
-                    resultlist,resultcount,facets,facets2,facets3=solrJson.solrSearch(searchterm,sorttype,startnumber,core=mycore, filters=filters, faceting=True)
-                    pagemax=int(resultcount/10)+1
-                    #tagcheck=[result.data for result in resultlist]
-                    #log.debug(str(tagcheck))
-                    if page>1:
-                        backpage=page-1
+                   
+                    searchpage.results,searchpage.resultcount,searchpage.facets,searchpage.facets2,searchpage.facets3=solrJson.solrSearch(searchpage.searchterm,searchpage.sorttype,searchpage.startnumber,core=searchpage.mycore, filters=searchpage.filters, faceting=True)
+                    searchpage.pagemax=int(searchpage.resultcount/10)+1
+
+                    if searchpage.page_number>1:
+                        searchpage.backpage=searchpage.page_number-1
                     else:
-                        backpage=''
-                    if page<pagemax:
-                        nextpage=page+1
+                        searchpage.backpage=''
+                    if searchpage.page_number<searchpage.pagemax:
+                        searchpage.nextpage=searchpage.page_number+1
                     else:
-                        nextpage=''
+                        searchpage.nextpage=''
 
             except Exception as e:
 #                print(e)
                 log.error('Error {}'.format(e))
-                log.debug(sorttype)
-                log.debug(str(resultlist))
-                resultlist=[]
-                facets=[]
-                facets2=[]
-                facets3=[]
-                resultcount=0
-                pagemax=0
-                backpage,nextpage='',''
+                log.debug(searchpage.sorttype)
+                log.debug(str(searchpage.resultlist))
+                searchpage.clear_()
 
     #PROCESS FORM DATA - INDEX AND SEARCHTERM CHOICES AND THEN REDIDRECT WITH A GET TO DO FIRST SEARCH
         # if this is a POST request we need to process the form data
         elif request.method == 'POST': #if data posted from form
     
             # create a form instance and populate it with data from the request:
-            form = SearchForm(choice_list,str(coreID),sorttype,searchterm,request.POST)
+            form = SearchForm(choice_list,str(searchpage.coreID),searchpage.sorttype,searchpage.searchterm,request.POST)
             # check whether it's valid:
             if form.is_valid():
                 # process the data in form.cleaned_data as required
                 #print(vars(form))
-                searchterm=form.cleaned_data['search_term']
-                sorttype=form.cleaned_data['SortType']
+                searchpage.searchterm=form.cleaned_data['search_term']
+                searchpage.sorttype=form.cleaned_data['SortType']
                 coreselect=int(form.cleaned_data['CoreChoice'])
-                if coreselect != coreID:  #NEW INDEX SELECTED
+                if coreselect != searchpage.coreID:  #NEW INDEX SELECTED
                     log.debug('change core')
-                    coreID=coreselect  #new solr core ID
-                    request.session['mycore']=coreID  #store the chosen index
+                    searchpage.coreID=coreselect  #new solr core ID
+                    request.session['mycore']=searchpage.coreID  #store the chosen index
         #            mycore=corelist[coreID]  #select new SolrCore object
                     log.debug('selected core'+str(coreselect))
 #                request.session['results']='' #clear results from any previous searches
                 
-                searchterm_urlsafe=urllib.quote_plus(searchterm.encode('utf-8'))
-                searchurl="/ownsearch/searchterm={}&page=1&sorttype={}".format(searchterm_urlsafe,sorttype)
-                request.session['lastsearch']=searchurl
-                return HttpResponseRedirect(searchurl)
+                searchpage.searchterm_urlsafe=urllib.quote_plus(searchpage.searchterm.encode('utf-8'))
+                searchpage.searchurl="/ownsearch/searchterm={}&page=1&sorttype={}".format(searchpage.searchterm_urlsafe,searchpage.sorttype)
+                request.session['lastsearch']=searchpage.searchurl
+                return HttpResponseRedirect(searchpage.searchurl)
                 
                     
         # START BLANK FORM if a GET (or any other method) we'll create a blank form; and clear last search
         else:
-            form = SearchForm(choice_list,str(coreID),sorttype,searchterm)
-            resultlist = []
-            resultcount=-1
-            facets=[]
-            facets2=[]
-            facets3=[]
-            tag1=''
+            form = SearchForm(choice_list,str(searchpage.coreID),searchpage.sorttype,searchpage.searchterm)
+            searchpage.clear_()
+            searchpage.resultcount=-1
             request.session['lastsearch']=''
-            backpage,nextpage='',''
+
         #print(resultlist)
-        searchterm_urlsafe=urllib.quote_plus(searchterm.encode('utf-8'))
-        filterlist=[(tag,filters[tag]) for tag in filters]
-        log.debug('Filter list : {}'.format(filterlist))
-        return render(request, 'searchform.html', {'form': form,'filters':filterlist, 'filtering':tagfilters,'facets':facets, 'facets2':facets2, 'facets3':facets3,'pagemax': pagemax, 'results': resultlist, 'searchterm': searchterm, 'searchterm_urlsafe': searchterm_urlsafe, 'resultcount': resultcount, 'page':page, 'sorttype': sorttype,'backpage':backpage,'nextpage':nextpage})
+        searchpage.searchterm_urlsafe=urllib.quote_plus(searchpage.searchterm.encode('utf-8'))
+        searchpage.filterlist=[(tag,searchpage.filters[tag]) for tag in searchpage.filters]
+        log.debug('Filter list : {}'.format(searchpage.filterlist))
+        return render(request, 'searchform.html', {'form': form, 'page':searchpage})
 
     except solrJson.SolrCoreNotFound as e:
         log.error('Index not found on solr server')
@@ -211,6 +187,7 @@ def get_content(request,doc_id,searchterm,tagedit='False'): #make a page showing
         corelist,defaultcoreID,choice_list=authcores(request)
         mycore=corelist[coreID]
 
+    #HANDLE EDITS OF USER TAGS
     useredit=request.session.get('useredit','')
     log.debug('useredit: {}'.format(useredit))
     if useredit=='True':
@@ -262,8 +239,7 @@ def get_content(request,doc_id,searchterm,tagedit='False'): #make a page showing
         docname=result.docname
         docpath=result.data['docpath']
         datetext=result.datetext
-        #DIVERT IF PREVIEW HTML IN SOLR INDEX (in case of scraped web pages, or other HTML)
-        html=result.data.get('preview_html','')
+        
         data_ID=result.data.get('SBdata_ID','') #pulling ref to doc if stored in local database
         #if multivalued, take the first one
         if isinstance(data_ID,list):
@@ -281,6 +257,9 @@ def get_content(request,doc_id,searchterm,tagedit='False'): #make a page showing
             if tags1=='':
                 tags1=False
 #            log.debug('tag1: {}'.format(tags1))
+
+        #USE SPECIAL TEMPLATE TO PREVIEW HTML IN SOLR INDEX (in case of scraped web pages, or other HTML)
+        html=result.data.get('preview_html','')
         if html:
             searchterm_urlsafe=urllib.quote_plus(searchterm)
             return render(request, 'blogpost.html', {'form':form,'body':html, 'tags1':tags1,'tagstring':tagstring,'initialtags': initialtags,'useredit':useredit,'docid':data_ID,'solrid':doc_id,'docname':docname,'docpath':docpath,'datetext':datetext,'data':result.data,'searchterm': searchterm, 'searchterm_urlsafe': searchterm_urlsafe, 'searchurl':searchurl})
@@ -425,21 +404,21 @@ def authcores(request):
         coredisplayname=core.coreDisplayName
         choice_list +=((corenumber,coredisplayname),) #value/label
     try:
-        defaultcoreID=int(config['Solr']['defaultcoreid'])
+        DEFAULTCOREID=int(config['Solr']['defaultcoreid'])
         #print(defaultcoreID,cores)
-        assert defaultcoreID in cores     
+        assert DEFAULTCOREID in cores     
     except Exception as e:
-        log.debug('Default core ('+str(defaultcoreID)+') set in userconfigs is not found in authorised indexes: first available is made default')
+        log.debug('Default core ('+str(DEFAULTCOREID)+') set in userconfigs is not found in authorised indexes: first available is made default')
         try:
             log.debug(str(cores)+' '+str(choice_list))
-            defaultcoreID=int(choice_list[0][0])#if no default found, take first in list as new default
+            DEFAULTCOREID=int(choice_list[0][0])#if no default found, take first in list as new default
 #            defaultcoreID=cores.keys()[0]  #take any old core, if default not found
         except Exception as e:
             log.error('No valid and authorised index set in database: fix in /admin interface')
             log.error(str(e))
             cores={}
-            defaultcoreID=0
-    return cores, defaultcoreID, choice_list
+            DEFAULTCOREID=0
+    return cores, DEFAULTCOREID, choice_list
 
 #CHECK IF FILE WITH SAME HASH EXISTS IN DATABASE, AUTHORISED FOR DOWNLOAD AND IS PRESENT ON  MEDIA
 def authfile(request,hashcontents,docname,acceptothernames=True):
