@@ -15,25 +15,27 @@ import solrJson, re, os, logging, unicodedata, urllib
 from documents import solrcursor,updateSolr
 from datetime import datetime
 from usersettings import userconfig as config
-log = logging.getLogger('ownsearch.views')
-docbasepath=config['Models']['collectionbasepath']
 import pages
 
+log = logging.getLogger('ownsearch.views')
+DOCBASEPATH=config['Models']['collectionbasepath']
+#max size of preview text to return (to avoid loading up full text of huge document in browser)
+try:
+   CONTENTSMAX=int(config['Display']['maxcontents'])
+except:
+   CONTENTSMAX=10000
+
+
 @login_required
-def do_search(request,page=0,searchterm='',direction='',pagemax=0,sorttype='relevance',tag1field='',tag1='',tag2field='',tag2='',tag3field='',tag3=''):
+def do_search(request,page_number=0,searchterm='',direction='',pagemax=0,sorttype='relevance',tag1field='',tag1='',tag2field='',tag2='',tag3field='',tag3=''):
 #    log.debug('SESSION CACHE: '+str(vars(request.session)))
-    searchpage=pages.Page(page_number=page,searchterm=searchterm,direction=direction,pagemax=pagemax,sorttype=sorttype,tag1field=tag1field,tag1=tag1,tag2field=tag2field,tag2=tag2,tag3field=tag3field,tag3=tag3)
+    page=pages.SearchPage(page_number=page_number,searchterm=searchterm,direction=direction,pagemax=pagemax,sorttype=sorttype,tag1field=tag1field,tag1=tag1,tag2field=tag2field,tag2=tag2,tag3field=tag3field,tag3=tag3)
     
+    log.debug('Search parameters: {}'.format(page.__dict__))
     #GET PARAMETERS
-    searchpage.searchterm=urllib.unquote_plus(searchterm)
-    searchpage.filters={tag1field:tag1,tag2field:tag2,tag3field:tag3}
-    searchpage.filters.pop('','') #remove blank filters
-    #print(searchpage.filters)
-    if tag1 or tag2 or tag3:
-        searchpage.tagfilters=True
-    else:
-        searchpage.tagfilters=False
-    log.debug('Filters: {}'.format(searchpage.filters))
+    page.safe_searchterm()
+    page.add_filters()    
+    log.debug('Filters: {}, Tagfilters:{}'.format(page.filters,page.tagfilters))
     try:
     #GET AUTHORISED CORES AND DEFAULT
         corelist,DEFAULTCOREID,choice_list=authcores(request)
@@ -41,95 +43,94 @@ def do_search(request,page=0,searchterm='',direction='',pagemax=0,sorttype='rele
         log.debug('AUTHORISED CORE CHOICE: '+str(choice_list))
         log.debug('DEFAULT CORE ID:'+str(DEFAULTCOREID))
 
-    #GET THE INDEX get the solr index, a SolrCore object, or choose the default
+    #GET THE INDEX, a SolrCore object, or choose the default
         if 'mycore' not in request.session:  #set default if no core selected
             log.debug('no core selected.. setting default')
             request.session['mycore']=DEFAULTCOREID
-        searchpage.coreID=int(request.session.get('mycore'))
+        page.coreID=int(request.session.get('mycore'))
         #print(vars(request.session),'COREID:'+str(coreID),' CORELIST:'+str(corelist))
-        if searchpage.coreID in corelist:
-            searchpage.mycore=corelist[searchpage.coreID]
+        if page.coreID in corelist:
+            page.mycore=corelist[page.coreID]
         elif DEFAULTCOREID in corelist:
-            searchpage.mycore=corelist[DEFAULTCOREID]
+            page.mycore=corelist[DEFAULTCOREID]
             request.session['mycore']=DEFAULTCOREID
-            searchpage.coreID=DEFAULTCOREID
+            page.coreID=DEFAULTCOREID
         else:
             log.warning('Cannot find any valid coreID in authorised corelist')
             return HttpResponse('Missing any config data for any authorised index: contact administrator')
     
     #SET THE RESULT PAGE    
-        searchpage.page_number=int(searchpage.page_number) #urls always returns strings only
-        log.info('Page: {}'.format(searchpage.page_number))
+        page.page_number=int(page.page_number) #urls always returns strings only
+        log.info('Page: {}'.format(page.page_number))
     
     #DO SEARCH IF PAGE ESTABLISHED 
         
-        if searchpage.page_number > 0: #if page value not default (0) then proceed directly with search
-            searchpage.resultlist=[]
-            form = SearchForm(choice_list,str(searchpage.coreID),searchpage.sorttype,searchpage.searchterm)
-            log.info('User {} searching with searchterm: {} and tag \"{}\" and tag2 \"{}\" on page {}'.format(request.user.username,searchpage.searchterm,searchpage.tag1,searchpage.tag2,searchpage.page_number))
+        if page.page_number > 0: #if page value not default (0) then proceed directly with search
+            page.resultlist=[]
+            form = SearchForm(choice_list,str(page.coreID),page.sorttype,page.searchterm)
+            log.info('User {} searching with searchterm: {} and tag \"{}\" and tag2 \"{}\" on page {}'.format(request.user.username,page.searchterm,page.tag1,page.tag2,page.page_number))
             try:
-                searchpage.startnumber=(searchpage.page_number-1)*10
-#                if sorttype=='relevance':
-                if True:
-                   
-                    searchpage.results,searchpage.resultcount,searchpage.facets,searchpage.facets2,searchpage.facets3=solrJson.solrSearch(searchpage.searchterm,searchpage.sorttype,searchpage.startnumber,core=searchpage.mycore, filters=searchpage.filters, faceting=True)
-                    searchpage.pagemax=int(searchpage.resultcount/10)+1
-
-                    if searchpage.page_number>1:
-                        searchpage.backpage=searchpage.page_number-1
-                    else:
-                        searchpage.backpage=''
-                    if searchpage.page_number<searchpage.pagemax:
-                        searchpage.nextpage=searchpage.page_number+1
-                    else:
-                        searchpage.nextpage=''
+                page.startnumber=(page.page_number-1)*10
+                page.faceting=True
+                """go search>>>>>>>>>>>>>>>>>>>>>>>>>>>>"""
+                solrJson.pagesearch(page)
+                
+                pagemax=int(page.resultcount/10)+1
+                if page.page_number>1:
+                    page.backpage=page.page_number-1
+                else:
+                    page.backpage=''
+                if page.page_number<pagemax:
+                    page.nextpage=page.page_number+1
+                else:
+                    page.nextpage=''
 
             except Exception as e:
 #                print(e)
                 log.error('Error {}'.format(e))
-                log.debug(searchpage.sorttype)
-                log.debug(str(searchpage.resultlist))
-                searchpage.clear_()
+                log.debug(page.sorttype)
+                log.debug(str(page.resultlist))
+                page.clear_()
 
     #PROCESS FORM DATA - INDEX AND SEARCHTERM CHOICES AND THEN REDIDRECT WITH A GET TO DO FIRST SEARCH
         # if this is a POST request we need to process the form data
         elif request.method == 'POST': #if data posted from form
     
             # create a form instance and populate it with data from the request:
-            form = SearchForm(choice_list,str(searchpage.coreID),searchpage.sorttype,searchpage.searchterm,request.POST)
+            form = SearchForm(choice_list,str(page.coreID),page.sorttype,page.searchterm,request.POST)
             # check whether it's valid:
             if form.is_valid():
                 # process the data in form.cleaned_data as required
-                #print(vars(form))
-                searchpage.searchterm=form.cleaned_data['search_term']
-                searchpage.sorttype=form.cleaned_data['SortType']
+                page.searchterm=form.cleaned_data['search_term']
+                page.sorttype=form.cleaned_data['SortType']
                 coreselect=int(form.cleaned_data['CoreChoice'])
-                if coreselect != searchpage.coreID:  #NEW INDEX SELECTED
+                if coreselect != page.coreID:  #NEW INDEX SELECTED
                     log.debug('change core')
-                    searchpage.coreID=coreselect  #new solr core ID
-                    request.session['mycore']=searchpage.coreID  #store the chosen index
+                    page.coreID=coreselect  #new solr core ID
+                    request.session['mycore']=page.coreID  #store the chosen index
         #            mycore=corelist[coreID]  #select new SolrCore object
                     log.debug('selected core'+str(coreselect))
 #                request.session['results']='' #clear results from any previous searches
                 
-                searchpage.searchterm_urlsafe=urllib.quote_plus(searchpage.searchterm.encode('utf-8'))
-                searchpage.searchurl="/ownsearch/searchterm={}&page=1&sorttype={}".format(searchpage.searchterm_urlsafe,searchpage.sorttype)
-                request.session['lastsearch']=searchpage.searchurl
-                return HttpResponseRedirect(searchpage.searchurl)
+                page.searchterm_urlsafe=urllib.quote_plus(page.searchterm.encode('utf-8'))
+                page.searchurl="/ownsearch/searchterm={}&page=1&sorttype={}".format(page.searchterm_urlsafe,page.sorttype)
+                request.session['lastsearch']=page.searchurl
+                return HttpResponseRedirect(page.searchurl)
                 
                     
         # START BLANK FORM if a GET (or any other method) we'll create a blank form; and clear last search
         else:
-            form = SearchForm(choice_list,str(searchpage.coreID),searchpage.sorttype,searchpage.searchterm)
-            searchpage.clear_()
-            searchpage.resultcount=-1
+            form = SearchForm(choice_list,str(page.coreID),page.sorttype,page.searchterm)
+            page.clear_()
+            page.resultcount=-1
             request.session['lastsearch']=''
 
         #print(resultlist)
-        searchpage.searchterm_urlsafe=urllib.quote_plus(searchpage.searchterm.encode('utf-8'))
-        searchpage.filterlist=[(tag,searchpage.filters[tag]) for tag in searchpage.filters]
-        log.debug('Filter list : {}'.format(searchpage.filterlist))
-        return render(request, 'searchform.html', {'form': form, 'page':searchpage})
+        page.searchterm_urlsafe=urllib.quote_plus(page.searchterm.encode('utf-8'))
+        page.filterlist=[(tag,page.filters[tag]) for tag in page.filters]
+        log.debug('Filter list : {}'.format(page.filterlist))
+        #log.debug('All page data: {}'.format(searchpage.__dict__))
+        return render(request, 'searchform.html', {'form': form, 'page':page})
 
     except solrJson.SolrCoreNotFound as e:
         log.error('Index not found on solr server')
@@ -172,154 +173,119 @@ def download(request,doc_id,hashfilename): #download a document from the docstor
 
 
 @login_required
-def get_content(request,doc_id,searchterm,tagedit='False'): #make a page showing the extracted text, highlighting searchterm
+def get_content(request,doc_id,searchterm,tagedit='False'): 
+    """make a page showing the extracted text, highlighting searchterm """
+    
     log.debug('Get content for doc id: {} from search term {}'.format(doc_id,searchterm))
-    searchterm=urllib.unquote_plus(searchterm)
-    searchurl=request.session.get('lastsearch','/ownsearch') #get the search page to return to, or home page
+    
+    page=pages.ContentPage(doc_id=doc_id,searchterm=searchterm,tagedit='False')
+    page.safe_searchterm()
+    page.searchurl=request.session.get('lastsearch','/ownsearch') #store the return page
     #load solr index in use, SolrCore object
-    if True:
-        #GET INDEX
-        #only show content if index defined in session:
-        if request.session.get('mycore') is None:
-            log.info('Get content request refused; no index defined in session')
-            return HttpResponseRedirect('/') 
-        coreID=int(request.session.get('mycore'))
-        corelist,defaultcoreID,choice_list=authcores(request)
-        mycore=corelist[coreID]
+    #GET INDEX
+    #only show content if index defined in session:
+    if request.session.get('mycore') is None:
+        log.info('Get content request refused; no index defined in session')
+        return HttpResponseRedirect('/') 
+    page.coreID=int(request.session.get('mycore'))
+    corelist,DEFAULTCOREID,choice_list=authcores(request)
+    page.mycore=corelist[page.coreID]
 
     #HANDLE EDITS OF USER TAGS
-    useredit=request.session.get('useredit','')
-    log.debug('useredit: {}'.format(useredit))
-    if useredit=='True':
-        useredit=True	
+    useredit_str=request.session.get('useredit','')
+    log.debug('useredit: {}'.format(useredit_str))
+    if useredit_str=='True':
+        page.useredit=True	
     else:
-        useredit= False
+        page.useredit= False
     if request.method == 'POST': #if data posted from form
         # create a form instance and populate it with data from the request:
         form = TagForm('',request.POST)
-        print(request.POST)
             # check whether it's valid:
         if request.POST.get('edit','')=='Edit':
             log.debug('Editing user tags')
             request.session['useredit']='True'
-            return HttpResponseRedirect("/ownsearch/doc={}&searchterm={}".format(doc_id,searchterm))
+            return HttpResponseRedirect("/ownsearch/doc={}&searchterm={}".format(page.doc_id,page.searchterm))
         elif request.POST.get('save','')=='Save':
             log.debug('Save user tags')
             request.session['useredit']=''
             if form.is_valid():
                 # process the data in form.cleaned_data as required
                 keywords=form.cleaned_data['keywords']
+                """Permit only Latin alphanumeric and numbers as user tags""" 
                 keyclean=[re.sub(r'[^a-zA-Z0-9, ]','',item) for item in keywords]
-                updateresult=updateSolr.updatetags(doc_id,mycore,keyclean)
+                updateresult=updateSolr.updatetags(page.doc_id,page.mycore,keyclean)
                 if updateresult:
-                    log.info('Update success of user tags: {} in solrdoc: {} by user {}'.format(keyclean,doc_id,request.user.username))
-                    edit=UserEdit(solrid=doc_id,usertags=keyclean,corename=mycore.name)
+                    log.info('Update success of user tags: {} in solrdoc: {} by user {}'.format(keyclean,page.doc_id,request.user.username))
+                    edit=UserEdit(solrid=page.doc_id,usertags=keyclean,corename=page.mycore.name)
                     edit.username=request.user.username
                     edit.time_modified=solrJson.timeaware(datetime.now())
                     edit.save()
                 else:
-                    log.debug('Update failed of user tags: {} in solrdoc: {}'.format(keyclean,doc_id))
-            return HttpResponseRedirect("/ownsearch/doc={}&searchterm={}".format(doc_id,searchterm))
+                    log.debug('Update failed of user tags: {} in solrdoc: {}'.format(keyclean,page.doc_id))
+            return HttpResponseRedirect("/ownsearch/doc={}&searchterm={}".format(page.doc_id,page.searchterm))
     else:
-        #GET DEFAULTS
-        #set max size of preview text to return (to avoid loading up full text of huge document in browser)
-        try:
-            contentsmax=int(config['Display']['maxcontents'])
-        except:
-            contentsmax=10000
 
         #get a document content - up to max size characters
-        results=solrJson.gettrimcontents(doc_id,mycore,contentsmax).results  #returns SolrResult object
+        page.results=solrJson.gettrimcontents(page.doc_id,page.mycore,CONTENTSMAX).results  #returns SolrResult object
         try:
-            result=results[0]
+            result=page.results[0]
             #log.debug(vars(result))
         except KeyError:
-            return HttpResponse('Can\'t find document with ID '+doc_id+' COREID: '+coreID)
-            
-        docname=result.docname
-        docpath=result.data['docpath']
-        datetext=result.datetext
+            return HttpResponse('Can\'t find document with ID '+page.doc_id+' COREID: '+page.coreID)
         
-        data_ID=result.data.get('SBdata_ID','') #pulling ref to doc if stored in local database
-        #if multivalued, take the first one
-        if isinstance(data_ID,list):
-            data_ID=data_ID[0]
-        log.debug('Data ID '+str(data_ID)) 
-        if True:
-            initialtags=result.data.get(mycore.usertags1field,'')
-            if not isinstance(initialtags,list):
-                initialtags=[initialtags]
-            tagstring=','.join(map(str, initialtags))
-#            log.debug('{},{}'.format(initialtags,tagstring))
-            form = TagForm(tagstring)
-            
-            tags1=result.data.get('tags1',[False])[0]
-            if tags1=='':
-                tags1=False
+        page.process_result(result)
+        log.debug('Data ID: {}'.format(page.data_ID)) 
+        
+        #Make a user tag form    
+        form = page.tagform()
 #            log.debug('tag1: {}'.format(tags1))
 
-        #USE SPECIAL TEMPLATE TO PREVIEW HTML IN SOLR INDEX (in case of scraped web pages, or other HTML)
-        html=result.data.get('preview_html','')
-        if html:
-            searchterm_urlsafe=urllib.quote_plus(searchterm)
-            return render(request, 'blogpost.html', {'form':form,'body':html, 'tags1':tags1,'tagstring':tagstring,'initialtags': initialtags,'useredit':useredit,'docid':data_ID,'solrid':doc_id,'docname':docname,'docpath':docpath,'datetext':datetext,'data':result.data,'searchterm': searchterm, 'searchterm_urlsafe': searchterm_urlsafe, 'searchurl':searchurl})
-#        log.debug('Full result '+str(result.__dict__))    
-
+        #Use preview template if preview HTML stored
+        if page.html:
+            page.searchterm_urlsafe=urllib.quote_plus(page.searchterm)
+            return render(request, 'blogpost.html', {'form':form, 'page':page})
+            	
         #DIVERT ON BIG FILE
-        try:
-            highlight=result.data['highlight']
-        except KeyError:
-            highlight=''
-            log.debug('No highlight found')
-
-        log.debug('Highlight length: '+str(len(highlight)))
+#        try:
+#            page.highlight=page.result.data['highlight']
+#        except KeyError:
+#            page.highlight=''
+#            log.debug('No highlight found')
+#
+        log.debug('Highlight length: '+str(len(page.highlight)))
         #detect if large file (contents greater or equal to max size)
-        if len(highlight)==contentsmax:
+        if len(page.highlight)==CONTENTSMAX:
            #go get large highlights instead
-           res=get_bigcontent(request,doc_id,searchterm,mycore,contentsmax)
-           return res
-           
-        docsize=result.data['solrdocsize']
-        rawtext=result.data['rawtext']
-        hashcontents=result.data['hashcontents']
-
+           return get_bigcontent(request,page)
 #        #check if file is registered and authorised to download
-        authflag,matchfile_id,hashfilename=authfile(request,hashcontents,docname)
+        page.authflag,page.matchfile_id,page.hashfilename=authfile(request,page.hashcontents,page.docname)
 
-    #clean up the text for display
-        splittext,lastscrap,cleanterm=cleanup(searchterm,highlight)
+        #clean up and prepare the preview text for display
+        page.splittext,page.last_snippet,page.cleanterm=cleanup(page.searchterm,page.highlight)
         
-        #print(result.data)
-        return render(request, 'contentform.html', {'docsize':docsize, 'doc_id': doc_id, 'splittext': splittext, 'searchterm': cleanterm, 'lastscrap': lastscrap, 'docname':docname, 'docpath':docpath, 'hashfile':hashfilename, 'fileid':matchfile_id,'tags1':tags1,'tagstring':tagstring,'initialtags': initialtags,'useredit': useredit,'docexists':authflag, 'data':result.data, 'form':form, 'searchurl':searchurl})
+        #log.debug('Page contents : {}'.format(page.result.__dict__))
+        return render(request, 'contentform.html', {'form':form,'page':page})
+#'docsize':docsize, 'doc_id': doc_id, 'splittext': splittext, 'searchterm': cleanterm, 'lastscrap': lastscrap, 'docname':docname, 'docpath':docpath, 'hashfile':hashfilename, 'fileid':matchfile_id,'tags1':tags1,'tagstring':tagstring,'initialtags': initialtags,'useredit': useredit,'docexists':authflag, 'data':result.data, 'form':form, 'searchurl':searchurl})
         
-
-#    except Exception as e:
-#        log.error(str(e))
-#        return HttpResponseRedirect('/') 
 
 @login_required
-def get_bigcontent(request,doc_id,searchterm,mycore,contentsmax): #make a page of highlights, for MEGA files
+def get_bigcontent(request,page): #make a page of highlights, for MEGA files
 #        
     log.debug('GET BIGCONTENT')
-    res=solrJson.bighighlights(doc_id,mycore,searchterm,contentsmax)
-#    log.debug('{}'.format(res.__dict__))
+    res=solrJson.bighighlights(page.doc_id,page.mycore,page.searchterm,CONTENTSMAX)
     if len(res.results)>0:
-        #if more than one result, take the first
-        result=res.results[0]
+        #Get meta
+        page.process_result(res.results[0]) #if duplicate, take the first
 #        log.debug(result.data)
-        docsize=result.data['solrdocsize']
-        docpath=result.data['docpath']
-        rawtext=result.data['rawtext']
-        docname=result.docname
-        hashcontents=result.data['hashcontents']
-        highlights=result.data['highlight'] 
-
-    #check if file is registered and authorised to download
-        authflag,matchfile_id,hashfilename=authfile(request,hashcontents,docname)
-
-        return render(request, 'bigcontentform.html', {'docsize':docsize, 'doc_id': doc_id, 'highlights': highlights, 'hashfile':hashfilename, 'fileid':matchfile_id,'searchterm': searchterm,'docname':docname, 'docpath':docpath, 'docexists':authflag})
+        #check if file is registered and authorised to download
+        page.authflag,page.matchfile_id,page.hashfilename=authfile(request,page.hashcontents,page.docname)
+        
+        form = page.tagform()
+        return render(request, 'bigcontentform.html', {'form':form,'page':page})
+#docsize':docsize, 'doc_id': doc_id, 'highlights': highlights, 'hashfile':hashfilename, 'fileid':matchfile_id,'searchterm': searchterm,'docname':docname, 'docpath':docpath, 'docexists':authflag})
     else:
-        return HttpResponse('Can\'t find document with ID '+doc_id+' COREID: '+coreID)
+        return HttpResponse('No document with ID '+doc_id+' COREID: '+coreID)
 
 
 def cleansterm(searchterm):
@@ -375,7 +341,6 @@ def testsearch(request,doc_id,searchterm):
     else:
         return HttpResponseRedirect('/')        
         
-
 
 def slugify(value):
     """
@@ -451,18 +416,7 @@ def authfile(request,hashcontents,docname,acceptothernames=True):
             #return any of them
             log.debug('returning alternative filename match'+altlist[0].filepath)
             return True,altlist[0].id,altlist[0].hash_filename
-        
-#        #ALTERNATIVE METHOD _ MATCH SET OF AUTHORISED CORES WITH CORES CONTAINING FILE 
-#        collection_ids=[matchfile.collection_id for matchfile in matchfiles]
-#        log.debug(str(collection_ids)+'.. collections containing file')
-#        #indexes that contain the file
-#        coreids=[collection.core_id for collection in Collection.objects.filter(id__in=collection_ids)]
-#        log.debug(str(coreids)+' .. cores containing file')
-#        #test if indexes containing file match authorised indexes
-#        if not set(authcoreids).isdisjoint(coreids):
-#            #I.E.??? RETURNS TRUE IF ANY IN FIRST LIST MATCHES ANY IN SECOND LIST (SET INTERSECTION)
-            
-    #return blanks
+
     return False,'',''
         
 def authid(request,doc):

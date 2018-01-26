@@ -120,8 +120,8 @@ class Solrdoc:
                     except Exception as e:
                         print(e)
             #give the KEY ATTRIBS standard names
+            self.id=self.data.get(core.unique_id,'') #leave copy in data
             self.docname=self.data.pop(core.docnamefield,'')
-            self.id=self.data.pop(core.unique_id,'')
             self.date=self.data.pop(core.datefield,'')
             if isinstance(self.date,list):
                 self.date=self.date[0]
@@ -296,14 +296,17 @@ class SolrResult:
 
 log = logging.getLogger('ownsearch.solrJson')
 
-   
+def pagesearch(page):
+    page.results,page.resultcount,page.facets,page.facets2,page.facets3=solrSearch(page.searchterm,page.sorttype,page.startnumber,page.mycore,filters=page.filters,faceting=page.faceting)
+    return
+
 #MAIN SEARCH METHOD  (q is search term)
 def solrSearch(q,sorttype,startnumber,core,filters={},faceting=False):
     core.ping()
     #create arguments
     facetargs=''
     if faceting:
-        facetargs='&facet=on&facet.limit=10'
+        facetargs='&facet=on&facet.limit=20'
         if core.tags1field:
             facetargs+='&facet.field={}'.format(core.tags1field)
         if core.usertags1field:

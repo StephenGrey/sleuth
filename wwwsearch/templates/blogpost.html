@@ -1,26 +1,26 @@
 {% extends "base.html" %}
 
 	{% block sidebar %}
-	<a href="{{searchurl}}">Back to Results</a>
+	<a href="{{page.searchurl}}">Back to Results</a>
 		{% endblock %}
 
 {% block content %}
-<b><h1>{{docname}}</h1></b>
-<b><p>PATH: {{docpath}}&emsp; SIZE(bytes):{{docsize}}&emsp; DATE: {{datetext}}<p></b>
-{% if data.message_from  %}
-<br><b>Message title:</b>{{data.title}}<br><b>From:</b> {{data.message_from}} <b>To:</b> {{data.message_to}}
+<b><h1>{{page.docname}}</h1></b>
+<b><p>PATH: {{page.docpath}}&emsp; SIZE(bytes):{{page.docsize}}&emsp; DATE: {{page.datetext}}<p></b>
+{% if page.data.message_from  %}
+<br><b>Message title:</b>{{page.data.title}}<br><b>From:</b> {{page.data.message_from}} <b>To:</b> {{page.data.message_to}}
 {% endif %}
 <br>
 <form action="" method="post"> {% csrf_token %}
-{% if tags1 %}
+{% if page.tags1 %}
 Indexed keywords: 
-	{% for tag in data.tags1 %}
+	{% for tag in page.data.tags1 %}
 		<span class='tag'> {{tag}}</span>
 	{% endfor %}
 {% endif %}
 
 &nbsp; 
-{% if useredit %}
+{% if page.useredit %}
 	{{form.keywords.label}}{{form.keywords}}
 <button type="submit" name='save' value='Save' class="btn btn-default btn-sm">
    <span class="glyphicon glyphicon-pencil">Save</span>
@@ -28,8 +28,8 @@ Indexed keywords:
 	</form>
 {% else %}
  User tags:<span class='tag'> 
- 	{% if initialtags %}
- 		{% for tag in initialtags %}
+ 	{% if page.initialtags %}
+ 		{% for tag in page.initialtags %}
  			{{ tag }}, 
  		{% endfor %}
  	{% endif %}</span>
@@ -38,7 +38,7 @@ Indexed keywords:
 </button>
 {% endif %}
 
-{{body | safe}}
+{{page.html | safe}}
 
 {% endblock %}
 

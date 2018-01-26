@@ -2,18 +2,17 @@
 {% block content %}
 
 {% comment %}
-
+DISPLAY SNIPPETS OF TEXT FROM LARGE FILE
 {% endcomment %}
 
-{% if highlights %} <h3>Extracted Text - highlights</h3>
-<b>{{docname}}</b>
-<p>PATH: {{docpath}}&emsp; SIZE(bytes):{{docsize}}<p>
-<!--DIRECT FROM APACHE--<a href="/docstore/{{docpath}}"><b>Download</b></a>	-->
+{% if page.highlight %} <h3>Extracted Text - highlights</h3>
+<b>{{page.docname}}</b>
+<p>PATH: {{page.docpath}}&emsp; SIZE(bytes):{{page.docsize}}<p>
 
-{% if docexists%}<a href="/ownsearch/download={{fileid}}&{{hashfile}}"<b>Download</b></a><p>
+{% if page.authflag%}<a href="/ownsearch/download={{page.matchfile_id}}&{{page.hashfilename}}"<b>Download</b></a><p>
 {% endif %}
 
-{% for highlight in highlights%}
+{% for highlight in page.highlight%}
 <p><i>Snippet:</i><p>
 {% for a,b in highlight %}
 <b class='highlight'>{{a}}</b>{{b|linebreaksbr}}

@@ -1,37 +1,34 @@
 {% extends "base.html" %}
 
 	{% block sidebar %}
-	<a href="{{searchurl}}">Back to Results</a>
+	<a href="{{page.searchurl}}">Back to Results</a>
 		{% endblock %}
 
 {% block content %}
-
 {% comment %}
-This is a comment section
 {% endcomment %}
 
-{% if splittext %} <h3>Extracted Text</h3>
-{% if data.title  %}
-<br><b><h2>Title:</b>{{data.title}}</h2><br>
+{% if page.splittext %} <h3>Extracted Text</h3>
+{% if page.result.data.title  %}
+<br><b><h2>Title:</b>{{page.result.data.title}}</h2><br>
 {% endif %}
-{% if data.message_from  %}
-<b>From:</b> {{data.message_from}} <b><br>To:</b> {{data.message_to}}
+{% if page.result.data.message_from  %}
+<b>From:</b> {{page.result.data.message_from}} <b><br>To:</b> {{page.result.data.message_to}}
 {% endif %}
-<br>PATH: {{docpath}}&emsp; SIZE(bytes):{{docsize}}<br>
+<br>PATH: {{page.docpath}}&emsp; SIZE(bytes):{{page.docsize}}<br>
 <!--DIRECT FROM APACHE--<a href="/docstore/{{docpath}}"><b>Download</b></a>	-->
-<b>Filename: {{docname}}</b> 
+<b>Filename: {{page.docname}}</b> 
 <form action="" method="post"> {% csrf_token %}
 &nbsp; 
-{% if useredit %}
+{% if page.useredit %}
 	{{form.keywords.label}}{{form.keywords}}
 <button type="submit" name='save' value='Save' class="btn btn-default btn-sm">
    <span class="glyphicon glyphicon-pencil">Save</span>
 </button>
-
 {% else %}<br>
  User tags:<span class='tag'> 
- 	{% if initialtags %}
- 		{% for tag in initialtags %}
+ 	{% if page.initialtags %}
+ 		{% for tag in page.initialtags %}
  			{{ tag }}, 
  		{% endfor %}
  	{% endif %}</span>
@@ -40,13 +37,12 @@ This is a comment section
 </button>
 {% endif %}
 	</form>
-
-{% if docexists%}<a href="/ownsearch/download={{fileid}}&{{hashfile}}"<b>Download</b></a><p>
+{% if page.authflag%}<a href="/ownsearch/download={{page.matchfile_id}}&{{page.hashfilename}}"<b>Download</b></a><p>
 {% endif %}
-{% for scrap in splittext %}
-{{scrap|linebreaksbr}}</pre><b class="highlight">{{searchterm}}</b>
+{% for text_snippet in page.splittext %}
+{{text_snippet|linebreaksbr}}</pre><b class="highlight">{{page.searchterm}}</b>
 {% endfor %}
-{{lastscrap}}
+{{page.last_snippet}}
 {% endif %}
 
 {% endblock %}
