@@ -19,6 +19,7 @@ import pages
 
 log = logging.getLogger('ownsearch.views')
 DOCBASEPATH=config['Models']['collectionbasepath']
+RESULTS_PER_PAGE=10
 #max size of preview text to return (to avoid loading up full text of huge document in browser)
 try:
    CONTENTSMAX=int(config['Display']['maxcontents'])
@@ -30,7 +31,10 @@ except:
 def do_search(request,page_number=0,searchterm='',direction='',pagemax=0,sorttype='relevance',tag1field='',tag1='',tag2field='',tag2='',tag3field='',tag3=''):
 #    log.debug('SESSION CACHE: '+str(vars(request.session)))
     page=pages.SearchPage(page_number=page_number,searchterm=searchterm,direction=direction,pagemax=pagemax,sorttype=sorttype,tag1field=tag1field,tag1=tag1,tag2field=tag2field,tag2=tag2,tag3field=tag3field,tag3=tag3)
-    
+#    print(request.session['META'].get('PATH_INFO'))
+    log.debug('Request: {}'.format(request.META.get('PATH_INFO')))
+    page.searchurl=request.META.get('PATH_INFO')
+    request.session['lastsearch']=page.searchurl
     log.debug('Search parameters: {}'.format(page.__dict__))
     #GET PARAMETERS
     page.safe_searchterm()
@@ -66,36 +70,24 @@ def do_search(request,page_number=0,searchterm='',direction='',pagemax=0,sorttyp
     #DO SEARCH IF PAGE ESTABLISHED 
         
         if page.page_number > 0: #if page value not default (0) then proceed directly with search
-            page.resultlist=[]
-            form = SearchForm(choice_list,str(page.coreID),page.sorttype,page.searchterm)
             log.info('User {} searching with searchterm: {} and tag \"{}\" and tag2 \"{}\" on page {}'.format(request.user.username,page.searchterm,page.tag1,page.tag2,page.page_number))
             try:
-                page.startnumber=(page.page_number-1)*10
+                form = SearchForm(choice_list,str(page.coreID),page.sorttype,page.searchterm)
+
+                page.startnumber=(page.page_number-1)*RESULTS_PER_PAGE
                 page.faceting=True
                 """go search>>>>>>>>>>>>>>>>>>>>>>>>>>>>"""
                 solrJson.pagesearch(page)
-                
-                pagemax=int(page.resultcount/10)+1
-                if page.page_number>1:
-                    page.backpage=page.page_number-1
-                else:
-                    page.backpage=''
-                if page.page_number<pagemax:
-                    page.nextpage=page.page_number+1
-                else:
-                    page.nextpage=''
+                page.nextpages(RESULTS_PER_PAGE)
+
 
             except Exception as e:
-#                print(e)
                 log.error('Error {}'.format(e))
-                log.debug(page.sorttype)
-                log.debug(str(page.resultlist))
                 page.clear_()
 
     #PROCESS FORM DATA - INDEX AND SEARCHTERM CHOICES AND THEN REDIDRECT WITH A GET TO DO FIRST SEARCH
         # if this is a POST request we need to process the form data
         elif request.method == 'POST': #if data posted from form
-    
             # create a form instance and populate it with data from the request:
             form = SearchForm(choice_list,str(page.coreID),page.sorttype,page.searchterm,request.POST)
             # check whether it's valid:
@@ -114,7 +106,7 @@ def do_search(request,page_number=0,searchterm='',direction='',pagemax=0,sorttyp
                 
                 page.searchterm_urlsafe=urllib.quote_plus(page.searchterm.encode('utf-8'))
                 page.searchurl="/ownsearch/searchterm={}&page=1&sorttype={}".format(page.searchterm_urlsafe,page.sorttype)
-                request.session['lastsearch']=page.searchurl
+#                request.session['lastsearch']=page.searchurl
                 return HttpResponseRedirect(page.searchurl)
                 
                     
@@ -247,12 +239,7 @@ def get_content(request,doc_id,searchterm,tagedit='False'):
             return render(request, 'blogpost.html', {'form':form, 'page':page})
             	
         #DIVERT ON BIG FILE
-#        try:
-#            page.highlight=page.result.data['highlight']
-#        except KeyError:
-#            page.highlight=''
-#            log.debug('No highlight found')
-#
+
         log.debug('Highlight length: '+str(len(page.highlight)))
         #detect if large file (contents greater or equal to max size)
         if len(page.highlight)==CONTENTSMAX:
@@ -265,9 +252,8 @@ def get_content(request,doc_id,searchterm,tagedit='False'):
         page.splittext,page.last_snippet,page.cleanterm=cleanup(page.searchterm,page.highlight)
         
         #log.debug('Page contents : {}'.format(page.result.__dict__))
-        return render(request, 'contentform.html', {'form':form,'page':page})
-#'docsize':docsize, 'doc_id': doc_id, 'splittext': splittext, 'searchterm': cleanterm, 'lastscrap': lastscrap, 'docname':docname, 'docpath':docpath, 'hashfile':hashfilename, 'fileid':matchfile_id,'tags1':tags1,'tagstring':tagstring,'initialtags': initialtags,'useredit': useredit,'docexists':authflag, 'data':result.data, 'form':form, 'searchurl':searchurl})
-        
+        return render(request, 'content_small.html', {'form':form,'page':page})
+
 
 @login_required
 def get_bigcontent(request,page): #make a page of highlights, for MEGA files
@@ -282,7 +268,7 @@ def get_bigcontent(request,page): #make a page of highlights, for MEGA files
         page.authflag,page.matchfile_id,page.hashfilename=authfile(request,page.hashcontents,page.docname)
         
         form = page.tagform()
-        return render(request, 'bigcontentform.html', {'form':form,'page':page})
+        return render(request, 'content_big.html', {'form':form,'page':page})
 #docsize':docsize, 'doc_id': doc_id, 'highlights': highlights, 'hashfile':hashfilename, 'fileid':matchfile_id,'searchterm': searchterm,'docname':docname, 'docpath':docpath, 'docexists':authflag})
     else:
         return HttpResponse('No document with ID '+doc_id+' COREID: '+coreID)

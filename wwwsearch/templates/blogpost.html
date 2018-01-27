@@ -1,43 +1,15 @@
-{% extends "base.html" %}
+{% extends "content.html" %}
 
 	{% block sidebar %}
 	<a href="{{page.searchurl}}">Back to Results</a>
 		{% endblock %}
-
-{% block content %}
+{% block top_content %}
 <b><h1>{{page.docname}}</h1></b>
 <b><p>PATH: {{page.docpath}}&emsp; SIZE(bytes):{{page.docsize}}&emsp; DATE: {{page.datetext}}<p></b>
-{% if page.data.message_from  %}
-<br><b>Message title:</b>{{page.data.title}}<br><b>From:</b> {{page.data.message_from}} <b>To:</b> {{page.data.message_to}}
-{% endif %}
+{% endblock %}
 <br>
-<form action="" method="post"> {% csrf_token %}
-{% if page.tags1 %}
-Indexed keywords: 
-	{% for tag in page.data.tags1 %}
-		<span class='tag'> {{tag}}</span>
-	{% endfor %}
-{% endif %}
 
-&nbsp; 
-{% if page.useredit %}
-	{{form.keywords.label}}{{form.keywords}}
-<button type="submit" name='save' value='Save' class="btn btn-default btn-sm">
-   <span class="glyphicon glyphicon-pencil">Save</span>
-</button>
-	</form>
-{% else %}
- User tags:<span class='tag'> 
- 	{% if page.initialtags %}
- 		{% for tag in page.initialtags %}
- 			{{ tag }}, 
- 		{% endfor %}
- 	{% endif %}</span>
-<button type="submit" name='edit' value='Edit' class="btn btn-default btn-sm">
-   <span class="glyphicon glyphicon-pencil">Edit</span>
-</button>
-{% endif %}
-
+{% block body_content %}
 {{page.html | safe}}
 
 {% endblock %}

@@ -1,0 +1,14 @@
+{% extends "content.html" %}
+
+
+
+
+{% block body_content %}
+{% if page.splittext %} 
+{% for text_snippet in page.splittext %}
+{{text_snippet|linebreaksbr}}</pre><b class="highlight">{{page.searchterm}}</b>
+{% endfor %}
+{{page.last_snippet}}
+{% endif %}
+
+{% endblock %}

@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+
+{% block sidebar %}
+	<a href="{{page.searchurl}}">Back to Results</a>
+{% endblock %}
+
+{% block top_content %}
+
+<h3>Extracted Text</h3>
+
+	{% if page.result.data.message_from  %}
+		<h3><b>From:</b> {{page.result.data.message_from}} <b><br>To:</b> {{page.result.data.message_to}}</h3>
+	{% endif %}
+	{% if page.result.data.title  %}
+		<b><h3>Title:</b>{{page.result.data.title}}</h3>
+	{% endif %}	
+	<h4>{{page.datetext}}</h4>
+	<br>PATH: {{page.docpath}}&emsp; SIZE(bytes):{{page.docsize}}<br>
+	<!--DIRECT FROM APACHE--<a href="/docstore/{{docpath}}"><b>Download</b></a>	-->
+	<b>Filename: {{page.docname}}</b>
+	{% if page.authflag%}<a href="/ownsearch/download={{page.matchfile_id}}&{{page.hashfilename}}"<b>Download</b></a><p>
+	{% endif %}
+
+
+{% endblock %}
+
+
+{% block user_tags %}
+<form action="" method="post"> {% csrf_token %}
+&nbsp; 
+{% if page.useredit %}
+		{{form.keywords.label}}{{form.keywords}}
+	<button type="submit" name='save' value='Save' class="btn btn-default btn-sm">
+	   <span class="glyphicon glyphicon-pencil">Save</span>
+	</button>
+{% else %}<br>
+	 User tags:<span class='tag'> 
+ 	{% if page.initialtags %}
+ 		{% for tag in page.initialtags %}
+ 			{{ tag }}, 
+ 		{% endfor %}
+ 	{% endif %}</span>
+<button type="submit" name='edit' value='Edit' class="btn btn-default btn-sm">
+   <span class="glyphicon glyphicon-pencil">Edit</span>
+</button>
+{% endif %}
+	</form>
+
+{% endblock %}
+

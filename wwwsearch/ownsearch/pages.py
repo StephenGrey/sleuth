@@ -32,6 +32,7 @@ class SearchPage(Page):
         self.tag2=tag2
         self.tag3field=tag3field
         self.tag3=tag3
+        self.resultlist=[]        
         
     def clear_(self):
         self.facets=[]
@@ -42,7 +43,19 @@ class SearchPage(Page):
         self.backpage,self.nextpage='',''
         self.resultcount=0
         self.pagemax=''
-        
+
+    def nextpages(self, results_per_page):
+        pagemax=int(self.resultcount/results_per_page)+1
+        if self.page_number>1:
+            self.backpage=self.page_number-1
+        else:
+            self.backpage=''
+        if self.page_number<pagemax:
+            self.nextpage=self.page_number+1
+        else:
+            self.nextpage=''
+ 
+    
 class ContentPage(Page):
     def __init__(self,doc_id='',searchterm='',tagedit='False'):
         super(ContentPage,self).__init__(searchterm=searchterm)

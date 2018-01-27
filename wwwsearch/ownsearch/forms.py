@@ -10,7 +10,7 @@ from django.db.utils import OperationalError
 
 
 
-SORT_CHOICES = (('relevance', 'Relevance'), ('docname', 'Document name'),('date','Date (received or modified)'))
+SORT_CHOICES = (('relevance', 'Relevance'), ('docname', 'Document name'),('date','Date (oldest to newest)'),('dateR','Date (newest to oldest)'))
 
 class SearchForm(forms.Form):
 

@@ -1,0 +1,17 @@
+{% extends "content.html" %}
+{% comment %}
+DISPLAY SNIPPETS OF TEXT FROM LARGE FILE
+{% endcomment %}
+
+{% block body_content %}
+{% if page.highlight %}
+	{% for highlight in page.highlight%}
+		<p><i>Snippet:</i><p>
+		{% for a,b in highlight %}
+			<b class='highlight'>{{a}}</b>{{b|linebreaksbr}}
+		{% endfor %}
+		<p>
+	{% endfor %}
+{% endif %}
+
+{% endblock %}
