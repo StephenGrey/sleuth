@@ -8,7 +8,7 @@ DISPLAY SNIPPETS OF TEXT FROM LARGE FILE
 	{% for highlight in page.highlight%}
 		<p><i>Snippet:</i><p>
 		{% for a,b in highlight %}
-			<b class='highlight'>{{a}}</b>{{b|linebreaksbr}}
+			<b class='highlight'>{{a}}</b><span class="content">{{b|linebreaksbr}}</span>
 		{% endfor %}
 		<p>
 	{% endfor %}

@@ -8,6 +8,15 @@ h3 {
 	position: absolute; top: 0; right: 10; 
 	width: 200px; text-align:right;
 }
+.content {
+	font: 20px Georgia;
+	line-height:1.5;
+}
+.titlename {
+	font: bold 25px Georgia;
+}
+
+
 .tag {
 		color: orange;
 		}
