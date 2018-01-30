@@ -8,23 +8,24 @@ h3 {
 	position: absolute; top: 0; right: 10; 
 	width: 200px; text-align:right;
 }
+.content {
+	font: 20px Georgia;
+	line-height:1.5;
+}
+.titlename {
+	font: bold 25px Georgia;
+}
+
+
 .tag {
 		color: orange;
 		}
-.tag2 {
-		color: light-blue;
-		}
-.redtext {
-		color: red;
-	}
 .sidebar-nav {
     margin-top: 20px;
     padding: 0;
     list-style: none;
 }
-.no-deco {
-    text-decoration: none;
-    color: inherit;
+.highlight {
+    background-color: #FFFF00
 }
-
 </style>
