@@ -31,19 +31,18 @@ except:
 def do_search(request,page_number=0,searchterm='',direction='',pagemax=0,sorttype='relevance',tag1field='',tag1='',tag2field='',tag2='',tag3field='',tag3=''):
 #    log.debug('SESSION CACHE: '+str(vars(request.session)))
     page=pages.SearchPage(page_number=page_number,searchterm=searchterm,direction=direction,pagemax=pagemax,sorttype=sorttype,tag1field=tag1field,tag1=tag1,tag2field=tag2field,tag2=tag2,tag3field=tag3field,tag3=tag3)
-#    print(request.session['META'].get('PATH_INFO'))
     log.debug('Request: {}'.format(request.META.get('PATH_INFO')))
     page.searchurl=request.META.get('PATH_INFO')
     request.session['lastsearch']=page.searchurl
-    log.debug('Search parameters: {}'.format(page.__dict__))
     #GET PARAMETERS
-    page.safe_searchterm()
-    page.add_filters()    
+    page.safe_searchterm() #makes searchterm_urlsafe; all unicode 
+    #log.debug(page.searchterm)
+    page.add_filters()       
+    log.debug('Search parameters: {}'.format(page.__dict__))
     log.debug('Filters: {}, Tagfilters:{}'.format(page.filters,page.tagfilters))
     try:
     #GET AUTHORISED CORES AND DEFAULT
         corelist,DEFAULTCOREID,choice_list=authcores(request)
-#        print(str(choice_list))
         log.debug('AUTHORISED CORE CHOICE: '+str(choice_list))
         log.debug('DEFAULT CORE ID:'+str(DEFAULTCOREID))
 
@@ -52,7 +51,6 @@ def do_search(request,page_number=0,searchterm='',direction='',pagemax=0,sorttyp
             log.debug('no core selected.. setting default')
             request.session['mycore']=DEFAULTCOREID
         page.coreID=int(request.session.get('mycore'))
-        #print(vars(request.session),'COREID:'+str(coreID),' CORELIST:'+str(corelist))
         if page.coreID in corelist:
             page.mycore=corelist[page.coreID]
         elif DEFAULTCOREID in corelist:
@@ -93,7 +91,7 @@ def do_search(request,page_number=0,searchterm='',direction='',pagemax=0,sorttyp
             # check whether it's valid:
             if form.is_valid():
                 # process the data in form.cleaned_data as required
-                page.searchterm=form.cleaned_data['search_term']
+                page.searchterm=form.cleaned_data['search_term'] #type Unicode
                 page.sorttype=form.cleaned_data['SortType']
                 coreselect=int(form.cleaned_data['CoreChoice'])
                 if coreselect != page.coreID:  #NEW INDEX SELECTED
@@ -104,7 +102,8 @@ def do_search(request,page_number=0,searchterm='',direction='',pagemax=0,sorttyp
                     log.debug('selected core'+str(coreselect))
 #                request.session['results']='' #clear results from any previous searches
                 
-                page.searchterm_urlsafe=urllib.quote_plus(page.searchterm.encode('utf-8'))
+                page.searchterm_urlsafe=urllib.quote_plus(page.searchterm.encode('utf-8')) #type Ascii
+#                log.debug('safe searchterm: {}'.format(page.searchterm_urlsafe))
                 page.searchurl="/ownsearch/searchterm={}&page=1&sorttype={}".format(page.searchterm_urlsafe,page.sorttype)
 #                request.session['lastsearch']=page.searchurl
                 return HttpResponseRedirect(page.searchurl)
@@ -117,8 +116,6 @@ def do_search(request,page_number=0,searchterm='',direction='',pagemax=0,sorttyp
             page.resultcount=-1
             request.session['lastsearch']=''
 
-        #print(resultlist)
-        page.searchterm_urlsafe=urllib.quote_plus(page.searchterm.encode('utf-8'))
         page.filterlist=[(tag,page.filters[tag]) for tag in page.filters]
         log.debug('Filter list : {}'.format(page.filterlist))
         #log.debug('All page data: {}'.format(searchpage.__dict__))

@@ -8,6 +8,7 @@ class Page(object):
         self.searchterm=searchterm
     
     def safe_searchterm(self):
+        self.searchterm_urlsafe=self.searchterm
         self.searchterm=urllib.unquote_plus(self.searchterm)
 
     def add_filters(self):
