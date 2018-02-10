@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 from __future__ import unicode_literals
-import requests, os, logging
+import requests, os, logging, re
 import json, collections
 import ownsearch.solrJson as s
 import documents.solrcursor as sc
@@ -76,13 +76,18 @@ def checkupdate(id,changes,mycore):
             
             newvalue=doc.__dict__.get(field,doc.data.get(field,''))
             if newvalue:
-                if not isinstance(newvalue, basestring): #check for a list e.g date(not a string)
+                #print(newvalue,type(newvalue))
+                if isinstance(newvalue,int):
+                    try:
+                        value=int(value)
+                    except:
+                        pass
+                elif isinstance(newvalue, list): #check for a list e.g date(not a string)
                     newvalue=newvalue[-1] if len(newvalue)>0 else '' #use the last in list
-                #print (newvalue,value)
                 if newvalue==value: 
                     print(field+' successfully updated to ',value)
                 else:
-                    print(field+' not updated; currentvalue: ',newvalue)
+                    print(field+' not updated; currentvalue: {}'.format(newvalue))
                     status=False
             else:
                 print(field+' not found in solr result')
@@ -468,5 +473,77 @@ def updatefield(mycore,newvalue):
             else:
                 #print('skipped solrid: {} dataID: {}'.format(solrid,data_id))
                 pass
+
+
+def sequence(mycore,regex='^XXX(\d+)_Part(\d+)(_*)OCR'):
+    """parse filename with regex to put solrdocs in order with a regular expression, update 'before' and 'after' field """
+    print(mycore)
+    try:#make a dictionary of filepaths from solr index
+        indexpaths=sc.cursor(mycore,keyfield='docname',searchterm='*')
+    except Exception as e:
+        log.warning('Failed to retrieve solr index')
+        log.warning(str(e))
+        return False
+    indexsequence={}
+    for docname in indexpaths:
+        print (docname)
+        seq_number=docname
+        #main loop - go through files in the collection
+        try:
+            match=re.search(regex,docname)
+            seq_number=(int(match.group(1))*1000)+int(match.group(2))
+            seq_string='{num:06d}'.format(num=seq_number)
+            indexsequence[seq_number]=(seq_string,indexpaths[docname][0]) #take only first record
+        except Exception as e:
+            print(docname,e)
+            pass
+        print (seq_number,seq_string,docname)
+    keys=sorted(indexsequence.keys())
+    print (indexsequence,keys)
+    for n, sortedkey in enumerate(keys):
+        print(n,sortedkey)
+        seq_string,doc=indexsequence[sortedkey]
+        before=keys[n-1]
+        before_str='{num:06d}'.format(num=before)
+        before_seq_string,before_doc=indexsequence[before]
+        after=keys[(n+1)%len(keys)]
+        after_str='{num:06d}'.format(num=after)
+        after_seq_string,after_doc=indexsequence[after]        
+        changes=[(mycore.sequencefield,seq_string),(mycore.beforefield,before_doc.id),(mycore.nextfield,after_doc.id)]
+
+        if changes:
+            #make changes to the solr index
+            json2post=makejson(doc.id,changes,mycore)
+            log.debug('{}'.format(json2post)) 
+            response,updatestatus=post_jsonupdate(json2post,mycore)
+            print(response,updatestatus)
+            if checkupdate(doc.id,changes,mycore):
+                print('solr successfully updated')
+            else:
+                print('solr changes not successful')
+        else:
+            print('Nothing to update!')
+
+
+
+    
+    
+    
+
+
+
+#                if changes:
+#                    #make changes to the solr index
+#                    json2post=updateSolr.makejson(solrdoc.id,changes,mycore)
+#                    log.debug('{}'.format(json2post)) 
+#                    response,updatestatus=updateSolr.post_jsonupdate(json2post,mycore)
+#                    print(response,updatestatus)
+#                    if updateSolr.checkupdate(solrdoc.id,changes,mycore):
+#                        print('solr successfully updated')
+#                    else:
+#                        print('solr changes not successful')
+#                else:
+#                    print('Nothing to update!')
+
 
 

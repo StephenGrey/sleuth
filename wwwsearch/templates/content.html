@@ -28,6 +28,7 @@
 	{% endif %}
 
 
+
 {% endblock %}
 
 {% block user_tags %}
@@ -50,5 +51,20 @@
 </button>
 {% endif %}
 	</form>
-{% endblock %}
 
+<a class="navigl" href="/ownsearch/doc={{ page.result.before_id }}&searchterm={{page.searchterm_urlsafe}}"><b>Before</b></a>
+
+
+<a class="navigr" href="/ownsearch/doc={{ page.result.next_id }}&searchterm={{page.searchterm_urlsafe}}"><b>Next</b></a>
+
+
+{% endblock %}
+{% block embed_content %}
+	{% if page.authflag%}
+	{% if page.pdf_url%}
+	<embed src="{{page.pdf_url}}" type="application/pdf" width="100%" height="1200px" />
+	{% endif %}{% endif %}
+
+
+
+{% endblock %}

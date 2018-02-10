@@ -15,7 +15,16 @@ h3 {
 .titlename {
 	font: bold 25px Georgia;
 }
-
+.navigl {
+    color: red;
+    position: absolute;
+    left: 100%;
+}
+.navigr {
+    color: red;
+    position: absolute;
+    right: 100%;
+}
 
 .tag {
 		color: orange;

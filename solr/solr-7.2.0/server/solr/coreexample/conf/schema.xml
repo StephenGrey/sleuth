@@ -415,7 +415,7 @@
     </analyzer>
   </fieldType>
   <field name="OCCRP_blogpost_ID" type="text_general"/>
-  <field name="SBdata_ID" type="plongs"/>
+  <field name="SBdata_ID"  type="text_general"/>
   <field name="_root_" type="string" docValues="false" indexed="true" stored="false"/>
   <field name="_text_" type="text_general" multiValued="true" indexed="true" stored="false"/>
   <field name="_version_" type="plong" indexed="false" stored="false"/>
@@ -640,6 +640,8 @@
   <field name="rows_per_strip" type="text_general"/>
   <field name="samples_per_pixel" type="text_general"/>
   <field name="sb_filename" type="string" multiValued="false" stored="false"/>
+  <field name="sb_before" type="string" multiValued="false" stored="true"/>
+  <field name="sb_next" type="string" multiValued="false" stored="true"/>
   <field name="sb_last_modified" type="pdates" multiValued="false" indexed="true" stored="false"/>
   <field name="sb_source" type="string" multiValued="true" indexed="true" stored="true"/>
   <field name="sb_tagIDs1" type="text_general"/>

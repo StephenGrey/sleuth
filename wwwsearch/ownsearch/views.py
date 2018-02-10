@@ -11,6 +11,7 @@ from django.contrib.auth.decorators import login_required
 from django.http import HttpResponse
 from django.http import HttpResponseRedirect
 from django.db.models.base import ObjectDoesNotExist
+from django.contrib.staticfiles.templatetags.staticfiles import static
 import solrJson, re, os, logging, unicodedata, urllib
 from documents import solrcursor,updateSolr
 from datetime import datetime
@@ -226,6 +227,10 @@ def get_content(request,doc_id,searchterm,tagedit='False'):
         page.process_result(result)
         log.debug('Data ID: {}'.format(page.data_ID)) 
         
+        
+        if page.mimetype=='application/pdf':
+            page.pdf_url=static(page.docpath)
+
         #Make a user tag form    
         form = page.tagform()
 #            log.debug('tag1: {}'.format(tags1))

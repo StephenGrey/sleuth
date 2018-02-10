@@ -80,6 +80,9 @@ class ContentPage(Page):
         if self.tags1=='':
             self.tags1=False
         self.html=self.result.data.get('preview_html','')
+        self.mimetype=self.result.data.get('extract_base_type','')
+#        self.next_id=result.data.get('hashcontents')
+#        self.before_id=result.data.get('hashcontents')
 
 
     

@@ -12,7 +12,7 @@ from ownsearch.hashScan import HexFolderTable as hex
 from ownsearch.hashScan import hashfile256 as hexfile
 from ownsearch.hashScan import FileSpecTable as filetable
 import datetime, hashlib, os, logging, requests
-import indexSolr, updateSolr, solrICIJ, solrDeDup, solrcursor
+import indexSolr, updateSolr, solrICIJ, solrDeDup, solrcursor,correct_paths
 import ownsearch.solrJson as solr
 from django.contrib.admin.views.decorators import staff_member_required
 log = logging.getLogger('ownsearch.docs.views')
@@ -33,14 +33,18 @@ def index(request):
         form=IndexForm(request.POST)
         if form.is_valid():
             coreID=form.cleaned_data['CoreChoice']
-            print ('change core to',coreID)
+            log.debug('change core to {}'.format(coreID))
             request.session['mycore']=coreID
     else:
 #        print(request.session['mycore'])
         form=IndexForm(initial={'CoreChoice':coreID})
-        print('Core set in request: ',request.session['mycore'])
-    latest_collection_list = Collection.objects.filter(core=SolrCore.objects.get(coreID=coreID))
-    return render(request, 'documents/scancollection.html',{'form': form, 'latest_collection_list': latest_collection_list})
+        log.debug('Core set in request: {}'.format(request.session['mycore']))
+    try:
+        mycore=SolrCore.objects.get(coreID=coreID)
+        latest_collection_list =Collection.objects.filter(core=mycore)
+        return render(request, 'documents/scancollection.html',{'form': form, 'latest_collection_list': latest_collection_list})
+    except:
+        return HttpResponse('Can\'t find core/collection - retry')
 
 def listfiles(request):
 #   print('Core set in request: ',request.session['mycore'])
@@ -54,8 +58,8 @@ def listfiles(request):
         print ('ERROR no stored core in session')
         return HttpResponse( "No index selected...please go back")
 #        coreID=defaultcore
-    mycore=cores[str(coreID)] # get the working core
-    log.info('using index: '+ str(mycore.name))
+    mycore=cores.get(str(coreID)) # get the working core
+    log.info('using index: {}'.format(getattr(mycore,'name','')))
     try:
         if request.method == 'POST' and 'list' in request.POST and 'choice' in request.POST:
             #get the files in selected collection
@@ -120,8 +124,14 @@ def listfiles(request):
             #print (thiscollection,mycore)
                 dupcount,deletecount=solrDeDup.filepathdups(mycore,delete=True) #GO REMOVE DUPLICATES
                 return HttpResponse ("Checking solr index for duplicate paths/filenames in solr index \""+str(mycore)+"\"<p>duplicates found: "+str(dupcount)+"<p>files removed: "+str(deletecount))
-
-
+     #CHECK PATHS
+        elif request.method== 'POST' and 'path-check' in request.POST and 'choice' in request.POST:
+            if True:
+                mycore.ping()
+                selected_collection=int(request.POST[u'choice'])
+                thiscollection=Collection.objects.get(id=selected_collection)
+                correct_paths.check(mycore,thiscollection)
+                return HttpResponse('checked paths')
         else:
             return redirect('index')
     except solr.SolrConnectionError:

@@ -66,6 +66,9 @@ class SolrCore:
             self.usertags1field=config[core].get('usertags1field','')
             self.sourcefield=config[core].get('sourcefield','')
             self.emailmeta=config[core].get('emailmeta','')
+            self.nextfield=config[core].get('nextfield','')
+            self.beforefield=config[core].get('beforefield','')
+            self.sequencefield=config[core].get('sequencefield','')
             if not fieldexists(self.tags1field,self): #check if the tag field is defined in index
                 self.tags1field=''
 
@@ -144,6 +147,9 @@ class Solrdoc:
             self.data['tags1']=self.data.pop(core.tags1field,'')
             if isinstance(self.data['tags1'], basestring):
                 self.data['tags1']=[self.data['tags1']]
+            self.next_id=self.data.pop(core.nextfield,'')
+            self.before_id=self.data.pop(core.beforefield,'')
+            self.sequence=self.data.pop(core.sequencefield,'')
 
 class SolrResult:
     def __init__(self,jres,mycore,startcount=0):
@@ -208,7 +214,7 @@ class SolrResult:
                     facets=jres['facet_counts']
                 else:
                     facets=''
-                    log.debug('No facets found')
+                    #log.debug('No facets found')
                 if facets:
                     log.debug('facets exist')
 #GET FIRST LIST OF FACETS
@@ -424,7 +430,7 @@ def gettrimcontents(docid,core,maxlength):
     searchterm=r'extract_id:'+docid
     
     #MAKE ARGUMENTS FOR TRIMMED CONTENTS
-    fieldargs='&fl={},{},{},{},{},{},{},{},{},{},{},{}&start=0'.format(core.unique_id,core.docnamefield,core.docsizefield,core.hashcontentsfield,core.docpath,core.tags1field, core.usertags1field,core.sourcefield,'preview_html','SBdata_ID',core.datefield,core.emailmeta)
+    fieldargs='&fl={},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}&start=0'.format(core.unique_id,core.docnamefield,core.docsizefield,core.hashcontentsfield,core.docpath,core.tags1field, core.usertags1field,core.sourcefield,'extract_base_type','preview_html','SBdata_ID',core.nextfield,core.beforefield,core.sequencefield,core.datefield,core.emailmeta)
 #this exploits a quirk in solr to return length-restricted contents as a "highlight"; it depends on a null return on the nullfield (any field name that does not exist)
     hlargs='&hl=on,hl.fl=nullfield&hl.fragsize=0&hl.alternateField={}&hl.maxAlternateFieldLength={}'.format(core.rawtext,maxlength)    
     args=fieldargs+hlargs
@@ -508,7 +514,7 @@ def getcontents(docid,core):
 def getmeta(docid,core):
     searchterm=r'extract_id:"'+docid+r'"'
     args='&fl=extract_id'
-    args+=","+core.docpath+","+core.datefield+","+core.docsizefield+","+core.datefield+","+core.docnamefield
+    args+=","+core.docpath+","+core.datefield+","+core.docsizefield+","+core.datefield+","+core.docnamefield+","+core.beforefield+","+core.nextfield+","+core.sequencefield
     jres=getJSolrResponse(searchterm,args,core=core)
     #print(args,sp)
     res,numbers,facets,facets2,facets3=getlist(jres,0,core=core)
