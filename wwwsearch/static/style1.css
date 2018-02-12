@@ -18,12 +18,14 @@ h3 {
 .navigl {
     color: red;
     position: absolute;
-    left: 100%;
+    left: 0%;
+    font: bold 20px Georgia;
 }
 .navigr {
     color: red;
     position: absolute;
-    right: 100%;
+    left: 90%;
+    font: bold 20px Georgia;
 }
 
 .tag {
