@@ -63,7 +63,8 @@
 {% block embed_content %}
 	{% if page.authflag%}
 	{% if page.pdf_url%}
+	{% if page.embed %}
 	<embed src="{{page.pdf_url}}" type="application/pdf" width="100%" height="2400px" />
-	{% endif %}{% endif %}
+	{% endif %}{% endif %}{% endif %}
 
 {% endblock %}

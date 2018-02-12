@@ -32,6 +32,7 @@ solr/solr-*/server/logs/*
 
 .DS_Store
 wwwsearch/ownsearch/static/2scan/*
+wwwsearch/ownsearch/static/files/*
 wwwsearch/documents/.DS_Store
 wwwsearch/documents/.DS_Store
 temp.txt
@@ -40,6 +41,4 @@ wwwsearch/ownsearch/.DS_Store
 tools/ocr.py
 wwwsearch/ownsearch/static/sample.pdf
 wwwsearch/static/sample.pdf
-wwwsearch/static/*
-
 wwwsearch/ownsearch/.DS_Store

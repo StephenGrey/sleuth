@@ -11,7 +11,9 @@ from django.contrib.auth.decorators import login_required
 from django.http import HttpResponse
 from django.http import HttpResponseRedirect
 from django.db.models.base import ObjectDoesNotExist
-from django.contrib.staticfiles.templatetags.staticfiles import static
+from django.contrib.staticfiles.templatetags.staticfiles import static #returns static url
+from django.contrib.staticfiles import finders #locates static file
+from django.conf import settings #to access settings constants
 import solrJson, re, os, logging, unicodedata, urllib
 from documents import solrcursor,updateSolr
 from datetime import datetime
@@ -229,7 +231,19 @@ def get_content(request,doc_id,searchterm,tagedit='False'):
         
         
         if page.mimetype=='application/pdf':
-            page.pdf_url=static(page.docpath)
+            page.pdf_url=static(os.path.join('files',page.docpath))
+            log.debug('PDF URL: {}'.format(page.pdf_url))
+            statdoc = finders.find(page.docpath)
+            log.debug(settings.STATIC_ROOT)
+            log.debug(os.path.join(settings.STATIC_ROOT,page.docpath))
+            statpath=os.path.join(settings.STATIC_ROOT,page.docpath)
+            if os.path.exists(statpath):
+                log.debug('File exists in static: {}'.format(statpath))
+                page.embed=True
+            else:
+                page.embed=False
+        else:
+            page.embed=False
 
         #Make a user tag form    
         form = page.tagform()
