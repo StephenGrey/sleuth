@@ -52,11 +52,12 @@
 {% endif %}
 	</form>
 
+{% if page.result.before_id %}
 <a class="navigl" href="/ownsearch/doc={{ page.result.before_id }}&searchterm={{page.searchterm_urlsafe}}"><b>Before</b></a>
-
-
+{% endif %}
+{% if page.result.next_id %}
 <a class="navigr" href="/ownsearch/doc={{ page.result.next_id }}&searchterm={{page.searchterm_urlsafe}}"><b>Next</b></a>
-
+{% endif %}
 
 {% endblock %}
 {% block embed_content %}
