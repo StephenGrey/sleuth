@@ -1,16 +1,14 @@
 # -*- coding: utf-8 -*-
 from __future__ import unicode_literals
-from __future__ import print_function
-from __future__ import absolute_import
 import hashlib,requests,datetime,os
 from django.test import TestCase
-from . import indexSolr as i
-from .models import File,Collection,SolrCore
+import indexSolr as i
+from models import File,Collection,SolrCore
 from ownsearch.hashScan import HexFolderTable as hex
 from ownsearch.hashScan import hashfile256 as hexfile
 from ownsearch.hashScan import pathHash
 import ownsearch.solrSoup as s
-from . import solrcursor as curs
+import solrcursor as curs
 from ownsearch.hashScan import FileSpecTable as filetable
 from documents import views as v
 from django.utils import timezone
@@ -20,7 +18,7 @@ from datetime import datetime, date, time
 import subprocess
 from subprocess import Popen, PIPE, STDOUT
 from fnmatch import fnmatch
-from . import updateSolr as u
+import updateSolr as u
 
 docstore=config['Models']['collectionbasepath'] #get base path of the docstore
 
@@ -45,7 +43,7 @@ def listhexes():
     thiscollection=Collection.objects.all()[0]
     files=File.objects.filter(collection=thiscollection)
     for file in files:
-        print((file.id,file.filepath))
+        print (file.id,file.filepath)
         hex=hexfile(file.filepath)
         #print (result)
         result=s.hashlookup(hex)
@@ -94,8 +92,8 @@ def failedscans(collection=''):
     else:
         d=File.objects.filter(indexedTry=True)
     for f in d:
-        print((f.collection, f.filename, f.filepath, f.filesize))
-        print(("FileID: "+str(f.id)+"UpdateMeta: "+str(f.indexUpdateMeta), "Indexed Success: "+str(f.indexedSuccess), "Indexed Try :"+str(f.indexedTry), f.last_modified, f.solrid))
+        print(f.collection, f.filename, f.filepath, f.filesize)
+        print ("FileID: "+str(f.id)+"UpdateMeta: "+str(f.indexUpdateMeta), "Indexed Success: "+str(f.indexedSuccess), "Indexed Try :"+str(f.indexedTry), f.last_modified, f.solrid)
         failures.append(f)
     return failures
 
@@ -114,7 +112,7 @@ def copyfiles(files,destination): #take a list of file objects and copy actual f
 
 def listc():
     for collection in Collection.objects.all():
-        print((collection.id, collection.path,collection.indexedFlag,collection.core))
+        print (collection.id, collection.path,collection.indexedFlag,collection.core)
 
 def makecollection(path):
     sc=SolrCore.objects.get(id='2')
@@ -125,7 +123,7 @@ def makecollection(path):
 def listf(collectionID):
     listfiles=File.objects.filter(collection=collectionID)
     for file in listfiles:
-        print(('FIlename'+file.filename,'FileExt'+file.fileext,'Path:'+file.filepath,'SolrID:'+file.solrid,'Indexed?'+str(file.indexedSuccess),'IndexedTry'+str(file.indexedTry),'Contents:'+file.hash_contents,'Path:'+file.hash_filename))
+        print('FIlename'+file.filename,'FileExt'+file.fileext,'Path:'+file.filepath,'SolrID:'+file.solrid,'Indexed?'+str(file.indexedSuccess),'IndexedTry'+str(file.indexedTry),'Contents:'+file.hash_contents,'Path:'+file.hash_filename)
         
 def coll(ID):
     return Collection.objects.get(id=ID)
@@ -167,9 +165,9 @@ def ckdates(collection):
                 if solrdate:
                     parse1=datetime.strptime(solrdate, "%Y-%m-%dT%H:%M:%SZ")
                     parsesolrdate=pytz.timezone("Europe/London").localize(parse1, is_dst=True)
-                    print(('id:'+id,'SOLR date:'+str(parsesolrdate),'DATABASE date:'+str(lastm),lastm-parsesolrdate))
+                    print ('id:'+id,'SOLR date:'+str(parsesolrdate),'DATABASE date:'+str(lastm),lastm-parsesolrdate)
                 else:
-                    print(('no date in solr', id))#print (solrdoc)
+                    print ('no date in solr', id)#print (solrdoc)
 # id,tika_metadata_last_modified, last_modified, tika_metadata_resourcename, tika_metadata_date, date                    
 def times(path):
     return os.path.getmtime(path)
@@ -178,7 +176,7 @@ def pingtest(mycore):
     try:
         mycore.ping()
     except s.SolrConnectionError as e:
-        print(e)
+        print e
         return e
         
 
@@ -196,14 +194,14 @@ def tps():  #test sub process
 #    args=[u'extract','commit',u'-s', u'http://localhost:8983/solr/corexample']
 #    args=['ls','-lh']
     result=Popen(args, stderr=PIPE,shell=False,stdout=PIPE)
-    print(vars(result))
-    print(('STDOUT:',result.stdout.read()))
+    print vars(result)
+    print ('STDOUT:',result.stdout.read())
     print ('STDERR:')
     while True:
         line = result.stderr.readline()
         if line != '':
     #the real code does filtering here
-            print("test:", line.rstrip())
+            print "test:", line.rstrip()
         else:
             break
     if result==0:
@@ -217,7 +215,7 @@ def listmeta(collection):
 #         print('FIlename'+file.filename,'FileExt'+file.fileext,'Path:'+file.filepath,'SolrID:'+
        res=s.getmeta(file.solrid,core)
        if res:
-           print((file.solrid,'Date: '+str(res[0].get('date','no date'))))
+           print(file.solrid,'Date: '+str(res[0].get('date','no date')))
        #'Indexed?'+str(file.indexedSuccess),'IndexedTry'+str(file.indexedTry),'Contents:'+file.hash_contents,'Path:'+file.hash_filename)
 
 

@@ -1,13 +1,11 @@
 # -*- coding: utf-8 -*-
 from __future__ import unicode_literals
-from __future__ import print_function
-from __future__ import absolute_import
 import requests, os, logging, re
 import json, collections
 import ownsearch.solrJson as s
 import documents.solrcursor as sc
 from datetime import datetime, date, time
-from .models import File,Collection
+from models import File,Collection
 from ownsearch.hashScan import HexFolderTable as hex
 from ownsearch.hashScan import hashfile256 as hexfile
 from ownsearch.hashScan import pathHash
@@ -28,7 +26,7 @@ def scandocs(collection,deletes=True):
         updates(change,collection) 
     except Exception as e:
         print ('failed to make updates to file database')
-        print(('Error: ',str(e)))
+        print('Error: ',str(e))
         return [0,0,0,0,0]
     #remove deleted files from the index
     #(only remove from database when successfully removed from solrindex, so if solr is down won't lose sync)
@@ -37,7 +35,7 @@ def scandocs(collection,deletes=True):
             removedeleted(change['deletedfiles'],collection)
         except Exception as e:
             print('failed to remove deleted files from solr index') 
-            print(('Error: ',str(e)))
+            print('Error: ',str(e))
 
     #alters meta in the the solr index (via an atomic update)
 #    try:
@@ -87,7 +85,7 @@ def checkupdate(id,changes,mycore):
                 elif isinstance(newvalue, list): #check for a list e.g date(not a string)
                     newvalue=newvalue[-1] if len(newvalue)>0 else '' #use the last in list
                 if newvalue==value: 
-                    print((field+' successfully updated to ',value))
+                    print(field+' successfully updated to ',value)
                 else:
                     print(field+' not updated; currentvalue: {}'.format(newvalue))
                     status=False
@@ -95,7 +93,7 @@ def checkupdate(id,changes,mycore):
                 print(field+' not found in solr result')
                 status=False
     else:
-        print(('error finding solr result for id',id))
+        print('error finding solr result for id',id)
         status=False
     return status
 
@@ -144,7 +142,7 @@ def post_jsonupdate(data,mycore,timeout=10):
             statusOK = False
         return res.json(), statusOK
     except Exception as e:
-        print(('Exception: ',str(e)))
+        print ('Exception: ',str(e))
         return '',False
 
 def post_jsondoc(data,mycore):
@@ -161,7 +159,7 @@ def post_jsondoc(data,mycore):
             statusOK = False
         return res.json(), statusOK
     except Exception as e:
-        print(('Exception: ',str(e)))
+        print ('Exception: ',str(e))
         statusOK=False
         return '',statusOK
 
@@ -180,7 +178,7 @@ def metaupdate(collection):
             print('ID:'+file.solrid)
             print(file.__dict__)
             #,'PATHHASH'+file.hash_filename
-            print('Solr meta data flagged for update')
+            print'Solr meta data flagged for update'
             #get solr data on file - and then modify if changed
             results=s.getmeta(file.solrid,core=mycore)  #get current contents of solr doc, without full contents
             if len(results)>0:
@@ -259,7 +257,7 @@ def updates(change,collection):
 
     #UPDATE DATABASE WITH NEW FILES    
     if newfiles:
-        print((len(newfiles),' new files'))
+        print(len(newfiles),' new files')
         for path in newfiles:
             if os.path.exists(path)==True: #check file exists
                 #now create new entry in File database
@@ -268,11 +266,11 @@ def updates(change,collection):
                 newfile.indexedSuccess=False #NEEDS TO BE INDEXED IN SOLR
                 newfile.save()
             else:
-                print(('ERROR: ',path,' does not exist'))
+                print('ERROR: ',path,' does not exist')
     if movedfiles:
-        print((len(movedfiles),' to move'))
+        print(len(movedfiles),' to move')
         for newpath,oldpath in movedfiles:
-            print(newpath,oldpath)
+            print newpath,oldpath
 
             #get the old file and then update it
             file=filelist.get(filepath=oldpath)
@@ -324,8 +322,8 @@ def updatefiledata(file,path,makehash=False):
         file.save()
         return True
     except Exception as e:
-        print(('Failed to update file database data for ',path))
-        print(('Error in updatefiledata(): ',str(e)))
+        print ('Failed to update file database data for ',path)
+        print ('Error in updatefiledata(): ',str(e))
         return False
 
 def changes(collection):
@@ -395,11 +393,11 @@ def listmeta():
     filelist=File.objects.filter(collection=collection)
     for file in filelist:
         if not file.indexedSuccess:
-            print(file.filename, 'ID:'+file.solrid,'PATHHASH'+file.hash_filename)
-            print('Needs to be Indexed')
+            print file.filename, 'ID:'+file.solrid,'PATHHASH'+file.hash_filename
+            print'Needs to be Indexed'
         if file.indexUpdateMeta:
-            print(file.filename, 'ID:'+file.solrid,'PATHHASH'+file.hash_filename)
-            print('Solr meta data needs update')
+            print file.filename, 'ID:'+file.solrid,'PATHHASH'+file.hash_filename
+            print'Solr meta data needs update'
 
 #POST EXTRACTION PROCESSING
 
@@ -471,7 +469,7 @@ def updatefield(mycore,newvalue):
                     print(e)                	
                 except Exception as e:
                     print(e)
-                    print(('no solr doc found for post ',post.id,post.name))        
+                    print('no solr doc found for post ',post.id,post.name)        
             else:
                 #print('skipped solrid: {} dataID: {}'.format(solrid,data_id))
                 pass
@@ -497,13 +495,13 @@ def sequence(mycore,regex='^XXX(\d+)_Part(\d+)(_*)OCR'):
             seq_string='{num:06d}'.format(num=seq_number)
             indexsequence[seq_number]=(seq_string,indexpaths[docname][0]) #take only first record
         except Exception as e:
-            print((docname,e))
+            print(docname,e)
             pass
-        print((seq_number,seq_string,docname))
+        print (seq_number,seq_string,docname)
     keys=sorted(indexsequence.keys())
-    print((indexsequence,keys))
+    print (indexsequence,keys)
     for n, sortedkey in enumerate(keys):
-        print((n,sortedkey))
+        print(n,sortedkey)
         seq_string,doc=indexsequence[sortedkey]
         before=keys[n-1]
         before_str='{num:06d}'.format(num=before)
@@ -518,7 +516,7 @@ def sequence(mycore,regex='^XXX(\d+)_Part(\d+)(_*)OCR'):
             json2post=makejson(doc.id,changes,mycore)
             log.debug('{}'.format(json2post)) 
             response,updatestatus=post_jsonupdate(json2post,mycore)
-            print((response,updatestatus))
+            print(response,updatestatus)
             if checkupdate(doc.id,changes,mycore):
                 print('solr successfully updated')
             else:

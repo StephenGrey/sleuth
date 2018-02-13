@@ -1,16 +1,14 @@
 # -*- coding: utf-8 -*-
 from __future__ import unicode_literals
-from __future__ import print_function
-from __future__ import absolute_import
 import os, logging
 log = logging.getLogger('ownsearch.correctpaths')
-from . import solrcursor,updateSolr
+import solrcursor,updateSolr
 from usersettings import userconfig as config
 from ownsearch import solrJson
-from .models import Collection,File,SolrCore
+from models import Collection,File,SolrCore
 
 def check(mycore,collection):
-    print((mycore,collection))
+    print(mycore,collection)
             #main loop - go through files in the collection
             
     #get the basefilepath
@@ -52,7 +50,7 @@ def check(mycore,collection):
                     json2post=updateSolr.makejson(solrdoc.id,changes,mycore)
                     log.debug('{}'.format(json2post)) 
                     response,updatestatus=updateSolr.post_jsonupdate(json2post,mycore)
-                    print((response,updatestatus))
+                    print(response,updatestatus)
                     if updateSolr.checkupdate(solrdoc.id,changes,mycore):
                         print('solr successfully updated')
                     else:

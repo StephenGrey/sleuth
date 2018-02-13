@@ -1,19 +1,18 @@
 # -*- coding: utf-8 -*-
 #PROCESS SOLR INDEX: EXTRACT FILES TO INDEX AND UPDATE INDEX
 from __future__ import unicode_literals, print_function
-from __future__ import absolute_import
 from django.http import HttpResponse
 from django.core.urlresolvers import reverse
 from .forms import IndexForm
 from django.shortcuts import render, redirect
 from django.utils import timezone
 import pytz #support localising the timezone
-from .models import Collection,File,SolrCore
+from models import Collection,File,SolrCore
 from ownsearch.hashScan import HexFolderTable as hex
 from ownsearch.hashScan import hashfile256 as hexfile
 from ownsearch.hashScan import FileSpecTable as filetable
 import datetime, hashlib, os, logging, requests
-from . import indexSolr, updateSolr, solrICIJ, solrDeDup, solrcursor,correct_paths
+import indexSolr, updateSolr, solrICIJ, solrDeDup, solrcursor,correct_paths
 import ownsearch.solrJson as solr
 from django.contrib.admin.views.decorators import staff_member_required
 log = logging.getLogger('ownsearch.docs.views')

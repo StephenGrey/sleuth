@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 from __future__ import unicode_literals
-from __future__ import print_function
 #from bs4 import BeautifulSoup as BS
 from django.conf import settings
 import requests, os, logging, json, urllib
@@ -108,7 +107,7 @@ def extract(path,contentsHash,mycore,test=False,timeout='',sourcetext=''):
     extractargs='commit=true&wt=json'
     if test==True:
         args=extractargs+'&extractOnly=true' #does not index on test
-        print(('Testing extract args: '+args,'path: ',path,'mycore: ',mycore))
+        print ('Testing extract args: '+args,'path: ',path,'mycore: ',mycore)
     else:
         #>>>>go index, use MD5 of path as unique ID
         #and calculate filename to put in index
@@ -162,7 +161,7 @@ def postSolr(args,path,mycore,timeout=1):
 def ignorefile(path):
     head,filename=os.path.split(path)
     if any(fnmatch(filename, pattern) for pattern in ignorelist):
-        print('Ignore', filename)
+        print 'Ignore', filename
         return True
     else:
         return False
@@ -174,7 +173,7 @@ def ignorepath(parentFolder):
         #print('Scanning %s...' % dirName)
         for filename in fileList: #now through every file in the folder/subfolder
             if any(fnmatch(filename, pattern) for pattern in ignorelist):
-                print('Ignore', filename, os.path.abspath(filename))
+                print 'Ignore', filename, os.path.abspath(filename)
                 ignorefiles.append((filename, os.path.abspath(filename)))
                 continue
     return ignorefiles
