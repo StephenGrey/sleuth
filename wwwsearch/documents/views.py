@@ -3,7 +3,8 @@
 from __future__ import unicode_literals, print_function
 from __future__ import absolute_import
 from django.http import HttpResponse
-from django.core.urlresolvers import reverse
+#from django.core.urlresolvers import reverse #DEPRACATED Django 2.0
+from django.urls import reverse
 from .forms import IndexForm
 from django.shortcuts import render, redirect
 from django.utils import timezone

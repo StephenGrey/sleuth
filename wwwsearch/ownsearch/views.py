@@ -16,11 +16,17 @@ from django.db.models.base import ObjectDoesNotExist
 from django.contrib.staticfiles.templatetags.staticfiles import static #returns static url
 from django.contrib.staticfiles import finders #locates static file
 from django.conf import settings #to access settings constants
-import solrJson, re, os, logging, unicodedata, urllib
+import re, os, logging, unicodedata
+
+try:
+    from urllib.parse import quote_plus
+except ImportError:
+    from urllib import quote_plus
+
 from documents import solrcursor,updateSolr
 from datetime import datetime
 from usersettings import userconfig as config
-from . import pages
+from . import pages,solrJson
 
 log = logging.getLogger('ownsearch.views')
 DOCBASEPATH=config['Models']['collectionbasepath']
@@ -107,7 +113,7 @@ def do_search(request,page_number=0,searchterm='',direction='',pagemax=0,sorttyp
                     log.debug('selected core'+str(coreselect))
 #                request.session['results']='' #clear results from any previous searches
                 
-                page.searchterm_urlsafe=urllib.quote_plus(page.searchterm.encode('utf-8')) #type Ascii
+                page.searchterm_urlsafe=quote_plus(page.searchterm.encode('utf-8')) #type Ascii
 #                log.debug('safe searchterm: {}'.format(page.searchterm_urlsafe))
                 page.searchurl="/ownsearch/searchterm={}&page=1&sorttype={}".format(page.searchterm_urlsafe,page.sorttype)
 #                request.session['lastsearch']=page.searchurl
@@ -253,7 +259,7 @@ def get_content(request,doc_id,searchterm,tagedit='False'):
 
         #Use preview template if preview HTML stored
         if page.html:
-            page.searchterm_urlsafe=urllib.quote_plus(page.searchterm)
+            page.searchterm_urlsafe=quote_plus(page.searchterm)
             return render(request, 'blogpost.html', {'form':form, 'page':page})
             	
         #DIVERT ON BIG FILE
