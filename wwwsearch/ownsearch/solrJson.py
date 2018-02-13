@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from __future__ import unicode_literals
 from __future__ import print_function
+from builtins import str #backwards to 2.X
 #from bs4 import BeautifulSoup as BS
 import requests, requests.exceptions
 import os, logging
@@ -85,7 +86,8 @@ class SolrCore:
             res=requests.get(self.url+'/admin/ping')
             if res.status_code==404:
                 raise SolrCoreNotFound('Core not found')
-            jres=json.loads(res.content)
+            #jres=json.loads(res.content)
+            jres=res.json()
             if jres['status']=='OK':
                 return True
             else:
@@ -146,7 +148,7 @@ class Solrdoc:
             self.data['docpath']=self.data.pop(core.docpath,'')
             self.data['hashcontents']=self.data.pop(core.hashcontentsfield,'')
             self.data['tags1']=self.data.pop(core.tags1field,'')
-            if isinstance(self.data['tags1'], basestring):
+            if isinstance(self.data['tags1'], str):
                 self.data['tags1']=[self.data['tags1']]
             self.next_id=self.data.pop(core.nextfield,'')
             self.before_id=self.data.pop(core.beforefield,'')
@@ -226,7 +228,7 @@ class SolrResult:
                         while n<len(taglist):
                             tag=taglist[n]
                             count=taglist[n+1]
-                            assert isinstance(tag,basestring)
+                            assert isinstance(tag,str)
                             assert isinstance(count,int)
                             n+=2
                             self.facets.append((tag,count))
@@ -240,7 +242,7 @@ class SolrResult:
                         while n<len(taglist):
                             tag=taglist[n]
                             count=taglist[n+1]
-                            assert isinstance(tag,basestring)
+                            assert isinstance(tag,str)
                             assert isinstance(count,int)
                             n+=2
                             self.facets2.append((tag,count))
@@ -254,7 +256,7 @@ class SolrResult:
                         while n<len(taglist):
                             tag=taglist[n]
                             count=taglist[n+1]
-                            assert isinstance(tag,basestring)
+                            assert isinstance(tag,str)
                             assert isinstance(count,int)
                             n+=2
                             self.facets3.append((tag,count))
@@ -360,8 +362,9 @@ def getJSolrResponse(searchterm,arguments,core):
 #    print(searchterm,arguments,core)
     searchurl='{}/select?&q={}{}'.format(core.url,searchterm,arguments)
 #    log.debug('GET URL '+searchurl)
-    content=resGet(searchurl)
-    jres=json.loads(content)
+    res=resGet(searchurl)
+#    jres=json.loads(content)
+    jres=res.json()
     return jres
 
 def resGet(url,timeout=1):
@@ -372,7 +375,7 @@ def resGet(url,timeout=1):
         if res.status_code==404:
             raise Solr404('404 error - URL not found')
         else:
-            return res.content
+            return res
     except requests.exceptions.ConnectTimeout as e:
         raise SolrTimeOut
     except requests.exceptions.ConnectionError as e:
