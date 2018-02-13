@@ -4,8 +4,6 @@ SEARCH VIEWS
 
 """
 from __future__ import unicode_literals
-from __future__ import print_function
-from __future__ import absolute_import
 from .forms import SearchForm,TagForm
 from documents.models import File,Collection,SolrCore,UserEdit
 from django.shortcuts import render
@@ -20,7 +18,7 @@ import solrJson, re, os, logging, unicodedata, urllib
 from documents import solrcursor,updateSolr
 from datetime import datetime
 from usersettings import userconfig as config
-from . import pages
+import pages
 
 log = logging.getLogger('ownsearch.views')
 DOCBASEPATH=config['Models']['collectionbasepath']
@@ -336,7 +334,7 @@ def testsearch(request,doc_id,searchterm):
     if coreID:
         mycore=cores[coreID]
         results=solrJson.testresponse(doc_id,mycore,searchterm)
-        print(results)
+        print results
         if len(results)>0:
             if 'highlight' in results[0].data:
                 highlight=results[0].data['highlight']

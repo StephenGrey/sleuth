@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 from __future__ import unicode_literals
+from __future__ import print_function
 #from bs4 import BeautifulSoup as BS
 import requests, requests.exceptions
 import os, logging

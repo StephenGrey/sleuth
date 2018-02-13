@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 from __future__ import unicode_literals
-from __future__ import print_function
 from bs4 import BeautifulSoup as BS
 import requests, requests.exceptions
 import os, logging
@@ -217,7 +216,7 @@ class SolrResult:
                 jres=self.json
                 if 'highlighting' in jres:
                     highlights=jres['highlighting']
-                    print(('HIGHLIGHTS',highlights))
+                    print('HIGHLIGHTS',highlights)
                 else:
                     highlights=''
                 if highlights:
@@ -347,7 +346,7 @@ def bighighlights(docid,core,q,contentsmax):
     #make snippets of max length 5000 with searchterm highlighted; if searchterm not found, return maxlength sample
     maxanalyse=1000000 #number of characters checked for the highlight phrase
     args=core.hlarguments+'0&hl.fragsize=5000&hl.snippets=50&hl.q={}&hl.alternateField={}&hl.maxAlternateFieldLength={}&hl.maxAnalyzedChars={}'.format(q,core.rawtext,contentsmax,maxanalyse)
-    print((searchterm,args,core.url))
+    print(searchterm,args,core.url)
     sp=getSolrResponse(searchterm,args,core)
 #    res,numbers=getlist(sp,0,core=core,linebreaks=True, big=True)#
     
@@ -401,7 +400,7 @@ def parsehighlights(highlights_all,linebreaks):
         else:
             highlight=''
         highlights[id]=highlight
-    print(highlights)
+    print highlights
     return highlights
 
 

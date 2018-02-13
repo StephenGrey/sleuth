@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 from __future__ import unicode_literals
-from __future__ import print_function
 # extract from dupFinder.py
 import os, sys, logging
 import hashlib
@@ -39,7 +38,7 @@ def FileSpecTable(parentFolder): #  MAIN ROUTINE FOR BUILDING SIMPLE FILE SPECS 
                     deetdict[path]=[path,filelen,shortName,fileExt,modTime]  #first item in list of specs for potential duplicate
                     
             else:
-                print(('ERROR: File not Found: ',path))
+                print ('ERROR: File not Found: ',path)
     return deetdict
 
 
@@ -76,7 +75,7 @@ def HexFolderTable(parentFolder):
             print('Scanning %s...' % dirName)
         except: # catch errors printing
             e=sys.exc_info()[0]
-            print(('Error in printing foldername:',e))
+            print ('Error in printing foldername:',e)
         for filename in fileList: #now through every file in the folder/subfolder
 #######GET FILE SPECS
             # Get the path to the file
@@ -105,9 +104,9 @@ def HexFolderTable(parentFolder):
                 else: #if file hash is None:
                     #pass
                     #debug:
-                    print(('file hash is None for ' , path))
+                    print ('file hash is None for ' , path)
             else:
-                print(('ERROR: File not Found: ',path))
+                print ('ERROR: File not Found: ',path)
     return deetdict
 
 def HexDetails(path):
@@ -224,7 +223,7 @@ def printResults(duplist):
 def choosedir():
         file_path = eg.diropenbox('Choose a Directory to Scan','DUPLICATE-FINDER')
         folders = [file_path]
-        print(('Folder to scan:',folders))
+        print ('Folder to scan:',folders)
 
         reply = "Choose ANOTHER Directory"
         while reply == "Choose ANOTHER Directory":
@@ -235,7 +234,7 @@ def choosedir():
             elif reply == 'Choose ANOTHER Directory':
                 file_path = eg.diropenbox('Choose a second Directory to Scan','DUPLICATE-FINDER')
                 folders.append(file_path)
-                print(('Folder to scan:',file_path))
+                print ('Folder to scan:',file_path)
         return folders
     
 def dupfind(folders):
@@ -279,7 +278,7 @@ def pathHash(path):
 if __name__ == '__main__':   #ASK USER TO CHOOSE A DIRECTORY FOLDER, OR SEVERAL, AND LOOK FOR DUPS
     if len(sys.argv) > 1: 
         folders = sys.argv[1:]
-        print(('from arguments, folders s:',folders))
+        print ('from arguments, folders s:',folders)
     else:
         folders = []
     dups = dupfind(folders)
