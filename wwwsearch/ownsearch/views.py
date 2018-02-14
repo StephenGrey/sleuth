@@ -230,9 +230,14 @@ def get_content(request,doc_id,searchterm,tagedit='False'):
         page.results=solrJson.gettrimcontents(page.doc_id,page.mycore,CONTENTSMAX).results  #returns SolrResult object
         try:
             result=page.results[0]
-            #log.debug(vars(result))
-        except KeyError:
-            return HttpResponse('Can\'t find document with ID '+page.doc_id+' COREID: '+page.coreID)
+            log.debug(vars(result))
+        except IndexError as e:
+            log.error('Error: {}'.format(e))
+            return HttpResponse('Can\'t find document with ID {} COREID: {}'.format(page.doc_id,page.coreID))
+        except Exception as e:
+            log.error('Error: {}'.format(e))
+            return HttpResponse('Error fetching document with ID {} COREID: {}'.format(page.doc_id,page.coreID))
+
         
         page.process_result(result)
         log.debug('Data ID: {}'.format(page.data_ID)) 
@@ -241,7 +246,7 @@ def get_content(request,doc_id,searchterm,tagedit='False'):
         if page.mimetype=='application/pdf':
             page.pdf_url=static(os.path.join('files',page.docpath))
             log.debug('PDF URL: {}'.format(page.pdf_url))
-            statdoc = finders.find(page.docpath)
+            #statdoc = finders.find(page.docpath)
             log.debug(settings.STATIC_ROOT)
             log.debug(os.path.join(settings.STATIC_ROOT,page.docpath))
             statpath=os.path.join(settings.STATIC_ROOT,page.docpath)
