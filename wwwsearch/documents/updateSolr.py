@@ -19,7 +19,7 @@ from usersettings import userconfig as config
 
 docstore=config['Models']['collectionbasepath'] #get base path of the docstore
 
-#SCAN AND MAKE UPDATES TO BOTH LOCAL FILE META DATABASE AND SOLR INDEX
+"""SCAN AND MAKE UPDATES TO BOTH LOCAL FILE META DATABASE AND SOLR INDEX"""
 def scandocs(collection,deletes=True):
     change=changes(collection)  #get dictionary of changes to file collection (compare disk folder to meta database)
     
@@ -43,10 +43,7 @@ def scandocs(collection,deletes=True):
 #    try:
     if True:
         metaupdate(collection) 
-#    except Exception as e:
-#        print ('failed to make update updates to solr metadata')
-#        print('Error: ',str(e),e)
-#        return [0,0,0,0,0] 
+
     listchanges=countchanges(change)
     return listchanges #newfiles,deleted,moved,unchanged,changedfiles
 
@@ -65,6 +62,53 @@ def removedeleted(deletefiles,collection):
             print('Deleted '+path)
     return
 
+
+def delete(solrid,mycore):
+    """delete a file from solr index"""
+    data=deletejson(solrid)
+    response,status=post_jsonupdate(data,mycore)
+    return response,status
+
+def deletejson(solrid):
+    """build json to delete a solr doc"""
+    a=collections.OrderedDict()  #keeps the JSON file in a nice order
+    a['delete']={'extract_id':solrid}
+    data=json.dumps(a)
+    return data
+
+"""
+It looks like this:
+ "delete": { "id":"ID" },
+"""
+
+
+
+"""
+HANDLE CHANGES
+Methods to handle a list of defined changes: [[(sourcefield, resultfield, value),...]
+	fields can be standardised field names (e.g. 'datesourcefield','date',) or actual field names ('tika_last_modified')
+	the "resultfield" is an attribute of the SolrDoc object 
+ 
+"""
+
+def update(id,changes,mycore):  #solrid, list of changes [(sourcefield, resultfield, value),(f1,f2,value)..],core
+    """update solr index with list of atomic changes"""
+    data=makejson(id,changes,mycore)
+    response,status=post_jsonupdate(data,mycore)
+    checkupdate(id,changes,mycore)
+    return response,status
+
+def makejson(solrid,changes,mycore):   #the changes use standard fields (e.g. 'datesourcefield'); so parse into actual solr fields
+    """make json instructions to make atomic changes to solr core"""
+    a=collections.OrderedDict()  #keeps the JSON file in a nice order
+    a['extract_id']=solrid 
+    for resultfield,sourcefield,value in changes:
+        solrfield=mycore.__dict__.get(sourcefield,sourcefield) #if defined in core, replace with standard field, or leave unchanged
+        a[solrfield]={"set":value}
+    data=json.dumps([a])
+    return data
+
+
 def checkupdate(id,changes,mycore):
     #check success
     #print id
@@ -73,12 +117,11 @@ def checkupdate(id,changes,mycore):
     #print (changes,res[0])
     if len(res)>0: #check there are solr docs returned
         doc=res[0]
-        for field,value in changes:
-            #print('Change',field,value)
-            
-            newvalue=doc.__dict__.get(field,doc.data.get(field,''))
+        for sourcefield, resultfield,value in changes:
+            print('Change',sourcefield,resultfield,value)
+            newvalue=doc.__dict__.get(resultfield,doc.data.get(resultfield,''))
             if newvalue:
-                #print(newvalue,type(newvalue))
+                print(newvalue,type(newvalue))
                 if isinstance(newvalue,int):
                     try:
                         value=int(value)
@@ -87,48 +130,20 @@ def checkupdate(id,changes,mycore):
                 elif isinstance(newvalue, list): #check for a list e.g date(not a string)
                     newvalue=newvalue[-1] if len(newvalue)>0 else '' #use the last in list
                 if newvalue==value: 
-                    print((field+' successfully updated to ',value))
+                    print((resultfield+' successfully updated to ',value))
                 else:
-                    print(field+' not updated; currentvalue: {}'.format(newvalue))
+                    print(resultfield+' not updated; currentvalue: {}'.format(newvalue))
                     status=False
             else:
-                print(field+' not found in solr result')
+                print(resultfield+' not found in solr result')
                 status=False
     else:
         print(('error finding solr result for id',id))
         status=False
     return status
 
-def update(id,changes,mycore):  #solrid, list of changes [(standardfield,value),(field2,value)],core
-    data=makejson(id,changes,mycore)
-    response,status=post_jsonupdate(data,mycore)
-    checkupdate(id,changes,mycore)
-    return response,status
 
-def makejson(solrid,changes,mycore):   #the changes use standard fields (e.g. 'date'); so parse into actual solr fields
-    a=collections.OrderedDict()  #keeps the JSON file in a nice order
-    a['extract_id']=solrid 
-    for field,value in changes:
-        solrfield=mycore.__dict__.get(field,field) #if defined in core, replace with standard field, or leave unchanged
-        a[solrfield]={"set":value}
-    data=json.dumps([a])
-    return data
-
-#delete a file from solr index, return True if success
-def delete(solrid,mycore):
-    data=deletejson(solrid)
-    response,status=post_jsonupdate(data,mycore)
-    return response,status
-
-#build json to delete a file from solr index
-def deletejson(solrid):
-    a=collections.OrderedDict()  #keeps the JSON file in a nice order
-    a['delete']={'extract_id':solrid}
-    data=json.dumps(a)
-    return data
-"""
- "delete": { "id":"ID" },
-"""
+""" I/O with Solr API """
 
 def post_jsonupdate(data,mycore,timeout=10):
     updateurl=mycore.url+'/update/json?commit=true'
@@ -166,7 +181,7 @@ def post_jsondoc(data,mycore):
         return '',statusOK
 
         
-#update the metadata in the  model database
+"""update the metadata in the SOLR index"""
 def metaupdate(collection):
     #print ('testing collection:',collection,'from core',collection.core,'core ID',collection.core.coreDisplayName)
     cores=s.getcores() #fetch dictionary of installed solr indexes (cores)
@@ -188,7 +203,7 @@ def metaupdate(collection):
                 #parse existing solr data
                 changes=parsechanges(solrdoc,file,mycore) #returns list of tuples [(field,newvalue),]
                 if changes:
-                    #make changes to the solr index
+                    #make changes to the solr index - using standardised fields
                     json2post=makejson(solrdoc.id,changes,mycore)
                     log.debug('{}'.format(json2post)) 
 #                    response,updatestatus=post_jsonupdate(json2post,mycore)
@@ -207,7 +222,8 @@ def metaupdate(collection):
                 print ('[metaupdate]file not found in solr index')
 #            hashcontents=result['hashcontents']
 
-#take a Solr Result object,compare with file database, return change list [(standardisedfield,newvalue),..]
+"""take a Solr Result object,compare with file database, 
+   return change list [(standardisedsourcefield,resultfield,newvalue),..]"""
 def parsechanges(solrresult,file,mycore): 
     #print(solrresult)
     solrdocsize=solrresult.data['solrdocsize']
@@ -228,23 +244,23 @@ def parsechanges(solrresult,file,mycore):
     olddocname=solrresult.docname
 #    print olddocsize,olddocpath,olddocname, oldlastmodified
     #compare solr data with new metadata & make list of changes
-    changes=[] #changes=[('tika_metadata_content_length',100099)]
+    changes=[] #changes=[('tika_metadata_content_length','tika_metadata_content_length',100099)]
     relpath=os.path.relpath(file.filepath,start=docstore) #extract the relative path from the docstore
     if olddocpath != relpath:
         log.info('need to update filepath from old: {} to new: {}'.format(olddocpath,relpath))
-        changes.append(('docpath',relpath))
+        changes.append(('docpath','docpath',relpath))
     if olddocsize != file.filesize:
         log.info('need to update filesize from old {} to new {}'.format(olddocsize,file.filesize))
-        changes.append(('solrdocsize',file.filesize))
+        changes.append(('solrdocsize','solrdocsize',file.filesize))
     newlastmodified=s.timestringGMT(file.last_modified)
 #    file.last_modified.strftime("%Y-%m-%dT%H:%M:%SZ")
     if olddate !=newlastmodified:
         log.info('need to update last_modified from \"{}\"  to \"{}\"'.format(oldlastmodified, newlastmodified))
-        changes.append(('date',newlastmodified))
+        changes.append(('datesourcefield','date',newlastmodified))
     newfilename=file.filename
     if olddocname != newfilename:
         log.info('need to update filename from {} to {}'.format(olddocname,newfilename))
-        changes.append(('docname',newfilename))
+        changes.append(('docnamesourcefield','docname',newfilename))
     return changes
 
 
@@ -403,7 +419,7 @@ def listmeta():
 
 #POST EXTRACTION PROCESSING
 
-#ADD ADDITIONAL METADATA TO SOLR RECORDS 
+"""ADD ADDITIONAL METADATA TO SOLR RECORDS """
 #NB the following is imported elsewhere
 def updatetags(solrid,mycore,value=['test','anothertest'],standardfield='usertags1field',newfield=False):
     #check the parameters
@@ -416,7 +432,7 @@ def updatetags(solrid,mycore,value=['test','anothertest'],standardfield='usertag
             return False
     #make the json
     doc=collections.OrderedDict()  #keeps the JSON file in a nice order
-    doc['extract_id']=solrid
+    doc[mycore.unique_id]=solrid
     doc[field]={"set":value}
     jsondoc=json.dumps([doc])
     log.debug('Json to post: {}'.format(jsondoc))
@@ -511,7 +527,7 @@ def sequence(mycore,regex='^XXX(\d+)_Part(\d+)(_*)OCR'):
         after=keys[(n+1)%len(keys)]
         after_str='{num:06d}'.format(num=after)
         after_seq_string,after_doc=indexsequence[after]        
-        changes=[(mycore.sequencefield,seq_string),(mycore.beforefield,before_doc.id),(mycore.nextfield,after_doc.id)]
+        changes=[('sequencefield',seq_string),('beforefield',before_doc.id),('nextfield',after_doc.id)]
 
         if changes:
             #make changes to the solr index
@@ -525,27 +541,3 @@ def sequence(mycore,regex='^XXX(\d+)_Part(\d+)(_*)OCR'):
                 print('solr changes not successful')
         else:
             print('Nothing to update!')
-
-
-
-    
-    
-    
-
-
-
-#                if changes:
-#                    #make changes to the solr index
-#                    json2post=updateSolr.makejson(solrdoc.id,changes,mycore)
-#                    log.debug('{}'.format(json2post)) 
-#                    response,updatestatus=updateSolr.post_jsonupdate(json2post,mycore)
-#                    print(response,updatestatus)
-#                    if updateSolr.checkupdate(solrdoc.id,changes,mycore):
-#                        print('solr successfully updated')
-#                    else:
-#                        print('solr changes not successful')
-#                else:
-#                    print('Nothing to update!')
-
-
-

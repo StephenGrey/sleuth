@@ -98,7 +98,7 @@ def listfiles(request):
                 icount,iskipped,ifailed,skippedlist,failedlist=indexdocs(thiscollection,mycore) #GO INDEX THE DOCS IN SOLR
                 return HttpResponse ("Indexing.. <p>indexed: {} <p>skipped: {}<p>{}<p>failed: {}<p>{}".format(icount,iskipped,skippedlist,ifailed,failedlist))
 
-    #INDEX VIA ISIJ 'EXTRACT' DOCUMENTS IN COLLECTION IN SOLR
+    #INDEX VIA ICIJ 'EXTRACT' DOCUMENTS IN COLLECTION IN SOLR
         elif request.method == 'POST' and 'indexICIJ' in request.POST and 'choice' in request.POST:
             if True:
                 #print('try to index in Solr')
@@ -107,6 +107,17 @@ def listfiles(request):
                 thiscollection=Collection.objects.get(id=selected_collection)
                 icount,iskipped,ifailed,skippedlist,failedlist=indexdocs(thiscollection,mycore,forceretry=True,useICIJ=True) #GO INDEX THE DOCS IN SOLR
                 return HttpResponse ("Indexing with ICIJ tool.. <p>indexed: {} <p>skipped: {}<p>{}<p>failed: {}<p>{}".format(icount,iskipped,skippedlist,ifailed,failedlist))
+    
+    #INDEX VIA ICIJ 'EXTRACT' DOCUMENTS IN COLLECTION IN SOLR ::: NO OCR PROCES
+        elif request.method == 'POST' and 'indexICIJ_NO_OCR' in request.POST and 'choice' in request.POST:
+            if True:
+                #print('try to index in Solr')
+                mycore.ping()
+                selected_collection=int(request.POST[u'choice'])
+                thiscollection=Collection.objects.get(id=selected_collection)
+                icount,iskipped,ifailed,skippedlist,failedlist=indexdocs(thiscollection,mycore,forceretry=True,useICIJ=True,ocr=False) #GO INDEX THE DOCS IN SOLR
+                return HttpResponse ("Indexing with ICIJ tool (no OCR).. <p>indexed: {} <p>skipped: {}<p>{}<p>failed: {}<p>{}".format(icount,iskipped,skippedlist,ifailed,failedlist))    
+    
     
     #CURSOR SEARCH OF SOLR INDEX
         elif request.method == 'POST' and 'solrcursor' in request.POST and 'choice' in request.POST:
@@ -214,7 +225,7 @@ def indexcheck(collection,thiscore):
         return counter,skipped,failed
 
 #MAIN METHOD FOR EXTRACTING DATA
-def indexdocs(collection,mycore,forceretry=False,useICIJ=False): #index into Solr documents not already indexed
+def indexdocs(collection,mycore,forceretry=False,useICIJ=False,ocr=True): #index into Solr documents not already indexed
     #need to check if mycore and collection are valid objects
     if isinstance(mycore,solr.SolrCore) == False or isinstance(collection,Collection) == False:
         log.warning('indexdocs() parameters invalid')
@@ -261,7 +272,7 @@ def indexdocs(collection,mycore,forceretry=False,useICIJ=False): #index into Sol
                 #now try the extract
                 if useICIJ:
                     log.info('using ICIJ extract method..')
-                    result = solrICIJ.ICIJextract(file.filepath,mycore)
+                    result = solrICIJ.ICIJextract(file.filepath,mycore,ocr=ocr)
                     if result is True:
                         try:
                             new_id=solr.hashlookup(file.hash_contents,mycore).results[0].id #id of the first result returned
