@@ -9,11 +9,10 @@ from django.db.utils import OperationalError
 #NB values fetched at server restart, not dynamic
 
 
-
 SORT_CHOICES = (('relevance', 'Relevance'), ('docname', 'Document name'),('date','Date (oldest to newest)'),('dateR','Date (newest to oldest)'))
 
 class SearchForm(forms.Form):
-
+    """ Form to select authorised Solr index, input search term """
     def __init__(self, choice_list, initial_core, initial_sort, initial_search,*args, **kwargs):
         self.choicelist=choice_list
         self.initial_core=initial_core
@@ -26,15 +25,13 @@ class SearchForm(forms.Form):
         self.fields['CoreChoice']=ChoiceField(label='Index: ',choices=self.choicelist,initial=self.initial_core)
         self.fields['SortType']=ChoiceField(label='\nSort by :',widget=RadioSelect, initial=self.initial_sort,choices=SORT_CHOICES)   
         self.fields['search_term'] = forms.CharField(label='Search Terms:', max_length=100,initial=self.initial_search) #,widget=forms.Textarea(attrs={'rows': 1, 'cols': 60})
-#    SortType = ChoiceField(label='\nSort by :',widget=RadioSelect, initial=self.initial_sort,choices=SORT_CHOICES)
-
 
 class TagForm(forms.Form):
+    """ Input user-defined tags """
     def __init__(self, initialtags,*args, **kwargs):
         self.initialtags=initialtags
         super(TagForm, self).__init__(*args, **kwargs) #having overridden initialisation; now run parent initialisation
-#        self.fields['keywords'] = forms.CharField(label='User tags', max_length=100,initial=self.initialtags,widget=forms.Textarea(attrs={'rows': 1, 'cols': 80}))
-        self.fields['keywords'] = CommaSeparatedCharField(label='User tags', min_length=1,max_length=30,initial=self.initialtags,widget=forms.Textarea(attrs={'rows': 1, 'cols': 80, 'pattern':'[A-Za-z ]+'}))
+        self.fields['keywords'] = CommaSeparatedCharField(label='User tags', min_length=1,max_length=30,initial=self.initialtags, required=False, widget=forms.Textarea(attrs={'rows': 1, 'cols': 75, 'pattern':'[A-Za-z ]+', 'blank': True}))
 
 class MinLengthValidator(validators.MinLengthValidator):
     message = 'Ensure this value has at least %(limit_value)d elements (it has %(show_value)d).'

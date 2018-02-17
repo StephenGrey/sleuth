@@ -434,16 +434,17 @@ def gettrimcontents(docid,core,maxlength):
     searchterm='{}:\"{}\"'.format(core.unique_id,docid)
     
     #MAKE ARGUMENTS FOR TRIMMED CONTENTS
-    fieldargs='&fl={},{},{},{},{},{},{},{},{},{},{},{},{}&start=0'.format(core.unique_id,core.docnamefield,core.docsizefield,core.hashcontentsfield,core.docpath,core.tags1field, core.usertags1field,core.sourcefield,'extract_base_type','preview_html','SBdata_ID',core.datefield,core.emailmeta)
+    fieldargs='&fl={},{},{},{},{},{},{},{},{},{},{},{},{}'.format(core.unique_id,core.docnamefield,core.docsizefield,core.hashcontentsfield,core.docpath,core.tags1field, core.usertags1field,core.sourcefield,'extract_base_type','preview_html','SBdata_ID',core.datefield,core.emailmeta)
     fieldargs+=","+core.beforefield if core.beforefield else ""
     fieldargs+=","+core.nextfield if core.nextfield else ""
     fieldargs+=","+core.sequencefield if core.sequencefield else ""
+    fieldargs+="&start=0"
 
     core.nextfield,core.beforefield,core.sequencefield
 #this exploits a quirk in solr to return length-restricted contents as a "highlight"; it depends on a null return on the nullfield (any field name that does not exist)
     hlargs='&hl=on,hl.fl=nullfield&hl.fragsize=0&hl.alternateField={}&hl.maxAlternateFieldLength={}'.format(core.rawtext,maxlength)    
     args=fieldargs+hlargs
-#    print (args)
+    log.debug(args)
 
     #DO THE SOLR LOOKUP
     sp=getJSolrResponse(searchterm,args,core)

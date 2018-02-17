@@ -68,7 +68,7 @@ def delete(solrid,mycore):
     data=deletejson(solrid)
     response,status=post_jsonupdate(data,mycore)
     return response,status
-
+    
 def deletejson(solrid):
     """build json to delete a solr doc"""
     a=collections.OrderedDict()  #keeps the JSON file in a nice order
@@ -81,8 +81,27 @@ It looks like this:
  "delete": { "id":"ID" },
 """
 
+def delete_all(mycore):
+    """delete all docs in solr index"""
+    data=delete_all_json()
+    response,status=post_jsonupdate(data,mycore)
+    return response,status    
 
-
+def delete_all_json():
+    """ build json to delete all docs"""
+    a=collections.OrderedDict()  #keeps the JSON file in a nice order
+    a['delete']={'query':"*:*"}
+    a['commit']={}
+    data=json.dumps(a)
+    return data
+"""
+{
+    "delete": {
+        "query": "*:*"
+    },
+    "commit": {}
+}
+"""
 """
 HANDLE CHANGES
 Methods to handle a list of defined changes: [[(sourcefield, resultfield, value),...]

@@ -6,6 +6,7 @@ SEARCH VIEWS
 from __future__ import unicode_literals
 from __future__ import print_function
 from __future__ import absolute_import
+from builtins import str
 from .forms import SearchForm,TagForm
 from documents.models import File,Collection,SolrCore,UserEdit
 from django.shortcuts import render
@@ -206,14 +207,19 @@ def get_content(request,doc_id,searchterm,tagedit='False'):
             log.debug('Editing user tags')
             request.session['useredit']='True'
             return HttpResponseRedirect("/ownsearch/doc={}&searchterm={}".format(page.doc_id,page.searchterm))
+        elif request.POST.get('cancel','')=='Cancel':
+            log.debug('Cancel edit user tags')
+            request.session['useredit']='False'
+            return HttpResponseRedirect("/ownsearch/doc={}&searchterm={}".format(page.doc_id,page.searchterm))            
         elif request.POST.get('save','')=='Save':
             log.debug('Save user tags')
             request.session['useredit']=''
             if form.is_valid():
                 # process the data in form.cleaned_data as required
                 keywords=form.cleaned_data['keywords']
-                """Permit only Latin alphanumeric and numbers as user tags""" 
-                keyclean=[re.sub(r'[^a-zA-Z0-9, ]','',item) for item in keywords]
+                log.debug('Keywords from form: {}, type{}'.format([(word,type(word)) for word in keywords],type(keywords)))
+                """Permit only alphanumeric and numbers as user tags - support Cyrillic in Py3""" 
+                keyclean=[re.sub(r'[^\w, ]','',item) for item in keywords]
                 updateresult=updateSolr.updatetags(page.doc_id,page.mycore,keyclean)
                 if updateresult:
                     log.info('Update success of user tags: {} in solrdoc: {} by user {}'.format(keyclean,page.doc_id,request.user.username))
@@ -230,7 +236,7 @@ def get_content(request,doc_id,searchterm,tagedit='False'):
         page.results=solrJson.gettrimcontents(page.doc_id,page.mycore,CONTENTSMAX).results  #returns SolrResult object
         try:
             result=page.results[0]
-            log.debug(vars(result))
+            #log.debug(vars(result))
         except IndexError as e:
             log.error('Error: {}'.format(e))
             return HttpResponse('Can\'t find document with ID {} COREID: {}'.format(page.doc_id,page.coreID))
