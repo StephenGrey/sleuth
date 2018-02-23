@@ -512,11 +512,14 @@ def parsehighlights(highlights_all,linebreaks):
     return highlights
 
 
+"""Main methods to look up a single Solr doc """
 def getcontents(docid,core):
     searchterm='{}:\"{}\"'.format(core.unique_id,docid)
     #print (searchterm,contentarguments)
     args=core.contentarguments
+    args="&fl=id,{},{},{},{},{},{},{},{},{},{},{}".format(core.unique_id,core.docpath,core.datefield,core.docnamefield,core.tags1field,core.sourcefield,core.usertags1field,core.rawtext,core.docsize,core.emailmeta)
     jres=getJSolrResponse(searchterm,args,core=core)
+
     log.debug('{} {}'.format(args,jres))
     res,numbers,facets,facets2,facets3=getlist(jres,0,core=core)
     return res

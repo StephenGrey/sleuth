@@ -109,13 +109,19 @@ Methods to handle a list of defined changes: [[(sourcefield, resultfield, value)
 	the "resultfield" is an attribute of the SolrDoc object 
  
 """
-
 def update(id,changes,mycore):  #solrid, list of changes [(sourcefield, resultfield, value),(f1,f2,value)..],core
     """update solr index with list of atomic changes"""
     data=makejson(id,changes,mycore)
-    response,status=post_jsonupdate(data,mycore)
-    checkupdate(id,changes,mycore)
-    return response,status
+    response,poststatus=post_jsonupdate(data,mycore)
+    log.debug('Response: {} PostStatus: {}'.format(response,poststatus))
+    updatestatus=checkupdate(id,changes,mycore)
+    if updatestatus:
+        log.debug('solr successfully updated')
+    else:
+        log.debug('solr changes not successful')    
+    return response,updatestatus
+
+
 
 def makejson(solrid,changes,mycore):   #the changes use standard fields (e.g. 'datesourcefield'); so parse into actual solr fields
     """make json instructions to make atomic changes to solr core"""
@@ -149,9 +155,9 @@ def checkupdate(id,changes,mycore):
                 elif isinstance(newvalue, list): #check for a list e.g date(not a string)
                     newvalue=newvalue[-1] if len(newvalue)>0 else '' #use the last in list
                 if newvalue==value: 
-                    print((resultfield+' successfully updated to ',value))
+                    log.debug('{} successfully updated to {}'.format(resultfield,value))
                 else:
-                    print(resultfield+' not updated; currentvalue: {}'.format(newvalue))
+                    log.debug('{} NOT updated; current value {}'.format(resultfield,value))
                     status=False
             else:
                 print(resultfield+' not found in solr result')
@@ -560,3 +566,27 @@ def sequence(mycore,regex='^XXX(\d+)_Part(\d+)(_*)OCR'):
                 print('solr changes not successful')
         else:
             print('Nothing to update!')
+
+def metareplace(mycore,resultfield,find_ex,replace_ex,searchterm='*',sourcefield='',test=False):
+    """Update a field with regular expression find and replace"""    
+    #sourcefield is a field whose value may be copied to the resultfield 
+    if sourcefield=='':
+        sourcefield=resultfield
+    try:#make a dictionary of docs from solr index
+        indexpaths=sc.cursor(mycore,resultfield,searchterm=searchterm)
+    except Exception as e:
+        log.warning('Failed to retrieve solr index')
+        log.warning(str(e))
+        return False
+    for key in indexpaths:
+        for doc in indexpaths[key]:
+            fieldvalue=getattr(doc,resultfield,doc.data.get(resultfield,''))
+            newvalue=re.sub(find_ex,replace_ex,fieldvalue)
+            log.debug('Oldvalue: {} Newvalue: {}'.format(fieldvalue,newvalue))
+            if newvalue!=fieldvalue:
+                changes=[(sourcefield,resultfield,newvalue)]
+                #make changes to the solr index
+                if test==False:
+                    res,status=update(doc.id,changes,mycore)
+                print(status)
+    return
