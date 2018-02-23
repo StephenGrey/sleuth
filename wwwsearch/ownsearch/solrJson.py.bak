@@ -1,7 +1,5 @@
 # -*- coding: utf-8 -*-
 from __future__ import unicode_literals
-from __future__ import print_function
-from builtins import str #backwards to 2.X
 #from bs4 import BeautifulSoup as BS
 import requests, requests.exceptions
 import os, logging
@@ -86,8 +84,7 @@ class SolrCore:
             res=requests.get(self.url+'/admin/ping')
             if res.status_code==404:
                 raise SolrCoreNotFound('Core not found')
-            #jres=json.loads(res.content)
-            jres=res.json()
+            jres=json.loads(res.content)
             if jres['status']=='OK':
                 return True
             else:
@@ -148,7 +145,7 @@ class Solrdoc:
             self.data['docpath']=self.data.pop(core.docpath,'')
             self.data['hashcontents']=self.data.pop(core.hashcontentsfield,'')
             self.data['tags1']=self.data.pop(core.tags1field,'')
-            if isinstance(self.data['tags1'], str):
+            if isinstance(self.data['tags1'], basestring):
                 self.data['tags1']=[self.data['tags1']]
             self.next_id=self.data.pop(core.nextfield,'')
             self.before_id=self.data.pop(core.beforefield,'')
@@ -228,7 +225,7 @@ class SolrResult:
                         while n<len(taglist):
                             tag=taglist[n]
                             count=taglist[n+1]
-                            assert isinstance(tag,str)
+                            assert isinstance(tag,basestring)
                             assert isinstance(count,int)
                             n+=2
                             self.facets.append((tag,count))
@@ -242,7 +239,7 @@ class SolrResult:
                         while n<len(taglist):
                             tag=taglist[n]
                             count=taglist[n+1]
-                            assert isinstance(tag,str)
+                            assert isinstance(tag,basestring)
                             assert isinstance(count,int)
                             n+=2
                             self.facets2.append((tag,count))
@@ -256,7 +253,7 @@ class SolrResult:
                         while n<len(taglist):
                             tag=taglist[n]
                             count=taglist[n+1]
-                            assert isinstance(tag,str)
+                            assert isinstance(tag,basestring)
                             assert isinstance(count,int)
                             n+=2
                             self.facets3.append((tag,count))
@@ -362,9 +359,8 @@ def getJSolrResponse(searchterm,arguments,core):
 #    print(searchterm,arguments,core)
     searchurl='{}/select?&q={}{}'.format(core.url,searchterm,arguments)
 #    log.debug('GET URL '+searchurl)
-    res=resGet(searchurl)
-#    jres=json.loads(content)
-    jres=res.json()
+    content=resGet(searchurl)
+    jres=json.loads(content)
     return jres
 
 def resGet(url,timeout=1):
@@ -375,7 +371,7 @@ def resGet(url,timeout=1):
         if res.status_code==404:
             raise Solr404('404 error - URL not found')
         else:
-            return res
+            return res.content
     except requests.exceptions.ConnectTimeout as e:
         raise SolrTimeOut
     except requests.exceptions.ConnectionError as e:
@@ -431,20 +427,14 @@ def fieldexists(field,core):
  
 #GET CONTENTS OF A DOCUMENT UP TO A MAX SIZE
 def gettrimcontents(docid,core,maxlength):
-    searchterm='{}:\"{}\"'.format(core.unique_id,docid)
+    searchterm=r'extract_id:'+docid
     
     #MAKE ARGUMENTS FOR TRIMMED CONTENTS
-    fieldargs='&fl={},{},{},{},{},{},{},{},{},{},{},{},{}'.format(core.unique_id,core.docnamefield,core.docsizefield,core.hashcontentsfield,core.docpath,core.tags1field, core.usertags1field,core.sourcefield,'extract_base_type','preview_html','SBdata_ID',core.datefield,core.emailmeta)
-    fieldargs+=","+core.beforefield if core.beforefield else ""
-    fieldargs+=","+core.nextfield if core.nextfield else ""
-    fieldargs+=","+core.sequencefield if core.sequencefield else ""
-    fieldargs+="&start=0"
-
-    core.nextfield,core.beforefield,core.sequencefield
+    fieldargs='&fl={},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}&start=0'.format(core.unique_id,core.docnamefield,core.docsizefield,core.hashcontentsfield,core.docpath,core.tags1field, core.usertags1field,core.sourcefield,'extract_base_type','preview_html','SBdata_ID',core.nextfield,core.beforefield,core.sequencefield,core.datefield,core.emailmeta)
 #this exploits a quirk in solr to return length-restricted contents as a "highlight"; it depends on a null return on the nullfield (any field name that does not exist)
     hlargs='&hl=on,hl.fl=nullfield&hl.fragsize=0&hl.alternateField={}&hl.maxAlternateFieldLength={}'.format(core.rawtext,maxlength)    
     args=fieldargs+hlargs
-    log.debug(args)
+#    print (args)
 
     #DO THE SOLR LOOKUP
     sp=getJSolrResponse(searchterm,args,core)
@@ -512,27 +502,21 @@ def parsehighlights(highlights_all,linebreaks):
     return highlights
 
 
-"""Main methods to look up a single Solr doc """
 def getcontents(docid,core):
-    searchterm='{}:\"{}\"'.format(core.unique_id,docid)
+    searchterm=r'extract_id:"'+docid+r'"'
     #print (searchterm,contentarguments)
     args=core.contentarguments
-    args="&fl=id,{},{},{},{},{},{},{},{},{},{},{}".format(core.unique_id,core.docpath,core.datefield,core.docnamefield,core.tags1field,core.sourcefield,core.usertags1field,core.rawtext,core.docsize,core.emailmeta)
     jres=getJSolrResponse(searchterm,args,core=core)
-
-    log.debug('{} {}'.format(args,jres))
+    #print(args,sp)
     res,numbers,facets,facets2,facets3=getlist(jres,0,core=core)
     return res
 
 def getmeta(docid,core):
-    searchterm='{}:\"{}\"'.format(core.unique_id,docid)
-    args='&fl={}'.format(core.unique_id)
-    args+=","+core.docpath+","+core.datefield+","+core.docsizefield+","+core.datefield+","+core.docnamefield
-    args+=","+core.beforefield if core.beforefield else ""
-    args+=","+core.nextfield if core.nextfield else ""
-    args+=","+core.sequencefield if core.sequencefield else ""
+    searchterm=r'extract_id:"'+docid+r'"'
+    args='&fl=extract_id'
+    args+=","+core.docpath+","+core.datefield+","+core.docsizefield+","+core.datefield+","+core.docnamefield+","+core.beforefield+","+core.nextfield+","+core.sequencefield
     jres=getJSolrResponse(searchterm,args,core=core)
-    #print(args,jres)
+    #print(args,sp)
     res,numbers,facets,facets2,facets3=getlist(jres,0,core=core)
     return res
     

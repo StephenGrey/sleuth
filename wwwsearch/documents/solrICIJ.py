@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 from __future__ import unicode_literals, print_function
+from builtins import str
 from ownsearch import solrJson as s
 from documents import updateSolr as u
 from usersettings import userconfig as config
@@ -8,12 +9,12 @@ log = logging.getLogger('ownsearch.solrICIJ')
 
 #EXTRACT A FILE TO SOLR INDEX (defined in mycore (instance of solrSoup.SolrCore))
 #returns solrSoup.MissingConfigData error if path missing to extract.jar
-def ICIJextract(path,mycore):
+def ICIJextract(path,mycore,ocr=True):
     try:
         mycore.ping() #checks the connection is alive
         if os.path.exists(path) == False:
             raise IOError
-        result=tryextract(path,mycore)
+        result=tryextract(path,mycore,ocr=True)
         return result #return True on success
     except IOError as e:
         log.error('File cannot be opened')
@@ -21,7 +22,7 @@ def ICIJextract(path,mycore):
         log.error('Connection error')
     return False  #if error return False
 
-def tryextract(path,mycore):
+def tryextract(path,mycore,ocr=True):
     try:
         extractpath=config['Extract']['extractpath'] #get location of Extract java JAR
     except KeyError as e:
@@ -29,7 +30,10 @@ def tryextract(path,mycore):
     solrurl=mycore.url
     target=path
     #extract via ICIJ extract
-    args=["java","-jar", extractpath, "spew","-o", "solr", "-s"]
+    if ocr==True:
+        args=["java","-jar", extractpath, "spew","-o", "solr", "-s"]
+    else:
+        args=["java","-jar", extractpath, "spew","--ocr","no","-o", "solr", "-s"]
     args.append(solrurl)
     args.append(target)
     result=subprocess.Popen(args, stderr=subprocess.PIPE, stdout=subprocess.PIPE,shell=False)
@@ -55,19 +59,21 @@ def tryextract(path,mycore):
     
 def parse_out(result):
     #calling a java app produces no stdout -- but for debug, output it if any
+    log.debug(result.__dict__)
     if result.stdout:
-       sout=result.stdout.read()
+       sout=bytes(result.stdout.read()).decode()
        if sout != '':
-           print('STDOUT from Java process: ',result.stdout.read())
+           print('STDOUT from Java process: {}'.format(sout))
     output=[]
     message=''
     ltype=''
     postsolr = False
     while True:
-        line = result.stderr.readline()
-        linestrip=line.rstrip()
-        #print (linestrip)
+        line = bytes(result.stderr.readline()).decode()
+        #print(line)
         if line != '':
+            linestrip=line.rstrip()
+            #print (linestrip)
             if line[:5]=='INFO:':
                 
                 #dump previous message
@@ -99,10 +105,11 @@ def parse_out(result):
             break
 #    print (vars(result))
 #    print (output)
+
     return output, postsolr
 
-#ADD ADDITIONAL META NOT ADDED AUTOMATICALLY BY THE EXTRACT PROGRAM
 def postprocess(solrid,sourcetext,hashcontents, core):
+    """ADD ADDITIONAL META NOT ADDED AUTOMATICALLY BY THE EXTRACT METHOD"""
     #add source info to the extracted document
     result=u.updatetags(solrid,core,value=sourcetext,standardfield='sourcefield',newfield=False)
     if result == False:

@@ -1,6 +1,10 @@
 # -*- coding: utf-8 -*-
 from __future__ import unicode_literals
-import urllib
+try:
+    from urllib.parse import unquote_plus
+except ImportError:
+    from urllib import unquote_plus
+
 from .forms import TagForm
 
 class Page(object):
@@ -9,7 +13,7 @@ class Page(object):
     
     def safe_searchterm(self):
         self.searchterm_urlsafe=self.searchterm
-        self.searchterm=urllib.unquote_plus(self.searchterm)
+        self.searchterm=unquote_plus(self.searchterm)
 
     def add_filters(self):
         self.filters={self.tag1field:self.tag1,self.tag2field:self.tag2,self.tag3field:self.tag3}

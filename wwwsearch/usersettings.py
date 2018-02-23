@@ -1,10 +1,14 @@
-# -*- coding: UTF-8 -*-
-
+# -*- coding: utf-8 -*-
 #MAKE A DICTIONARY OF USER OPTIONS TAKEN FROM INI FILE DEFINED BY CONFIGPATH
 #BACKUP FILE TAKES DEFAULT OPTIONS FROM USERSETTINGS.CONFIG.EXAMPLE 
 import logging,os
 log = logging.getLogger('ownsearch')
-from ConfigParser import SafeConfigParser
+
+try:
+    from configparser import SafeConfigParser
+except:
+    from ConfigParser import SafeConfigParser
+
 parser=SafeConfigParser()
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__))) 
@@ -66,38 +70,4 @@ for section in parser.sections():
 for section in defaultconfig:
     if section not in userconfig:
         userconfig[section]=defaultconfig[section]
-#print ('userconfig',userconfig)
 
-
-
-
-
-
-"""
-
-Configuration files containing Unicode data should be opened using the codecs module to set the proper encoding value.
-
-Changing the password value of the original input to contain Unicode characters and saving the results in UTF-8 encoding gives:
-
-[bug_tracker]
-url = http://localhost:8080/bugs/
-username = dhellmann
-password = ßéç®é
-
-from ConfigParser import SafeConfigParser
-import codecs
-
-parser = SafeConfigParser()
-
-# Open the file with the correct encoding
-with codecs.open('unicode.ini', 'r', encoding='utf-8') as f:
-    parser.readfp(f)
-
-password = parser.get('bug_tracker', 'password')
-
-print 'Password:', password.encode('utf-8')
-print 'Type    :', type(password)
-print 'repr()  :', repr(password)
-
-
-"""

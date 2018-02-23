@@ -1,20 +1,18 @@
 # -*- coding: utf-8 -*-
 #PROCESS SOLR INDEX: EXTRACT FILES TO INDEX AND UPDATE INDEX
 from __future__ import unicode_literals, print_function
-from __future__ import absolute_import
 from django.http import HttpResponse
-#from django.core.urlresolvers import reverse #DEPRACATED Django 2.0
-from django.urls import reverse
+from django.core.urlresolvers import reverse
 from .forms import IndexForm
 from django.shortcuts import render, redirect
 from django.utils import timezone
 import pytz #support localising the timezone
-from .models import Collection,File,SolrCore
+from models import Collection,File,SolrCore
 from ownsearch.hashScan import HexFolderTable as hex
 from ownsearch.hashScan import hashfile256 as hexfile
 from ownsearch.hashScan import FileSpecTable as filetable
 import datetime, hashlib, os, logging, requests
-from . import indexSolr, updateSolr, solrICIJ, solrDeDup, solrcursor,correct_paths
+import indexSolr, updateSolr, solrICIJ, solrDeDup, solrcursor,correct_paths
 import ownsearch.solrJson as solr
 from django.contrib.admin.views.decorators import staff_member_required
 log = logging.getLogger('ownsearch.docs.views')
@@ -98,7 +96,7 @@ def listfiles(request):
                 icount,iskipped,ifailed,skippedlist,failedlist=indexdocs(thiscollection,mycore) #GO INDEX THE DOCS IN SOLR
                 return HttpResponse ("Indexing.. <p>indexed: {} <p>skipped: {}<p>{}<p>failed: {}<p>{}".format(icount,iskipped,skippedlist,ifailed,failedlist))
 
-    #INDEX VIA ICIJ 'EXTRACT' DOCUMENTS IN COLLECTION IN SOLR
+    #INDEX VIA ISIJ 'EXTRACT' DOCUMENTS IN COLLECTION IN SOLR
         elif request.method == 'POST' and 'indexICIJ' in request.POST and 'choice' in request.POST:
             if True:
                 #print('try to index in Solr')
@@ -107,17 +105,6 @@ def listfiles(request):
                 thiscollection=Collection.objects.get(id=selected_collection)
                 icount,iskipped,ifailed,skippedlist,failedlist=indexdocs(thiscollection,mycore,forceretry=True,useICIJ=True) #GO INDEX THE DOCS IN SOLR
                 return HttpResponse ("Indexing with ICIJ tool.. <p>indexed: {} <p>skipped: {}<p>{}<p>failed: {}<p>{}".format(icount,iskipped,skippedlist,ifailed,failedlist))
-    
-    #INDEX VIA ICIJ 'EXTRACT' DOCUMENTS IN COLLECTION IN SOLR ::: NO OCR PROCES
-        elif request.method == 'POST' and 'indexICIJ_NO_OCR' in request.POST and 'choice' in request.POST:
-            if True:
-                #print('try to index in Solr')
-                mycore.ping()
-                selected_collection=int(request.POST[u'choice'])
-                thiscollection=Collection.objects.get(id=selected_collection)
-                icount,iskipped,ifailed,skippedlist,failedlist=indexdocs(thiscollection,mycore,forceretry=True,useICIJ=True,ocr=False) #GO INDEX THE DOCS IN SOLR
-                return HttpResponse ("Indexing with ICIJ tool (no OCR).. <p>indexed: {} <p>skipped: {}<p>{}<p>failed: {}<p>{}".format(icount,iskipped,skippedlist,ifailed,failedlist))    
-    
     
     #CURSOR SEARCH OF SOLR INDEX
         elif request.method == 'POST' and 'solrcursor' in request.POST and 'choice' in request.POST:
@@ -225,7 +212,7 @@ def indexcheck(collection,thiscore):
         return counter,skipped,failed
 
 #MAIN METHOD FOR EXTRACTING DATA
-def indexdocs(collection,mycore,forceretry=False,useICIJ=False,ocr=True): #index into Solr documents not already indexed
+def indexdocs(collection,mycore,forceretry=False,useICIJ=False): #index into Solr documents not already indexed
     #need to check if mycore and collection are valid objects
     if isinstance(mycore,solr.SolrCore) == False or isinstance(collection,Collection) == False:
         log.warning('indexdocs() parameters invalid')
@@ -272,7 +259,7 @@ def indexdocs(collection,mycore,forceretry=False,useICIJ=False,ocr=True): #index
                 #now try the extract
                 if useICIJ:
                     log.info('using ICIJ extract method..')
-                    result = solrICIJ.ICIJextract(file.filepath,mycore,ocr=ocr)
+                    result = solrICIJ.ICIJextract(file.filepath,mycore)
                     if result is True:
                         try:
                             new_id=solr.hashlookup(file.hash_contents,mycore).results[0].id #id of the first result returned

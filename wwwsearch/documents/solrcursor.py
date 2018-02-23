@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 from __future__ import unicode_literals
+from builtins import str #backwards to py 2.X
 from bs4 import BeautifulSoup as BS
 import requests, requests.exceptions, logging, collections
 from usersettings import userconfig as config
@@ -52,7 +53,7 @@ def cursor(mycore,keyfield='docpath',searchterm='*',highlights=False): #iterates
                 else:
                     #print('Solrcursor: no '+key+' in Solr document with ID: '+str(document['id']))
                     pass
-                if isinstance(keystring,basestring):
+                if isinstance(keystring,str):
                 #making a list of docs for each key, appending each new doc:
                     longdict.setdefault(keystring,[]).append(document)
                 else: #if it multivalued make dup for each key
@@ -97,7 +98,7 @@ def cursor(mycore,keyfield='docpath',searchterm='*',highlights=False): #iterates
 #                    else:
 #                        #print('Solrcursor: no '+key+' in Solr document with ID: '+str(document['id']))
 #                        pass
-#                    if isinstance(keystring,basestring):
+#                    if isinstance(keystring,str):
 #                    #making a list of docs for each key, appending each new doc:
 #                        longdict.setdefault(keystring,[]).append(document)
 #                    else: #if it multivalued make dup for each key
@@ -168,8 +169,8 @@ def cursorSearch(q,keyfield,mycore,highlights=False):
     #check variables are valid
     assert isinstance(mycore,solrJson.SolrCore)
     mycore.ping()
-    assert isinstance(keyfield,basestring)
-    assert isinstance(q,basestring)
+    assert isinstance(keyfield,str)
+    assert isinstance(q,str)
     
     unsortedcursor=cursor(mycore,keyfield=keyfield,searchterm=q,highlights=highlights)
     #sorting by keyfield
