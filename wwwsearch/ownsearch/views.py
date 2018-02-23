@@ -249,13 +249,14 @@ def get_content(request,doc_id,searchterm,tagedit='False'):
         log.debug('Data ID: {}'.format(page.data_ID)) 
         
         
+        
         if page.mimetype=='application/pdf':
-            page.pdf_url=static(os.path.join('files',page.docpath))
+            page.pdf_url=static(os.path.join('files/',page.docpath))
             log.debug('PDF URL: {}'.format(page.pdf_url))
             #statdoc = finders.find(page.docpath)
             log.debug(settings.STATIC_ROOT)
-            log.debug(os.path.join(settings.STATIC_ROOT,page.docpath))
-            statpath=os.path.join(settings.STATIC_ROOT,page.docpath)
+            statpath=os.path.join(settings.STATIC_ROOT,'files/',page.docpath)
+            log.debug('statpath: {}'.format(statpath))
             if os.path.exists(statpath):
                 log.debug('File exists in static: {}'.format(statpath))
                 page.embed=True

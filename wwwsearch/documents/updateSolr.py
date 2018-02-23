@@ -470,8 +470,9 @@ def updatetags(solrid,mycore,value=['test','anothertest'],standardfield='usertag
     
     return status
 
-#ADD A SOURCE RETROSPECTIVELY
+
 def updatefield(mycore,newvalue):
+    """#ADD A SOURCE RETROSPECTIVELY"""
     counter=0
     maxcount=30000
     res=False
