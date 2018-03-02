@@ -5,7 +5,7 @@ from __future__ import print_function
 from unittest import TestCase
 from usersettings import userconfig as config
 import unicodedata, re, os
-from documents.models import File,Collection,SolrCore,UserEdit
+from documents.models import File,Collection,Index,UserEdit
 
 # Create your tests here.
 

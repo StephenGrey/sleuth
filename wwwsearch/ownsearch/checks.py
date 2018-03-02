@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from __future__ import unicode_literals
 from __future__ import print_function
-from documents.models import File,Collection,SolrCore,UserEdit
+from documents.models import File,Collection,Index,UserEdit
 from usersettings import userconfig as config
 from ownsearch import solrJson
 import logging
@@ -10,7 +10,7 @@ log = logging.getLogger('ownsearch.checks')
 class SolrIndexTests():
     def check_configs():
         """ Verify config data exists for each solr index """
-        corelist=(SolrCore.objects.all())
+        corelist=(Index.objects.all())
         print(corelist)
         choice_list=[]
         cores={}

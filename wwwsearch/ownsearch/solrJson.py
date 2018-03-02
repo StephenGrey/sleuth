@@ -7,7 +7,7 @@ import requests, requests.exceptions
 import os, logging
 import re, json
 from documents.models import File,Collection
-from documents.models import SolrCore as sc
+from documents.models import Index as sc
 from django.db.utils import OperationalError
 from usersettings import userconfig as config
 from django.utils import timezone

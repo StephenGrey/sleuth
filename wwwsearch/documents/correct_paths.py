@@ -7,7 +7,7 @@ log = logging.getLogger('ownsearch.correctpaths')
 from . import solrcursor,updateSolr
 from usersettings import userconfig as config
 from ownsearch import solrJson
-from .models import Collection,File,SolrCore
+from .models import Collection,File,Index
 
 def check(mycore,collection):
     print((mycore,collection))

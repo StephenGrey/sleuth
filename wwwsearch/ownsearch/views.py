@@ -8,7 +8,7 @@ from __future__ import print_function
 from __future__ import absolute_import
 from builtins import str
 from .forms import SearchForm,TagForm
-from documents.models import File,Collection,SolrCore,UserEdit
+from documents.models import File,Collection,Index,UserEdit
 from django.shortcuts import render
 from django.contrib.auth.decorators import login_required
 from django.http import HttpResponse
@@ -46,12 +46,13 @@ def do_search(request,page_number=0,searchterm='',direction='',pagemax=0,sorttyp
     log.debug('Request: {}'.format(request.META.get('PATH_INFO')))
     page.searchurl=request.META.get('PATH_INFO')
     request.session['lastsearch']=page.searchurl
+    
     #GET PARAMETERS
     page.safe_searchterm() #makes searchterm_urlsafe; all unicode 
-    #log.debug(page.searchterm)
     page.add_filters()       
     log.debug('Search parameters: {}'.format(page.__dict__))
     log.debug('Filters: {}, Tagfilters:{}'.format(page.filters,page.tagfilters))
+
     try:
     #GET AUTHORISED CORES AND DEFAULT
         corelist,DEFAULTCOREID,choice_list=authcores(request)
@@ -141,7 +142,8 @@ def do_search(request,page_number=0,searchterm='',direction='',pagemax=0,sorttyp
         return HttpResponse('No response from solr server : check network connection, solr status')
 
 @login_required
-def download(request,doc_id,hashfilename): #download a document from the docstore
+def download(request,doc_id,hashfilename):
+    """download a document from the docstore"""
     log.debug('Download of doc_id:'+doc_id+' hashfilename:'+hashfilename)
     #MAKE CHECKS BEFORE DOWNLOAD
     #check file exists in database and hash matches
@@ -383,7 +385,7 @@ def authcores(request):
     thisuser=request.user
     groupids=[group.id for group in thisuser.groups.all()]
     log.debug('authorised groups for user: '+str(groupids))
-    corelist=(SolrCore.objects.filter(usergroup_id__in=groupids))
+    corelist=(Index.objects.filter(usergroup_id__in=groupids))
     log.debug('authorised core list '+str(corelist))
     for core in corelist:
         cores[core.id]=solrJson.SolrCore(core.corename)
@@ -417,7 +419,7 @@ def authfile(request,hashcontents,docname,acceptothernames=True):
         authgroupids=[group.id for group in request.user.groups.all()]
         log.debug('authorised groups for user: '+str(authgroupids))
         #indexes that user is authorised for
-        authcoreids=[core.id for core in SolrCore.objects.filter(usergroup_id__in=authgroupids)]
+        authcoreids=[core.id for core in Index.objects.filter(usergroup_id__in=authgroupids)]
         log.debug(str(authcoreids)+'.. cores authorised for user')
         
     #find authorised file
@@ -443,13 +445,10 @@ def authfile(request,hashcontents,docname,acceptothernames=True):
         
 def authid(request,doc):
     coreid=Collection.objects.get(id=doc.collection_id).core_id
-    #print(coreid)
     #user groups that user belongs to
     authgroupids=[group.id for group in request.user.groups.all()]
-    #print(authgroupids)
     #indexes that user is authorised for
-    authcoreids=[core.id for core in SolrCore.objects.filter(usergroup_id__in=authgroupids)]
-    #print(authcoreids)
+    authcoreids=[core.id for core in Index.objects.filter(usergroup_id__in=authgroupids)]
     if coreid in authcoreids:
         return True
     else:

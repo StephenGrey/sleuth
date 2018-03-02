@@ -1,6 +1,6 @@
 from django.contrib.auth.models import User, Group, Permission
 from django.core.management.base import BaseCommand, CommandError
-from documents.models import SolrCore
+from documents.models import Index
 from ownsearch import solrJson,pages
 
 
@@ -58,12 +58,12 @@ class Command(BaseCommand):
         
         #check if default exists
         try:
-            s=SolrCore.objects.get(corename='coreexample')
+            s=Index.objects.get(corename='coreexample')
             #make it part of usergroup1
             s.usergroup=new_usergroup
             s.save()
             
-        except SolrCore.DoesNotExist:
+        except Index.DoesNotExist:
             print('Installing "coreexample"')
             #add the default index, adding to usergroup1
             s,screated=SolrCore.objects.get_or_create(corename='coreexample',usergroup=new_usergroup, coreDisplayName='Example index',coreID=1)

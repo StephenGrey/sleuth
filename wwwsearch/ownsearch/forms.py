@@ -4,7 +4,7 @@ from django.core.exceptions import ValidationError
 from django.forms.fields import ChoiceField
 from django.forms.widgets import RadioSelect
 from usersettings import userconfig as config
-from documents.models import SolrCore as sc
+from documents.models import Index as sc
 from django.db.utils import OperationalError
 #NB values fetched at server restart, not dynamic
 

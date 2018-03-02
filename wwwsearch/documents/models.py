@@ -11,7 +11,7 @@ class Collection(models.Model):
     path = models.FilePathField('File path',path=collectionbasepath, allow_files=False,allow_folders=True,recursive=True, max_length=150)
     indexedFlag = models.BooleanField('Indexed')
     core = models.ForeignKey(
-        'SolrCore',
+        'Index',
         on_delete=models.CASCADE,
     )
     source = models.ForeignKey(
@@ -28,7 +28,7 @@ class Source(models.Model):
     def __str__(self):
         return self.sourcename
 
-class SolrCore(models.Model):
+class Index(models.Model):
     coreID=models.CharField('Core ID (1-10)',max_length=10,default='')
     coreDisplayName=models.CharField('Core Display Name',max_length=30,default='',blank=True)
     corename=models.CharField('Corename',max_length=20,default='')

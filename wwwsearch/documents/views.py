@@ -9,7 +9,7 @@ from .forms import IndexForm
 from django.shortcuts import render, redirect
 from django.utils import timezone
 import pytz #support localising the timezone
-from .models import Collection,File,SolrCore
+from .models import Collection,File,Index
 from ownsearch.hashScan import HexFolderTable as hex
 from ownsearch.hashScan import hashfile256 as hexfile
 from ownsearch.hashScan import FileSpecTable as filetable
@@ -19,6 +19,7 @@ import ownsearch.solrJson as solr
 from django.contrib.admin.views.decorators import staff_member_required
 log = logging.getLogger('ownsearch.docs.views')
 from usersettings import userconfig as config
+
 
 
 @staff_member_required()
@@ -42,7 +43,7 @@ def index(request):
         form=IndexForm(initial={'CoreChoice':coreID})
         log.debug('Core set in request: {}'.format(request.session['mycore']))
     try:
-        mycore=SolrCore.objects.get(coreID=coreID)
+        mycore=Index.objects.get(coreID=coreID)
         latest_collection_list =Collection.objects.filter(core=mycore)
         return render(request, 'documents/scancollection.html',{'form': form, 'latest_collection_list': latest_collection_list})
     except:
