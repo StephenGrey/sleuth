@@ -27,7 +27,7 @@ except ImportError:
 from documents import solrcursor,updateSolr
 from datetime import datetime
 from usersettings import userconfig as config
-from . import pages,solrJson
+from . import pages,solrJson,authorise
 
 log = logging.getLogger('ownsearch.views')
 DOCBASEPATH=config['Models']['collectionbasepath']
@@ -40,40 +40,53 @@ except:
 
 
 @login_required
-def do_search(request,page_number=0,searchterm='',direction='',pagemax=0,sorttype='relevance',tag1field='',tag1='',tag2field='',tag2='',tag3field='',tag3=''):
+def do_search(request,page_number=0,**kwargs):
+
+    path_info=request.META.get('PATH_INFO')
+    request.session['lastsearch']=path_info
+
+    page=pages.SearchPage(page_number=page_number,searchurl=path_info, **kwargs)
+         
 #    log.debug('SESSION CACHE: '+str(vars(request.session)))
-    page=pages.SearchPage(page_number=page_number,searchterm=searchterm,direction=direction,pagemax=pagemax,sorttype=sorttype,tag1field=tag1field,tag1=tag1,tag2field=tag2field,tag2=tag2,tag3field=tag3field,tag3=tag3)
-    log.debug('Request: {}'.format(request.META.get('PATH_INFO')))
-    page.searchurl=request.META.get('PATH_INFO')
-    request.session['lastsearch']=page.searchurl
-    
-    #GET PARAMETERS
-    page.safe_searchterm() #makes searchterm_urlsafe; all unicode 
-    page.add_filters()       
+    log.debug('Request: {}'.format(path_info))
     log.debug('Search parameters: {}'.format(page.__dict__))
     log.debug('Filters: {}, Tagfilters:{}'.format(page.filters,page.tagfilters))
 
     try:
     #GET AUTHORISED CORES AND DEFAULT
-        corelist,DEFAULTCOREID,choice_list=authcores(request)
-        log.debug('AUTHORISED CORE CHOICE: '+str(choice_list))
-        log.debug('DEFAULT CORE ID:'+str(DEFAULTCOREID))
-
-    #GET THE INDEX, a SolrCore object, or choose the default
-        if 'mycore' not in request.session:  #set default if no core selected
-            log.debug('no core selected.. setting default')
-            request.session['mycore']=DEFAULTCOREID
-        page.coreID=int(request.session.get('mycore'))
-        if page.coreID in corelist:
-            page.mycore=corelist[page.coreID]
-        elif DEFAULTCOREID in corelist:
-            page.mycore=corelist[DEFAULTCOREID]
-            request.session['mycore']=DEFAULTCOREID
-            page.coreID=DEFAULTCOREID
-        else:
+        thisuser=request.user
+        storedcoreID=request.session.get('mycore','')
+        
+        try:
+            authcores=authorise.AuthorisedCores(thisuser,storedcore=storedcoreID)
+            log.debug('Authcores: {}'.format(authcores.__dict__))
+            page.mycore=authcores.mycore
+            choice_list=authcores.choice_list
+            page.coreID=authcores.mycoreID
+            
+        except authorise.NoValidCore as e:
             log.warning('Cannot find any valid coreID in authorised corelist')
             return HttpResponse('Missing any config data for any authorised index: contact administrator')
-    
+            
+        log.debug('AUTHORISED CORE CHOICE: '+str(choice_list))
+        log.debug('DEFAULT CORE ID:'+str(authcores.defaultcore))
+
+#    #GET THE INDEX, a SolrCore object, or choose the default
+#        if 'mycore' not in request.session:  #set default if no core selected
+#            log.debug('no core selected.. setting default')
+#            request.session['mycore']=DEFAULTCOREID
+#        
+#          page.coreID=int(request.session.get('mycore'))
+#        if page.coreID in corelist:
+#            page.mycore=corelist[page.coreID]
+#        elif DEFAULTCOREID in corelist:
+#            page.mycore=corelist[DEFAULTCOREID]
+#            request.session['mycore']=DEFAULTCOREID
+#            page.coreID=DEFAULTCOREID
+#        else:
+#            log.warning('Cannot find any valid coreID in authorised corelist')
+#            return HttpResponse('Missing any config data for any authorised index: contact administrator')
+#    
     #SET THE RESULT PAGE    
         page.page_number=int(page.page_number) #urls always returns strings only
         log.info('Page: {}'.format(page.page_number))
@@ -158,7 +171,7 @@ def download(request,doc_id,hashfilename):
         log.warning('Download failed as file ID not found in database')
         return HttpResponse('File not stored on server')
     #check user authorised to download
-    if authid(request,thisfile) is False:
+    if authorise.authid(request,thisfile) is False:
         log.warning(thisfile.filename+' not authorised or not present')
         return HttpResponse('File NOT authorised for download')    
 
@@ -191,7 +204,9 @@ def get_content(request,doc_id,searchterm,tagedit='False'):
         log.info('Get content request refused; no index defined in session')
         return HttpResponseRedirect('/') 
     page.coreID=int(request.session.get('mycore'))
-    corelist,DEFAULTCOREID,choice_list=authcores(request)
+
+    thisuser=request.user
+    corelist,DEFAULTCOREID,choice_list=authorise.authcores(thisuser)
     page.mycore=corelist[page.coreID]
 
     #HANDLE EDITS OF USER TAGS
@@ -284,7 +299,7 @@ def get_content(request,doc_id,searchterm,tagedit='False'):
            #go get large highlights instead
            return get_bigcontent(request,page)
 #        #check if file is registered and authorised to download
-        page.authflag,page.matchfile_id,page.hashfilename=authfile(request,page.hashcontents,page.docname)
+        page.authflag,page.matchfile_id,page.hashfilename=authorise.authfile(request,page.hashcontents,page.docname)
 
         #clean up and prepare the preview text for display
         page.splittext,page.last_snippet,page.cleanterm=cleanup(page.searchterm,page.highlight)
@@ -303,7 +318,7 @@ def get_bigcontent(request,page): #make a page of highlights, for MEGA files
         page.process_result(res.results[0]) #if duplicate, take the first
 #        log.debug(result.data)
         #check if file is registered and authorised to download
-        page.authflag,page.matchfile_id,page.hashfilename=authfile(request,page.hashcontents,page.docname)
+        page.authflag,page.matchfile_id,page.hashfilename=authorise.authfile(request,page.hashcontents,page.docname)
         
         form = page.tagform()
         return render(request, 'content_big.html', {'form':form,'page':page})
@@ -377,80 +392,5 @@ def slugify(value):
     value = unicode(re.sub('[-\s]+', '-', value))
     return value+fileExt
 
-##set up solr indexes
-@login_required
-def authcores(request):
-    cores={}
-    choice_list=()
-    thisuser=request.user
-    groupids=[group.id for group in thisuser.groups.all()]
-    log.debug('authorised groups for user: '+str(groupids))
-    corelist=(Index.objects.filter(usergroup_id__in=groupids))
-    log.debug('authorised core list '+str(corelist))
-    for core in corelist:
-        cores[core.id]=solrJson.SolrCore(core.corename)
-        corenumber=str(core.id)
-        coredisplayname=core.coreDisplayName
-        choice_list +=((corenumber,coredisplayname),) #value/label
-    try:
-        DEFAULTCOREID=int(config['Solr']['defaultcoreid'])
-        #print(defaultcoreID,cores)
-        assert DEFAULTCOREID in cores     
-    except Exception as e:
-        log.debug('Default core ('+str(DEFAULTCOREID)+') set in userconfigs is not found in authorised indexes: first available is made default')
-        try:
-            log.debug(str(cores)+' '+str(choice_list))
-            DEFAULTCOREID=int(choice_list[0][0])#if no default found, take first in list as new default
-#            defaultcoreID=cores.keys()[0]  #take any old core, if default not found
-        except Exception as e:
-            log.error('No valid and authorised index set in database: fix in /admin interface')
-            log.error(str(e))
-            cores={}
-            DEFAULTCOREID=0
-    return cores, DEFAULTCOREID, choice_list
 
-#CHECK IF FILE WITH SAME HASH EXISTS IN DATABASE, AUTHORISED FOR DOWNLOAD AND IS PRESENT ON  MEDIA
-def authfile(request,hashcontents,docname,acceptothernames=True):
-    matchfiles=File.objects.filter(hash_contents=hashcontents) #find local registered files by hashcontents
-    if matchfiles:
-        log.debug('hashcontents: '+hashcontents)    
-    #get authorised cores
-        #user groups that user belongs to
-        authgroupids=[group.id for group in request.user.groups.all()]
-        log.debug('authorised groups for user: '+str(authgroupids))
-        #indexes that user is authorised for
-        authcoreids=[core.id for core in Index.objects.filter(usergroup_id__in=authgroupids)]
-        log.debug(str(authcoreids)+'.. cores authorised for user')
-        
-    #find authorised file
-        altlist=[]
-        for f in matchfiles:
-            fcore=Collection.objects.get(id=f.collection_id).core_id  #get core of database file
-            if fcore in authcoreids and os.path.exists(f.filepath) and docname==f.filename:
-                #FILE AUTHORISED AND EXISTS LOCALLY
-                log.debug('matched authorised file'+f.filepath)
-                return True,f.id,f.hash_filename
-            
-            #finding authorised file that match hash and exist locally but have different filename
-            elif fcore in authcoreids and os.path.exists(f.filepath):
-                altlist.append(f)
-         #if no filenames match, return a hashmatch
-        if acceptothernames and altlist:
-            log.debug('hashmatches with other filenames'+str(altlist))
-            #return any of them
-            log.debug('returning alternative filename match'+altlist[0].filepath)
-            return True,altlist[0].id,altlist[0].hash_filename
-
-    return False,'',''
-        
-def authid(request,doc):
-    coreid=Collection.objects.get(id=doc.collection_id).core_id
-    #user groups that user belongs to
-    authgroupids=[group.id for group in request.user.groups.all()]
-    #indexes that user is authorised for
-    authcoreids=[core.id for core in Index.objects.filter(usergroup_id__in=authgroupids)]
-    if coreid in authcoreids:
-        return True
-    else:
-        return False
 

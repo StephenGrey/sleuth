@@ -16,6 +16,7 @@ from ownsearch.hashScan import FileSpecTable as filetable
 import datetime, hashlib, os, logging, requests
 from . import indexSolr, updateSolr, solrICIJ, solrDeDup, solrcursor,correct_paths
 import ownsearch.solrJson as solr
+from ownsearch import authorise
 from django.contrib.admin.views.decorators import staff_member_required
 log = logging.getLogger('ownsearch.docs.views')
 from usersettings import userconfig as config
@@ -25,7 +26,8 @@ from usersettings import userconfig as config
 @staff_member_required()
 def index(request):
     #get the core , or set the the default
-    cores,defaultcoreID=getindexes()
+    thisuser=request.user
+    cores,defaultcoreID=getindexes(thisuser)
     if 'mycore' not in request.session:  #set default if no core selected
         if defaultcoreID: #if a default defined, then set as chosen core
             request.session['mycore']=defaultcoreID
@@ -52,7 +54,9 @@ def index(request):
 def listfiles(request):
 #   print('Core set in request: ',request.session['mycore'])
 #    cores=solr.getcores() #fetch dictionary of installed solr indexes (cores)
-    cores,defaultcoreID=getindexes()
+    thisuser=request.user
+    cores,defaultcoreID=getindexes(thisuser)
+    
     if 'mycore' in request.session:
         
         coreID=request.session['mycore'] #currently selected core
@@ -336,16 +340,18 @@ def pathHash(path):
     return m.hexdigest()
 
 #set up solr indexes
-def getindexes():
-    cores=solr.getcores()
-    defaultcoreID=config['Solr']['defaultcoreid']
-    log.debug('CORES: '+str(cores)+' DEFAULT CORE ID:'+str(defaultcoreID))
-    if defaultcoreID not in cores:
-        try:
-            defaultcoreID=cores.keys()[0]  #take any old core, if default not found
-        except Exception as e:
-            log.warning('No indexes defined in database')
-            defaultcoreID='' #if no indexes, no valid default
+def getindexes(thisuser):
+	
+    try:
+        authcores=authorise.AuthorisedCores(thisuser)      
+    except Exception as e:
+        log.warning('No valid indexes defined in database')
+        defaultcoreID='' #if no indexes, no valid default
+    cores=authcores.cores
+    defaultcoreID=authcores.defaultcore
+
+    log.debug('CORES: '+str(cores)+' DEFAULT CORE:'+str(defaultcoreID))
+    
     return cores,defaultcoreID
 
 @staff_member_required()    

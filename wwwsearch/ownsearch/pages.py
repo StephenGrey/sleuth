@@ -25,7 +25,7 @@ class Page(object):
 
 
 class SearchPage(Page):
-    def __init__(self,page_number=0,searchterm='',direction='',pagemax=0,sorttype='',tag1field='',tag1='',tag2field='',tag2='',tag3field='',tag3=''):
+    def __init__(self,searchurl='',page_number=0,searchterm='',direction='',pagemax=0,sorttype='relevance',tag1field='',tag1='',tag2field='',tag2='',tag3field='',tag3=''):
         super(SearchPage,self).__init__(searchterm=searchterm)
         self.page_number=page_number
         self.direction=direction
@@ -37,7 +37,10 @@ class SearchPage(Page):
         self.tag2=tag2
         self.tag3field=tag3field
         self.tag3=tag3
-        self.resultlist=[]        
+        self.resultlist=[]
+        self.searchurl=searchurl
+        super(SearchPage,self).safe_searchterm()
+        super(SearchPage,self).add_filters()
         
     def clear_(self):
         self.facets=[]
