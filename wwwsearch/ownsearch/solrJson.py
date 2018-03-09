@@ -588,7 +588,7 @@ def getcores():
     try:
         for coredoc in sc.objects.all():
             core=coredoc.corename
-            corenumber=coredoc.coreID
+            corenumber=coredoc.id
 #    for corenumber in config['Cores']:
 #        core=config['Cores'][corenumber]
 #        name=config[core]['name']

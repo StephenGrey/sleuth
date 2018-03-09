@@ -31,7 +31,7 @@ def index(request):
     if 'mycore' not in request.session:  #set default if no core selected
         if defaultcoreID: #if a default defined, then set as chosen core
             request.session['mycore']=defaultcoreID
-    coreID=request.session.get('mycore')
+    coreID=int(request.session.get('mycore'))
     log.debug('CORE ID: {}'.format(coreID))
     if request.method=='POST': #if data posted # switch core
 #        print('post data')
@@ -45,12 +45,16 @@ def index(request):
         form=IndexForm(initial={'CoreChoice':coreID})
         log.debug('Core set in request: {}'.format(request.session['mycore']))
     try:
-        mycore=Index.objects.get(coreID=coreID)
-        latest_collection_list =Collection.objects.filter(core=mycore)
+#        mycore=cores[coreID]
+        mycoreIndex=Index.objects.get(id=coreID)
+        log.debug('mycore: {}'.format(mycoreIndex))
+        latest_collection_list=Collection.objects.filter(core=mycoreIndex)
         return render(request, 'documents/scancollection.html',{'form': form, 'latest_collection_list': latest_collection_list})
-    except:
+    except Exception as e:
+        log.error('Error: {}'.format(e))
         return HttpResponse('Can\'t find core/collection - retry')
 
+@staff_member_required()
 def listfiles(request):
 #   print('Core set in request: ',request.session['mycore'])
 #    cores=solr.getcores() #fetch dictionary of installed solr indexes (cores)
@@ -58,14 +62,13 @@ def listfiles(request):
     cores,defaultcoreID=getindexes(thisuser)
     
     if 'mycore' in request.session:
-        
         coreID=request.session['mycore'] #currently selected core
-        print(coreID)
+        log.debug('Using core: {}'.format(coreID))
     else:
         print ('ERROR no stored core in session')
         return HttpResponse( "No index selected...please go back")
 #        coreID=defaultcore
-    mycore=cores.get(str(coreID)) # get the working core
+    mycore=cores.get(int(coreID)) # get the working core
     log.info('using index: {}'.format(getattr(mycore,'name','')))
     try:
         if request.method == 'POST' and 'list' in request.POST and 'choice' in request.POST:
@@ -341,7 +344,6 @@ def pathHash(path):
 
 #set up solr indexes
 def getindexes(thisuser):
-	
     try:
         authcores=authorise.AuthorisedCores(thisuser)      
     except Exception as e:
@@ -349,7 +351,6 @@ def getindexes(thisuser):
         defaultcoreID='' #if no indexes, no valid default
     cores=authcores.cores
     defaultcoreID=authcores.defaultcore
-
     log.debug('CORES: '+str(cores)+' DEFAULT CORE:'+str(defaultcoreID))
     
     return cores,defaultcoreID
