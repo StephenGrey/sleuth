@@ -14,7 +14,7 @@ def ICIJextract(path,mycore,ocr=True):
         mycore.ping() #checks the connection is alive
         if os.path.exists(path) == False:
             raise IOError
-        result=tryextract(path,mycore,ocr=True)
+        result=tryextract(path,mycore,ocr=ocr)
         return result #return True on success
     except IOError as e:
         log.error('File cannot be opened')
@@ -34,6 +34,7 @@ def tryextract(path,mycore,ocr=True):
         args=["java","-jar", extractpath, "spew","-o", "solr", "-s"]
     else:
         args=["java","-jar", extractpath, "spew","--ocr","no","-o", "solr", "-s"]
+    log.debug('Extract args: {}'.format(args))
     args.append(solrurl)
     args.append(target)
     result=subprocess.Popen(args, stderr=subprocess.PIPE, stdout=subprocess.PIPE,shell=False)
