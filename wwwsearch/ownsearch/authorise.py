@@ -9,7 +9,7 @@ from __future__ import absolute_import
 from django.contrib.auth.models import User
 from . import solrJson
 from documents.models import File,Index,Collection
-import logging
+import logging,os
 log = logging.getLogger('ownsearch.authorise')
 from usersettings import userconfig as config
 
