@@ -30,6 +30,8 @@ def getcore(corename):
 def cursor(mycore,keyfield='docpath',searchterm='*',highlights=False): #iterates through entire solr index in blocks of e.g. 100
     #if highlights is True, returns more complete data including highlights
     #print('start scan')
+    #use standard naems for keyfields
+    
     longdict={} #dictionary of index data, keyed on relative filepath
     res=False
 
@@ -43,7 +45,7 @@ def cursor(mycore,keyfield='docpath',searchterm='*',highlights=False): #iterates
                 break
         #PUT RESULTS INTO DICTIONARY KEYED BY KEYFIELD
             for document in res.results:
-#                    print(keyfield,document.__dict__)
+                #log.debug('{}, {}'.format(keyfield,document.__dict__))
                 if keyfield in document.data:  #.data:
                     keystring=document.data[keyfield]
 #                        print(keyfield,document.__dict__,keystring)

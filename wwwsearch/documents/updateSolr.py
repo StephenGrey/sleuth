@@ -50,29 +50,33 @@ def scandocs(collection,deletes=True):
 
 def removedeleted(deletefiles,collection):
     cores=s.getcores() #fetch dictionary of installed solr indexes (cores)
-    mycore=cores[collection.core.coreID]
+    mycore=cores[collection.core.id]
+    #log.debug('Delete from core: {}'.format(mycore))
     filelist=File.objects.filter(collection=collection)
     for path in deletefiles:
         file=filelist.get(filepath=path)
         #first remove from solrindex
+        #log.debug('FIle to delete {}, id: {}'.format(file,file.solrid))
         response,status=delete(file.solrid,mycore)
+        #log.debug('Delete success: {}'.format(status))
         if status:
         #if no error then remove from file database
             file.delete()
             print('Deleted '+path)
     return
 
-
 def delete(solrid,mycore):
     """delete a file from solr index"""
-    data=deletejson(solrid)
+    data=deletejson(solrid,mycore)
+    #log.debug('Json to post: {}'.format(data))
     response,status=post_jsonupdate(data,mycore)
+    #log.debug('Response: {}'.format(response))
     return response,status
     
-def deletejson(solrid):
+def deletejson(solrid,mycore):
     """build json to delete a solr doc"""
     a=collections.OrderedDict()  #keeps the JSON file in a nice order
-    a['delete']={'extract_id':solrid}
+    a['delete']={"id":solrid}  #id refers to the unique field, whatever the field name actually is
     data=json.dumps(a)
     return data
 
@@ -210,7 +214,7 @@ def post_jsondoc(data,mycore):
 def metaupdate(collection):
     #print ('testing collection:',collection,'from core',collection.core,'core ID',collection.core.coreDisplayName)
     cores=s.getcores() #fetch dictionary of installed solr indexes (cores)
-    mycore=cores[collection.core.coreID]
+    mycore=cores[collection.core.id]
     #main code
     filelist=File.objects.filter(collection=collection)
     for file in filelist: #loop through files in collection
@@ -569,7 +573,8 @@ def sequence(mycore,regex='^XXX(\d+)_Part(\d+)(_*)OCR'):
             print('Nothing to update!')
 
 def metareplace(mycore,resultfield,find_ex,replace_ex,searchterm='*',sourcefield='',test=False):
-    """Update a field with regular expression find and replace"""    
+    """Update a field with regular expression find and replace"""   
+    #example: u.metareplace(mc,'docpath','^','foldername/',searchterm='* -foldername',sourcefield='',test=False) 
     #sourcefield is a field whose value may be copied to the resultfield 
     if sourcefield=='':
         sourcefield=resultfield
@@ -589,5 +594,5 @@ def metareplace(mycore,resultfield,find_ex,replace_ex,searchterm='*',sourcefield
                 #make changes to the solr index
                 if test==False:
                     res,status=update(doc.id,changes,mycore)
-                print(status)
+                    print(status)
     return

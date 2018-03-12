@@ -29,7 +29,7 @@ class Source(models.Model):
         return self.sourcename
 
 class Index(models.Model):
-    coreID=models.CharField('Core ID (1-10)',max_length=10,default='')
+#    coreID=models.CharField('Core ID (1-10)',max_length=10,default='')
     coreDisplayName=models.CharField('Core Display Name',max_length=30,default='',blank=True)
     corename=models.CharField('Corename',max_length=20,default='')
     usergroup=models.ForeignKey(Group,on_delete=models.CASCADE)
