@@ -11,7 +11,7 @@ def get_corechoices():
     choice_list=()
     try:
         for coredoc in sc.objects.all():
-            corenumber=coredoc.coreID
+            corenumber=coredoc.id
             coredisplayname=coredoc.coreDisplayName
        #print corenumber,core
             choice_list +=((corenumber,coredisplayname),) #value/label
