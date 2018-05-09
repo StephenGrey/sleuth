@@ -1,0 +1,79 @@
+<html>
+<style>
+
+h3 {
+	color: red 
+}
+.login {
+	position: absolute; top: 0; right: 10; 
+	width: 200px; text-align:right;
+}
+.content {
+	font: 20px Georgia;
+	line-height:1.5;
+}
+.titlename {
+	font: bold 25px Georgia;
+}
+.navigl {
+    color: red;
+    position: absolute;
+    left: 0%;
+    font: bold 20px Georgia;
+}
+.navigr {
+    color: red;
+    position: absolute;
+    left: 90%;
+    font: bold 20px Georgia;
+}
+
+.tag {
+		color: orange;
+}
+
+.meta {
+		color: blue;
+		font-size: 14px;
+		}
+
+
+.message {
+		font-size: 16px;
+		}
+
+.sender {
+		float: left
+		}
+
+.time {
+		float: right
+		}
+
+.sidebar-nav {
+    margin-top: 20px;
+    padding: 0;
+    list-style: none;
+}
+.highlight {
+    background-color: #FFFF00
+}
+
+div.left {
+    position: relative;
+    padding: 5px 5px 5px 5px;
+    left: 0px;
+    width: 400px;
+    border: 2px solid grey;
+}
+div.right {
+    position: relative;
+    padding: 5px 5px 5px 5px;
+    left: 120px;
+    width: 400px;
+    border: 2px solid grey;
+}
+
+
+
+</style>

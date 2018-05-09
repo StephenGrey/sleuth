@@ -8,12 +8,11 @@ import json, collections
 from documents import updateSolr as u
 from documents.models import Source as Source
 
-def impCSV(path):
+def impCSV(path,maxloop=100000):
     with open(path) as f:
         reader = csv.reader(f)
         #first line is column headers
         row=next(reader)
-        maxloop=100000
         counter=0
         print(row)
         while row:

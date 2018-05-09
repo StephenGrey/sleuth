@@ -26,7 +26,7 @@ urlpatterns = [
     url(r'^ownsearch/',include('ownsearch.urls')),
     url(r'^documents/',include('documents.urls')),
     url(r'^scraper/',include('scraper.urls')),
-#    url(r'^tests/',include('tests.urls')),
+    url(r'^tests/',include('tests.urls')),
     url(r'^accounts/login/$', auth_views.login, name='login'),
     url(r'^accounts/logout/$', auth_views.logout, name='logout'),
     url(r'^accounts/password_reset/$', auth_views.password_reset, name='password_reset'),

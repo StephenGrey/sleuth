@@ -1,0 +1,58 @@
+<html>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+{% load static %}
+{% block title %}<title>Whats App Test</title>{% endblock %}
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+<!--  <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
+-->
+  <link rel="stylesheet" type="text/css" href="{% static 'bootstrap1.min.css' %}" />
+  <script src="{% static 'jquery.min.js' %}"></script>
+  <script src="{% static 'bootstrap.min.js' %}"></script>  
+
+  <link rel="stylesheet" type="text/css" href="{% static 'style1.css' %}" />
+</head>
+<h2><a class='no-deco' href="/whatsapp/">Whats App</a></h2>
+
+<!--<a href="{% static 'Squirrel.jpg' %}">test picture</a>
+-->
+{% if user.is_authenticated %}
+<div class='login'>    Logged in as: {{ user.username }}  <a href="{% url 'logout' %}?next=/ownsearch/"">[logout]</a>
+</div>
+
+ <div class="container">
+
+    <div class="row">
+      <div class="col-sm-2">
+				{% block sidebar %}
+				      <ul class="sidebar-nav">
+				      </ul>
+				{% endblock %}
+      </div>
+
+      <div class="col-sm-10 ">
+      {% block top_content %}{% endblock %}
+      {% block user_tags %}{% endblock %}
+      {% block embed_content %}{% endblock %}
+      {% block body_content %}{% endblock %}
+      {% block footer_content %}{% endblock %}
+
+      
+      </div>
+    </div>
+
+  </div>
+
+{% else %}
+    <p>Welcome, Guest <a href="{% url 'login' %}?next=/ownsearch"">[login]</a></p>
+{% endif %}
+
+{% comment %}
+modified log-in code from: https://rayed.com/wordpress/?p=1350
+ 
+{% endcomment %}
+
+</html>
+

@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block body_content %}
+
+<h2>Whats App Messages to/from {{filter1}}
+{%if filter2 %} and {{filter2}}{% endif %}
+</h2><p><p>
+
+
+{% for person,number in list %}
+<p>
+
+	<div class="meta">
+  		<a class='no-deco' href="/whatsapp/{{person}}/">{{person}}</a >  {{number}}
+	</div>
+	<div style="clear: both;"></div>
+
+{% endfor %}
+
+{% endblock %}

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-#PROCESS SOLR INDEX: EXTRACT FILES TO INDEX AND UPDATE INDEX
+"""PROCESS SOLR INDEX: EXTRACT FILES TO INDEX AND UPDATE INDEX """
 from __future__ import unicode_literals, print_function
 from __future__ import absolute_import
 from django.http import HttpResponse
@@ -25,7 +25,7 @@ from usersettings import userconfig as config
 
 @staff_member_required()
 def index(request):
-    #get the core , or set the the default
+    """get the core , or set the the default """
     thisuser=request.user
     cores,defaultcoreID=getindexes(thisuser)
     if 'mycore' not in request.session:  #set default if no core selected
@@ -34,12 +34,15 @@ def index(request):
     coreID=int(request.session.get('mycore'))
     log.debug('CORE ID: {}'.format(coreID))
     if request.method=='POST': #if data posted # switch core
-#        print('post data')
+        #print('post data')
         form=IndexForm(request.POST)
+        log.debug('Form: {} Valid: {} Post data: {}'.format(form.__dict__,form.is_valid(),request.POST))
         if form.is_valid():
             coreID=form.cleaned_data['CoreChoice']
             log.debug('change core to {}'.format(coreID))
             request.session['mycore']=coreID
+        else:
+            log.debug('posted form is not valid')
     else:
 #        print(request.session['mycore'])
         form=IndexForm(initial={'CoreChoice':coreID})

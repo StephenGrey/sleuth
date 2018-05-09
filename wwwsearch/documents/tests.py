@@ -187,7 +187,6 @@ def ICIJindex(collection,mycore): #indexdocs(collection,mycore,forceretry=False,
     return counter,skipped,failed
 
 
-
 def tps():  #test sub process
     args=["java","-version"] #,"2>&1"]
 #    args=[u'java', u'-jar', 'somepath', u'commit', u'-s', u'http://localhost:8983/solr/debugxx']
@@ -219,6 +218,5 @@ def listmeta(collection):
        if res:
            print((file.solrid,'Date: '+str(res[0].get('date','no date'))))
        #'Indexed?'+str(file.indexedSuccess),'IndexedTry'+str(file.indexedTry),'Contents:'+file.hash_contents,'Path:'+file.hash_filename)
-
 
 

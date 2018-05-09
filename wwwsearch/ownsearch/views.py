@@ -41,14 +41,14 @@ except:
 
 @login_required
 def do_search(request,page_number=0,**kwargs):
-
+#    log.debug(request.__dict__)
     path_info=request.META.get('PATH_INFO')
     request.session['lastsearch']=path_info
 
     page=pages.SearchPage(page_number=page_number,searchurl=path_info, **kwargs)
          
 #    log.debug('SESSION CACHE: '+str(vars(request.session)))
-    log.debug('Request: {}'.format(path_info))
+    log.debug('Request: {}    User: {}'.format(path_info,request.user))
     log.debug('Search parameters: {}'.format(page.__dict__))
     log.debug('Filters: {}, Tagfilters:{}'.format(page.filters,page.tagfilters))
 
