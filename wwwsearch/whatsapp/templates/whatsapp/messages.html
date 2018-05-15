@@ -1,51 +1,21 @@
-{% extends "base.html" %}
+{% extends "whatsapp/base.html" %}
 {% block body_content %}
 
-<h2>Whats App Messages to/from {{filter1}}
-{%if filter2 %} and {{filter2}}{% endif %}
-</h2><p><p>
-
-
-{% for message,received in list %}
-<p>
-
-{% if received %}
-<div class="right">
-	<div class="meta">
-  	<div class="sender">
-  		<a class='no-deco' href="/whatsapp/{{filter1}}/{{message.from_number}}">{{message.from_number}}</a>
-		</div>
-		<div class="time">{{message.send_time}}
-		</div>
-	<div style="clear: both;"></div>
-	</div>
-	<div class="message">
-	{{message.messagetext}}
-	</div>
-
-</div>
-
-{% else %}
-<div class="left">
-	<div class="meta">
-		  <div class="sender">
-  			<a class='no-deco' href="/whatsapp/{{filter1}}/{{message.from_number}}">{{message.from_number}}</a>
-  		</div>
-			<div class="time">
-				{{message.send_time}}
-  		</div>
-  		<div style="clear: both;">
-  		</div>
-	</div>
-	<div class="message">
-	{{message.messagetext}}
-	</div>
-</div>
-
-
-<p>
+<h2>WhatsApp to/from 
+	{% if filter1_name %}{{filter1_name}} ({{filter1}})
+	{% else %}{{filter1}}
+	{% endif %}
+{%if filter2 %}<p>and 
+{%if filter2_name %}{{filter2_name}} ({{filter2}})
+{% else %}{{filter2}}{% endif %}
 {% endif %}
 
-{% endfor %}
+</h2>
+{{phonenumber_panel_html}}
+
+<p><p>
+
+{{preview_html}}
 
 {% endblock %}
+

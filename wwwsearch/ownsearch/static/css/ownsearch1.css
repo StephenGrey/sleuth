@@ -5,8 +5,9 @@ h3 {
 	color: red 
 }
 .login {
-	position: absolute; top: 0; right: 10; 
+	position: absolute; top: 0; right: 100;
 	width: 200px; text-align:right;
+	color: red;
 }
 .content {
 	font: 20px Georgia;
@@ -15,6 +16,26 @@ h3 {
 .titlename {
 	font: bold 25px Georgia;
 }
+
+.list-group {
+	list-style: decimal inside;
+}
+
+.list-group-item {
+/*      display:inline-block;*/
+	display: list-item;
+	max-width: 10 px
+	border-radius: 5px;
+ }
+.sender {
+		float: left
+		}
+
+.time {
+		float: right;
+		color: #9966ff;
+		}
+
 .navigl {
     color: red;
     position: absolute;
@@ -27,6 +48,9 @@ h3 {
     left: 90%;
     font: bold 20px Georgia;
 }
+.message {
+		font-size: 16px;
+		}
 
 .tag {
 		color: orange;

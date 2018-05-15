@@ -1,19 +1,39 @@
 {% extends "base.html" %}
+
+{% block maincontent %}
+
+
 {% block body_content %}
+		</div>
+		<div class="row">
+			<div class="col-sm-2">
+			</div>	
+			<div class="col-sm-10 ">		
+			<h2>Whats App Messages to/from {{filter1}}
+			{%if filter2 %} and {{filter2}}{% endif %}
+			</h2>
+			<p><p>
+			</div>
+		</div>
+		
+		<div class="row">		
+			<div class="col-sm-2">
+		  </div>
+			<div class="col-sm-6">
+				<ul class="list-group">
+				{% for person,number,name in list %}
+				  <li class="list-group-item list-group-item-info">
+							{% if name %}<a href="/whatsapp/{{person}}/">{{name}}</a> ( {{person}} )
+							{% else %}
+							<a href="/whatsapp/{{person}}/">{{person}}</a>
+							{% endif %}
+							 <span class="badge">{{number}}</span> 		
+				</li> 
+				{% endfor %}
+				</ul>
+		
+		  </div>
+		  <div class="col">
+		  </div>
 
-<h2>Whats App Messages to/from {{filter1}}
-{%if filter2 %} and {{filter2}}{% endif %}
-</h2><p><p>
-
-
-{% for person,number in list %}
-<p>
-
-	<div class="meta">
-  		<a class='no-deco' href="/whatsapp/{{person}}/">{{person}}</a >  {{number}}
-	</div>
-	<div style="clear: both;"></div>
-
-{% endfor %}
-
-{% endblock %}
+{% endblock %} {% endblock %}

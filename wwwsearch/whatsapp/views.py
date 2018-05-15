@@ -3,48 +3,76 @@ from __future__ import unicode_literals
 from django.shortcuts import render
 from django.http import HttpResponse
 from django.db.models import Q,Count #Count to count up unique entries
-from .models import Message
+from .models import Message, PhoneNumber
 import operator #for sorting
+import json, logging
+from .conversation import Conversation, get_name, list_messages
+from django.http import JsonResponse
+log=logging.getLogger('ownsearch.whatsapp.views')
 
-def home(request):
-    to_numbers=Message.objects.values("to_number").distinct().annotate(n=Count("pk"))
-    todict={}
-    for item in to_numbers:
-        todict[item['to_number']]=item['n']
-#        to_numbers=sorted([(number['to_number'],number['n']) for number in to_numbers],key=operator.itemgetter(1),reverse=True)
-    from_numbers=Message.objects.values("from_number").distinct().annotate(n=Count("pk"))
-    combo=[(number['from_number'],number['n']+todict.pop(number['from_number'],0)) for number in from_numbers]
-    #add unique items (i.e 'to numbers' not in the 'from' list)
-    for key in todict:
-        combo.append((key,todict[key]))
-    #now sort it all
-    combo=sorted(combo,key=operator.itemgetter(1),reverse=True)
 
+def home(request):    
+    combo=list_messages()
     return render(request, 'whatsapp/list.html',{'list': combo})
 
-#    for number in [message.to_number for message in Message.objects.all()]:
-#        numbers.append(number)
-    return HttpResponse(combo)
-
 def messages(request,filter1='',filter2=''):
-    messages=[]
-    print('Filters {}, {}'.format(filter1,filter2))
-    filtered=Message.objects.filter(Q(to_number=filter1) | Q(from_number=filter1) | Q(whatsapp_group=filter1))
-    if filter2:
-        print('second filter {}'.format(filter2))
-        filtered=filtered.filter(Q(to_number=filter2) | Q(from_number=filter2) | Q(whatsapp_group=filter2))
-    for message in filtered:    
-        print(message.to_number,message.from_number, message.whatsapp_group)
-        if message.from_number=='0':
-            continue
-        if message.to_number=='0':
-            message.to_number=message.whatsapp_group
-            print(message.to_number, message.whatsapp_group)
-        if message.to_number==filter1:
-            received=True
-        else:
-            received=False
-        messages.append((message,received))
-    return render(request, 'whatsapp/messages.html',{'list': messages, 'filter1': filter1, 'filter2':filter2 })
+    
+    c=Conversation(filter1,filter2,request=request)
+    if c.messages==[]:
+        return HttpResponse('No messages')
 
-# Create your views here.
+    return render(request, 'whatsapp/messages.html',{'list': c.messages, 'filter1': c.node1, 'filter2':c.node2, 'filter1_name':c.node1_name, 'filter2_name':c.node2_name, 'filter2_records':c.node2_records, 'filter1_records':c.node1_records, 'preview_html':c.preview_html, 'phonenumber_panel_html': c.phonenumber_panel_html  })
+
+def post_namefiles(request):
+    
+    #print('Ajax test view:')
+    
+    if request.is_ajax():
+       if request.method == 'POST':
+            log.debug('Raw Data: {}'.format( request.body))
+    response_json = json.dumps(request.POST)
+    data = json.loads(response_json)
+    log.debug ("Json data: {}.".format(data))
+    
+    result=update_phonerecords(data)
+
+    jsonresponse = {
+    'saved': result 
+    }
+    return JsonResponse(jsonresponse)
+
+
+#move this:
+def update_phonerecords(data):
+    log.info('Updating phone records')
+    try:
+        pid=data.pop('record-ID',None)
+        if pid=='':
+            log.warning('No record found')
+            return False
+        existing=PhoneNumber.objects.get(id=pid)
+        print('Record found: '.format(existing))
+        print(existing.__dict__)
+        
+        csrf=data.pop('csrfmiddlewaretoken')
+        existing.name=data['name']
+        existing.name_source=data['name_source']
+        existing.name_possible=data['name_possible']
+        existing.notes=data['notes']
+        existing.save() 
+        log.info("Edited phone number record with saved data: {}".format(data))
+        return True 
+    except Exception as e:
+        log.error("Failed to edit phone record data with saved data: {} and error {}".format(data,e))
+        return False
+        
+        
+    
+"""
+
+Json data: {u'phone-ID': u'36', u'name': u'', u'name_source1': u'TRUECALLER or SYNC.ME', u'name1': u'Tommy Diacono', u'notes1': u'', u'csrfmiddlewaretoken': u'9rme802vg5fIAMjFYge1TqOLufE1O3YHZYyUSBClyR23CHGTMl5ljFRIRZizdfjW'}.
+
+{'verified': False, 'name': u'Tommy Diacono', 'notes': u'', '_state': <django.db.models.base.ModelState object at 0x10a7c5750>, 'number': u'35679256924', 'name_source': u'TRUECALLER or SYNC.ME', 'original_ID': u'26', 'name_exmessage': u'Tom', 'name_possible': u'', 'id': 36}    
+    
+"""
+

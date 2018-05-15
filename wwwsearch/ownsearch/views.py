@@ -209,6 +209,7 @@ def get_content(request,doc_id,searchterm,tagedit='False'):
     corelist,DEFAULTCOREID,choice_list=authorise.authcores(thisuser)
     page.mycore=corelist[page.coreID]
 
+
     #HANDLE EDITS OF USER TAGS
     useredit_str=request.session.get('useredit','')
     log.debug('useredit: {}'.format(useredit_str))
@@ -265,7 +266,10 @@ def get_content(request,doc_id,searchterm,tagedit='False'):
         page.process_result(result)
         log.debug('Data ID: {}'.format(page.data_ID)) 
         
-        
+        #REDIRECT IF PREVIEW URL DEFINED
+        log.debug('Preview: {}'.format(page.preview_url))
+        if page.preview_url:
+            return HttpResponseRedirect(page.preview_url) 
         
         if page.mimetype=='application/pdf':
             page.pdf_url=static(os.path.join('files/',page.docpath))

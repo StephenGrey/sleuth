@@ -71,6 +71,7 @@ class SolrCore:
             self.nextfield=config[core].get('nextfield','')
             self.beforefield=config[core].get('beforefield','')
             self.sequencefield=config[core].get('sequencefield','')
+            self.preview_url=config[core].get('preview_url','')
             if not fieldexists(self.tags1field,self): #check if the tag field is defined in index
                 self.tags1field=''
 
@@ -148,6 +149,8 @@ class Solrdoc:
             self.data['docpath']=self.data.pop(core.docpath,'')
             self.data['hashcontents']=self.data.pop(core.hashcontentsfield,'')
             self.data['tags1']=self.data.pop(core.tags1field,'')
+            self.data['preview_url']=self.data.pop(core.preview_url,'')
+            
             if isinstance(self.data['tags1'], str):
                 self.data['tags1']=[self.data['tags1']]
             self.next_id=self.data.pop(core.nextfield,'')
@@ -434,7 +437,7 @@ def gettrimcontents(docid,core,maxlength):
     searchterm='{}:\"{}\"'.format(core.unique_id,docid)
     
     #MAKE ARGUMENTS FOR TRIMMED CONTENTS
-    fieldargs='&fl={},{},{},{},{},{},{},{},{},{},{},{},{}'.format(core.unique_id,core.docnamefield,core.docsizefield,core.hashcontentsfield,core.docpath,core.tags1field, core.usertags1field,core.sourcefield,'extract_base_type','preview_html','SBdata_ID',core.datefield,core.emailmeta)
+    fieldargs='&fl={},{},{},{},{},{},{},{},{},{},{},{},{},{}'.format(core.unique_id,core.docnamefield,core.docsizefield,core.hashcontentsfield,core.docpath,core.tags1field, core.preview_url,core.usertags1field,core.sourcefield,'extract_base_type','preview_html','SBdata_ID',core.datefield,core.emailmeta)
     fieldargs+=","+core.beforefield if core.beforefield else ""
     fieldargs+=","+core.nextfield if core.nextfield else ""
     fieldargs+=","+core.sequencefield if core.sequencefield else ""

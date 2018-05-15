@@ -44,6 +44,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'notes',
     'ownsearch',
+    'whatsapp',
     'documents.apps.DocumentsConfig',
     'scraper.apps.ScraperConfig',
 ]

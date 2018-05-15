@@ -1,0 +1,94 @@
+
+  <div class="panel-group">
+    <div class="panel panel-default">
+      <div class="panel-heading">
+        <h4 class="panel-title">
+          <a data-toggle="collapse" href="#collapse{{filter}}">Notes on {% if filter_name %}{{filter_name}} {% endif %}({{filternumber}})</a>
+      </div>
+     <div id="collapse{{filter}}" class="panel-collapse collapse">
+        <form class="form-vertical" id="myform{{filter}}" name="myform{{filter}}" method="post">
+        	 {% csrf_token %}
+							<div class="form-group has-feedback">
+    							<label class="control-label">Name:</label>
+		          		<input type="text" class="form-control alert-warning" id="name{{filter}}" label="Name:" name="name" value="{{filter_records.name}}" readonly>
+          		{% if filter_records.verified %}
+          		<i class="glyphicon glyphicon-ok form-control-feedback"></i>
+          		{% else %}
+          		<i class="glyphicon glyphicon-question-sign form-control-feedback"></i>
+          		{% endif %}
+							</div>
+							<div class="form-group">
+								<label class="control-label">Name Source:</label>
+		          		<input type="text" class="form-control alert-warning" id="name_source{{filter}}" name="name_source" value="{{filter_records.name_source}}" readonly>
+						  </div>
+							<div class="form-group">
+								<label class="control-label">Possible name:</label>
+		          		<input type="text" class="form-control alert-warning" id="name_possible{{filter}}" name="name_possible" value="{{filter_records.name_possible}}" readonly>
+						  </div>
+						  <div class="form-group">
+						  	<label class="control-label">Notes:</label>
+						  	<input type="text" class="form-control" name="notes" id="notes{{filter}}" label="Notes:" value="{{filter_records.notes}}" readonly>
+						  </div>
+						  <input type="hidden" name="record-ID" value="{{filter_records.id}}" />
+          <div class="form-group"> <!--"list-group-item"-->
+              <label class="control-label">Verified:</label>
+              <input type="checkbox" id='verified{{filter}}' name='verified' value=True disabled>
+          </div>
+							Original Database ID: {{filter_records.original_ID}}
+             <span class="pull-right">
+                <span class="btn btn-xs btn-default" id="action-button{{filter}}">
+                  <span class="glyphicon glyphicon-pencil" aria-hidden="true"></span>
+                  <span id="button-text{{filter}}">Edit</span>
+                </span>
+             </span>
+          </div><!--/li-->
+            
+		</form>
+            <script>      
+            (function() {	
+            	document.getElementById("action-button{{filter}}").addEventListener('click', editform{{filter}});
+              function editform{{filter}}() {
+
+              var btnText{{filter}} = document.getElementById('button-text{{filter}}').innerHTML;
+              if(btnText{{filter}} == 'Edit')
+              {
+              //alert ("Silly alert!");
+
+              document.getElementById('name{{filter}}').readOnly = false;
+              document.getElementById('name_source{{filter}}').readOnly = false;
+              document.getElementById('notes{{filter}}').readOnly = false;
+              document.getElementById('name_possible{{filter}}').readOnly = false;
+              document.getElementById('verified{{filter}}').disabled = false;
+              document.getElementById("action-button{{filter}}").innerHTML='<span class="glyphicon glyphicon-save" aria-hidden="true"></span><span id="button-text{{filter}}">Save</span>'
+              }
+              else
+              {            
+                  //alert ("Silly alert!");
+                  document.getElementById('name{{filter}}').readOnly = true;
+                  document.getElementById('name_source{{filter}}').readOnly = true;
+                  document.getElementById('notes{{filter}}').readOnly = true;
+                  document.getElementById('name_possible{{filter}}').readOnly = true;
+                  document.getElementById('verified{{filter}}').disabled = true;
+    
+                  document.getElementById("action-button{{filter}}").innerHTML='<span class="glyphicon glyphicon-pencil" aria-hidden="true"></span><span id="button-text{{filter}}">Edit</span>';
+                  
+                  
+                  $.post( '/whatsapp/ajax/post_namefile', $('#myform{{filter}}').serialize(), function(data) {
+                      if (data.saved==false) {
+                   alert('Save Failure');
+                     }
+                  //... do something with response from server
+                  },
+                 'json' // I expect a JSON response
+                  );
+              }
+             }
+             })();
+    </script>
+
+      
+    </div>
+  </div>
+
+
+

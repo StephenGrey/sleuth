@@ -60,7 +60,7 @@ Use double quotes " " to enclose a phrase)
 Sort by:
 {{form.SortType}}
 
-<input type="submit" value="Search" />
+<input type="submit" class="btn btn-info glyphicon glyphicon-search" value="Search" />
 
 
 {% if page.resultcount == 0 %}<p>No results for search on "{{page.searchterm}}" {%if page.tagfilter %} filtered by tag "{{page.tagfilter}}" {%endif%}{%if page.tagfilter2 %} and filtered by user tag "<span class='tag2'>{{page.tagfilter2}}</span>" {%endif%}{%endif%}
@@ -69,8 +69,9 @@ Sort by:
 <h4>{{page.resultcount}} results for search on "{{page.searchterm}}" {%if page.tagfilters %}filtered by tags:  "{%for tag in page.filterlist %}{{tag.1}}, {% endfor %}"{% endif %}{%if page.tagfilter2 %}and filtered by user tag "<span class='tag2'>{{page.tagfilter2}}</span>"{%endif%}{% if page.page_number > 1 %}: Page {{page.page_number}}{% endif %}</h4>
 
 <p>
+<ol start="{{page.results.0.data.resultnumber}}"}}>
 {% for res in page.results %} 	
-<li>{{res.data.resultnumber}}: <a href="/ownsearch/doc={{res.id}}&searchterm={{page.searchterm_urlsafe}}"><b>{% if res.docname  %}{{res.docname }}{% else %}No Filename Indexed{% endif %}</b></a> 
+<li><a href="/ownsearch/doc={{res.id}}&searchterm={{page.searchterm_urlsafe}}"><b>{% if res.docname  %}{{res.docname }}{% else %}No Filename Indexed{% endif %}</b></a> 
 	{{res.data.solrdocsize}} {{res.datetext}}
 {% if res.data.message_from  %}
 <br><b>Message title:</b>{{res.data.title}}<br><b>From:</b> {{res.data.message_from}} <b>To:</b> {{res.data.message_to}}
@@ -80,6 +81,7 @@ Sort by:
 	{% endfor %} {% endif %}<p>
 	{{ res.data.highlight.0 }}<b>{{ res.data.highlight.1 }}</b>{{ res.data.highlight.2 }}
 {% endfor %} 
+</ol>
 <p>
 
 {% if page.backpage %}

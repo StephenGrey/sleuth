@@ -47,3 +47,5 @@ wwwsearch/ownsearch/.DS_Store
 wwwsearch/ownsearch/.DS_Store
 *.bak
 wwwsearch/documents/.DS_Store
+wwwsearch/whatsapp.json
+solr/solr-7.2.0/server/solr/coreexample/data/tlog/tlog.0000000000000000403

@@ -9,6 +9,7 @@ from documents import updateSolr as u
 from documents.models import Source as Source
 
 def impCSV(path,maxloop=100000):
+    """add CSV file to model database"""
     with open(path) as f:
         reader = csv.reader(f)
         #first line is column headers

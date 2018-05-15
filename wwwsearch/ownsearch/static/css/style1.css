@@ -5,7 +5,7 @@ h3 {
 	color: red 
 }
 .login {
-	position: absolute; top: 0; right: 10; 
+	position: absolute; top: 0; right: 60; 
 	width: 200px; text-align:right;
 }
 .content {
@@ -50,6 +50,10 @@ h3 {
 		float: right
 		}
 
+.radio {
+	list-style: none;	
+}
+
 .sidebar-nav {
     margin-top: 20px;
     padding: 0;
@@ -65,6 +69,10 @@ div.left {
     left: 0px;
     width: 400px;
     border: 2px solid grey;
+    border-radius:5px;
+    background: #99ff66;
+/*    word-break: break-all;*/
+    word-wrap: break-word;
 }
 div.right {
     position: relative;
@@ -72,8 +80,11 @@ div.right {
     left: 120px;
     width: 400px;
     border: 2px solid grey;
+    border-radius:5px;
+    background: #cce5ff;
+/*    word-break: break-all;
+*/    word-wrap: break-word;
 }
-
 
 
 </style>

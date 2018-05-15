@@ -5,8 +5,9 @@ h3 {
 	color: red 
 }
 .login {
-	position: absolute; top: 0; right: 10; 
+	position: absolute; top: 0; right: 50; 
 	width: 200px; text-align:right;
+	color: red;
 }
 .content {
 	font: 20px Georgia;
@@ -36,6 +37,34 @@ h3 {
     padding: 0;
     list-style: none;
 }
+div.left {
+    position: relative;
+    padding: 5px 5px 5px 5px;
+    left: 0px;
+    width: 400px;
+    border: 2px solid grey;
+}
+div.right {
+    position: relative;
+    padding: 5px 5px 5px 5px;
+    left: 120px;
+    width: 400px;
+    border: 2px solid grey;
+}
+.sender {
+		float: left
+		}
+
+
+.time {
+		float: right
+		}
+.message {
+		font-size: 16px;
+		}
+
+
+
 .highlight {
     background-color: #FFFF00
 }
