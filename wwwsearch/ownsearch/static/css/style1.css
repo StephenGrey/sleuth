@@ -54,6 +54,11 @@ h3 {
 	list-style: none;	
 }
 
+.input-sm {
+width: 60;
+height: 30;	
+}
+
 .sidebar-nav {
     margin-top: 20px;
     padding: 0;

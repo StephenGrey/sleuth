@@ -3,18 +3,18 @@
     <div class="panel panel-default">
       <div class="panel-heading">
         <h4 class="panel-title">
-          <a data-toggle="collapse" href="#collapse{{filter}}">Notes on {% if filter_name %}{{filter_name}} {% endif %}({{filternumber}})</a>
+          <a data-toggle="collapse" {% if filter_records.verified %}class="alert-success"{% else %}class="alert-warning"{% endif %} id="notes-header{{filter}}" href="#collapse{{filter}}">Notes on {% if filter_name %}{{filter_name}} {% endif %}({{filternumber}})</a>
       </div>
      <div id="collapse{{filter}}" class="panel-collapse collapse">
         <form class="form-vertical" id="myform{{filter}}" name="myform{{filter}}" method="post">
         	 {% csrf_token %}
 							<div class="form-group has-feedback">
     							<label class="control-label">Name:</label>
-		          		<input type="text" class="form-control alert-warning" id="name{{filter}}" label="Name:" name="name" value="{{filter_records.name}}" readonly>
+		          		<input type="text" class="form-control alert-success" id="name{{filter}}" label="Name:" name="name" value="{{filter_records.name}}" readonly>
           		{% if filter_records.verified %}
-          		<i class="glyphicon glyphicon-ok form-control-feedback"></i>
+          		<i id="namelabel{{filter}}" class="glyphicon glyphicon-ok form-control-feedback"></i>
           		{% else %}
-          		<i class="glyphicon glyphicon-question-sign form-control-feedback"></i>
+          		<i id="namelabel{{filter}}" class="glyphicon glyphicon-question-sign form-control-feedback"></i>
           		{% endif %}
 							</div>
 							<div class="form-group">
@@ -25,21 +25,24 @@
 								<label class="control-label">Possible name:</label>
 		          		<input type="text" class="form-control alert-warning" id="name_possible{{filter}}" name="name_possible" value="{{filter_records.name_possible}}" readonly>
 						  </div>
-						  <div class="form-group">
+						<div class="form-group">
 						  	<label class="control-label">Notes:</label>
 						  	<input type="text" class="form-control" name="notes" id="notes{{filter}}" label="Notes:" value="{{filter_records.notes}}" readonly>
-						  </div>
+						</div>
 						  <input type="hidden" name="record-ID" value="{{filter_records.id}}" />
-          <div class="form-group"> <!--"list-group-item"-->
-              <label class="control-label">Verified:</label>
-              <input type="checkbox" id='verified{{filter}}' name='verified' value=True disabled>
-          </div>
+						
+							<label for='verified{{filter}}'>Verified:</label>
+							<select id="verified{{filter}}" name="verified{{filter}}" disabled>
+								<option value=1 {% if filter_records.verified %}selected='selected'{%endif%}>Yes</option>
+								<option value=0 {% if not filter_records.verified %}selected='selected'{%endif%}>No</option>
+							</select>
+					
 							Original Database ID: {{filter_records.original_ID}}
              <span class="pull-right">
                 <span class="btn btn-xs btn-default" id="action-button{{filter}}">
                   <span class="glyphicon glyphicon-pencil" aria-hidden="true"></span>
                   <span id="button-text{{filter}}">Edit</span>
-                </span>
+             </span>
              </span>
           </div><!--/li-->
             
@@ -72,11 +75,34 @@
     
                   document.getElementById("action-button{{filter}}").innerHTML='<span class="glyphicon glyphicon-pencil" aria-hidden="true"></span><span id="button-text{{filter}}">Edit</span>';
                   
-                  
-                  $.post( '/whatsapp/ajax/post_namefile', $('#myform{{filter}}').serialize(), function(data) {
+                  var selecttext = document.getElementById('verified{{filter}}').value;
+                  var dataform=$('#myform{{filter}}').serialize();
+                  dataform=dataform+'&verified='+selecttext;
+                  //alert(dataform);
+                  $.post( '/whatsapp/ajax/post_namefile',dataform, function(data) {
                       if (data.saved==false) {
                    alert('Save Failure');
-                     }
+                     };
+                      if (data.verified==true){
+                      //alert ('verified true');
+                      //var temp1=document.getElementById("namelabel{{filter}}").className;
+                      //alert(temp1);
+                      document.getElementById("namelabel{{filter}}").classList.remove("glyphicon-question-sign");
+                      document.getElementById("namelabel{{filter}}").classList.add("glyphicon-OK");
+                      document.getElementById("notes-header{{filter}}").classList.remove("alert-warning");
+                      document.getElementById("notes-header{{filter}}").classList.add("alert-success");
+                      };
+
+                      if (data.verified==false){
+                      //alert ('verified true');
+                      //var temp1=document.getElementById("namelabel{{filter}}").className;
+                      //alert(temp1);
+                      document.getElementById("namelabel{{filter}}").classList.remove("glyphicon-OK");
+                      document.getElementById("namelabel{{filter}}").classList.add("glyphicon-question-sign");
+                      
+                      document.getElementById("notes-header{{filter}}").classList.remove("alert-success");
+                      document.getElementById("notes-header{{filter}}").classList.add("alert-warning");
+                      }
                   //... do something with response from server
                   },
                  'json' // I expect a JSON response

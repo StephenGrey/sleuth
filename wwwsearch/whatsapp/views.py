@@ -34,10 +34,11 @@ def post_namefiles(request):
     data = json.loads(response_json)
     log.debug ("Json data: {}.".format(data))
     
-    result=update_phonerecords(data)
+    result,verified=update_phonerecords(data)
 
     jsonresponse = {
-    'saved': result 
+    'saved': result,
+    'verified':verified
     }
     return JsonResponse(jsonresponse)
 
@@ -54,17 +55,28 @@ def update_phonerecords(data):
         print('Record found: '.format(existing))
         print(existing.__dict__)
         
-        csrf=data.pop('csrfmiddlewaretoken')
+        verified=data.pop('verified',None)
+        if verified=='1' and existing.verified==False:
+            existing.verified=True
+            print('verified True')
+            verified_change=True
+        elif verified=='0' and existing.verified==True:
+            existing.verified=False
+            print('verified False')
+            verified_change=False
+        else:
+            verified_change=None
+        csrf=data.pop('csrfmiddlewaretoken',None)
         existing.name=data['name']
         existing.name_source=data['name_source']
         existing.name_possible=data['name_possible']
         existing.notes=data['notes']
         existing.save() 
         log.info("Edited phone number record with saved data: {}".format(data))
-        return True 
+        return True,verified_change 
     except Exception as e:
         log.error("Failed to edit phone record data with saved data: {} and error {}".format(data,e))
-        return False
+        return False,None
         
         
     
