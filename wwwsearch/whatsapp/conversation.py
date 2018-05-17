@@ -13,10 +13,10 @@ class Conversation():
         self.start_time=''
         self.end_time=''
         self.node1=node1
-        self.node1_name=get_name(node1)
+        self.node1_name,verified1=get_name(node1)
         self.node1_records=get_number_record(node1)
         self.node2=node2
-        self.node2_name=get_name(node2)
+        self.node2_name,verified2=get_name(node2)
         self.node2_records=get_number_record(node2)
         self.get_conversation()
         self.get_text_to_index()
@@ -76,7 +76,7 @@ class Conversation():
                 elif message.from_number==self.node2:
                     sendname=self.node2_name
                 else:
-                    sendname=get_name(message.from_number)	
+                    sendname,sendverified=get_name(message.from_number)	
                 self.messages.append((message,received,message.whatsapp_group,sendname))
         
     def get_text_to_index(self):
@@ -134,12 +134,13 @@ def get_name(number):
     number_record=get_number_record(number)
     if number_record:
         name=getattr(number_record,'name',None)
+        verified=number_record.verified
     else:
-        return ''
+        return '',None
     if name:
-        return name
+        return name,verified
     else:
-        return ''
+        return '',verified
 
 
 def list_messages():
@@ -154,12 +155,13 @@ def list_messages():
     
     for item in from_numbers:
         number=item['from_number']
-        name=get_name(number)
-        combo.append((number,item['n']+todict.pop(number,0),name))
+        name,verified=get_name(number)
+        combo.append((number,item['n']+todict.pop(number,0),name,verified))
 
     #add unique items (i.e 'to numbers' not in the 'from' list)
     for number in todict:
-        combo.append((number,todict[number],get_name(number)))
+        name,verified=get_name(number)
+        combo.append((number,todict[number],name,verified))
     
     #add group messages
     glist=list_groupmessages()
@@ -175,5 +177,5 @@ def list_groupmessages():
     for item in groups:
         if item['whatsapp_group'] is '':
             continue
-        grouplist.append((item['whatsapp_group'],item['n'],'Group'))    
+        grouplist.append((item['whatsapp_group'],item['n'],'Group',None))    
     return grouplist

@@ -18,6 +18,7 @@ class PhoneNumber(models.Model):
     number=models.CharField('Number',max_length=30,default='')
     name=models.CharField('Name',max_length=60,default='')
     verified=models.BooleanField('Verified',default=False)
+    personal=models.BooleanField('Personal',default=False)
     name_exmessage=models.CharField('Name in Message',max_length=200,default='')
     name_source=models.CharField('Name source',max_length=30,default='')
     name_possible=models.CharField('Possible name',max_length=30,default='')

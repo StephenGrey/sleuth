@@ -21,7 +21,7 @@
 		  </div>
 			<div class="col-sm-6">
 				<ul class="list-group">
-				{% for person,number,name in list %}
+				{% for person,number,name,verified in list %}
 				  <li class="list-group-item list-group-item-info">
 							{% if name %}<a href="/whatsapp/{{person}}/">{{name}}</a> ( {{person}} )
 							{% else %}

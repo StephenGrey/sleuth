@@ -55,6 +55,16 @@ def update_phonerecords(data):
         print('Record found: '.format(existing))
         print(existing.__dict__)
         
+        personal=data.pop('personal',None)
+        if personal=='true' and existing.personal==False:
+            existing.personal=True
+            personal_change=True
+        elif personal=='false' and existing.personal==True:
+            existing.personal=False
+            personal_change=False
+        else:
+            personal_change=None
+        
         verified=data.pop('verified',None)
         if verified=='1' and existing.verified==False:
             existing.verified=True
