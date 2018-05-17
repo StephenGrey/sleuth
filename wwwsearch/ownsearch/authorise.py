@@ -23,6 +23,7 @@ class NoValidCore(Exception):
     pass
 
 class AuthorisedCores:
+    """Check authorised indexes; from these choose stored core, else default, else any authorised"""
     def __init__(self,thisuser,storedcore=''):
         try:
            self.cores,self.defaultcore,self.choice_list=authcores(thisuser)
@@ -32,30 +33,9 @@ class AuthorisedCores:
            log.debug('Error: {}'.format(e))
         log.debug('authcores: {}'.format(self.__dict__))
 
-#def usercore():
-#    if True:
-#   #GET AUTHORISED CORES AND DEFAULT
-#        corelist,DEFAULTCOREID,choice_list=authcores(request)
-#        log.debug('AUTHORISED CORE CHOICE: '+str(choice_list))
-#        log.debug('DEFAULT CORE ID:'+str(DEFAULTCOREID))
-#
-#    #GET THE INDEX, a SolrCore object, or choose the default
-#        if 'mycore' not in request.session:  #set default if no core selected
-#            log.debug('no core selected.. setting default')
-#            request.session['mycore']=DEFAULTCOREID
-#        page.coreID=int(request.session.get('mycore'))
-#        if page.coreID in corelist:
-#            page.mycore=corelist[page.coreID]
-#        elif DEFAULTCOREID in corelist:
-#            page.mycore=corelist[DEFAULTCOREID]
-#            request.session['mycore']=DEFAULTCOREID
-#            page.coreID=DEFAULTCOREID
-#        else:
-#            log.warning('Cannot find any valid coreID in authorised corelist')
-#            return HttpResponse('Missing any config data for any authorised index: contact administrator')
-
 ##set up solr indexes
 def authcores(thisuser):
+    """return dictionary of authorised indexes, a default ID, a list of authorised choices"""
     cores={}
     choice_list=() 
 
@@ -64,28 +44,33 @@ def authcores(thisuser):
 
     corelist=(Index.objects.filter(usergroup_id__in=groupids))
     log.debug('authorised core list '+str(corelist))
-
+    
+    
+    ##make a choice list (ID, displayname) of authorised cores
     for core in corelist:
         cores[core.id]=solrJson.SolrCore(core.corename)
         corenumber=str(core.id)
         coredisplayname=core.coreDisplayName
         choice_list +=((corenumber,coredisplayname),) #value/label
 
+    #calculate ID of authorised default core
     try:
         defaultcore=corelist.get(corename=DEFAULTCORE)
+        defaultcoreID=defaultcore.id
+    
     except Index.DoesNotExist:
         print('default not found')
     
         log.debug('Default core ('+str(DEFAULTCORE)+') set in userconfigs is not found in authorised indexes: first available is made default')
         try:
             log.debug(str(cores)+' '+str(choice_list))
-            defaultcore=int(choice_list[0][0])#if no default found, take first in list as new default
-#            defaultcoreID=cores.keys()[0]  #take any old core, if default not found
+            defaultcoreID=int(choice_list[0][0])#if no default found, take first in list as new default
+
         except Exception as e:
             log.error('No valid and authorised index set in database: fix in /admin interface')
             log.error(str(e))
             raise NoValidCore            
-    return cores, defaultcore, choice_list
+    return cores, defaultcoreID, choice_list
 
 def getcore(cores,storedcore,defaultcore):
         if storedcore in cores:
@@ -147,22 +132,14 @@ def authid(request,doc):
 def test(testuser='admin',storedcore=1):
 
     thisuser = User.objects.get(username=testuser)
-        
-    #test authcores
-    authcores=AuthorisedCores(thisuser,storedcore=storedcore)
-    
-    print(authcores.__dict__)
     
 
-#    print(thisuser.__dict__)
-#    cores,defaultcore, choice_list=authcores(thisuser)
-#    print(cores, defaultcore, choice_list)
-#    
-#    #test choose active core
-#    storedcore='' #assume no active index in session
-#    mycoreID=getcore(cores,storedcore,defaultcore)
-#    mycore=cores[mycoreID]
-#    print(mycore.__dict__)
+    print(a,b,c)
+    #test authcores
+    acores=AuthorisedCores(thisuser,storedcore=storedcore)
+    
+    print(acores.__dict__)
+    
 
 
 
