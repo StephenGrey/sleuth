@@ -85,7 +85,7 @@ def authcores(thisuser):
             log.error('No valid and authorised index set in database: fix in /admin interface')
             log.error(str(e))
             raise NoValidCore            
-    return cores, defaultcore.id, choice_list
+    return cores, defaultcore, choice_list
 
 def getcore(cores,storedcore,defaultcore):
         if storedcore in cores:
