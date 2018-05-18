@@ -47,7 +47,7 @@ def do_search(request,page_number=0,**kwargs):
 
     page=pages.SearchPage(page_number=page_number,searchurl=path_info, **kwargs)
          
-#    log.debug('SESSION CACHE: '+str(vars(request.session)))
+    #log.debug('SESSION CACHE: '+str(vars(request.session)))
     log.debug('Request: {}    User: {}'.format(path_info,request.user))
     log.debug('Search parameters: {}'.format(page.__dict__))
     log.debug('Filters: {}, Tagfilters:{}'.format(page.filters,page.tagfilters))
@@ -56,13 +56,16 @@ def do_search(request,page_number=0,**kwargs):
     #GET AUTHORISED CORES AND DEFAULT
         thisuser=request.user
         storedcoreID=request.session.get('mycore','')
+        #log.debug('Stored core: {}'.format(storedcoreID))
         
         try:
             authcores=authorise.AuthorisedCores(thisuser,storedcore=storedcoreID)
-            log.debug('Authcores: {}'.format(authcores.__dict__))
+            #log.debug('Authcores: {}'.format(authcores.__dict__))
             page.mycore=authcores.mycore
             choice_list=authcores.choice_list
             page.coreID=authcores.mycoreID
+            #store the authorised core
+            request.session['mycore']=page.coreID
             
         except authorise.NoValidCore as e:
             log.warning('Cannot find any valid coreID in authorised corelist')
@@ -71,21 +74,6 @@ def do_search(request,page_number=0,**kwargs):
         log.debug('AUTHORISED CORE CHOICE: '+str(choice_list))
         log.debug('DEFAULT CORE ID:'+str(authcores.defaultcore))
 
-#    #GET THE INDEX, a SolrCore object, or choose the default
-#        if 'mycore' not in request.session:  #set default if no core selected
-#            log.debug('no core selected.. setting default')
-#            request.session['mycore']=DEFAULTCOREID
-#        
-#          page.coreID=int(request.session.get('mycore'))
-#        if page.coreID in corelist:
-#            page.mycore=corelist[page.coreID]
-#        elif DEFAULTCOREID in corelist:
-#            page.mycore=corelist[DEFAULTCOREID]
-#            request.session['mycore']=DEFAULTCOREID
-#            page.coreID=DEFAULTCOREID
-#        else:
-#            log.warning('Cannot find any valid coreID in authorised corelist')
-#            return HttpResponse('Missing any config data for any authorised index: contact administrator')
 #    
     #SET THE RESULT PAGE    
         page.page_number=int(page.page_number) #urls always returns strings only
@@ -193,11 +181,13 @@ def get_content(request,doc_id,searchterm,tagedit='False'):
     """make a page showing the extracted text, highlighting searchterm """
     
     log.debug('Get content for doc id: {} from search term {}'.format(doc_id,searchterm))
+    log.debug('Request session : {}'.format(request.session.__dict__))
     
     page=pages.ContentPage(doc_id=doc_id,searchterm=searchterm,tagedit='False')
     page.safe_searchterm()
     page.searchurl=request.session.get('lastsearch','/ownsearch') #store the return page
-    #load solr index in use, SolrCore object
+    
+    
     #GET INDEX
     #only show content if index defined in session:
     if request.session.get('mycore') is None:
