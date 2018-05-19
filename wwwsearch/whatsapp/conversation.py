@@ -4,6 +4,7 @@ from .models import Message, PhoneNumber
 from django.template.loader import render_to_string
 from django.db.models import Q,Count #Count to count up unique entries
 from django.utils.safestring import SafeText
+from ownsearch import markup
 import operator
 
 class Conversation():
@@ -77,6 +78,9 @@ class Conversation():
                     sendname=self.node2_name
                 else:
                     sendname,sendverified=get_name(message.from_number)	
+                
+                message.text_markedup=markup.urls(message.messagetext)
+                
                 self.messages.append((message,received,message.whatsapp_group,sendname))
         
     def get_text_to_index(self):

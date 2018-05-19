@@ -18,6 +18,7 @@ from django.contrib.staticfiles.templatetags.staticfiles import static #returns 
 from django.contrib.staticfiles import finders #locates static file
 from django.conf import settings #to access settings constants
 import re, os, logging, unicodedata
+from . import markup
 
 try:
     from urllib.parse import quote_plus
@@ -341,7 +342,8 @@ def cleanup(searchterm,highlight):
 #    print('SPACECLEANE'+repr(highlight[:400]))
     cleaned=re.sub('(\n[\s]+\n)+', '\n', highlight) #cleaning up chunks of white space
 #    print('STRINGCLEANED'+repr(cleaned[:400]))
-        
+    cleaned=markup.urls(cleaned) #add links to text
+    
     cleansearchterm=cleansterm(searchterm)
     log.debug(cleansearchterm)
     lastscrap=''
