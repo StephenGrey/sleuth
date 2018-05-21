@@ -11,8 +11,8 @@ Index:{{form.CoreChoice}}<p>
           		{% for tag,score in page.facets %}
           			 {% if score != 0 %}
           			 <li>
-          			 	<a class='tag' href="{% url 'searchpagefilters' searchterm=page.searchterm_urlsafe page_number=1 sorttype=page.sorttype tag1field='tag1' tag1=tag tag2field=page.filterlist.0.0 tag2=page.filterlist.0.1 tag3field=page.filterlist.1.0 tag3=page.filterlist.1.1  %}">{{ tag }}</a>
-          			 	 ({{score}})</li>
+          			 	<a class='tag' href="{% url 'searchpagefilters' searchterm=page.searchterm_urlsafe page_number=1 sorttype=page.sorttype tag1field='tag1' tag1=tag tag2field=page.filterlist.0.0 tag2=page.filterlist.0.1 tag3field=page.filterlist.1.0 tag3=page.filterlist.1.1  %}"><strong>{{ tag }}</strong></a>
+          			 	 <span class="badge badge-pill badge-warning">{{score}}</span></li>
           			 {% endif %}
           		{% endfor %}
           {% endif %}
@@ -24,7 +24,7 @@ Index:{{form.CoreChoice}}<p>
           			 <li>
           			 	<a class='tag2' href="{% url 'searchpagefilters' searchterm=page.searchterm_urlsafe page_number=1 sorttype=page.sorttype tag1field='tag2' tag1=tag tag2field=page.filterlist.0.0 tag2=page.filterlist.0.1 tag3field=page.filterlist.1.0 tag3=page.filterlist.1.1  %}">{{ tag }}</a>
           			 	
-          			 	 ({{score}})</li>
+          			 	 <span class="badge">{{score}}</span></li>
           			 {% endif %}
           		{% endfor %}
           {% endif %}	          
@@ -37,7 +37,7 @@ Index:{{form.CoreChoice}}<p>
           			 	<a class='tag2' 
           			 	<a href="{% url 'searchpagefilters' searchterm=page.searchterm_urlsafe page_number=1 sorttype=page.sorttype tag1field='tag3' tag1=tag tag2field=page.filterlist.0.0 tag2=page.filterlist.0.1 tag3field=page.filterlist.1.0 tag3=page.filterlist.1.1  %}">{{ tag }}</a>
           			 	
-          			 	 ({{score}})</li>
+          			 	 <span class="badge">{{score}}</span></li>
           			 {% endif %}
           		{% endfor %}
           {% endif %}	          

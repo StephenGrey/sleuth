@@ -59,7 +59,7 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 SESSION_EXPIRE_AT_BROWSER_CLOSE = True
-SESSION_COOKIE_AGE = 30 * 60  #expire after 30 minutes
+SESSION_COOKIE_AGE = 3 * 60 * 60  #expire after three hours
 
 ROOT_URLCONF = 'myproject.urls'
 
