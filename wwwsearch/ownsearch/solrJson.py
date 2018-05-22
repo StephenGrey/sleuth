@@ -385,16 +385,20 @@ def resGet(url,timeout=1):
 #            print('no connection to solr server')
         raise SolrConnectionError('Solr Connection Error')
 
-#Requests won't successfully post if unicode filenames in the header; so converted below
 def resPostfile(url,path,timeout=1):
-    try:
-        simplefilename=os.path.basename(path).encode('ascii','ignore')
-#        simplefilename=path.encode('ascii','ignore')
-    except:
-        simplefilename='Unicode filename DECODE error'
+    #python3: use bytes object for filepath
+    bytes_path=path.encode('utf-8')
+    simplefilename=os.path.basename(path)
+#needed for python2
+#    try:
+#        simplefilename=os.path.basename(path).encode('ascii','ignore')
+##        simplefilename=path.encode('ascii','ignore')
+#    except:
+#        simplefilename='Unicode filename DECODE error'
     try:
         with open(path,'rb') as f:
             file = {'myfile': (simplefilename,f)}
+            log.debug('{}'.format(simplefilename))
             res=requests.post(url, files=file,timeout=timeout)
             resstatus=res.status_code
             log.debug('RESULT STATUS: {}'.format(resstatus))

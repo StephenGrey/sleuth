@@ -134,10 +134,8 @@ def extract(path,contentsHash,mycore,test=False,timeout='',sourcetext=''):
         
         log.debug('extract args: {}, path: {}, solr core: {}'.format(args,path,mycore))
 
-    #python3: use bytes object for filepath
-    bytes_path=path.encode('utf-8')
     
-    result,elapsed=postSolr(args,bytes_path,mycore,timeout=timeout) #POST TO THE INDEX (returns True on success)
+    result,elapsed=postSolr(args,path,mycore,timeout=timeout) #POST TO THE INDEX (returns True on success)
     if result:
         log.info('Extract SUCCEEDED in {:.2f} seconds'.format(elapsed))
         return True
@@ -154,8 +152,10 @@ def postSolr(args,path,mycore,timeout=1):
     log.debug('Types posturl: {} path: {}'.format(type(url),type(timeout)))
     try:
         res=s.resPostfile(url,path,timeout=timeout) #timeout=
-        log.debug('Returned json: {} type: {}'.format(res._content,type(res._content)))
-        solrstatus=json.loads(res._content.decode())['responseHeader']['status']
+        #log.debug('Returned json: {} type: {}'.format(res._content,type(res._content)))
+        #log.debug('{}'.format(res.json()['responseHeader']['status']))
+        
+        solrstatus=res.json()['responseHeader']['status']
         print(res.elapsed.total_seconds())
         solrelapsed=res.elapsed.total_seconds()
     except s.SolrTimeOut as e:
