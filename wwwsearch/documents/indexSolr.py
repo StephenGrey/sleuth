@@ -15,6 +15,14 @@ from ownsearch import solrJson as s
 from fnmatch import fnmatch
 
 try:
+    from urllib.parse import quote #python3
+except ImportError:
+    from urllib import quote #python2
+
+
+
+
+try:
     ignorelist=config['Solr']['ignore_list'].split(',')
 except Exception as e:
     log.warning('Configuration warning: no ignore list found')
@@ -81,6 +89,7 @@ def extract(path,contentsHash,mycore,test=False,timeout='',sourcetext=''):
     except AssertionError:
         log.debug ('Extract: bad parameters: {},{}'.format(path,mycore))
         return False
+    
     if contentsHash =='':
         contentsHash=dup.hashfile256(path)
     #establish connnection to solr index
@@ -121,10 +130,14 @@ def extract(path,contentsHash,mycore,test=False,timeout='',sourcetext=''):
         #if sourcefield is define and sourcetext is not empty string, add that to the arguments
         #make the sourcetext args safe, for example inserting %20 for spaces 
         if sourcefield and sourcetext:
-            args+='&literal.{}={}'.format(sourcefield,urllib.quote(sourcetext))
+            args+='&literal.{}={}'.format(sourcefield,quote(sourcetext))
         
         log.debug('extract args: {}, path: {}, solr core: {}'.format(args,path,mycore))
-    result,elapsed=postSolr(args,path,mycore,timeout=timeout) #POST TO THE INDEX (returns True on success)
+
+    #python3: use bytes object for filepath
+    bytes_path=path.encode('utf-8')
+    
+    result,elapsed=postSolr(args,bytes_path,mycore,timeout=timeout) #POST TO THE INDEX (returns True on success)
     if result:
         log.info('Extract SUCCEEDED in {:.2f} seconds'.format(elapsed))
         return True
@@ -138,9 +151,11 @@ def postSolr(args,path,mycore,timeout=1):
     extracturl=mycore.url+'/update/extract?'
     url=extracturl+args
     log.debug('POSTURL: {}  TIMEOUT: {}'.format(url,timeout))
+    log.debug('Types posturl: {} path: {}'.format(type(url),type(timeout)))
     try:
         res=s.resPostfile(url,path,timeout=timeout) #timeout=
-        solrstatus=json.loads(res._content)['responseHeader']['status']
+        log.debug('Returned json: {} type: {}'.format(res._content,type(res._content)))
+        solrstatus=json.loads(res._content.decode())['responseHeader']['status']
         print(res.elapsed.total_seconds())
         solrelapsed=res.elapsed.total_seconds()
     except s.SolrTimeOut as e:

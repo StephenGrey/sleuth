@@ -38,7 +38,7 @@ def post_namefiles(request):
     data = json.loads(response_json)
     log.debug ("Json data: {}.".format(data))
     
-    result,verified=update_phonerecords(data)
+    result,verified=update_phonerecords(data,request.user.username)
 
     jsonresponse = {
     'saved': result,
@@ -48,8 +48,8 @@ def post_namefiles(request):
 
 
 #move this:
-def update_phonerecords(data):
-    log.info('Updating phone records')
+def update_phonerecords(data,username):
+    log.info('User \'{}\' updating phone records with data: {}'.format(username,data))
     try:
         pid=data.pop('record-ID',None)
         if pid=='':
@@ -86,7 +86,7 @@ def update_phonerecords(data):
         existing.name_possible=data['name_possible']
         existing.notes=data['notes']
         existing.save() 
-        log.info("Edited phone number record with saved data: {}".format(data))
+        log.info("New data saved")
         return True,verified_change 
     except Exception as e:
         log.error("Failed to edit phone record data with saved data: {} and error {}".format(data,e))

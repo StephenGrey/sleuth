@@ -21,9 +21,9 @@ import re, os, logging, unicodedata
 from . import markup
 
 try:
-    from urllib.parse import quote_plus
+    from urllib.parse import quote_plus #python3
 except ImportError:
-    from urllib import quote_plus
+    from urllib import quote_plus #python2
 
 from documents import solrcursor,updateSolr
 from datetime import datetime

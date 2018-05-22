@@ -1,7 +1,10 @@
 from django.test import TestCase
 from django.contrib.auth.models import User, Group, Permission
 from django.core.management.base import BaseCommand, CommandError
-from django.core.urlresolvers import reverse
+try:
+    from django.core.urlresolvers import reverse
+except ImportError:
+    from django.urls import reverse
 from documents.models import Index
 from ownsearch import solrJson,pages
 from documents import setup
