@@ -93,12 +93,4 @@ def update_phonerecords(data,username):
         return False,None
         
         
-    
-"""
-
-Json data: {u'phone-ID': u'36', u'name': u'', u'name_source1': u'TRUECALLER or SYNC.ME', u'name1': u'Tommy Diacono', u'notes1': u'', u'csrfmiddlewaretoken': u'9rme802vg5fIAMjFYge1TqOLufE1O3YHZYyUSBClyR23CHGTMl5ljFRIRZizdfjW'}.
-
-{'verified': False, 'name': u'Tommy Diacono', 'notes': u'', '_state': <django.db.models.base.ModelState object at 0x10a7c5750>, 'number': u'35679256924', 'name_source': u'TRUECALLER or SYNC.ME', 'original_ID': u'26', 'name_exmessage': u'Tom', 'name_possible': u'', 'id': 36}    
-    
-"""
-
+ 
