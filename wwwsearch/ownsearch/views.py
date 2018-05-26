@@ -141,7 +141,7 @@ def do_search(request,page_number=0,**kwargs):
         return HttpResponse('Index not found on solr server : check configuration')
     except solrJson.SolrConnectionError as e:
         log.error(e)
-        return HttpResponse('No response from solr server : check network connection, solr status')
+        return HttpResponse('No response from solr server : try again or check network connection, solr status')
 
 @login_required
 def download(request,doc_id,hashfilename):
@@ -383,10 +383,14 @@ def slugify(value):
     and converts spaces to hyphens.
     """
     shortName, fileExt = os.path.splitext(value)
-    value = unicodedata.normalize('NFKD', value).encode('ascii', 'ignore')
-    value = unicode(re.sub('[^\w\s-]', '', value).strip().lower())
-    value = unicode(re.sub('[-\s]+', '-', value))
+    originalvalue=value
+    try:
+        value = unicodedata.normalize('NFKD', value).encode('ascii', 'ignore')        
+        value = unicode(re.sub('[^\w\s-]', '', value).strip().lower())
+        value = unicode(re.sub('[-\s]+', '-', value))
+    except NameError:
+        value = re.sub('[^\w\s-]', '', originalvalue).strip().lower()
+        value = re.sub('[-\s]+', '-', value)      
     return value+fileExt
-
 
 

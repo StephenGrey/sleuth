@@ -106,8 +106,8 @@ class Conversation():
         self.preview_html=render_to_string('whatsapp/conversation.html',context)
     
     def get_panelhtml(self):
+        """ Make drop down panel to see/edit notes on each contact """
         context={'list': self.messages,'filter1': self.node1, 'filter2':self.node2}
-        print('getting panel html')
         panel1,panel2=SafeText(),SafeText()
         if self.node1 and self.node1_records:
             context['filter']='1'
@@ -147,20 +147,31 @@ def get_name(number):
         return '',verified
 
 
-def list_messages():
+def list_messages(ignore=["0"]):
+
+    combo=[]
+
+    #get to numbers
     to_numbers=Message.objects.values("to_number").distinct().annotate(n=Count("pk"))
     todict={}
-    combo=[]
     for item in to_numbers:
         number=item['to_number']
+        if number in ignore:
+            continue
         todict[number]=item['n']
-        
+
+
+    #get from numbers    
     from_numbers=Message.objects.values("from_number").distinct().annotate(n=Count("pk"))
     
     for item in from_numbers:
         number=item['from_number']
+        if number in ignore:
+            continue        
         name,verified=get_name(number)
+        #add count of 'from number' and count of same number from 'to number' index
         combo.append((number,item['n']+todict.pop(number,0),name,verified))
+
 
     #add unique items (i.e 'to numbers' not in the 'from' list)
     for number in todict:
