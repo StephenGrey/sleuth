@@ -95,10 +95,10 @@ def update_phonerecords(jsondata,username,postdata):
             else:
                 personal_change=None
             verified=data.get('verified')
-            if verified=='1' and existing.verified==False:
+            if verified==True and existing.verified==False:
                 existing.verified=True
                 verified_change=True
-            elif verified=='0' and existing.verified==True:
+            elif verified==False and existing.verified==True:
                 existing.verified=False
                 verified_change=False
             else:
