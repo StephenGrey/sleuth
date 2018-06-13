@@ -343,6 +343,8 @@ def solrSearch(q,sorttype,startnumber,core,filters={},faceting=False):
             filterfield=core.usertags1field
         elif filtertag=='tag3':
             filterfield=core.sourcefield
+        elif filtertag=='path':
+            filterfield=core.docpath
         else:
             continue
         args=args+'&fq={}:"{}"'.format(filterfield,filtertext)

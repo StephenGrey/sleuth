@@ -6,27 +6,36 @@
 
 {% block top_content %}
 
-<h5>Extracted Text</h5>
+
+<ol class="breadcrumb">
+  <li><a href="/documents/files">Home</a></li>
+{% for fullpath,relpath,basename in page.path_tags %}  
+  <li><a href="/documents/files/{{fullpath}}">{{basename}}</a></li>
+{% endfor %} 
+</ol>
+
+
+
+
 	{% if page.result.data.message_from  %}
 		<h3>Email <b>From:</b> {{page.result.data.message_from}} <b><br>To:</b> {{page.result.data.message_to}}</h3>
 	{% endif %}
 	{% if page.result.data.title  %}
 		<b><h3>Subject:</b><span class="titlename">{{page.result.data.title}}</span></h3>
 	<h4>{{page.datetext}}</h4>
-	<br>PATH: {{page.docpath}}&emsp; SIZE(bytes):{{page.docsize}}<br>
+	<br>SIZE(bytes):{{page.docsize}}<br>
 	<!--DIRECT FROM APACHE--<a href="/docstore/{{docpath}}"><b>Download</b></a>	-->
-	<b>Filename: <span >{{page.docname}}</span></b>
+	<b><span >{{page.docname}}</span></b>
 
 	{% else %}
-	<h4>{{page.datetext}}</h4>
-	<br>PATH: {{page.docpath}}&emsp; SIZE(bytes):{{page.docsize}}<br>
+	<h5>Date: {{page.datetext}} &nbsp; &nbsp; Size(bytes): {{page.docsize}}</h5>
+
 	<!--DIRECT FROM APACHE--<a href="/docstore/{{docpath}}"><b>Download</b></a>	-->
-	<b>Filename: <span class="titlename" >{{page.docname}}</span></b>
+	<b><span class="titlename" >{{page.docname}}</span></b>
 		{% endif %}	
 	
-	{% if page.authflag%}<a href="/ownsearch/download={{page.matchfile_id}}&{{page.hashfilename}}"<b>Download</b></a><p>
+	{% if page.authflag%}<a href="/ownsearch/download={{page.matchfile_id}}&{{page.hashfilename}}"<b>&nbsp; &nbsp;Download</b></a><p>
 	{% endif %}
-
 
 
 {% endblock %}

@@ -30,6 +30,7 @@ from datetime import datetime
 from usersettings import userconfig as config
 from . import pages,solrJson,authorise
 
+
 log = logging.getLogger('ownsearch.views')
 DOCBASEPATH=config['Models']['collectionbasepath']
 RESULTS_PER_PAGE=10
@@ -187,7 +188,6 @@ def get_content(request,doc_id,searchterm,tagedit='False'):
     page=pages.ContentPage(doc_id=doc_id,searchterm=searchterm,tagedit='False')
     page.safe_searchterm()
     page.searchurl=request.session.get('lastsearch','/ownsearch') #store the return page
-    
     
     #GET INDEX
     #only show content if index defined in session:

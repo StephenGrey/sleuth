@@ -4,7 +4,7 @@ try:
     from urllib.parse import unquote_plus
 except ImportError:
     from urllib import unquote_plus
-
+import os
 from .forms import TagForm
 
 class Page(object):
@@ -91,8 +91,6 @@ class ContentPage(Page):
         self.mimetype=self.result.data.get('extract_base_type','')
 #        self.next_id=result.data.get('hashcontents')
 #        self.before_id=result.data.get('hashcontents')
-
-
     
     def tagform(self):
         self.initialtags=self.result.data.get(self.mycore.usertags1field,'')
@@ -101,7 +99,32 @@ class ContentPage(Page):
         self.tagstring=','.join(map(str, self.initialtags))
         return TagForm(self.tagstring)
        
-        
+    @property
+    def path_tags(self):
+        return directory_tags(self.docpath,isfile=True)
+    
+def directory_tags(path,isfile=False):
+    """make subfolder tags from full filepath"""
+    #print('Path: {}'.format(path))
+    a,b=os.path.split(path)
+    if isfile:
+        tags=[]
+    else:
+        tags=[(path,a,b)]
+    path=a
+    while True:
+        a,b=os.path.split(path)
+
+        if b=='/' or b=='' or b=='\\':
+            #print('break')
+            
+            break
+        tags.append((path,a,b))
+        path=a
+        #print(a,b)
+    tags=tags[::-1]
+    return tags
+
         
     
     

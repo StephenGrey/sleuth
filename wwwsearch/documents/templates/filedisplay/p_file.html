@@ -1,0 +1,8 @@
+<li>
+{% if indexed %}
+<a style="color:green;" href="/ownsearch/doc={{indexed.0.solrid}}&searchterm=">{{file}}</a>
+{% else%}
+<span style="color:red;">{{ file }}</span>
+{% endif %}
+</li>
+
