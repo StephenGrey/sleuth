@@ -2,10 +2,10 @@
 {% block body_content %}
 
 <h3>Document Collections</h3>
+
 <form action="{% url 'docs_index'%}" method ="post">
 {% csrf_token %}
-Index:{{form.CoreChoice}}<p>
-<! <input type="submit" name="switch" value="Switch Index" /><p> 
+Index:{{form.corechoice}}<p>
 </form>
 
 <form action="{% url 'listfiles'%}" method ="post">

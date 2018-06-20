@@ -22,7 +22,11 @@ class Page(object):
             self.tagfilters=True
         else:
             self.tagfilters=False
-
+            
+    @property
+    def path_tags(self):
+        return directory_tags(self.docpath,isfile=True)
+    
 
 class SearchPage(Page):
     def __init__(self,searchurl='',page_number=0,searchterm='',direction='',pagemax=0,sorttype='relevance',tag1field='',tag1='',tag2field='',tag2='',tag3field='',tag3=''):
@@ -99,10 +103,7 @@ class ContentPage(Page):
         self.tagstring=','.join(map(str, self.initialtags))
         return TagForm(self.tagstring)
        
-    @property
-    def path_tags(self):
-        return directory_tags(self.docpath,isfile=True)
-    
+
 def directory_tags(path,isfile=False):
     """make subfolder tags from full filepath"""
     #print('Path: {}'.format(path))

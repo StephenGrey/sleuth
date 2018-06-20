@@ -183,11 +183,13 @@ def get_content(request,doc_id,searchterm,tagedit='False'):
     """make a page showing the extracted text, highlighting searchterm """
     
     log.debug('Get content for doc id: {} from search term {}'.format(doc_id,searchterm))
-    log.debug('Request session : {}'.format(request.session.__dict__))
+    #log.debug('Request session : {}'.format(request.session.__dict__))
     
     page=pages.ContentPage(doc_id=doc_id,searchterm=searchterm,tagedit='False')
     page.safe_searchterm()
     page.searchurl=request.session.get('lastsearch','/ownsearch') #store the return page
+    
+
     
     #GET INDEX
     #only show content if index defined in session:
@@ -196,10 +198,9 @@ def get_content(request,doc_id,searchterm,tagedit='False'):
         return HttpResponseRedirect('/') 
     page.coreID=int(request.session.get('mycore'))
 
-    thisuser=request.user
-    corelist,DEFAULTCOREID,choice_list=authorise.authcores(thisuser)
+    page.this_user=request.user
+    corelist,DEFAULTCOREID,choice_list=authorise.authcores(page.this_user)
     page.mycore=corelist[page.coreID]
-
 
     #HANDLE EDITS OF USER TAGS
     useredit_str=request.session.get('useredit','')
@@ -367,7 +368,7 @@ def testsearch(request,doc_id,searchterm):
     if coreID:
         mycore=cores[coreID]
         results=solrJson.testresponse(doc_id,mycore,searchterm)
-        print(results)
+        log.debug(results)
         if len(results)>0:
             if 'highlight' in results[0].data:
                 highlight=results[0].data['highlight']

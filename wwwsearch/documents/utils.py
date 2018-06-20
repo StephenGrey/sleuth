@@ -3,13 +3,12 @@ from __future__ import unicode_literals
 from __future__ import print_function
 from __future__ import absolute_import
 import hashlib,requests,datetime,os
-from django.test import TestCase
 from . import indexSolr as i
-from .models import File,Collection,SolrCore
+from .models import File,Collection,Index
 from ownsearch.hashScan import HexFolderTable as hex
 from ownsearch.hashScan import hashfile256 as hexfile
 from ownsearch.hashScan import pathHash
-import ownsearch.solrSoup as s
+import ownsearch.solrJson as s
 from . import solrcursor as curs
 from ownsearch.hashScan import FileSpecTable as filetable
 from documents import views as v
@@ -24,10 +23,6 @@ from . import updateSolr as u
 
 docstore=config['Models']['collectionbasepath'] #get base path of the docstore
 
-def checksolrcursor():
-    mycore=s.SolrCore('docscan1')
-    res=curs.cursor(mycore)
-    return res
 
 def checksolrlists(mycore):
     cursormark='*' 
@@ -52,7 +47,6 @@ def listhexes():
         if len(result)>0:
            print(result[0]['id'])
         
-
 def extract(path,coreid):
     #path=files[id].filepath
     mycore=s.getcores()[coreid]

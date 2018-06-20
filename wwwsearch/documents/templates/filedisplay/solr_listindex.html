@@ -2,12 +2,11 @@
 
  {% block sidebar %}
 
-<form action="{% url 'listfiles' path=path %}" method ="post">
+<form action="{% url 'list_solrfiles' path=path %}" method ="post">
 {% csrf_token %}
-Index:{{form.corechoice}}
+Index:{{form.CoreChoice}}
 <!--<p><input type="submit" name="switch" value="Switch Index" /><p> 
 --></form>
-
 
 </ul>
 {% endblock %}
@@ -15,9 +14,9 @@ Index:{{form.corechoice}}
 
 
 <ol class="breadcrumb">
-  <li><a href="/documents/files">Home</a></li>
+  <li><a href="/documents/indexedfiles">Home</a></li>
 {% for fullpath,relpath,basename in tags %}  
-  <li><a href="/documents/files/{{fullpath}}">{{basename}}</a></li>
+  <li><a href="/documents/indexedfiles/{{fullpath}}">{{basename}}</a></li>
 {% endfor %} 
 </ol>
 
@@ -25,9 +24,7 @@ Index:{{form.corechoice}}
 <div class="panel-group" id="accordion" role="tablist" aria-multiselectable="true">
   <div class="panel panel-default">
 		<ul>
-		{% for f in subfiles %}
-		{{ f }}
-		{% endfor %}
+		{% for key in result %}<li>{{key}}</li>{% endfor %}
 		</ul>	
 	</div>
 </div>
@@ -35,7 +32,6 @@ Index:{{form.corechoice}}
 <script>
 $('.flip').click(function(e) {
     var $this = $(this);
- //   $(this).parent('span').text("rubbish");
     $this.next('div.subdir').slideToggle('fast');
     $this.toggleClass('show');
     if ($this.hasClass('show')) {
@@ -63,24 +59,5 @@ $('.SeeMore2').click(function(){
 
 {% endblock %}
 {% block javascript %}
-<script>
-(function() {
-	
-	document.getElementById("baddiv").addEventListener('click', sillyalert);
-  
-  function makeRequest() {
-  alert ("Hello World!");
-  }
-  
-  function sillyalert() {
-  alert ("Silly alert!");
-  document.getElementById("baddiv").style.color = "blue"; // forecolor
-  
-  }
-  
-  
-})();
-
-</script>
 {% endblock %}
 

@@ -7,6 +7,8 @@ urlpatterns = [
     url(r'list/$', views.listfiles, name='listfiles'),
     url(r'^files/(?P<path>.*)$',views.file_display,name='listfiles'),
     url(r'^files',views.file_display,name='listfiles_base'),
+#    url(r'^indexedfiles/(?P<path>.*)$',views.list_solrfiles,name='list_solrfiles'),
+#    url(r'^indexedfiles',views.list_solrfiles,name='list_solrfiles_base'),
 
 #    url(r'filters=((.*)&.*)$', views.testlist, name='testview'),
 #    url(r'^scandocs/$',views.scandocs,name='scandocs'),

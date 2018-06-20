@@ -5,13 +5,22 @@
 {% endblock %}
 
 {% block top_content %}
-
-
 <ol class="breadcrumb">
+{% if page.this_user.is_staff %}
   <li><a href="/documents/files">Home</a></li>
+{% else %}Home /
+{% endif %}
+
 {% for fullpath,relpath,basename in page.path_tags %}  
+
+{% if page.this_user.is_staff %}
   <li><a href="/documents/files/{{fullpath}}">{{basename}}</a></li>
+{% else %}
+  <li>{{basename}}</li>
+{% endif %}
 {% endfor %} 
+
+
 </ol>
 
 

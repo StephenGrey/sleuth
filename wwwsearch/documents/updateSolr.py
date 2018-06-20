@@ -139,7 +139,7 @@ def makejson(solrid,changes,mycore):   #the changes use standard fields (e.g. 'd
 
 
 def checkupdate(id,changes,mycore):
-    #check success
+    """check success of an update"""
     #print id
     status=True
     res=s.getmeta(id,mycore)
@@ -172,9 +172,10 @@ def checkupdate(id,changes,mycore):
     return status
 
 
-""" I/O with Solr API """
+
 
 def post_jsonupdate(data,mycore,timeout=10):
+    """ I/O with Solr API """
     updateurl=mycore.url+'/update/json?commit=true'
     url=updateurl
     headers={'Content-type': 'application/json'}
@@ -188,7 +189,7 @@ def post_jsonupdate(data,mycore,timeout=10):
             statusOK = False
         return res.json(), statusOK
     except Exception as e:
-        print(('Exception: ',str(e)))
+        log.debug('Exception: {}'.format(e))
         return '',False
 
 def post_jsondoc(data,mycore):
@@ -210,8 +211,9 @@ def post_jsondoc(data,mycore):
         return '',statusOK
 
         
-"""update the metadata in the SOLR index"""
+
 def metaupdate(collection):
+    """update the metadata in the SOLR index"""
     #print ('testing collection:',collection,'from core',collection.core,'core ID',collection.core.coreDisplayName)
     cores=s.getcores() #fetch dictionary of installed solr indexes (cores)
     mycore=cores[collection.core.id]
@@ -351,8 +353,8 @@ def updates(change,collection):
             file.save()
     return
 
-#calculate all the metadata and update database; default don't make hash
 def updatefiledata(file,path,makehash=False):
+    """calculate all the metadata and update database; default don't make hash"""
     try:
         file.filepath=path #
         file.hash_filename=pathHash(path) #get the HASH OF PATH

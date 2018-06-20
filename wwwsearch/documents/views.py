@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
-"""PROCESS SOLR INDEX: EXTRACT FILES TO INDEX AND UPDATE INDEX """
+"""PROCESS SOLR INDEX: 
+EXTRACT FILES TO INDEX AND UPDATE INDEX """
 from __future__ import unicode_literals, print_function
 from __future__ import absolute_import
 from django.http import HttpResponse
@@ -15,64 +16,45 @@ from ownsearch.hashScan import hashfile256 as hexfile
 from ownsearch.hashScan import FileSpecTable as filetable
 from ownsearch.pages import directory_tags
 import datetime, hashlib, os, logging, requests
-from . import indexSolr, updateSolr, solrICIJ, solrDeDup, solrcursor,correct_paths
+from . import indexSolr, updateSolr, solrICIJ, solrDeDup, solrcursor,correct_paths,documentpage
 import ownsearch.solrJson as solr
-from ownsearch import authorise
+
 from django.contrib.admin.views.decorators import staff_member_required
 log = logging.getLogger('ownsearch.docs.views')
 from usersettings import userconfig as config
 from django.template import loader
 
+BASEDIR=config['Models']['collectionbasepath'] #get base path of the docstore
+
 
 @staff_member_required()
 def index(request):
-    """get the core , or set the the default """
-    thisuser=request.user
-    cores,defaultcoreID=getindexes(thisuser)
-    if 'mycore' not in request.session:  #set default if no core selected
-        if defaultcoreID: #if a default defined, then set as chosen core
-            request.session['mycore']=defaultcoreID
-    coreID=int(request.session.get('mycore'))
-    log.debug('CORE ID: {}'.format(coreID))
-    if request.method=='POST': #if data posted # switch core
-        #print('post data')
-        form=IndexForm(request.POST)
-        log.debug('Form: {} Valid: {} Post data: {}'.format(form.__dict__,form.is_valid(),request.POST))
-        if form.is_valid():
-            coreID=form.cleaned_data['CoreChoice']
-            log.debug('change core to {}'.format(coreID))
-            request.session['mycore']=coreID
-        else:
-            log.debug('posted form is not valid')
-    else:
-#        print(request.session['mycore'])
-        form=IndexForm(initial={'CoreChoice':coreID})
-        log.debug('Core set in request: {}'.format(request.session['mycore']))
+    """ Display collections, options to scan,list,extract """
     try:
-#        mycore=cores[coreID]
-        mycoreIndex=Index.objects.get(id=coreID)
-        log.debug('mycore: {}'.format(mycoreIndex))
-        latest_collection_list=Collection.objects.filter(core=mycoreIndex)
-        return render(request, 'documents/scancollection.html',{'form': form, 'latest_collection_list': latest_collection_list})
+        #get the core , or set the the default    
+        page=documentpage.CollectionPage()
+        page.getcores(request.user,request.session.get('mycore')) #arguments: user, storedcore
+        page.chooseindexes(request.method,request_postdata=request.POST)
+        page.get_collections() #filter authorised collections
+    #        log.debug('Core set in request: {}'.format(request.session['mycore']))
+        log.debug('CORE ID: {} COLLECTIONS: {}'.format(page.coreID,page.authorised_collections))    
+        
+        request.session['mycore']=page.coreID
+        return render(request, 'documents/scancollection.html',{'form': page.form, 'latest_collection_list': page.authorised_collections})
     except Exception as e:
         log.error('Error: {}'.format(e))
         return HttpResponse('Can\'t find core/collection - retry')
 
 @staff_member_required()
 def listfiles(request):
-#   print('Core set in request: ',request.session['mycore'])
-#    cores=solr.getcores() #fetch dictionary of installed solr indexes (cores)
-    thisuser=request.user
-    cores,defaultcoreID=getindexes(thisuser)
-    
-    if 'mycore' in request.session:
-        coreID=request.session['mycore'] #currently selected core
-        log.debug('Using core: {}'.format(coreID))
-    else:
-        print ('ERROR no stored core in session')
+    #get the core , or set the the default    
+    page=documentpage.CollectionPage()
+    page.getcores(request.user,request.session.get('mycore')) #arguments: user, storedcore
+    if not page.stored_core:
+        log.warning("Accessing listfiles before selecting index")
         return HttpResponse( "No index selected...please go back")
-#        coreID=defaultcore
-    mycore=cores.get(int(coreID)) # get the working core
+    
+    mycore=page.cores.get(int(page.coreID)) # get the working core
     log.info('using index: {}'.format(getattr(mycore,'name','')))
     try:
         if request.method == 'POST' and 'list' in request.POST and 'choice' in request.POST:
@@ -158,7 +140,7 @@ def listfiles(request):
                 correct_paths.check(mycore,thiscollection)
                 return HttpResponse('checked paths')
         else:
-            return redirect('index')
+            return redirect('docs_index')
     except solr.SolrConnectionError:
         return HttpResponse("No connection to Solr index: (re)start Solr server")
     except solr.SolrCoreNotFound:
@@ -170,25 +152,59 @@ def listfiles(request):
         return HttpResponse ("Indexing interrupted -- Solr Server not available")
 
 
-@staff_member_required()
-def list_solrfiles(request,path=''):
-    """display list of files in solr index"""
-    BASEDIR=config['Models']['collectionbasepath'] #get base path of the docstore
-    
-    
-    
-    
-
+#@staff_member_required()
+#def list_solrfiles(request,path=''):
+#    """display list of files in solr index"""
+#
+#    ##TODO duplication - 
+#    """get the core , or set the the default """
+#    thisuser=request.user
+#    storedcoreID=int(request.session.get('mycore'))
+#    try:
+#        authcores=authorise.AuthorisedCores(thisuser,storedcore=storedcoreID)
+#        coreID=authcores.mycoreID
+#        if 'mycore' not in request.session:  #set default if no core selected
+#            request.session['mycore']=coreID
+#    except authorise.NoValidCore as e:
+#        log.warning('Cannot find any valid coreID in authorised corelist')
+#        return HttpResponse('Missing any config data for any authorised index: contact administrator')
+#
+#    log.debug('CORE ID: {}'.format(coreID))
+#    
+#    if request.method=='POST': #if data posted # switch core
+#        #print('post data')
+#        form=IndexForm(request.POST)
+#        log.debug('Form: {} Valid: {} Post data: {}'.format(form.__dict__,form.is_valid(),request.POST))
+#        if form.is_valid():
+#            coreID=form.cleaned_data['corechoice']
+#            log.debug('change core to {}'.format(coreID))
+#            request.session['mycore']=coreID
+#            authcores.mycore=authcores[coreID]
+#        else:
+#            log.debug('posted form is not valid')
+#
+#    else:
+#        form=IndexForm(initial={'corechoice':coreID})
+#        log.debug('Core set in request: {}'.format(request.session['mycore']))
+#    
+#    mycore=authcores.mycore
+#    log.debug('mycore: {}'.format(mycore))
+#    searchterm="extract_paths:{}".format(path)
+#    result=solrcursor.cursor(mycore,searchterm=searchterm,keyfield="docname")
+#    log.debug(result)
+#    
+#    return render(request,'filedisplay/solr_listindex.html',
+#          {'result': result,
+#          	'form':form,
+##          	'rootpath':rootpath, 'tags':tags, 'form':form, 'path':path
+#          })
 
 @staff_member_required()
 def file_display(request,path=''):
     """display files in a directory"""
-    BASEDIR=config['Models']['collectionbasepath'] #get base path of the docstore
-
-
-
-    def index_maker(path):
-        def _index(root,depth):
+    
+    def index_maker(path,index_collections):
+        def _index(root,depth,index_collections):
             #print ('Root',root)
             if depth<2:
                 files = os.listdir(root)
@@ -196,7 +212,7 @@ def file_display(request,path=''):
                     t = os.path.join(root, mfile)
                     relpath=os.path.relpath(t,BASEDIR)
                     if os.path.isdir(t):
-                        subfiles=_index(os.path.join(root, t),depth+1)
+                        subfiles=_index(os.path.join(root, t),depth+1,index_collections)
                         #print(root,subfiles)
                         yield loader.render_to_string('filedisplay/p_folder.html',
                                                        {'file': mfile,
@@ -206,44 +222,26 @@ def file_display(request,path=''):
                                                         	})
                         continue
                     else:
-                        stored,indexed=model_index(t)
+                        stored,indexed=model_index(t,index_collections)
                         #log.debug('Local check: {},indexed: {}, stored: {}'.format(t,indexed,stored))
                         yield loader.render_to_string('filedisplay/p_file.html',{'file': mfile, 'local_index':stored,'indexed':indexed})
                         continue
         basepath=os.path.join(BASEDIR,path)
         log.debug('Basepath: {}'.format(basepath))
         if os.path.isdir(basepath):
-            return _index(basepath,0)
+            return _index(basepath,0,index_collections)
         else:
             return "Invalid directory"
     
-    """get the core , or set the the default """
-    thisuser=request.user
-    cores,defaultcoreID=getindexes(thisuser)
-    if 'mycore' not in request.session:  #set default if no core selected
-        if defaultcoreID: #if a default defined, then set as chosen core
-            request.session['mycore']=defaultcoreID
-    coreID=int(request.session.get('mycore'))
-    log.debug('CORE ID: {}'.format(coreID))
-    
-    
-    if request.method=='POST': #if data posted # switch core
-        #print('post data')
-        form=IndexForm(request.POST)
-        log.debug('Form: {} Valid: {} Post data: {}'.format(form.__dict__,form.is_valid(),request.POST))
-        if form.is_valid():
-            coreID=form.cleaned_data['CoreChoice']
-            log.debug('change core to {}'.format(coreID))
-            request.session['mycore']=coreID
-        else:
-            log.debug('posted form is not valid')
-
-    else:
-        form=IndexForm(initial={'CoreChoice':coreID})
-        log.debug('Core set in request: {}'.format(request.session['mycore']))
-
+    #get the core , or set the the default    
+    page=documentpage.FilesPage()
+    page.getcores(request.user,request.session.get('mycore')) #arguments: user, storedcore
+    page.chooseindexes(request.method,request_postdata=request.POST)
+    page.get_collections() #filter authorised collections
+#        log.debug('Core set in request: {}'.format(request.session['mycore']))
+    log.debug('CORE ID: {}'.format(page.coreID))    
         
-    c = index_maker(path)
+    c = index_maker(path,page.authorised_collections)
     if path:
         rootpath=path
         tags=directory_tags(path)
@@ -251,11 +249,11 @@ def file_display(request,path=''):
         rootpath=""
         tags=None
     return render(request,'filedisplay/listindex.html',
-                               {'subfiles': c, 'rootpath':rootpath, 'tags':tags, 'form':form, 'path':path})
+                               {'subfiles': c, 'rootpath':rootpath, 'tags':tags, 'form':page.form, 'path':path})
 
-def model_index(path,hashcheck=False):
+def model_index(path,index_collections,hashcheck=False):
     """check if file scanned into model index"""
-    stored=File.objects.filter(filepath=path)
+    stored=File.objects.filter(filepath=path, collection__in=index_collections)
     if stored:
         indexed=stored.exclude(solrid='')
         return stored,indexed
@@ -439,24 +437,4 @@ def pathHash(path):
     m.update(path.encode('utf-8'))  #encoding avoids unicode error for unicode paths
     return m.hexdigest()
 
-#set up solr indexes
-def getindexes(thisuser):
-    try:
-        authcores=authorise.AuthorisedCores(thisuser)      
-    except Exception as e:
-        log.warning('No valid indexes defined in database')
-        defaultcoreID='' #if no indexes, no valid default
-    cores=authcores.cores
-    defaultcoreID=authcores.defaultcore
-    log.debug('CORES: '+str(cores)+' DEFAULT CORE:'+str(defaultcoreID))
-    
-    return cores,defaultcoreID
-
-@staff_member_required()    
-def testlist(request,testid):
-    print (testid)
-    if testid=='switch':
-        return redirect(reverse('index'))
-    return HttpResponse('Test'+str(testid))
-    
-    
+   

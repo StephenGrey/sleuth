@@ -80,8 +80,8 @@ class SolrCore:
     def test(self):
         args=self.hlarguments+'0'
         jres=getJSolrResponse(self.dfltsearchterm,args,core=self)
-        res,numbers,facets,facets2,facets3=getlist(jres,0,core=self)
-        return res,jres
+        res=getlist(jres,0,core=self)
+        return res.results,jres
     def ping(self):
         try:
             res=requests.get(self.url+'/admin/ping')
@@ -315,6 +315,7 @@ def pagesearch(page):
 #MAIN SEARCH METHOD  (q is search term)
 def solrSearch(q,sorttype,startnumber,core,filters={},faceting=False):
     core.ping()
+
     #create arguments
     facetargs=''
     if faceting:
@@ -355,13 +356,14 @@ def solrSearch(q,sorttype,startnumber,core,filters={},faceting=False):
         jres=getJSolrResponse(q,args,core=core)
         #print(jres)
         #print(soup.prettify())    
-        reslist,numbers,facets,facets2,facets3=getlist(jres,startnumber,core=core)
+
+        res=getlist(jres,startnumber,core=core)
     except requests.exceptions.RequestException as e:
         reslist=[]
         numbers=-2
         log.warning('Connection error to Solr')
-    return reslist,numbers,facets,facets2,facets3
-
+    return res.results,res.numberfound,res.facets,res.facets2,res.facets3
+    
 #JSON 
 def getJSolrResponse(searchterm,arguments,core):
 #    print(searchterm,arguments,core)
@@ -391,6 +393,7 @@ def resPostfile(url,path,timeout=1):
     #python3: use bytes object for filepath
     bytes_path=path.encode('utf-8')
     simplefilename=os.path.basename(path)
+
 #needed for python2
 #    try:
 #        simplefilename=os.path.basename(path).encode('ascii','ignore')
@@ -477,13 +480,15 @@ def bighighlights(docid,core,q,contentsmax):
     SR.addhighlights(linebreaks=True,bighighlights=True)
     return SR
 
-def getlist(jres,counter,core,linebreaks=False,big=False): #this parses the list of results, starting at 'counter'
+def getlist(jres,counter,core,linebreaks=False,big=False):
+ #this parses the list of results, starting at 'counter'
     SR=SolrResult(jres,core,startcount=counter)
 #    log.debug([doc.data['resultnumber'] for doc in SR.results])
     SR.addstoredmeta()
     SR.addfacets()
     SR.addhighlights(linebreaks=linebreaks,bighighlights=big)
-    return SR.results,SR.numberfound,SR.facets,SR.facets2,SR.facets3
+    return SR
+#    .results,SR.numberfound,SR.facets,SR.facets2,SR.facets3
 
 def gethighlights(soup,linebreaks=False):
     highlights_all=soup.response.result.next_sibling
@@ -530,8 +535,8 @@ def getcontents(docid,core):
     jres=getJSolrResponse(searchterm,args,core=core)
 
     log.debug('{} {}'.format(args,jres))
-    res,numbers,facets,facets2,facets3=getlist(jres,0,core=core)
-    return res
+    res=getlist(jres,0,core=core)
+    return res.results
 
 def getmeta(docid,core):
     searchterm='{}:\"{}\"'.format(core.unique_id,docid)
@@ -542,8 +547,8 @@ def getmeta(docid,core):
     args+=","+core.sequencefield if core.sequencefield else ""
     jres=getJSolrResponse(searchterm,args,core=core)
     #print(args,jres)
-    res,numbers,facets,facets2,facets3=getlist(jres,0,core=core)
-    return res
+    res=getlist(jres,0,core=core)
+    return res.results
     
 
 def parsebighighlights(highlights_all):
