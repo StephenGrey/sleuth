@@ -19,8 +19,111 @@ from usersettings import userconfig as config
 
 docstore=config['Models']['collectionbasepath'] #get base path of the docstore
 
-"""SCAN AND MAKE UPDATES TO BOTH LOCAL FILE META DATABASE AND SOLR INDEX"""
+
+class Updater:
+    """template to modify solr index"""
+    def __init__(self,mycore,searchterm='*'):
+        self.mycore=mycore
+        self.searchterm=searchterm
+    
+    
+    def modify(self,result):
+        pass
+        
+    def process(self,args,maxcount=10000):
+        """iterate through the index, modifying as required"""
+        counter=0
+        res=False
+        while True:
+            res = sc.cursor_next(self.mycore,self.searchterm,highlights=False,lastresult=res,rows=5)
+            if res == False:
+                break
+            #ESCAPE ROUTES ;
+            if not res.results:
+                break
+            counter+=1
+            if counter>maxcount:
+                break
+            for doc in res.results:
+                #get all relevant fields
+                #print(doc.__dict__)
+                searchterm=self.mycore.unique_id+r':"'+doc.id+r'"'
+                jres=s.getJSolrResponse(searchterm,args,core=self.mycore)
+                results=s.SolrResult(jres,self.mycore).results
+                #print(results)
+                if results:
+                    result=results[0]
+                    self.modify(result)
+                else:
+                    log.debug('Skipping missing record {}'.format(doc.id))
+                
+
+class UpdateField(Updater):
+    """ modify fields in solr index"""
+    def __init__(self,mycore,newvalue='test value',newfield=False,searchterm='*',field_datasource='docpath',field_to_update='sb_parentpath_hash',test_run=True):
+        #set up
+        super(UpdateField,self).__init__(mycore,searchterm=searchterm)
+        self.newvalue=newvalue
+        self.newfield=newfield
+        self.field_to_update=field_to_update
+        self.field_datasource=field_datasource
+        self.field_datasource_decoded=self.mycore.__dict__.get(self.field_datasource,self.field_datasource) #decode the standard field, or use the name'as is'.
+        args='&fl={},{},database_originalID, sb_filename'.format(self.mycore.unique_id,self.field_datasource_decoded)
+        self.test_run=test_run
+        
+        #run update
+        self.process(args)
+
+    def update_value(self,value):
+        """update field with same value in all docs"""
+        return self.newvalue
+
+    def modify(self,result):
+        try:
+            datasource_value=result.data.get(self.field_datasource)
+            update_value=self.update_value(datasource_value)
+            print('Update value: {}'.format(update_value))
+            if not self.test_run:
+                print('..updating .. ')
+                result=updatetags(result.id,self.mycore,value=update_value,field_to_update=self.field_to_update,newfield=self.newfield)
+                if result == False:
+                    log.error('Update failed for solrID: {}'.format(solrid))
+        except Exception as e:
+            #print(self.__dict__)
+            log.debug(e)    
+
+class AddParentHash(UpdateField):
+    
+    def update_value(self,datasource_value):
+        parent,filename=os.path.split(datasource_value)
+        #print('Parent: {},Filename: {}'.format(parent,filename))
+        return pathHash(parent)
+        
+
+
+
+#
+#            #EXAMPLE FILTER = TEST IF ANY DATA IN FIELD - DATABASE_ORIGINALID _ AND UPDATE OTHERS
+
+#              data_id=results[0].data.get('database_originalID','NONE')            
+#                  if data_id=='NONE':
+##                data_id=='' or data_id=='NONE':
+#                    try: 
+#                        print(solrid)
+#                        print (results[0].__dict__)
+##                    deleteres=delete(solrid,mycore)
+##                    if deleteres:
+# #                       print('deleted {}'.format(solrid))
+            	
+#                else:
+#                #print('skipped solrid: {} dataID: {}'.format(solrid,data_id))
+#                    pass
+#
+
+
 def scandocs(collection,deletes=True):
+    """SCAN AND MAKE UPDATES TO BOTH LOCAL FILE META DATABASE AND SOLR INDEX"""
+    
     change=changes(collection)  #get dictionary of changes to file collection (compare disk folder to meta database)
     
     #make any changes to local file database
@@ -172,8 +275,6 @@ def checkupdate(id,changes,mycore):
     return status
 
 
-
-
 def post_jsonupdate(data,mycore,timeout=10):
     """ I/O with Solr API """
     updateurl=mycore.url+'/update/json?commit=true'
@@ -253,9 +354,10 @@ def metaupdate(collection):
                 print ('[metaupdate]file not found in solr index')
 #            hashcontents=result['hashcontents']
 
-"""take a Solr Result object,compare with file database, 
-   return change list [(standardisedsourcefield,resultfield,newvalue),..]"""
+
 def parsechanges(solrresult,file,mycore): 
+    """take a Solr Result object,compare with file database, 
+   return change list [(standardisedsourcefield,resultfield,newvalue),..]"""
     #print(solrresult)
     solrdocsize=solrresult.data['solrdocsize']
     olddocsize=int(solrdocsize) if solrdocsize else 0
@@ -450,11 +552,10 @@ def listmeta():
 
 #POST EXTRACTION PROCESSING
 
-"""ADD ADDITIONAL METADATA TO SOLR RECORDS """
-#NB the following is imported elsewhere
-def updatetags(solrid,mycore,value=['test','anothertest'],standardfield='usertags1field',newfield=False):
+def updatetags(solrid,mycore,value=['test','anothertest'],field_to_update='usertags1field',newfield=False):
+    """ADD ADDITIONAL METADATA TO SOLR RECORDS """
     #check the parameters
-    field=mycore.__dict__.get(standardfield,standardfield) #decode the standard field, or use the name'as is'.
+    field=mycore.__dict__.get(field_to_update,field_to_update) #decode the standard field, or use the name'as is'.
     if newfield==False:
         try:
             assert s.fieldexists(field,mycore) #check the field exists in the index
@@ -477,52 +578,13 @@ def updatetags(solrid,mycore,value=['test','anothertest'],standardfield='usertag
     return status
 
 
-def updatefield(mycore,newvalue):
-    """#ADD A SOURCE RETROSPECTIVELY"""
+def updatefield(mycore,newvalue,maxcount=30000):
+    """add a field retrospectively"""
     counter=0
-    maxcount=30000
     res=False
     args='&fl=extract_id,database_originalID, sb_filename'
-    while True:
-        res = sc.cursornext(mycore,searchterm='*',highlights=False,lastresult=res)
-        if res == False:
-            break
-        #ESCAPE ROUTES ;
-        if not res.results:
-            break
-        counter+=1
-        if counter>maxcount:
-            break
-#        print(res.results)
 
-        for doc in res.results:
-            solrid=doc.id
-#            print(solrid)
-            #EXAMPLE FILTER = TEST IF ANY DATA IN FIELD - DATABASE_ORIGINALID _ AND UPDATE OTHERS
-            searchterm=r'extract_id:"'+solrid+r'"'
-            jres=s.getJSolrResponse(searchterm,args,core=mycore)
-            results=s.SolrResult(jres,mycore).results[0]
-            data_id=results.data.get('database_originalID','NONE')
-            
-            if data_id=='NONE':
-#            	data_id=='' or data_id=='NONE':
-                try: 
-                    #print(solrid)
-                    #print (results.__dict__)
-                    deleteres=delete(solrid,mycore)
-                    if deleteres:
-                        print('deleted {}'.format(solrid))
-#                    result=updatetags(solrid,mycore,value=newvalue,standardfield='sourcefield',newfield=False)
-#                    if result == False:
-#                        print('Update failed for solrID: {}'.format(solrid))
-                except Exception as e:
-                    print(e)                	
-                except Exception as e:
-                    print(e)
-                    print(('no solr doc found for post ',post.id,post.name))        
-            else:
-                #print('skipped solrid: {} dataID: {}'.format(solrid,data_id))
-                pass
+#move
 
 
 def sequence(mycore,regex='^XXX(\d+)_Part(\d+)(_*)OCR'):

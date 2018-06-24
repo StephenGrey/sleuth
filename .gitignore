@@ -52,3 +52,5 @@ solr/solr-7.2.0/server/solr/coreexample/data/tlog/tlog.0000000000000000403
 wwwsearch/documents/.DS_Store
 wwwsearch/htmlcov/*
 wwwsearch/documents/.DS_Store
+solr/solr-7.2.0/bin/solr.in.sh
+solr/keys/*

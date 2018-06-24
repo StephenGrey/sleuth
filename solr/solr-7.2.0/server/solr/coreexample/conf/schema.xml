@@ -642,6 +642,7 @@
   <field name="sb_filename" type="string" multiValued="false" stored="false"/>
   <field name="sb_before" type="string" multiValued="false" stored="true"/>
   <field name="sb_next" type="string" multiValued="false" stored="true"/>
+  <field name="sb_parentpath_hash" type="string" multiValued="true" indexed="true" stored="true"/>
   <field name="sb_preview_url" type="string" multiValued="false" stored="true"/>
   <field name="sb_last_modified" type="pdates" multiValued="false" indexed="true" stored="false"/>
   <field name="sb_source" type="string" multiValued="true" indexed="true" stored="true"/>

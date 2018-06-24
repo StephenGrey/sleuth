@@ -2,8 +2,9 @@ from django.test import TestCase
 from django.contrib.auth.models import User, Group, Permission
 from django.core.management.base import BaseCommand, CommandError
 from django.db.models.query import QuerySet
-from documents import setup, documentpage,solrcursor
+from documents import setup, documentpage,solrcursor,updateSolr
 from documents.models import  Index, Collection, Source
+from ownsearch.solrJson import SolrResult
 from django.test.client import Client
 import logging,re
 
@@ -14,6 +15,7 @@ password = 'mypassword'
 class DocumentsTest(TestCase):
     """ Tests for documents module """
     def setUp(self):
+        print('This is the set up')
         print (self._testMethodName)
         #print('Tests: disable logging')
         logging.disable(logging.CRITICAL)
@@ -116,4 +118,31 @@ class CursorTest(TestCase):
         res=solrcursor.cursor_sorted('*','docpath',solrcursor.solrJson.SolrCore('coreexample'))
         assert isinstance(res,solrcursor.collections.OrderedDict)
         
-        
+    def test_cursor_next(self):
+        """test cursor_next - iterate in groups"""
+        res=solrcursor.cursor_next(solrcursor.solrJson.SolrCore('tests_only'),searchterm='*',highlights=True,lastresult=False,rows=10)
+        assert isinstance(res,SolrResult)
+        self.assertEqual(res.json['responseHeader']['status'],0) #good solr response
+
+class UpdatingTests(TestCase):
+    """tests for updateSolr module"""
+    
+    
+    def test_updators(self):
+       mycore=solrcursor.solrJson.SolrCore('tests_only')
+       o=updateSolr.Updater(mycore)
+       self.assertIsInstance(o,updateSolr.Updater)
+       o=updateSolr.UpdateField(mycore)
+       args='&fl={},{},database_originalID, sb_filename'.format(o.mycore.unique_id,o.field_datasource_decoded)
+       o.process(args)
+       self.assertIsInstance(o,updateSolr.UpdateField)
+
+    
+    def test_addparenthash(self):
+       o=updateSolr.AddParentHash(solrcursor.solrJson.SolrCore('newtest1'),field_datasource='docpath',field_to_update='sb_parentpath_hash',test_run=True)
+       self.assertIsInstance(o,updateSolr.AddParentHash)
+       #print(o.__dict__)
+       o=updateSolr.AddParentHash(solrcursor.solrJson.SolrCore('newtest1'),field_datasource='docpath',field_to_update='sb_parentpath_hash',test_run=False)
+       self.assertIsInstance(o,updateSolr.AddParentHash)
+       
+    
