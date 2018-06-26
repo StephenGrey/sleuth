@@ -153,9 +153,9 @@ class Solrdoc:
             
             if isinstance(self.data['tags1'], str):
                 self.data['tags1']=[self.data['tags1']]
-            self.next_id=self.data.pop(core.nextfield,'')
-            self.before_id=self.data.pop(core.beforefield,'')
-            self.sequence=self.data.pop(core.sequencefield,'')
+            self.next_id=self.data.get(core.nextfield,'')
+            self.before_id=self.data.get(core.beforefield,'')
+            self.sequence=self.data.get(core.sequencefield,'')
 
 class SolrResult:
     def __init__(self,jres,mycore,startcount=0):
@@ -546,7 +546,7 @@ def getmeta(docid,core):
     args+=","+core.nextfield if core.nextfield else ""
     args+=","+core.sequencefield if core.sequencefield else ""
     jres=getJSolrResponse(searchterm,args,core=core)
-    #print(args,jres)
+    print(args,jres)
     res=getlist(jres,0,core=core)
     return res.results
     

@@ -51,7 +51,7 @@ def cursor(mycore,keyfield='docpath',searchterm='*',highlights=False,rows=100):
                     keystring=document.__dict__[keyfield]
                 
                 else:
-                    #print('Solrcursor: no '+key+' in Solr document with ID: '+str(document['id']))
+                    print('Solrcursor: no '+keyfield+' in Solr document with ID: '+str(document.id))
                     continue
                 if isinstance(keystring,str):
                 #making a list of docs for each key, appending each new doc:

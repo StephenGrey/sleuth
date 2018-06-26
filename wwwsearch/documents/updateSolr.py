@@ -100,6 +100,139 @@ class AddParentHash(UpdateField):
         return pathHash(parent)
         
 
+class SequenceByDate(Updater):
+    """go through index, put result of search into date order, using 'before' 'next' fields"""
+    #user filter queries e.g. searchterm="*&fq=sb_source:\"some source\"" to reorder a subset of the index
+    def __init__(self,mycore,searchterm='*',test_run=True,regex=''):
+        #set up
+        super(SequenceByDate,self).__init__(mycore,searchterm=searchterm)
+        if self.mycore.sequencefield=='' or self.mycore.nextfield=='' or self.mycore.beforefield=='':
+            log.warning('No before and after fields to sequence')
+            return
+        self.regex=regex
+        self.test_run=test_run
+        #print(self.mycore)
+        self.getindex(keyfield='date')
+        #print(self.indexpaths)
+        self.sortindex()
+        #print(self.indexsequence)
+        self.changes()
+    
+    def getindex(self,keyfield):
+        try:
+            self.indexpaths=sc.cursor(self.mycore,keyfield=keyfield,searchterm=self.searchterm)            
+        except Exception as e:
+            log.warning('Failed to retrieve solr index')
+            log.warning(str(e))
+            self.indexpaths=False  
+    
+    def sortindex(self):
+        indexsequence=[]
+        sequence_number=0
+        try:
+            keys=sorted(self.indexpaths.keys())
+            #print(keys)
+            for key in keys:
+                for doc in self.indexpaths[key]:
+                    sequence_number+=1
+                    seq_string='{num:06d}'.format(num=sequence_number)
+                    indexsequence.append((seq_string,doc))
+            self.indexsequence=indexsequence   
+        except Exception as e:
+            log.debug(e)
+            
+    def changes(self):
+        for n, item in enumerate(self.indexsequence):
+            seq_string,doc=item
+            before_seq_string,before_doc=self.indexsequence[n-1]
+            after_seq_string,after_doc=self.indexsequence[(n+1)%len(self.indexsequence)]
+
+            changes=[('beforefield','sequencefield',seq_string),('beforefield','beforefield',before_doc.id),('nextfield','nextfield',after_doc.id)]
+            #print(doc.docname,changes)
+
+            if changes:
+                #make changes to the solr index
+                json2post=makejson(doc.id,changes,self.mycore)
+                log.debug('{}'.format(json2post)) 
+                if self.test_run==False:
+                    response,updatestatus=post_jsonupdate(json2post,self.mycore)
+                    #print((response,updatestatus))
+                    if checkupdate(doc.id,changes,self.mycore):
+                        print('solr successfully updated')
+                        
+                    else:
+                        print('solr changes not successful')
+                        
+            else:
+                print('Nothing to update!')
+#    
+        
+#        for docname in self.indexpaths:
+#            print (docname)
+#            seq_number=docname
+#        #main loop - go through files in the collection
+#        try:
+#            match=re.search(regex,docname)
+#            seq_number=(int(match.group(1))*1000)+int(match.group(2))
+#            seq_string='{num:06d}'.format(num=seq_number)
+#            indexsequence[seq_number]=(seq_string,indexpaths[docname][0]) #take only first record
+#        except Exception as e:
+#            print((docname,e))
+#            pass
+#        print((seq_number,seq_string,docname))
+#    keys=sorted(indexsequence.keys())
+#    print((indexsequence,keys))
+    
+    
+def sequence(mycore,regex='^XXX(\d+)_Part(\d+)(_*)OCR'):
+    """parse filename with regex to put solrdocs in order with a regular expression, update 'before' and 'after' field """
+    print(mycore)
+    try:#make a dictionary of filepaths from solr index
+        indexpaths=sc.cursor(mycore,keyfield='docname',searchterm='*')
+    except Exception as e:
+        log.warning('Failed to retrieve solr index')
+        log.warning(str(e))
+        return False
+    indexsequence={}
+    for docname in indexpaths:
+        print (docname)
+        seq_number=docname
+        #main loop - go through files in the collection
+        try:
+            match=re.search(regex,docname)
+            seq_number=(int(match.group(1))*1000)+int(match.group(2))
+            seq_string='{num:06d}'.format(num=seq_number)
+            indexsequence[seq_number]=(seq_string,indexpaths[docname][0]) #take only first record
+        except Exception as e:
+            print((docname,e))
+            pass
+        print((seq_number,seq_string,docname))
+    keys=sorted(indexsequence.keys())
+    print((indexsequence,keys))
+    for n, sortedkey in enumerate(keys):
+        print((n,sortedkey))
+        seq_string,doc=indexsequence[sortedkey]
+        before=keys[n-1]
+        before_str='{num:06d}'.format(num=before)
+        before_seq_string,before_doc=indexsequence[before]
+        after=keys[(n+1)%len(keys)]
+        after_str='{num:06d}'.format(num=after)
+        after_seq_string,after_doc=indexsequence[after]        
+        changes=[('sequencefield',seq_string),('beforefield',before_doc.id),('nextfield',after_doc.id)]
+
+        if changes:
+            #make changes to the solr index
+            json2post=makejson(doc.id,changes,mycore)
+            log.debug('{}'.format(json2post)) 
+            response,updatestatus=post_jsonupdate(json2post,mycore)
+            print((response,updatestatus))
+            if checkupdate(doc.id,changes,mycore):
+                print('solr successfully updated')
+            else:
+                print('solr changes not successful')
+        else:
+            print('No thing to update!')
+    
 
 
 #
@@ -236,7 +369,8 @@ def makejson(solrid,changes,mycore):   #the changes use standard fields (e.g. 'd
     a['extract_id']=solrid 
     for resultfield,sourcefield,value in changes:
         solrfield=mycore.__dict__.get(sourcefield,sourcefield) #if defined in core, replace with standard field, or leave unchanged
-        a[solrfield]={"set":value}
+        if solrfield !='':
+            a[solrfield]={"set":value}
     data=json.dumps([a])
     return data
 
@@ -250,10 +384,11 @@ def checkupdate(id,changes,mycore):
     if len(res)>0: #check there are solr docs returned
         doc=res[0]
         for sourcefield, resultfield,value in changes:
-            print('Change',sourcefield,resultfield,value)
-            newvalue=doc.__dict__.get(resultfield,doc.data.get(resultfield,''))
+            #print('Change',sourcefield,resultfield,value)
+            solrfield=mycore.__dict__.get(resultfield,resultfield)
+            newvalue=doc.__dict__.get(solrfield,doc.data.get(solrfield,''))
             if newvalue:
-                print(newvalue,type(newvalue))
+                #print(newvalue,type(newvalue))
                 if isinstance(newvalue,int):
                     try:
                         value=int(value)
@@ -587,54 +722,6 @@ def updatefield(mycore,newvalue,maxcount=30000):
 #move
 
 
-def sequence(mycore,regex='^XXX(\d+)_Part(\d+)(_*)OCR'):
-    """parse filename with regex to put solrdocs in order with a regular expression, update 'before' and 'after' field """
-    print(mycore)
-    try:#make a dictionary of filepaths from solr index
-        indexpaths=sc.cursor(mycore,keyfield='docname',searchterm='*')
-    except Exception as e:
-        log.warning('Failed to retrieve solr index')
-        log.warning(str(e))
-        return False
-    indexsequence={}
-    for docname in indexpaths:
-        print (docname)
-        seq_number=docname
-        #main loop - go through files in the collection
-        try:
-            match=re.search(regex,docname)
-            seq_number=(int(match.group(1))*1000)+int(match.group(2))
-            seq_string='{num:06d}'.format(num=seq_number)
-            indexsequence[seq_number]=(seq_string,indexpaths[docname][0]) #take only first record
-        except Exception as e:
-            print((docname,e))
-            pass
-        print((seq_number,seq_string,docname))
-    keys=sorted(indexsequence.keys())
-    print((indexsequence,keys))
-    for n, sortedkey in enumerate(keys):
-        print((n,sortedkey))
-        seq_string,doc=indexsequence[sortedkey]
-        before=keys[n-1]
-        before_str='{num:06d}'.format(num=before)
-        before_seq_string,before_doc=indexsequence[before]
-        after=keys[(n+1)%len(keys)]
-        after_str='{num:06d}'.format(num=after)
-        after_seq_string,after_doc=indexsequence[after]        
-        changes=[('sequencefield',seq_string),('beforefield',before_doc.id),('nextfield',after_doc.id)]
-
-        if changes:
-            #make changes to the solr index
-            json2post=makejson(doc.id,changes,mycore)
-            log.debug('{}'.format(json2post)) 
-            response,updatestatus=post_jsonupdate(json2post,mycore)
-            print((response,updatestatus))
-            if checkupdate(doc.id,changes,mycore):
-                print('solr successfully updated')
-            else:
-                print('solr changes not successful')
-        else:
-            print('Nothing to update!')
 
 def metareplace(mycore,resultfield,find_ex,replace_ex,searchterm='*',sourcefield='',test=False):
     """Update a field with regular expression find and replace"""   
