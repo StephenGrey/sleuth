@@ -59,11 +59,9 @@ def authcores(thisuser):
         defaultcoreID=defaultcore.id
     
     except Index.DoesNotExist:
-        print('default not found')
-    
         log.debug('Default core ('+str(DEFAULTCORE)+') set in userconfigs is not found in authorised indexes: first available is made default')
         try:
-            log.debug(str(cores)+' '+str(choice_list))
+            #log.debug(str(cores)+' '+str(choice_list))
             defaultcoreID=int(choice_list[0][0])#if no default found, take first in list as new default
 
         except Exception as e:

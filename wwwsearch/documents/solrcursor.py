@@ -14,7 +14,7 @@ class MissingCursorMark(Exception):
 try:
     dfltsearchterm=config['Test'].get('testsearchterm','')
 except:
-    raise solrJson.MissingConfigData
+    dfltsearchterm='company'
 
 ##MAIN FUNCTIONS
 def cursor_by_name(corename='coreexample'):

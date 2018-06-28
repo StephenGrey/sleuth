@@ -15,10 +15,13 @@ password = 'mypassword'
 class DocumentsTest(TestCase):
     """ Tests for documents module """
     def setUp(self):
-        print('This is the set up')
-        print (self._testMethodName)
+        #print('This is the set up')
+        #print (self._testMethodName)
         #print('Tests: disable logging')
+        
+        #CONTROL LOGGING IN TESTS
         logging.disable(logging.CRITICAL)
+        
         #print('Tests: setting up a user, usergroup and permissions')
         my_admin = User.objects.create_superuser('myuser', 'myemail@test.com', password)
         self.admin_user=User.objects.get(username='myuser')

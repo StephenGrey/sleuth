@@ -70,7 +70,7 @@ class SolrServer:
             if defaultstatus.get('name')=='coreexample' and defaultstatus['index'].get('current')==True:
                 mycore=solrJson.SolrCore('coreexample')
                 if mycore.ping():
-                    print('Solr server and "coreexample" index operating and installed')
+                    log.debug('Solr server and "coreexample" index operating and installed')
                     self.default_index_up=True
         test_index_status=self.status.get('tests_only')
         self.test_index_up=False
@@ -78,13 +78,13 @@ class SolrServer:
             if test_index_status.get('name')=='tests_only' and test_index_status['index'].get('current')==True:
                 mycore=solrJson.SolrCore('tests_only')
                 if mycore.ping():
-                    print('\"tests_only\" index operating and installed')
+                    log.info('\"tests_only\" index operating and installed')
                     self.test_index_up=True
 
     def check_or_make_test_index(self):
         """if no tests only server, make it"""
         if not self.test_index_up:
-            print('Creating tests index ..')
+            log.critical('Creating \"tests only\" index on Solr server..')
             copy_index_schema(self.solrdir, oldname='coreexample',newname='tests_only') #default: copy coreexample to tests_only
             create_index(os.path.join(self.solrdir,'tests_only'))
     
@@ -100,13 +100,13 @@ def copy_index_schema(solrpath,oldname='coreexample',newname='tests_only'):
     print('Copying {} to {}'.format(oldconfpath,newconfpath))
     try:
         shutil.copytree(oldconfpath,newconfpath)
-        print('Copied new index \'{}\''.format(newname))
+        log.critical('Copied new index \'{}\''.format(newname))
     except FileExistsError:
-        print('\'{}\' already exists... skipping copy of index'.format(newname))
+        log.info('\'{}\' already exists... skipping copy of index'.format(newname))
     
-    print('Checking \'core.properties\'')
+    log.debug('Checking \'core.properties\'')
     if check_corename(os.path.join(solrpath,newname)):
-        print('...\'core.properties\' already set to \'{}\''.format(newname))
+        log.debug('...\'core.properties\' already set to \'{}\''.format(newname))
     
 def check_corename(instanceDir):
     assert os.path.isdir(instanceDir)
@@ -141,7 +141,7 @@ def create_index(instanceDir):
                     message=jres['error']['msg']
                 except:
                     message='unknown error'
-                print('Error: {}'.format(message))
+                log.error('Error: {}'.format(message))
                 return status
         return True
     except solrJson.Solr404:
