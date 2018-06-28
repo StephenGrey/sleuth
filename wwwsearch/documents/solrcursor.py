@@ -2,7 +2,7 @@
 from __future__ import unicode_literals
 from builtins import str #backwards to py 2.X
 from bs4 import BeautifulSoup as BS
-import requests, requests.exceptions, logging, collections
+import logging, collections
 from usersettings import userconfig as config
 from ownsearch import solrJson
 log = logging.getLogger('ownsearch.solrcursor')
@@ -12,10 +12,9 @@ class MissingCursorMark(Exception):
     pass
 
 try:
-    dfltsearchterm=config['Test']['testsearchterm']
+    dfltsearchterm=config['Test'].get('testsearchterm','')
 except:
-    dfltsearchterm=''
-
+    raise solrJson.MissingConfigData
 
 ##MAIN FUNCTIONS
 def cursor_by_name(corename='coreexample'):
@@ -115,17 +114,3 @@ def cursor_result(mycore,cursormark,searchterm,highlights=False,rows=100):
         return solrresult
 
 
-#
-#def cursorloop(mycore,searchterm='*',highlights=False):
-#    res=False
-#    while True:
-#        res = cursornext(mycore,searchterm='*',highlights=False,lastresult=res)
-#        if res == False:
-#            break
-#        #ESCAPE ROUTE ;
-#        if not res.results:
-#            break
-#        #DO SOMETHING WITH THE RESULTS
-
-    
-    

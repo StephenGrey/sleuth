@@ -2,7 +2,7 @@
 from __future__ import unicode_literals
 from __future__ import print_function
 from __future__ import absolute_import
-import hashlib,requests,datetime,os
+import hashlib,datetime,os
 from . import indexSolr as i
 from .models import File,Collection,Index
 from ownsearch.hashScan import HexFolderTable as hex
@@ -69,15 +69,17 @@ def pathhash(path):
 
 def hexexists(hex,solrurl):
     url=solrulr+u'/select?fl=id,tika_metadata_resourcename&q=extract_id:'+hex
-    res=requests.get(url)
+    ses=s.SolrSession()
+    res=ses.get(url)
     return res
 
 def post(path,solrurl):
     url=solrurl+u'/update/extract?commit=true'
     simplefilename=path.encode('ascii','ignore')
+    ses=s.SolrSession()
     with open(path,'rb') as f:
             file = {'myfile': (simplefilename,f)}
-            res=requests.post(url, files=file)
+            res=ses.post(url, files=file)
     return res
 
 

@@ -153,7 +153,7 @@ class SequenceByDate(Updater):
             if changes:
                 #make changes to the solr index
                 json2post=makejson(doc.id,changes,self.mycore)
-                log.debug('{}'.format(json2post)) 
+                #log.debug('{}'.format(json2post)) 
                 if self.test_run==False:
                     response,updatestatus=post_jsonupdate(json2post,self.mycore)
                     #print((response,updatestatus))
@@ -416,7 +416,8 @@ def post_jsonupdate(data,mycore,timeout=10):
     url=updateurl
     headers={'Content-type': 'application/json'}
     try:
-        res=requests.post(url, data=data, headers=headers,timeout=timeout)
+        ses=s.SolrSession()
+        res=ses.post(url, data=data, headers=headers,timeout=timeout)
         jres=res.json()
         status=jres['responseHeader']['status']
         if status==0:
@@ -433,7 +434,8 @@ def post_jsondoc(data,mycore):
     url=updateurl
     headers={'Content-type': 'application/json'}
     try:
-        res=requests.post(url, data=data, headers=headers)
+        ses=s.SolrSession()
+        res=ses.post(url, data=data, headers=headers)
         jres=res.json()
         status=jres['responseHeader']['status']
         if status==0:

@@ -139,10 +139,10 @@ class UpdatingTests(TestCase):
 
     
     def test_addparenthash(self):
-       o=updateSolr.AddParentHash(solrcursor.solrJson.SolrCore('newtest1'),field_datasource='docpath',field_to_update='sb_parentpath_hash',test_run=True)
+       o=updateSolr.AddParentHash(solrcursor.solrJson.SolrCore('tests_only'),field_datasource='docpath',field_to_update='sb_parentpath_hash',test_run=True)
        self.assertIsInstance(o,updateSolr.AddParentHash)
        #print(o.__dict__)
-       o=updateSolr.AddParentHash(solrcursor.solrJson.SolrCore('newtest1'),field_datasource='docpath',field_to_update='sb_parentpath_hash',test_run=False)
+       o=updateSolr.AddParentHash(solrcursor.solrJson.SolrCore('tests_only'),field_datasource='docpath',field_to_update='sb_parentpath_hash',test_run=False)
        self.assertIsInstance(o,updateSolr.AddParentHash)
        
     

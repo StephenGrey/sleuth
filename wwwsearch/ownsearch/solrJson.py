@@ -15,6 +15,7 @@ import pytz, iso8601 #support localising the timezone
 from datetime import datetime
 #log = logging.getLogger('ownsearch.solrSoup')
 
+
 class MissingConfigData(Exception): 
     pass
     
@@ -30,6 +31,8 @@ class Solr404(Exception):
     pass
 class PostFailure(Exception):
     pass
+class SolrAuthenticationError(Exception):
+    pass
     
 class SolrCore:
     def __init__(self,mycore):
@@ -41,10 +44,11 @@ class SolrCore:
             else:
                 core=mycore
             
+
             #variables that are specific to this core
             self.url=config['Solr']['url']+mycore # Solr:url is the network address of the Solr backend
             self.name=mycore
-                        
+            
             #variables that can take the defautls
             
             self.unique_id=config[core]['unique_id']
@@ -84,9 +88,11 @@ class SolrCore:
         return res.results,jres
     def ping(self):
         try:
-            res=requests.get(self.url+'/admin/ping')
+            res=SolrSession().get(self.url+'/admin/ping')
             if res.status_code==404:
                 raise SolrCoreNotFound('Core not found')
+            elif res.status_code==401:
+                raise SolrAuthenticationError('Need to log-in')
             #jres=json.loads(res.content)
             jres=res.json()
             if jres['status']=='OK':
@@ -99,8 +105,6 @@ class SolrCore:
             raise SolrConnectionError('Solr Connection Error')
             return False
 
-    def __str__(self):
-        return self.name
 
 class Solrdoc:
     def __init__(self,data={},date='',datetext='',docname='',id=''):
@@ -305,8 +309,25 @@ class SolrResult:
                 #no action required - no highlights
                 pass
 
-
+class SolrSession(requests.Session):
+    def __init__(self):
+        super(SolrSession, self).__init__()
+        if SOLR_USER and SOLR_PASSWORD:
+            self.auth=(SOLR_USER,SOLR_PASSWORD)
+        if SOLR_CERT:
+            self.verify=SOLR_CERT
+    
 log = logging.getLogger('ownsearch.solrJson')
+#server variables
+try:
+    SOLR_USER=config['Solr'].get('user',None)
+    SOLR_PASSWORD=config['Solr'].get('password',None)
+    SOLR_CERT=config['Solr'].get('cert',None)
+except Exception as e:
+    log.error(e)
+    raise MissingConfigData
+
+
 
 def pagesearch(page):
     page.results,page.resultcount,page.facets,page.facets2,page.facets3=solrSearch(page.searchterm,page.sorttype,page.startnumber,page.mycore,filters=page.filters,faceting=page.faceting)
@@ -370,17 +391,18 @@ def getJSolrResponse(searchterm,arguments,core):
     searchurl='{}/select?&q={}{}'.format(core.url,searchterm,arguments)
 #    log.debug('GET URL '+searchurl)
     res=resGet(searchurl)
-#    jres=json.loads(content)
     jres=res.json()
     return jres
 
 def resGet(url,timeout=1):
-    ses = requests.Session()
+    ses = SolrSession()
 # the session instance holds the cookie. So use it to get/post later
     try:
         res=ses.get(url, timeout=timeout)
         if res.status_code==404:
+            log.error('URL: {}'.format(url))
             raise Solr404('404 error - URL not found')
+            
         else:
             return res
     except requests.exceptions.ConnectTimeout as e:
@@ -404,7 +426,8 @@ def resPostfile(url,path,timeout=1):
         with open(path,'rb') as f:
             file = {'myfile': (simplefilename,f)}
             log.debug('{}'.format(simplefilename))
-            res=requests.post(url, files=file,timeout=timeout)
+            ses=SolrSession()
+            res=ses.post(url,files=file,timeout=timeout)
             resstatus=res.status_code
             log.debug('RESULT STATUS: {}'.format(resstatus))
             if resstatus==404:

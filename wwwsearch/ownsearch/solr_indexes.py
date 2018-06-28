@@ -21,7 +21,8 @@ class SolrServer:
         """make checks on solr server"""
         #print (self.url)
         try:
-            res=requests.get(self.url+'admin/cores?action=STATUS')
+            ses=solrJson.SolrSession()
+            res=ses.get(self.url+'admin/cores?action=STATUS')
             if res.status_code == 404:
                 log.warning('404: Bad solr URL')
                 self.server_up=False
