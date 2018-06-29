@@ -44,7 +44,6 @@ class SolrCore:
             else:
                 core=mycore
             
-
             #variables that are specific to this core
             self.url=config['Solr']['url']+mycore # Solr:url is the network address of the Solr backend
             self.name=mycore
@@ -86,9 +85,13 @@ class SolrCore:
         jres=getJSolrResponse(self.dfltsearchterm,args,core=self)
         res=getlist(jres,0,core=self)
         return res.results,jres
+
+    def solr_session(self):
+        return SolrSession()
+    
     def ping(self):
         try:
-            res=SolrSession().get(self.url+'/admin/ping')
+            res=self.solr_session().get(self.url+'/admin/ping')
             if res.status_code==404:
                 raise SolrCoreNotFound('Core not found')
             elif res.status_code==401:
@@ -105,6 +108,20 @@ class SolrCore:
             raise SolrConnectionError('Solr Connection Error')
             return False
 
+class RemoteCore(SolrCore):
+    """ link to another solr server"""
+    def __init__(self,*args, **kwargs):
+        super(RemoteCore,self).__init__(*args, **kwargs)
+        if 'Remote' not in config:
+            raise MissingConfigData('Add \"Remote\" section to usersettings.config')
+        if 'url' not in config['Remote']:
+            raise MissingConfigData('Add \"url\" to \"Remote\" configs')
+        self.url=config['Remote']['url']+self.name
+        log.debug(self.url)
+        self.ping()
+
+    def solr_session(self):
+        return RemoteSolrSession()
 
 class Solrdoc:
     def __init__(self,data={},date='',datetext='',docname='',id=''):
@@ -316,6 +333,16 @@ class SolrSession(requests.Session):
             self.auth=(SOLR_USER,SOLR_PASSWORD)
         if SOLR_CERT:
             self.verify=SOLR_CERT
+            
+class RemoteSolrSession(requests.Session):
+    def __init__(self):
+        super(RemoteSolrSession, self).__init__()
+        if REMOTE_SOLR_USER and REMOTE_SOLR_PASSWORD:
+            self.auth(REMOTE_SOLR_USER,REMOTE_SOLR_PASSWORD)
+        if REMOTE_SOLR_CERT:
+            self.verify=REMOTE_SOLR_CERT
+            
+        log.debug(self.verify)
     
 log = logging.getLogger('ownsearch.solrJson')
 #server variables
@@ -327,7 +354,13 @@ except Exception as e:
     log.error(e)
     raise MissingConfigData
 
-
+#remote variables
+try:
+    REMOTE_SOLR_USER=config['Remote'].get('user',None)
+    REMOTE_SOLR_PASSWORD=config['Remote'].get('password',None)
+    REMOTE_SOLR_CERT=config['Remote'].get('cert',None) 
+except:
+    log.warning('No remote solr server configured')
 
 def pagesearch(page):
     page.results,page.resultcount,page.facets,page.facets2,page.facets3=solrSearch(page.searchterm,page.sorttype,page.startnumber,page.mycore,filters=page.filters,faceting=page.faceting)

@@ -115,22 +115,24 @@
 
 # Enables HTTPS. It is implictly true if you set SOLR_SSL_KEY_STORE. Use this config
 # to enable https module with custom jetty configuration.
-SOLR_SSL_ENABLED=true
+
+#SOLR_SSL_ENABLED=true
+
 # Uncomment to set SSL-related system properties
 # Be sure to update the paths to the correct keystore for your environment
-SOLR_SSL_KEY_STORE=/Users/Stephen/Code/SearchBox/solr/keys/solr-ssl.keystore.jks
+#SOLR_SSL_KEY_STORE=/Users/Stephen/Code/SearchBox/solr/keys/solr-ssl.keystore.jks
 #/Users/Stephen/Code/SearchBox/solr/server
 #/Volumes/Crypt/Keys/zerobeach/filename-new-keystore.jks 
 
-SOLR_SSL_KEY_STORE_PASSWORD=secret
+#SOLR_SSL_KEY_STORE_PASSWORD=secret
 #kjdkfjdjf
-SOLR_SSL_KEY_STORE_TYPE=JKS
-SOLR_SSL_TRUST_STORE=/Users/Stephen/Code/SearchBox/solr/keys/solr-ssl.keystore.jks
+#SOLR_SSL_KEY_STORE_TYPE=JKS
+#SOLR_SSL_TRUST_STORE=/Users/Stephen/Code/SearchBox/solr/keys/solr-ssl.keystore.jks
 #/Volumes/Crypt/Keys/zerobeach/filename-new-keystore.jks
-SOLR_SSL_TRUST_STORE_PASSWORD=secret
+#SOLR_SSL_TRUST_STORE_PASSWORD=secret
 #kjdkfjdjf
-SOLR_SSL_TRUST_STORE_TYPE=JKS
-SOLR_SSL_NEED_CLIENT_AUTH=false
+#SOLR_SSL_TRUST_STORE_TYPE=JKS
+#SOLR_SSL_NEED_CLIENT_AUTH=false
 #SOLR_SSL_WANT_CLIENT_AUTH=false
 
 # Uncomment if you want to override previously defined SSL values for HTTP client
