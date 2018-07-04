@@ -16,7 +16,7 @@ from ownsearch.hashScan import hashfile256 as hexfile
 from ownsearch.hashScan import FileSpecTable as filetable
 from ownsearch.pages import directory_tags
 import datetime, hashlib, os, logging, requests
-from . import indexSolr, updateSolr, solrICIJ, solrDeDup, solrcursor,correct_paths,documentpage
+from . import indexSolr, updateSolr, solrDeDup, solrcursor,correct_paths,documentpage
 import ownsearch.solrJson as solr
 
 from django.contrib.admin.views.decorators import staff_member_required
@@ -89,8 +89,8 @@ def listfiles(request):
                 mycore.ping()
                 selected_collection=int(request.POST[u'choice'])
                 thiscollection=Collection.objects.get(id=selected_collection)
-                icount,iskipped,ifailed,skippedlist,failedlist=indexdocs(thiscollection,mycore) #GO INDEX THE DOCS IN SOLR
-                return HttpResponse ("Indexing.. <p>indexed: {} <p>skipped: {}<p>{}<p>failed: {}<p>{}".format(icount,iskipped,skippedlist,ifailed,failedlist))
+                ext=indexSolr.Extractor(thiscollection,mycore) #GO INDEX THE DOCS IN SOLR
+                return HttpResponse ("Indexing.. <p>indexed: {} <p>skipped: {}<p>{}<p>failed: {}<p>{}".format(ext.counter,ext.skipped,ext.skippedlist,ext.failed,ext.failedlist))
 
     #INDEX VIA ICIJ 'EXTRACT' DOCUMENTS IN COLLECTION IN SOLR
         elif request.method == 'POST' and 'indexICIJ' in request.POST and 'choice' in request.POST:
@@ -99,8 +99,8 @@ def listfiles(request):
                 mycore.ping()
                 selected_collection=int(request.POST[u'choice'])
                 thiscollection=Collection.objects.get(id=selected_collection)
-                icount,iskipped,ifailed,skippedlist,failedlist=indexdocs(thiscollection,mycore,forceretry=True,useICIJ=True) #GO INDEX THE DOCS IN SOLR
-                return HttpResponse ("Indexing with ICIJ tool.. <p>indexed: {} <p>skipped: {}<p>{}<p>failed: {}<p>{}".format(icount,iskipped,skippedlist,ifailed,failedlist))
+                ext=indexSolr.Extractor(thiscollection,mycore,forceretry=True,useICIJ=True) #GO INDEX THE DOCS IN SOLR
+                return HttpResponse ("Indexing with ICIJ tool.. <p>indexed: {} <p>skipped: {}<p>{}<p>failed: {}<p>{}".format(ext.counter,ext.skipped,ext.skippedlist,ext.failed,ext.failedlist))
     
     #INDEX VIA ICIJ 'EXTRACT' DOCUMENTS IN COLLECTION IN SOLR ::: NO OCR PROCES
         elif request.method == 'POST' and 'indexICIJ_NO_OCR' in request.POST and 'choice' in request.POST:
@@ -327,110 +327,6 @@ def indexcheck(collection,thiscore):
                     skipped+=1
         return counter,skipped,failed
 
-#MAIN METHOD FOR EXTRACTING DATA
-def indexdocs(collection,mycore,forceretry=False,useICIJ=False,ocr=True): #index into Solr documents not already indexed
-    #need to check if mycore and collection are valid objects
-    if isinstance(mycore,solr.SolrCore) == False or isinstance(collection,Collection) == False:
-        log.warning('indexdocs() parameters invalid')
-        return 0,0,0,[],[]
-    if True:
-        counter=0
-        skipped=0
-        failed=0
-        skippedlist,failedlist=[],[]
-        #print(collection)
-        filelist=File.objects.filter(collection=collection)
-        #main loop
-        for file in filelist:
-            if file.indexedSuccess:
-                #skip this file, it's already indexed
-                #print('Already indexed')
-                skipped+=1
-                skippedlist.append(file.filepath)
-            elif file.indexedTry==True and forceretry==False:
-                #skip this file, tried before and not forceing retry
-                log.info('Skipped on previous index failure; no retry: {}'.format(file.filepath))
-                skipped+=1
-                skippedlist.append(file.filepath)
-            elif indexSolr.ignorefile(file.filepath) is True:
-                #skip this file because it is on ignore list
-                log.info('Ignoring: {}'.format(file.filepath))
-                skipped+=1
-                skippedlist.append(file.filepath)
-            else: #do try to index this file
-                log.info('Attempting index of {}'.format(file.filepath))
-                #print('trying ...',file.filepath)
-                #if was previously indexed, store old solr ID and then delete if new index successful
-                oldsolrid=file.solrid
-                #get source
-                try:
-                    sourcetext=file.collection.source.sourceDisplayName
-                except:
-                    sourcetext=''
-                    log.debug('No source defined for file: {}'.format(file.filename))
-                #getfile hash if not already done
-                if not file.hash_contents:
-                    file.hash_contents=hexfile(file.filepath)
-                    file.save()
-                #now try the extract
-                if useICIJ:
-                    log.info('using ICIJ extract method..')
-                    result = solrICIJ.ICIJextract(file.filepath,mycore,ocr=ocr)
-                    if result is True:
-                        try:
-                            new_id=solr.hashlookup(file.hash_contents,mycore).results[0].id #id of the first result returned
-                            file.solrid=new_id
-                            log.info('(ICIJ extract) New solr ID: '+new_id)
-                        except:
-                            log.warning('Extracted doc not found in index')
-                            result=False
-                    if result is True:
-                    #post extract process -- add meta data field to solr doc, e.g. source field
-                        try:
-                            sourcetext=file.collection.source.sourceDisplayName
-                        except:
-                            sourcetext=''
-                        if sourcetext:
-                            try:
-                                result=solrICIJ.postprocess(new_id,sourcetext,file.hash_contents,mycore)
-                                if result==True:
-                                    log.debug('Added source: \"{}\" to docid: {}'.format(sourcetext,new_id))
-                            except Exception as e:
-                                log.error('Cannot add meta data to solrdoc: {}, error: {}'.format(new_id,e))
-                else:
-                    try:
-                        result=indexSolr.extract(file.filepath,file.hash_contents,mycore,sourcetext=sourcetext)
-                    except solr.SolrCoreNotFound as e:
-                        raise indexSolr.ExtractInterruption('Indexing interrupted after '+str(counter)+' files extracted, '+str(skipped)+' files skipped and '+str(failed)+' files failed.')
-                    except solr.SolrConnectionError as e:
-                        raise indexSolr.ExtractInterruption('Indexing interrupted after '+str(counter)+' files extracted, '+str(skipped)+' files skipped and '+str(failed)+' files failed.')
-                    except requests.exceptions.RequestException as e:
-                        raise indexSolr.ExtractInterruption('Indexing interrupted after '+str(counter)+' files extracted, '+str(skipped)+' files skipped and '+str(failed)+' files failed.')               
-         
-                if result is True:
-                    counter+=1
-                    #print ('PATH :'+file.filepath+' indexed successfully')
-                    if not useICIJ:
-                        file.solrid=file.hash_filename  #extract uses hashfilename for an id , so add it
-
-                    file.indexedSuccess=True
-                    #now delete previous solr doc (if any): THIS IS ONLY NECESSARY IF ID CHANGES  
-                    log.info('Old ID: '+oldsolrid+' New ID: '+file.solrid)
-                    if oldsolrid and oldsolrid!=file.solrid:
-                        log.info('now delete old solr doc'+str(oldsolrid))
-                        #DEBUG: NOT TESTED YET
-                        response,status=updateSolr.delete(oldsolrid,mycore)
-                        if status:
-                            log.info('Deleted solr doc with ID:'+oldsolrid)
-                    file.save()
-                else:
-                    log.info('PATH : '+file.filepath+' indexing failed')
-                    failed+=1
-                    file.indexedTry=True  #set flag to say we've tried
-                    log.debug('Saving updated file info in database')
-                    file.save()
-                    failedlist.append(file.filepath)
-        return counter,skipped,failed,skippedlist,failedlist
     
 def pathHash(path):
     m=hashlib.md5()

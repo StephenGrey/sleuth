@@ -134,7 +134,8 @@ def collection2solrcore(collection):
 def fields(obj):
     return obj._meta.get_fields()
     
-def clearindexTry(collection,ext=''):
+def clear_indexTry(collection,ext=''):
+    """reset flag that shows extracting already attempted"""
     if ext:
         listfiles=File.objects.filter(collection=collection,fileext=ext)
     else:
@@ -142,7 +143,19 @@ def clearindexTry(collection,ext=''):
     for file in listfiles:
        file.indexedTry=False
        file.save()
-       
+
+def clear_indexedSuccess(collection,ext=''):
+    """reset flag to show successful extraction"""
+    if ext:
+        listfiles=File.objects.filter(collection=collection,fileext=ext)
+    else:
+        listfiles=File.objects.filter(collection=collection)
+    for file in listfiles:
+       file.indexedSuccess=False
+       file.save()
+
+
+
 def ckdates(collection):
     count=0
     mycore=collection2solrcore(collection)
@@ -169,14 +182,7 @@ def ckdates(collection):
 # id,tika_metadata_last_modified, last_modified, tika_metadata_resourcename, tika_metadata_date, date                    
 def times(path):
     return os.path.getmtime(path)
-    
-def pingtest(mycore):
-    try:
-        mycore.ping()
-    except s.SolrConnectionError as e:
-        print(e)
-        return e
-        
+            
 
 def ICIJindex(collection,mycore): #indexdocs(collection,mycore,forceretry=False,useICIJ=False)
     counter,skipped,failed=v.indexdocs(collection,mycore,forceretry=True,useICIJ=True)

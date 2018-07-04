@@ -77,7 +77,13 @@ class ContentPage(Page):
     def process_result(self,result):
         self.result=result
         self.docsize=result.data.get('solrdocsize')
-        self.docpath=result.data.get('docpath')
+
+        #deal with dups with multi-value paths
+        self.docpaths=result.data.get('docpath')
+        try:
+            self.docpath=self.docpaths[0]
+        except:
+            self.docpath=None
         self.rawtext=result.data.get('rawtext')
         self.docname=result.docname
         self.hashcontents=result.data.get('hashcontents')

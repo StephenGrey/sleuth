@@ -723,8 +723,6 @@ def updatefield(mycore,newvalue,maxcount=30000):
 
 #move
 
-
-
 def metareplace(mycore,resultfield,find_ex,replace_ex,searchterm='*',sourcefield='',test=False):
     """Update a field with regular expression find and replace"""   
     #example: u.metareplace(mc,'docpath','^','foldername/',searchterm='* -foldername',sourcefield='',test=False) 

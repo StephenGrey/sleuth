@@ -167,7 +167,11 @@ class Solrdoc:
                 self.datetext=''
             self.data['solrdocsize']=self.data.pop(core.docsizefield,'')
             self.data['rawtext']=self.data.pop(core.rawtext,'')                
+            
             self.data['docpath']=self.data.pop(core.docpath,'')
+            if isinstance(self.data['docpath'], str):
+                self.data['docpath']=[self.data['docpath']]
+                            
             self.data['hashcontents']=self.data.pop(core.hashcontentsfield,'')
             self.data['tags1']=self.data.pop(core.tags1field,'')
             self.data['preview_url']=self.data.pop(core.preview_url,'')
@@ -602,7 +606,7 @@ def getmeta(docid,core):
     args+=","+core.nextfield if core.nextfield else ""
     args+=","+core.sequencefield if core.sequencefield else ""
     jres=getJSolrResponse(searchterm,args,core=core)
-    print(args,jres)
+    log.debug(args,jres)
     res=getlist(jres,0,core=core)
     return res.results
     
