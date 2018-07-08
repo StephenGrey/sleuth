@@ -13,6 +13,7 @@ from django.shortcuts import render
 from django.contrib.auth.decorators import login_required
 from django.http import HttpResponse
 from django.http import HttpResponseRedirect
+from django.urls import reverse
 from django.db.models.base import ObjectDoesNotExist
 from django.contrib.staticfiles.templatetags.staticfiles import static #returns static url
 from django.contrib.staticfiles import finders #locates static file
@@ -24,7 +25,6 @@ try:
     from urllib.parse import quote_plus #python3
 except ImportError:
     from urllib import quote_plus #python2
-
 from documents import solrcursor,updateSolr
 from datetime import datetime
 from usersettings import userconfig as config
@@ -48,7 +48,7 @@ def do_search(request,page_number=0,**kwargs):
     request.session['lastsearch']=path_info
 
     page=pages.SearchPage(page_number=page_number,searchurl=path_info, **kwargs)
-         
+    
     #log.debug('SESSION CACHE: '+str(vars(request.session)))
     log.debug('Request: {}    User: {}'.format(path_info,request.user))
     log.debug('Search parameters: {}'.format(page.__dict__))
@@ -80,21 +80,23 @@ def do_search(request,page_number=0,**kwargs):
     #SET THE RESULT PAGE    
         page.page_number=int(page.page_number) #urls always returns strings only
         log.info('Page: {}'.format(page.page_number))
+
     
     #DO SEARCH IF PAGE ESTABLISHED 
         
         if page.page_number > 0: #if page value not default (0) then proceed directly with search
             log.info('User {} searching with searchterm: {} and tag \"{}\" and tag2 \"{}\" on page {}'.format(request.user.username,page.searchterm,page.tag1,page.tag2,page.page_number))
             try:
-                form = SearchForm(choice_list,str(page.coreID),page.sorttype,page.searchterm)
+#                log.debug(page.start_date)
+#                log.debug(type(page.start_date))
+                form = SearchForm(choice_list,str(page.coreID),page.sorttype,page.searchterm,page.start_date,page.end_date)
 
                 page.startnumber=(page.page_number-1)*RESULTS_PER_PAGE
                 page.faceting=True
                 """go search>>>>>>>>>>>>>>>>>>>>>>>>>>>>"""
                 solrJson.pagesearch(page)
                 page.nextpages(RESULTS_PER_PAGE)
-
-
+                
             except Exception as e:
                 log.error('Error {}'.format(e))
                 page.clear_()
@@ -103,38 +105,36 @@ def do_search(request,page_number=0,**kwargs):
         # if this is a POST request we need to process the form data
         elif request.method == 'POST': #if data posted from form
             # create a form instance and populate it with data from the request:
-            form = SearchForm(choice_list,str(page.coreID),page.sorttype,page.searchterm,request.POST)
+            form = SearchForm(choice_list,str(page.coreID),page.sorttype,page.searchterm,None,None,request.POST)
             # check whether it's valid:
             if form.is_valid():
                 # process the data in form.cleaned_data as required
+
                 page.searchterm=form.cleaned_data['search_term'] #type Unicode
                 page.sorttype=form.cleaned_data['SortType']
+                page.start_date=form.cleaned_data['start_date']
+                page.end_date=form.cleaned_data['end_date']
+
+
                 coreselect=int(form.cleaned_data['CoreChoice'])
                 if coreselect != page.coreID:  #NEW INDEX SELECTED
                     log.debug('change core')
                     page.coreID=coreselect  #new solr core ID
                     request.session['mycore']=page.coreID  #store the chosen index
-        #            mycore=corelist[coreID]  #select new SolrCore object
                     log.debug('selected core'+str(coreselect))
-#                request.session['results']='' #clear results from any previous searches
                 
-                page.searchterm_urlsafe=quote_plus(page.searchterm.encode('utf-8')) #type Ascii
-#                log.debug('safe searchterm: {}'.format(page.searchterm_urlsafe))
-                page.searchurl="/ownsearch/searchterm={}&page=1&sorttype={}".format(page.searchterm_urlsafe,page.sorttype)
-#                request.session['lastsearch']=page.searchurl
+                page.process_page_meta()
                 return HttpResponseRedirect(page.searchurl)
-                
-                    
+            else:
+                log.debug(form.__dict__)        
         # START BLANK FORM if a GET (or any other method) we'll create a blank form; and clear last search
         else:
-            form = SearchForm(choice_list,str(page.coreID),page.sorttype,page.searchterm)
+            form = SearchForm(choice_list,str(page.coreID),page.sorttype,page.searchterm,None,None)
             page.clear_()
             page.resultcount=-1
             request.session['lastsearch']=''
-
-        page.filterlist=[(tag,page.filters[tag]) for tag in page.filters]
-        log.debug('Filter list : {}'.format(page.filterlist))
-        #log.debug('All page data: {}'.format(searchpage.__dict__))
+        page.process_page_meta()
+        log.debug('All page data: {}'.format(page.__dict__))
         return render(request, 'searchform.html', {'form': form, 'page':page})
 
     except solrJson.SolrCoreNotFound as e:

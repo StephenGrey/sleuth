@@ -12,8 +12,7 @@ from django.db.utils import OperationalError
 from usersettings import userconfig as config
 from django.utils import timezone
 import pytz, iso8601 #support localising the timezone
-from datetime import datetime
-#log = logging.getLogger('ownsearch.solrSoup')
+from datetime import datetime, timedelta
 
 
 class MissingConfigData(Exception): 
@@ -367,12 +366,16 @@ except:
     log.warning('No remote solr server configured')
 
 def pagesearch(page):
-    page.results,page.resultcount,page.facets,page.facets2,page.facets3=solrSearch(page.searchterm,page.sorttype,page.startnumber,page.mycore,filters=page.filters,faceting=page.faceting)
+    page.results,page.resultcount,page.facets,page.facets2,page.facets3=solrSearch(page.searchterm,page.sorttype,page.startnumber,page.mycore,filters=page.filters,faceting=page.faceting,start_date=page.start_date,end_date=page.end_date)
     return
 
 #MAIN SEARCH METHOD  (q is search term)
-def solrSearch(q,sorttype,startnumber,core,filters={},faceting=False):
+def solrSearch(q,sorttype,startnumber,core,filters={},faceting=False,start_date=None,end_date=None):
     core.ping()
+
+    #make date filter
+    print('DATES',start_date,end_date)
+    datefilter=make_datefilter(start_date,end_date)
 
     #create arguments
     facetargs=''
@@ -393,6 +396,8 @@ def solrSearch(q,sorttype,startnumber,core,filters={},faceting=False):
         args+='&sort={} asc'.format(core.docnamefield)
     elif sorttype=='docnameR':
         args+='&sort={} desc'.format(core.docnamefield)
+    
+    #make filters
     log.debug('Filter dict: {}'.format(filters))
     for filtertag in filters:
         filtertext=filters[filtertag]
@@ -407,6 +412,8 @@ def solrSearch(q,sorttype,startnumber,core,filters={},faceting=False):
         else:
             continue
         args=args+'&fq={}:"{}"'.format(filterfield,filtertext)
+    if datefilter:
+        args+='&fq={}:{}'.format(core.datefield,datefilter)
     log.debug('args: {}'.format(args))
     
 # get the response
@@ -678,6 +685,15 @@ def getcores():
 
 ##TIME FUNCTIONS
 
+def make_datefilter(start_date,end_date):
+    assert isinstance(start_date,datetime) or not start_date
+    assert isinstance(end_date,datetime) or not end_date
+    if not start_date and not end_date:
+        return None
+    start_stamp=timestringGMT(start_date) if start_date else '*'
+    end_stamp=timestringGMT(end_date+timedelta(days=1)) if end_date else '*'
+    return "[{} TO {}]".format(start_stamp,end_stamp)
+    
 def timestamp2aware(timestamp):
     return timeaware(timefromstamp(timestamp))
 

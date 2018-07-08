@@ -12,9 +12,14 @@
   <link rel="stylesheet" type="text/css" href="{% static 'bootstrap1.min.css' %}" />
   <script src="{% static 'jquery.min.js' %}"></script>
   <script src="{% static 'bootstrap.min.js' %}"></script>  
+  <link rel="stylesheet" type="text/css" href="{% static 'css/style1.css' %}" />
+
 <!--<script src="https://ajax.googleapis.com/ajax/libs/jquery/1.12.4/jquery.min.js"></script>
 --> <!-- <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"></script>-->
-  <link rel="stylesheet" type="text/css" href="{% static 'css/style1.css' %}" />
+
+<link rel="stylesheet" href="http://code.jquery.com/ui/1.11.0/themes/smoothness/jquery-ui.css">
+<!--<script src="http://code.jquery.com/jquery-1.9.1.js"></script>-->
+<script src="http://code.jquery.com/ui/1.11.0/jquery-ui.js"></script>
 
 <div class="container">
 <div class="row" style="background: lightblue; padding: 5px">
@@ -48,7 +53,9 @@
     </div>
 
   </div>
+{% block javascript %}
 
+{% endblock %}
 {% else %}
     <p>Welcome, Guest <a href="{% url 'login' %}?next=/ownsearch"">[login]</a></p>
 {% endif %}
