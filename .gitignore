@@ -54,6 +54,3 @@ wwwsearch/htmlcov/*
 wwwsearch/documents/.DS_Store
 solr/solr-7.2.0/bin/solr.in.sh
 solr/keys/*
-solr/solr-7.2.0/bin/solr.in.sh
-solr/solr-7.2.0/bin/solr.in.sh
-solr/solr-7.2.0/bin/solr.in.sh
