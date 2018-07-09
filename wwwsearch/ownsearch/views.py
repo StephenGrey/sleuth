@@ -85,9 +85,9 @@ def do_search(request,page_number=0,**kwargs):
     #DO SEARCH IF PAGE ESTABLISHED 
         
         if page.page_number > 0: #if page value not default (0) then proceed directly with search
-            log.info('User {} searching with searchterm: {} and tag \"{}\" and tag2 \"{}\" on page {}'.format(request.user.username,page.searchterm,page.tag1,page.tag2,page.page_number))
+            log.info('User {} searching with searchterm: {} and tag \"{}\" and tag2 \"{}\" on page {} with core {}'.format(request.user.username,page.searchterm,page.tag1,page.tag2,page.page_number,page.coreID))
             try:
-#                log.debug(page.start_date)
+                log.debug(page.__dict__)
 #                log.debug(type(page.start_date))
                 form = SearchForm(choice_list,str(page.coreID),page.sorttype,page.searchterm,page.start_date,page.end_date)
 
