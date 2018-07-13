@@ -63,6 +63,7 @@ class UserEdit(models.Model):
     username= models.CharField('user name',max_length=50,default='',blank=True)
     time_modified=models.DateTimeField('time modified',blank=True,null=True)
     corename=models.CharField('Corename',max_length=20,default='')
+    index_updated=models.BooleanField('Index Updated',default=False)
 
     def __str__(self):
-        return self.usertags+self.usertags
+        return "Change #{}: {} added by {} to solrdoc {}".format(self.pk,self.usertags,self.username,self.solrid)

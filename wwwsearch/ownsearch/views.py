@@ -212,6 +212,7 @@ def get_content(request,doc_id,searchterm,tagedit='False'):
     if request.method == 'POST': #if data posted from form
         # create a form instance and populate it with data from the request:
         form = TagForm('',request.POST)
+        log.debug('Tags data posted: {} Form all: {}'.format(request.POST,form.__dict__))
             # check whether it's valid:
         if request.POST.get('edit','')=='Edit':
             log.debug('Editing user tags')
@@ -233,10 +234,7 @@ def get_content(request,doc_id,searchterm,tagedit='False'):
                 updateresult=updateSolr.updatetags(page.doc_id,page.mycore,keyclean)
                 if updateresult:
                     log.info('Update success of user tags: {} in solrdoc: {} by user {}'.format(keyclean,page.doc_id,request.user.username))
-                    edit=UserEdit(solrid=page.doc_id,usertags=keyclean,corename=page.mycore.name)
-                    edit.username=request.user.username
-                    edit.time_modified=solrJson.timeaware(datetime.now())
-                    edit.save()
+                    update_user_edits(page,keyclean,request.user.username)
                 else:
                     log.debug('Update failed of user tags: {} in solrdoc: {}'.format(keyclean,page.doc_id))
             return HttpResponseRedirect("/ownsearch/doc={}&searchterm={}".format(page.doc_id,page.searchterm))
@@ -303,6 +301,14 @@ def get_content(request,doc_id,searchterm,tagedit='False'):
         #log.debug('Page contents : {}'.format(page.result.__dict__))
         return render(request, 'content_small.html', {'form':form,'page':page})
 
+
+def update_user_edits(page,keyclean,username):
+     #log.debug('{}{}'.format(keyclean,type(keyclean)))
+     edit=UserEdit(solrid=page.doc_id,usertags=keyclean,corename=page.mycore.name)
+     edit.username=username
+     edit.time_modified=solrJson.timeaware(datetime.now())
+     edit.save()
+    
 
 @login_required
 def get_bigcontent(request,page): #make a page of highlights, for MEGA files

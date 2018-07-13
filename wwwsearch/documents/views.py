@@ -3,19 +3,20 @@
 EXTRACT FILES TO INDEX AND UPDATE INDEX """
 from __future__ import unicode_literals, print_function
 from __future__ import absolute_import
-from django.http import HttpResponse
+from django.http import HttpResponse,JsonResponse
 #from django.core.urlresolvers import reverse #DEPRACATED Django 2.0
 from django.urls import reverse
 from .forms import IndexForm
 from django.shortcuts import render, redirect
 from django.utils import timezone
+
 import pytz #support localising the timezone
-from .models import Collection,File,Index
+from .models import Collection,File,Index,UserEdit
 from ownsearch.hashScan import HexFolderTable as hex
 from ownsearch.hashScan import hashfile256 as hexfile
 from ownsearch.hashScan import FileSpecTable as filetable
 from ownsearch.pages import directory_tags
-import datetime, hashlib, os, logging, requests
+import datetime, hashlib, os, logging, requests, json
 from . import indexSolr, updateSolr, solrDeDup, solrcursor,correct_paths,documentpage
 import ownsearch.solrJson as solr
 

@@ -2,14 +2,18 @@ from django.test import TestCase
 from django.contrib.auth.models import User, Group, Permission
 from django.core.management.base import BaseCommand, CommandError
 from django.db.models.query import QuerySet
-from documents import setup, documentpage,solrcursor,updateSolr
-from documents.models import  Index, Collection, Source
-from ownsearch.solrJson import SolrResult
+from django.urls import reverse
+from documents import setup, documentpage,solrcursor,updateSolr,api
+from documents.models import  Index, Collection, Source, UserEdit
+from ownsearch.solrJson import SolrResult,SolrCore
+from ownsearch import pages
+from ownsearch import views as views_search
 from django.test.client import Client
-import logging,re
+import logging,re,requests
+from django.core import serializers
 
 ## store any password to login later
-password = 'mypassword' 
+PASSWORD = 'mypassword' 
 
 
 class DocumentsTest(TestCase):
@@ -22,9 +26,13 @@ class DocumentsTest(TestCase):
         #CONTROL LOGGING IN TESTS
         logging.disable(logging.CRITICAL)
         
-        #print('Tests: setting up a user, usergroup and permissions')
-        my_admin = User.objects.create_superuser('myuser', 'myemail@test.com', password)
-        self.admin_user=User.objects.get(username='myuser')
+#        #print('Tests: setting up a user, usergroup and permissions')
+#        my_admin = User.objects.create_superuser('myuser', 'myemail@test.com', PASSWORD)
+#        self.admin_user=User.objects.get(username='myuser')
+        
+        #check admin user exists
+        make_admin_or_login(self)
+        
         #make an admin group and give it permissions
         admingroup,usergroup=setup.make_admingroup(self.admin_user,verbose=False)
 #        print(Group.objects.all())
@@ -40,8 +48,9 @@ class DocumentsTest(TestCase):
         samplecollection.save()
         anothercollection=Collection(path='another/different/path/somewhere',core=self.sampleindex,indexedFlag=False,source=source)
         anothercollection.save()
+
         # You'll need to log him in before you can send requests through the client
-        self.client.login(username=my_admin.username, password=password)
+        self.client.login(username=my_admin.username, password=PASSWORD)
         
         # Establish an indexing page
         self.page=documentpage.CollectionPage()
@@ -149,3 +158,105 @@ class UpdatingTests(TestCase):
        self.assertIsInstance(o,updateSolr.AddParentHash)
        
     
+
+class ChangeApiTests(TestCase):
+    """test Api for returning user changes"""
+    #
+    
+    def setUp(self):
+        #check admin user exists
+        make_admin_or_login(self)
+        
+         
+        #make some user edits
+        self.page=pages.ContentPage(doc_id='someid',searchterm='test searchterm')
+        self.page.mycore=SolrCore('some_solr_index',test=True)
+        
+        keyclean=[re.sub(r'[^\w, ]','',item) for item in ['Donald Trump','Cat','Tower']]
+        views_search.update_user_edits(self.page,keyclean,'admin')
+        
+        self.page=pages.ContentPage(doc_id='someid2',searchterm='another searchterm')
+        self.page.mycore=SolrCore('some_solr_index',test=True)
+        keyclean=[re.sub(r'[^\w, ]','',item) for item in ['Hilary Clinton','politics','USA']]
+        views_search.update_user_edits(self.page,keyclean,'user1')
+        
+    def test_api_changes(self):
+        
+        #check useredits already saved
+        existing=UserEdit.objects.all()
+        self.assertEquals(existing[0].usertags,"['Donald Trump', 'Cat', 'Tower']")
+
+        #check useredits api
+        data=api.get_api_result(self.client,'',selftest=True,updateid=1)
+        decoded_data=api.deserial(data)
+        
+        self.assertIsInstance(decoded_data[0],serializers.base.DeserializedObject)
+        self.assertEquals(decoded_data[0].object.usertags,"""['Donald Trump', 'Cat', 'Tower']""")
+        
+        #check it exists already
+        self.assertFalse(api.savecheck(decoded_data[0]))
+        for edit in decoded_data:
+            if api.savecheck(edit):
+                edit.save()
+            else:
+                api.changes_append(edit)
+                
+        new_changes=UserEdit.objects.all()
+        self.assertEquals(new_changes[2].usertags,"['Donald Trump', 'Cat', 'Tower']")
+        self.assertEquals(new_changes[2].pk,3)
+               
+        #add sample data 
+        data="""[{"model": "documents.useredit", "pk": 1, "fields": {"solrid": "j98kjdf9u9384jkjdf", "usertags": "[u'Karl Smith', u'Mark Brown', u'BritishTelecom']", "username": "admin", "time_modified": "2018-01-24T15:29:35.496Z", "corename": "Morocco"}}]"""
+         
+        #check adding new docs to UserEdit database
+        api.process_api_result(data)
+        self.assertEquals(UserEdit.objects.all()[3].pk,4)
+        self.assertEquals(UserEdit.objects.all()[3].usertags,"[u'Karl Smith', u'Mark Brown', u'BritishTelecom']")
+        
+    def test_get_remotechanges(self):
+        u=api.Updater()
+        u.process()
+    
+    def test_process_remotechanges(self):
+        # Establish an indexing page
+        self.page=documentpage.CollectionPage()
+#        self.page.getcores(self.admin_user)
+       
+        api.update_unprocessed(admin=True,test=True)
+
+        
+    def test_set_flag(self):
+        edit=UserEdit.objects.get(pk=1)
+        flag=edit.index_updated
+        api.set_flag(edit,value=True,attr='index_updated')
+        self.assertEquals(edit.index_updated,True)
+        api.set_flag(edit,value=False,attr='index_updated')
+        self.assertEquals(edit.index_updated,False)
+        
+    
+    def test_tagform(self):
+        #post a choice
+        from django.http import QueryDict
+        request_method="POST"
+        data=QueryDict('',mutable=True)
+        data.update({'keywords':"Donald Trump, Richard Nixon"})
+        form=views_search.TagForm('',data)
+        form.is_valid()        
+        self.assertTrue(form.is_valid())
+        self.assertTrue(form.cleaned_data['keywords']==['Donald Trump', 'Richard Nixon'] or form.cleaned_data['keywords']==['Richard Nixon','Donald Trump'])
+        
+    def test_deserial_taglist(self):
+        stored="[u'Donald Trump', u'Richard Nixon']"
+        #print(api.deserial_taglist(stored))
+        self.assertEquals(api.deserial_taglist(stored),['Donald Trump', 'Richard Nixon'])
+
+def make_admin_or_login(tester):
+    try:
+        tester.admin_user=User.objects.get(username='myuser')
+    except User.DoesNotExist:
+        my_admin = User.objects.create_superuser('myuser', 'myemail@test.com', PASSWORD)
+        tester.admin_user=User.objects.get(username='myuser')
+
+    #login as admin
+    tester.client.login(username=my_admin.username, password=PASSWORD)
+        

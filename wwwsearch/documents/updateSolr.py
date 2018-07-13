@@ -689,16 +689,17 @@ def listmeta():
 
 #POST EXTRACTION PROCESSING
 
-def updatetags(solrid,mycore,value=['test','anothertest'],field_to_update='usertags1field',newfield=False):
+def updatetags(solrid,mycore,value=['test','anothertest'],field_to_update='usertags1field',newfield=False,test=False):
     """ADD ADDITIONAL METADATA TO SOLR RECORDS """
     #check the parameters
     field=mycore.__dict__.get(field_to_update,field_to_update) #decode the standard field, or use the name'as is'.
-    if newfield==False:
+    if newfield==False and test==False:
         try:
             assert s.fieldexists(field,mycore) #check the field exists in the index
         except AssertionError as e:
             log.info('Field \"{}\" does not exist in index'.format(field))
             return False
+
     #make the json
     doc=collections.OrderedDict()  #keeps the JSON file in a nice order
     doc[mycore.unique_id]=solrid

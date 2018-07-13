@@ -34,7 +34,7 @@ class SolrAuthenticationError(Exception):
     pass
     
 class SolrCore:
-    def __init__(self,mycore):
+    def __init__(self,mycore,test=False):
         try:
             #if mycore is integer, make it string
             mycore=str(mycore)
@@ -74,8 +74,10 @@ class SolrCore:
             self.beforefield=config[core].get('beforefield','')
             self.sequencefield=config[core].get('sequencefield','')
             self.preview_url=config[core].get('preview_url','')
-            if not fieldexists(self.tags1field,self): #check if the tag field is defined in index
-                self.tags1field=''
+            if test==False:
+                if not fieldexists(self.tags1field,self): #check if the tag field is defined in index
+                    self.tags1field=''
+                
 
         except KeyError:
             raise MissingConfigData
