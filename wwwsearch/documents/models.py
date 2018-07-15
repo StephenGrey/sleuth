@@ -66,4 +66,9 @@ class UserEdit(models.Model):
     index_updated=models.BooleanField('Index Updated',default=False)
 
     def __str__(self):
-        return "Change #{}: {} added by {} to solrdoc {}".format(self.pk,self.usertags,self.username,self.solrid)
+        return "Change #{}: \"{}\" added by \"{}\" to solrdoc \"{}\" in index \"{}\"".format(self.pk,self.usertags,self.username,self.solrid,self.corename)
+
+class SyncStatus(models.Model):
+    remote_useredit_lastid=models.IntegerField('Last imported edit id',default=1)
+    
+    

@@ -32,6 +32,8 @@ class PostFailure(Exception):
     pass
 class SolrAuthenticationError(Exception):
     pass
+class SolrDocNotFound(Exception):
+    pass
     
 class SolrCore:
     def __init__(self,mycore,test=False):
@@ -420,6 +422,7 @@ def solrSearch(q,sorttype,startnumber,core,filters={},faceting=False,start_date=
     
 # get the response
     try:
+        log.debug('fq:{},args:{},core{}'.format(q,args,core))
         jres=getJSolrResponse(q,args,core=core)
         #print(jres)
         #print(soup.prettify())    
@@ -429,6 +432,7 @@ def solrSearch(q,sorttype,startnumber,core,filters={},faceting=False,start_date=
         reslist=[]
         numbers=-2
         log.warning('Connection error to Solr')
+        return None,None,None,None,None
     return res.results,res.numberfound,res.facets,res.facets2,res.facets3
     
 #JSON 
@@ -619,6 +623,27 @@ def getmeta(docid,core):
     res=getlist(jres,0,core=core)
     return res.results
     
+
+def getfield(docid,field,core):
+    """return contents of single field in solr doc"""
+    searchterm='{}:\"{}\"'.format(core.unique_id,docid)
+    args='&fl={}'.format(field)
+    jres=getJSolrResponse(searchterm,args,core=core)
+    try:
+        results=SolrResult(jres,core,startcount=0).results
+        if len(results)>0:
+            result=results[0]
+            if field in result.data:
+                return result.data[field]
+            else:
+                log.debug('Field {} not found in solrdoc {}'.format(field,docid))
+                return None
+        else:
+            log.debug('Solrdoc {} not found on index {}'.format(docid,core.name))
+            raise SolrDocNotFound
+    except KeyError:
+        log.debug('Error on search for {} with field {} in index {}'.format(docid,field,core.name))
+        return None
 
 def parsebighighlights(highlights_all):
     highlights={}

@@ -6,10 +6,10 @@ from django.urls import reverse
 from documents import setup, documentpage,solrcursor,updateSolr,api
 from documents.models import  Index, Collection, Source, UserEdit
 from ownsearch.solrJson import SolrResult,SolrCore
-from ownsearch import pages
+from ownsearch import pages,solrJson
 from ownsearch import views as views_search
 from django.test.client import Client
-import logging,re,requests
+import logging,re,requests,getpass
 from django.core import serializers
 
 ## store any password to login later
@@ -214,16 +214,23 @@ class ChangeApiTests(TestCase):
         self.assertEquals(UserEdit.objects.all()[3].usertags,"[u'Karl Smith', u'Mark Brown', u'BritishTelecom']")
         
     def test_get_remotechanges(self):
-        u=api.Updater()
-        u.process()
+        api.get_remotechanges(test=True)
+    
+    def test_update_unprocessed(self):
+        api.update_unprocessed(admin=True,test=True)
     
     def test_process_remotechanges(self):
         # Establish an indexing page
         self.page=documentpage.CollectionPage()
 #        self.page.getcores(self.admin_user)
-       
         api.update_unprocessed(admin=True,test=True)
 
+    def test_getfield(self):
+        solrid=input("Solr ID?")
+        corename=input("corename?")
+        core=SolrCore(corename)
+        field_text=solrJson.getfield(solrid,core.usertags1field,core)
+        print(field_text)
         
     def test_set_flag(self):
         edit=UserEdit.objects.get(pk=1)

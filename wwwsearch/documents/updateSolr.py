@@ -410,21 +410,27 @@ def checkupdate(id,changes,mycore):
     return status
 
 
-def post_jsonupdate(data,mycore,timeout=10):
+def post_jsonupdate(data,mycore,timeout=10,test=False):
     """ I/O with Solr API """
     updateurl=mycore.url+'/update/json?commit=true'
     url=updateurl
     headers={'Content-type': 'application/json'}
     try:
         ses=s.SolrSession()
-        res=ses.post(url, data=data, headers=headers,timeout=timeout)
-        jres=res.json()
-        status=jres['responseHeader']['status']
+        if not test:
+            res=ses.post(url, data=data, headers=headers,timeout=timeout)
+            jres=res.json()
+            status=jres['responseHeader']['status']
+
+        else:
+            log.info('TEST ONLY: simulate post to {}, with data {} and headers {}'.format(url,data,headers))
+            status=0
+            jres={'Test':True}
         if status==0:
             statusOK = True
         else:
             statusOK = False
-        return res.json(), statusOK
+        return jres, statusOK
     except Exception as e:
         log.debug('Exception: {}'.format(e))
         return '',False
@@ -708,7 +714,7 @@ def updatetags(solrid,mycore,value=['test','anothertest'],field_to_update='usert
     log.debug('Json to post: {}'.format(jsondoc))
 
     #post the update
-    result,status=post_jsonupdate(jsondoc,mycore,timeout=10)
+    result,status=post_jsonupdate(jsondoc,mycore,timeout=10,test=test)
     
     #check the result
     log.info('Solr doc update: result: {}, status: {}'.format(result,status))
