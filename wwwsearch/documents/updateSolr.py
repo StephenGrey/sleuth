@@ -17,7 +17,7 @@ import pytz #support localising the timezone
 log = logging.getLogger('ownsearch.updateSolr')
 from usersettings import userconfig as config
 
-docstore=config['Models']['collectionbasepath'] #get base path of the docstore
+DOCSTORE=config['Models']['collectionbasepath'] #get base path of the docstore
 
 
 class Updater:
@@ -254,7 +254,7 @@ def sequence(mycore,regex='^XXX(\d+)_Part(\d+)(_*)OCR'):
 #
 
 
-def scandocs(collection,deletes=True):
+def scandocs(collection,deletes=True,docstore=DOCSTORE):
     """SCAN AND MAKE UPDATES TO BOTH LOCAL FILE META DATABASE AND SOLR INDEX"""
     
     change=changes(collection)  #get dictionary of changes to file collection (compare disk folder to meta database)
@@ -270,10 +270,9 @@ def scandocs(collection,deletes=True):
     #(only remove from database when successfully removed from solrindex, so if solr is down won't lose sync)
     if deletes and change['deletedfiles']:
         try:
-            removedeleted(change['deletedfiles'],collection)
+            removedeleted(change['deletedfiles'],collection,docstore=docstore)
         except Exception as e:
-            print('failed to remove deleted files from solr index') 
-            print(('Error: ',str(e)))
+            log.debug('Failed to remove deleted files from solr index. Error: {}'.format(e)) 
 
     #alters meta in the the solr index (via an atomic update)
 #    try:
@@ -283,23 +282,61 @@ def scandocs(collection,deletes=True):
     listchanges=countchanges(change)
     return listchanges #newfiles,deleted,moved,unchanged,changedfiles
 
+def check_hash_in_solrdata(contents_hash,mycore):    
+    try:
+        existing_docs=s.hashlookup(contents_hash,mycore).results
+        if not existing_docs:
+            log.debug('hash \"{}\" not found in index'.format(contents_hash))
+            return None
+        if len(existing_docs)>1:
+            raise DuplicateRecords
+        return existing_docs[0]
+    except s.SolrConnectionError:
+        raise s.SolrConnectionError
+    except Exception as e:
+        log.debug(e)
+        log.info('hash \"{}\" not found in index'.format(contents_hash))
+        return None
+        
+def check_file_in_solrdata(file_in_database,mycore):
+    return check_hash_in_solrdata(file_in_database.hash_contents,mycore)
 
-def removedeleted(deletefiles,collection):
+def removedeleted(deletefiles,collection,docstore=DOCSTORE):
     cores=s.getcores() #fetch dictionary of installed solr indexes (cores)
     mycore=cores[collection.core.id]
-    #log.debug('Delete from core: {}'.format(mycore))
+    log.debug('Delete from core: {}'.format(mycore))
     filelist=File.objects.filter(collection=collection)
     for path in deletefiles:
         file=filelist.get(filepath=path)
+        
         #first remove from solrindex
-        #log.debug('FIle to delete {}, id: {}'.format(file,file.solrid))
-        response,status=delete(file.solrid,mycore)
-        #log.debug('Delete success: {}'.format(status))
-        if status:
+        relpath=os.path.relpath(file.filepath,start=docstore)
+        log.debug('File to delete {} from id: {}'.format(relpath,file.solrid))        
+        result=remove_filepath_or_delete_solrrecord(file.solrid,relpath,mycore)
+        if result:
         #if no error then remove from file database
             file.delete()
-            print('Deleted '+path)
+            log.debug('Deleted {}'.format(path))
     return
+
+def remove_filepath_or_delete_solrrecord(oldsolrid,filepath,mycore):
+    olddoc=check_hash_in_solrdata(oldsolrid,mycore)
+    paths=olddoc.data.get('docpath')
+    log.debug('Paths found in existing doc: {}'.format(paths))
+    log.debug('Deleting \'{}\' from filepaths in solrdoc \'{}\''.format(filepath,oldsolrid))
+    
+    if len(paths)>1:
+        print(filepath,paths)
+        paths.remove(filepath)
+        updatetags(oldsolrid,mycore,field_to_update='docpath',value=paths)
+        log.info('Deleting {} from filepaths in solrdoc {}'.format(filepath,oldsolrid))
+        return True
+    else:
+        response,status=delete(oldsolrid,mycore)
+        if status:
+            log.info('Deleted solr doc with ID:'+oldsolrid)
+            return True
+
 
 def delete(solrid,mycore):
     """delete a file from solr index"""
@@ -521,10 +558,13 @@ def parsechanges(solrresult,file,mycore):
 #    print olddocsize,olddocpath,olddocname, oldlastmodified
     #compare solr data with new metadata & make list of changes
     changes=[] #changes=[('tika_metadata_content_length','tika_metadata_content_length',100099)]
-    relpath=os.path.relpath(file.filepath,start=docstore) #extract the relative path from the docstore
-    if olddocpath != relpath:
-        log.info('need to update filepath from old: {} to new: {}'.format(olddocpath,relpath))
-        changes.append(('docpath','docpath',relpath))
+
+#DEBUG REMOVED BELOW - NEEDS TO COPE WITH DUP FILEPATHS 
+#    relpath=os.path.relpath(file.filepath,start=DOCSTORE) #extract the relative path from the docstore
+#    if olddocpath != relpath:
+#        log.info('need to update filepath from old: {} to new: {}'.format(olddocpath,relpath))
+#        changes.append(('docpath','docpath',relpath))
+# 
     if olddocsize != file.filesize:
         log.info('need to update filesize from old {} to new {}'.format(olddocsize,file.filesize))
         changes.append(('solrdocsize','solrdocsize',file.filesize))
@@ -551,7 +591,6 @@ def updates(change,collection):
 
     #UPDATE DATABASE WITH NEW FILES    
     if newfiles:
-        print((len(newfiles),' new files'))
         for path in newfiles:
             if os.path.exists(path)==True: #check file exists
                 #now create new entry in File database
@@ -590,7 +629,7 @@ def updates(change,collection):
                 file.indexedSuccess=False
                 file.hash_contents=newhash
 #                file.indexUpdateMeta=True  #flag to correct solrindex
-            #the solrid field is not cleared = the index process can check if it exists and delete the old doc
+            #NB the solrid field is not cleared = the index process can check if it exists and delete the old doc
             #else-if the file has been already indexed, flag to correct solr index meta
             elif file.indexedSuccess==True:
                 file.indexUpdateMeta=True  #flag to correct solrindex
@@ -654,13 +693,21 @@ def changes(collection):
         #print (newpath+' is new')
         newhash=hexfile(newpath)
         #print(newhash)
-        newfileshash[newhash]=newpath
+        if newhash in newfileshash:
+            newfileshash[newhash].append(newpath)
+        else:
+            newfileshash[newhash]=[newpath]
 
     #now work out which new files have been moved
     for missingfilepath in missingfiles:
         missinghash=missingfiles[missingfilepath]
-        newpath=newfileshash.pop(missinghash, None)
-        if newpath:
+        
+        newpaths=newfileshash.get(missinghash)
+        if newpaths:
+            #take one of the new files from list (no particular logic on which is moved / new)
+            newpath=newpaths.pop()
+            #put back the reduced list
+            newfileshash[missinghash]=newpaths
             #print(os.path.basename(missingfilepath)+' has moved to '+os.path.dirname(newpath))
             movedfiles.append([newpath,missingfilepath])
         else: #remaining files are deleted
@@ -668,8 +715,9 @@ def changes(collection):
   
   #remaining files in newfilehash are new 
     for newhash in newfileshash:
-        newpath=newfileshash[newhash]
-        newfiles.append(newpath)
+        newpaths=newfileshash[newhash]
+        for newpath in newpaths:
+            newfiles.append(newpath)
     
     log.info('NEWFILES>>>>>{}'.format(newfiles))
     log.info('DELETEDFILES>>>>>>>{}'.format(deletedfiles))

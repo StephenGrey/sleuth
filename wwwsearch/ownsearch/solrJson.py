@@ -475,7 +475,7 @@ def resPostfile(url,path,timeout=1):
     try:
         with open(path,'rb') as f:
             file = {'myfile': (simplefilename,f)}
-            log.debug('{}'.format(simplefilename))
+            log.debug('Posting filename: {}'.format(simplefilename))
             ses=SolrSession()
             res=ses.post(url,files=file,timeout=timeout)
             resstatus=res.status_code

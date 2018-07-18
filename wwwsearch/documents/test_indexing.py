@@ -3,18 +3,19 @@ from django.contrib.auth.models import User, Group, Permission
 from django.core.management.base import BaseCommand, CommandError
 from django.db.models.query import QuerySet
 from django.urls import reverse
-from documents import setup, documentpage,solrcursor,updateSolr,api
-from documents.models import  Index, Collection, Source, UserEdit
+from documents import setup, documentpage,solrcursor,updateSolr,api,indexSolr
+from documents.models import  Index, Collection, Source, UserEdit,File
 from ownsearch.solrJson import SolrResult,SolrCore
 from ownsearch import pages,solrJson
 from ownsearch import views as views_search
 from django.test.client import Client
-import logging,re,requests,getpass
+import logging,re,requests,getpass,os
 from django.core import serializers
+from django.conf import settings
 
 ## store any password to login later
 PASSWORD = 'mypassword' 
-
+MANUAL=False
 
 class DocumentsTest(TestCase):
     """ Tests for documents module """
@@ -30,7 +31,7 @@ class DocumentsTest(TestCase):
 #        my_admin = User.objects.create_superuser('myuser', 'myemail@test.com', PASSWORD)
 #        self.admin_user=User.objects.get(username='myuser')
         
-        #check admin user exists
+        #check admin user exists and login
         make_admin_or_login(self)
         
         #make an admin group and give it permissions
@@ -49,8 +50,8 @@ class DocumentsTest(TestCase):
         anothercollection=Collection(path='another/different/path/somewhere',core=self.sampleindex,indexedFlag=False,source=source)
         anothercollection.save()
 
-        # You'll need to log him in before you can send requests through the client
-        self.client.login(username=my_admin.username, password=PASSWORD)
+#        # You'll need to log him in before you can send requests through the client
+#        self.client.login(username=my_admin.username, password=PASSWORD)
         
         # Establish an indexing page
         self.page=documentpage.CollectionPage()
@@ -157,8 +158,157 @@ class UpdatingTests(TestCase):
        o=updateSolr.AddParentHash(solrcursor.solrJson.SolrCore('tests_only'),field_datasource='docpath',field_to_update='sb_parentpath_hash',test_run=False)
        self.assertIsInstance(o,updateSolr.AddParentHash)
        
-    
 
+class ExtractTest(TestCase):
+    """test extract documents to Solr"""
+    def setUp(self):
+        #logging.disable(logging.INFO)
+        
+        #check admin user exists
+        make_admin_or_login(self)
+
+        #make an admin group and give it permissions
+        admingroup,usergroup=setup.make_admingroup(self.admin_user,verbose=False)
+        setup.make_default_index(usergroup,verbose=False,corename='tests_only')
+        self.sampleindex=Index.objects.get(corename='tests_only')
+        self.testsource, res=Source.objects.get_or_create(sourceDisplayName='Test source',sourcename='testsource')
+
+        self.docstore=os.path.abspath(os.path.join(os.path.dirname(__file__), '../tests/testdocs'))
+        print(self.docstore)
+        
+        self.testdups_path=os.path.abspath(os.path.join(os.path.dirname(__file__), '../tests/testdocs/dups'))
+        collectiondups=Collection(path=self.testdups_path,core=self.sampleindex,indexedFlag=False,source=self.testsource)
+        collectiondups.save()
+        
+    def test_Extractor(self):
+        mycore=solrJson.SolrCore('tests_only')
+        
+        #ERASE EVERYTHING FROM TESTS_ONLY 
+        res,status=updateSolr.delete_all(mycore)
+        self.assertTrue(status)
+        
+        #make non-existent collection
+        collection=Collection(path='some/path/somewhere',core=self.sampleindex,indexedFlag=False,source=self.testsource)
+        collection.save()
+        ext=indexSolr.Extractor(collection,mycore)
+        #NOTHING HAPPENS ON EMPTY FILELIST
+        
+        #NOW SCAN THE COLLECTION
+        scanfiles=updateSolr.scandocs(collection)
+        self.assertEquals(scanfiles,[0, 0, 0, 0, 0])
+        collection.save()
+        
+        testdups_path=os.path.abspath(os.path.join(os.path.dirname(__file__), '../tests/testdocs/dups'))
+        collectiondups=Collection.objects.get(path=testdups_path)
+
+        #NOW SCAN THE COLLECTION
+        scanfiles=updateSolr.scandocs(collectiondups)        
+        self.assertEquals(scanfiles,[6, 0, 0, 0, 0])
+
+        ext=indexSolr.Extractor(collectiondups,mycore,docstore=self.docstore)
+        self.assertEquals((4,2,0),(ext.counter,ext.skipped,ext.failed))
+
+        #self.assertEquals(
+        print(indexSolr.check_hash_in_solrdata("6d50ecaf0fb1fc3d59fd83f8e9ef962cf91eb14e547b2231e18abb12f6cfa809",mycore).data['docpath'])
+        #,['dups/HilaryEmailC05793347.pdf', 'dups/HilaryEmailC05793347 copy.pdf', 'dups/dup_in_folder/HilaryEmailC05793347 copy.pdf'])
+        
+    def test_deletefiles(self):
+        """ remove one among several duplicates"""
+        
+        testdups_path=os.path.abspath(os.path.join(os.path.dirname(__file__), '../tests/testdocs/dups'))
+        collectiondups=Collection.objects.get(path=testdups_path)
+        tempdir=os.path.join(self.docstore,'temp')
+        origindir=os.path.join(self.docstore,'dups')
+        filename='HilaryEmailC05793347.pdf'
+        mycore=solrJson.SolrCore('tests_only')
+
+        #ERASE EVERYTHING FROM TESTS_ONLY 
+        res,status=updateSolr.delete_all(mycore)
+        self.assertTrue(status)
+
+        try: #put back file from failed test
+            os.rename(os.path.join(tempdir,filename),os.path.join(origindir,filename))        
+        except:
+            pass
+
+        #NOW SCAN THE COLLECTION
+        scanfiles=updateSolr.scandocs(collectiondups,docstore=self.docstore) 
+        ext=indexSolr.Extractor(collectiondups,mycore,docstore=self.docstore)
+        self.assertEquals(indexSolr.check_hash_in_solrdata("6d50ecaf0fb1fc3d59fd83f8e9ef962cf91eb14e547b2231e18abb12f6cfa809",mycore).data['docpath'],['dups/HilaryEmailC05793347.pdf', 'dups/HilaryEmailC05793347 copy.pdf', 'dups/dup_in_folder/HilaryEmailC05793347 copy.pdf'])
+
+
+        #MOVE OUT OF COLLECTION
+        os.rename(os.path.join(origindir,filename),os.path.join(tempdir,filename))
+        
+        scanfiles=updateSolr.scandocs(collectiondups,docstore=self.docstore)
+        self.assertEquals(scanfiles,[0, 1, 0, 5, 0])      
+        ext=indexSolr.Extractor(collectiondups,mycore,docstore=self.docstore)
+        self.assertEquals(indexSolr.check_hash_in_solrdata("6d50ecaf0fb1fc3d59fd83f8e9ef962cf91eb14e547b2231e18abb12f6cfa809",mycore).data['docpath'],
+        ['dups/HilaryEmailC05793347 copy.pdf', 'dups/dup_in_folder/HilaryEmailC05793347 copy.pdf'])
+        
+        #MOVE BACK AGAIN
+        os.rename(os.path.join(tempdir,filename),os.path.join(origindir,filename))        
+        scanfiles=updateSolr.scandocs(collectiondups,docstore=self.docstore)        
+        ext=indexSolr.Extractor(collectiondups,mycore,docstore=self.docstore)
+        self.assertEquals(indexSolr.check_hash_in_solrdata("6d50ecaf0fb1fc3d59fd83f8e9ef962cf91eb14e547b2231e18abb12f6cfa809",mycore).data['docpath'],
+        ['dups/HilaryEmailC05793347 copy.pdf', 'dups/dup_in_folder/HilaryEmailC05793347 copy.pdf', 'dups/HilaryEmailC05793347.pdf'])
+        
+        
+    def test_changefiles(self):
+        testchanges_path=os.path.abspath(os.path.join(os.path.dirname(__file__), '../tests/testdocs/changes'))
+        mycore=solrJson.SolrCore('tests_only')
+        
+        #delete relevant files
+        updateSolr.delete('d5cf9b334b0e479d2a070f9c239b154bf1a894d14f2547b3c894f95e6b0dad67',mycore)
+        updateSolr.delete('4be826ace55d600ee70d7a4335ca26abc1b3e22dee62935c210f2c80ea5ba0d0',mycore)
+
+#        collection=Collection(path=self.testdups_path,core=self.sampleindex,indexedFlag=False,source=self.testsource)
+#        collectiondups.save()
+        collection,res=Collection.objects.get_or_create(path=testchanges_path,core=self.sampleindex,indexedFlag=False,source=self.testsource)
+        self.assertTrue(res)
+
+        scanfiles=updateSolr.scandocs(collection,docstore=self.docstore) 
+        ext=indexSolr.Extractor(collection,mycore,docstore=self.docstore)
+        self.assertEquals(indexSolr.check_hash_in_solrdata("d5cf9b334b0e479d2a070f9c239b154bf1a894d14f2547b3c894f95e6b0dad67",mycore).data['docpath'],['changes/changingfile.txt'])
+        self.assertEquals(indexSolr.check_hash_in_solrdata("4be826ace55d600ee70d7a4335ca26abc1b3e22dee62935c210f2c80ea5ba0d0",mycore),None)
+        
+        
+        change_file()
+        #NOW SCAN THE COLLECTION
+        scanfiles=updateSolr.scandocs(collection,docstore=self.docstore) 
+        ext=indexSolr.Extractor(collection,mycore,docstore=self.docstore)
+        change_file()
+        self.assertEquals(indexSolr.check_hash_in_solrdata("d5cf9b334b0e479d2a070f9c239b154bf1a894d14f2547b3c894f95e6b0dad67",mycore),None)
+        self.assertEquals(indexSolr.check_hash_in_solrdata("4be826ace55d600ee70d7a4335ca26abc1b3e22dee62935c210f2c80ea5ba0d0",mycore).data['docpath'],['changes/changingfile.txt'])
+
+    def test_change_dupfiles(self):
+        testchanges_path=os.path.abspath(os.path.join(os.path.dirname(__file__), '../tests/testdocs/changes_and_dups'))
+        mycore=solrJson.SolrCore('tests_only')
+        
+        #delete relevant files
+        updateSolr.delete('d5cf9b334b0e479d2a070f9c239b154bf1a894d14f2547b3c894f95e6b0dad67',mycore)
+        updateSolr.delete('4be826ace55d600ee70d7a4335ca26abc1b3e22dee62935c210f2c80ea5ba0d0',mycore)
+
+        collection,res=Collection.objects.get_or_create(path=testchanges_path,core=self.sampleindex,indexedFlag=False,source=self.testsource)
+        self.assertTrue(res)
+
+        scanfiles=updateSolr.scandocs(collection,docstore=self.docstore) 
+        ext=indexSolr.Extractor(collection,mycore,docstore=self.docstore)
+#        self.assertEquals(indexSolr.check_hash_in_solrdata("d5cf9b334b0e479d2a070f9c239b154bf1a894d14f2547b3c894f95e6b0dad67",mycore).data['docpath'],['changes/changingfile.txt'])
+#        self.assertEquals(indexSolr.check_hash_in_solrdata("4be826ace55d600ee70d7a4335ca26abc1b3e22dee62935c210f2c80ea5ba0d0",mycore),None)
+        
+        
+        change_file(relpath='changes_and_dups/changingfile.txt')
+        #NOW SCAN THE COLLECTION
+        scanfiles=updateSolr.scandocs(collection,docstore=self.docstore) 
+        ext=indexSolr.Extractor(collection,mycore,docstore=self.docstore)
+        change_file(relpath='changes_and_dups/changingfile.txt')
+#        self.assertEquals(indexSolr.check_hash_in_solrdata("d5cf9b334b0e479d2a070f9c239b154bf1a894d14f2547b3c894f95e6b0dad67",mycore),None)
+#        self.assertEquals(indexSolr.check_hash_in_solrdata("4be826ace55d600ee70d7a4335ca26abc1b3e22dee62935c210f2c80ea5ba0d0",mycore).data['docpath'],['changes/changingfile.txt'])
+
+
+
+        
 class ChangeApiTests(TestCase):
     """test Api for returning user changes"""
     #
@@ -179,6 +329,8 @@ class ChangeApiTests(TestCase):
         self.page.mycore=SolrCore('some_solr_index',test=True)
         keyclean=[re.sub(r'[^\w, ]','',item) for item in ['Hilary Clinton','politics','USA']]
         views_search.update_user_edits(self.page,keyclean,'user1')
+        
+        
         
     def test_api_changes(self):
         
@@ -213,8 +365,10 @@ class ChangeApiTests(TestCase):
         self.assertEquals(UserEdit.objects.all()[3].pk,4)
         self.assertEquals(UserEdit.objects.all()[3].usertags,"[u'Karl Smith', u'Mark Brown', u'BritishTelecom']")
         
-    def test_get_remotechanges(self):
-        api.get_remotechanges(test=True)
+    def test_get_remotechanges(self,manual=MANUAL):
+        #this test will only operate manually
+        if manual:
+            api.get_remotechanges(test=True)
     
     def test_update_unprocessed(self):
         api.update_unprocessed(admin=True,test=True)
@@ -225,12 +379,12 @@ class ChangeApiTests(TestCase):
 #        self.page.getcores(self.admin_user)
         api.update_unprocessed(admin=True,test=True)
 
-    def test_getfield(self):
-        solrid=input("Solr ID?")
-        corename=input("corename?")
-        core=SolrCore(corename)
-        field_text=solrJson.getfield(solrid,core.usertags1field,core)
-        print(field_text)
+#    def test_getfield(self):
+#        solrid=input("Solr ID?")
+#        corename=input("corename?")
+#        core=SolrCore(corename)
+#        field_text=solrJson.getfield(solrid,core.usertags1field,core)
+#        print(field_text)
         
     def test_set_flag(self):
         edit=UserEdit.objects.get(pk=1)
@@ -267,3 +421,21 @@ def make_admin_or_login(tester):
     #login as admin
     tester.client.login(username=my_admin.username, password=PASSWORD)
         
+
+def change_file(docstore=os.path.abspath(os.path.join(os.path.dirname(__file__), '../tests/testdocs')),relpath='changes/changingfile.txt'):
+    """a test file that alternates contents"""
+    filepath=os.path.join(docstore,relpath)
+    print(filepath)
+    text1="The first version of events"
+    text2="The second version of events"
+    with open(filepath, "r+") as f:
+        data = f.read()
+        f.seek(0)
+        if data==text1:
+            f.write(text2)
+            f.truncate()
+        else:
+            f.write(text1)
+            f.truncate()
+
+

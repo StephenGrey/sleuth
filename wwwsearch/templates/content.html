@@ -2,6 +2,13 @@
 
 {% block sidebar %}
 	<a href="{{page.searchurl}}">Back to Results</a>
+	<p><p>
+	{% if page.docpaths.1%}
+	Identical docs:<p>
+		{% for path in page.docpaths%}
+			{{path}}
+		{%endfor%}
+	{% endif %}	
 {% endblock %}
 
 {% block top_content %}

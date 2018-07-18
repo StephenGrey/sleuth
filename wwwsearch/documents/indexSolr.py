@@ -11,7 +11,7 @@ log = logging.getLogger('ownsearch.indexsolr')
 from usersettings import userconfig as config
 from ownsearch.solrJson import SolrConnectionError
 from ownsearch.solrJson import SolrCoreNotFound
-from documents.updateSolr import delete
+from documents.updateSolr import delete,updatetags,check_hash_in_solrdata,check_file_in_solrdata,remove_filepath_or_delete_solrrecord
 from ownsearch import solrJson as s
 from fnmatch import fnmatch
 from . import solrICIJ
@@ -51,7 +51,7 @@ class DuplicateRecords(Exception):
 
 class Extractor():
     """extract a collection of docs into solr"""
-    def __init__(self,collection,mycore,forceretry=False,useICIJ=False,ocr=True):
+    def __init__(self,collection,mycore,forceretry=False,useICIJ=False,ocr=True,docstore=''):
         
         if not isinstance(mycore,s.SolrCore) or not isinstance(collection,Collection):
             raise BadParameters("Bad parameters for extraction")
@@ -60,7 +60,7 @@ class Extractor():
         self.forceretry=forceretry
         self.useICIJ=useICIJ
         self.ocr=ocr
-        
+        self.docstore=docstore
         self.counter,self.skipped,self.failed=0,0,0
         self.skippedlist,self.failedlist=[],[]
 
@@ -92,68 +92,61 @@ class Extractor():
                     file.hash_contents=hexfile(file.filepath)
                     file.save()
                 
-                #check if exists already in solr index
-                existing_doc=check_file_in_solrdata(file,self.mycore)
+                #check by hash of contents if doc exists already in solr index
+                existing_doc=check_file_in_solrdata(file,self.mycore) #searches by hashcontents, not solrid
                 if existing_doc:
-                    log.debug('Existing docpath: {}'.format(existing_doc.data.get('docpath')))
-                
-                
-                
-                #now try the extract
-                if self.useICIJ:
-                    log.info('using ICIJ extract method..')
-                    result = solrICIJ.ICIJextract(file.filepath,self.mycore,ocr=ocr)
-                    if result is True:
-                        try:
-                            new_id=s.hashlookup(file.hash_contents,self.mycore).results[0].id #id of the first result returned
-                            file.solrid=new_id
-                            log.info('(ICIJ extract) New solr ID: '+new_id)
-                        except:
-                            log.warning('Extracted doc not found in index')
-                            result=False
-                    if result is True:
-                    #post extract process -- add meta data field to solr doc, e.g. source field
-                        try:
-                            sourcetext=file.collection.source.sourceDisplayName
-                        except:
-                            sourcetext=''
-                        if sourcetext:
-                            try:
-                                result=solrICIJ.postprocess(new_id,sourcetext,file.hash_contents,self.mycore)
-                                if result==True:
-                                    log.debug('Added source: \"{}\" to docid: {}'.format(sourcetext,new_id))
-                            except Exception as e:
-                                log.error('Cannot add meta data to solrdoc: {}, error: {}'.format(new_id,e))
+                    #FIX META ONLY
+                    result=self.update_existing_meta(file,existing_doc)
+
                 else:
-                    try:
-                        result=extract(file.filepath,file.hash_contents,self.mycore,sourcetext=sourcetext)
-                    except (s.SolrCoreNotFound,s.SolrConnectionError,requests.exceptions.RequestException) as e:
-                        raise ExtractInterruption(self.interrupt_message())
-         
+                #now try the extract
+                    if self.useICIJ:
+                        log.info('using ICIJ extract method..')
+                        result = solrICIJ.ICIJextract(file.filepath,self.mycore,ocr=ocr)
+                        if result is True:
+                            try:
+                                new_id=s.hashlookup(file.hash_contents,self.mycore).results[0].id #id of the first result returned
+                                file.solrid=new_id
+                                file.save()
+                                log.info('(ICIJ extract) New solr ID: '+new_id)
+                            except:
+                                log.warning('Extracted doc not found in index')
+                                result=False
+                        if result is True:
+                        #post extract process -- add meta data field to solr doc, e.g. source field
+                            try:
+                                sourcetext=file.collection.source.sourceDisplayName
+                            except:
+                                sourcetext=''
+                            if sourcetext:
+                                try:
+                                    result=solrICIJ.postprocess(new_id,sourcetext,file.hash_contents,self.mycore)
+                                    if result==True:
+                                        log.debug('Added source: \"{}\" to docid: {}'.format(sourcetext,new_id))
+                                except Exception as e:
+                                    log.error('Cannot add meta data to solrdoc: {}, error: {}'.format(new_id,e))
+                    else:
+                        try:
+                            result=extract(file.filepath,file.hash_contents,self.mycore,sourcetext=sourcetext,docstore=self.docstore)
+                        except (s.SolrCoreNotFound,s.SolrConnectionError,requests.exceptions.RequestException) as e:
+                            raise ExtractInterruption(self.interrupt_message())
+             
                 if result is True:
                     self.counter+=1
                     #print ('PATH :'+file.filepath+' indexed successfully')
-                    if existing_doc:
-                        if existing_doc.data.get('docpath'):
-                            
-                            log.debug('Previous filepath exists')
-                            log.debug('Now append the new and old filepath')
-                            u.updatetags(file.solrid,mycore,field_to_update='docpath',value=existing_doc.data.get('docpath').append(file.filepath))
-                        else:
-                            log.debug('Filepath is unique')
-                    
+                        
                     if not self.useICIJ:
-                        file.solrid=file.hash_filename  #extract uses hashfilename for an id , so add it
-
+                        file.solrid=file.hash_contents  #extract uses hashcontents for an id , so add it
+                    
                     file.indexedSuccess=True
-                    #now delete previous solr doc (if any): THIS IS ONLY NECESSARY IF ID CHANGES  
+                    
+                    #now delete previous solr doc of moved file(if any): THIS IS ONLY NECESSARY IF ID CHANGES  
                     log.info('Old ID: '+oldsolrid+' New ID: '+file.solrid)
+                    
                     if oldsolrid and oldsolrid!=file.solrid:
-                        log.info('now delete old solr doc'+str(oldsolrid))
-                        #DEBUG: NOT TESTED YET
-                        response,status=delete(oldsolrid,self.mycore)
-                        if status:
-                            log.info('Deleted solr doc with ID:'+oldsolrid)
+                        log.info('now delete or update old solr doc'+str(oldsolrid))
+                        relpath=make_relpath(file.filepath,docstore=self.docstore)
+                        remove_filepath_or_delete_solrrecord(oldsolrid,relpath,self.mycore)
                     file.save()
                 else:
                     log.info('PATH : '+file.filepath+' indexing failed')
@@ -162,8 +155,28 @@ class Extractor():
                     log.debug('Saving updated file info in database')
                     file.save()
                     self.failedlist.append(file.filepath)
-#        return counter,skipped,failed,skippedlist,failedlist
 
+    def update_existing_meta(self,file,existing_doc):
+        """update meta of existing solr doc"""
+        file.solrid=existing_doc.id
+        log.debug('Existing docpath: {}'.format(existing_doc.data.get('docpath')))
+        #no need to extract
+        paths=existing_doc.data.get('docpath')
+        relpath=make_relpath(file.filepath,docstore=self.docstore)
+        if paths:
+            if relpath not in paths:
+                paths.append(relpath)
+                log.debug('Updating doc \"{}\" to append the old and new filepath {} to make {}'.format(file.solrid,file.filepath,paths))
+                result=updatetags(file.solrid,self.mycore,field_to_update='docpath',value=paths)
+            else:
+                log.debug('Path to file already stored in solr index')
+                result=True
+        else:
+            log.error('Filepath not found in existing doc')
+            result=False
+        file.save()
+        return result
+       
     def skip_file(self,file):
         if file.indexedSuccess:
             pass
@@ -182,6 +195,12 @@ class Extractor():
 
     def interrupt_message(self):
         return '{} files extracted, {} files skipped and {} files failed.'.format(self.counter,self.skipped,self.failed)
+
+
+class ExtractFile():
+    def __init__(self):
+        pass
+
     
 #FILE METHODS
 def pathHash(path):
@@ -203,23 +222,7 @@ def scanPath(parentFolder):  #recursively check all files in a file folder and g
 
 #SOLR METHODS
 
-def check_hash_in_solrdata(contents_hash,mycore):    
-    try:
-        existing_docs=s.hashlookup(contents_hash,mycore).results
-        if not existing_docs:
-            return None
-        if len(existing_docs)>1:
-            raise DuplicateRecords
-        return existing_docs[0]
-    except s.SolrConnectionError:
-        raise s.SolrConnectionError
-    except Exception as e:
-        log.debug(e)
-        log.info('hash \"{}\" not found in index'.format(contents_hash))
-        return None
-        
-def check_file_in_solrdata(file_in_database,mycore):
-    return check_hash_in_solrdata(file_in_database.hash_contents,mycore)
+
 
 def extract_test(test=True,timeout=TIMEOUT):
     #get path to test file
@@ -242,8 +245,8 @@ def extract_test(test=True,timeout=TIMEOUT):
     result=extract(path,hash,mycore,test=test,timeout=TIMEOUT)
     return result
 
-def extract(path,contentsHash,mycore,test=False,timeout=TIMEOUT,sourcetext=''):
-    """extract a path to solr index (mycore), storing hash of contents (avoiding timewasting recompute, optional testrun, timeout); throws exception if no connection to solr index, otherwise failures return False"""
+def extract(path,contentsHash,mycore,test=False,timeout=TIMEOUT,sourcetext='',docstore=''):
+    """extract a path to solr index (mycore), storing hash of contents, optional testrun, timeout); throws exception if no connection to solr index, otherwise failures return False"""
     
     try:
         assert isinstance(mycore,s.SolrCore)
@@ -277,7 +280,8 @@ def extract(path,contentsHash,mycore,test=False,timeout=TIMEOUT,sourcetext=''):
     else:
         #>>>>go index, use MD5 of path as unique ID
         #and calculate filename to put in index
-        relpath=os.path.relpath(path,start=DOCSTORE) #extract a relative path from the docstore root
+        relpath=make_relpath(path,docstore=docstore)
+        #extract a relative path from the docstore root
         args='{}&literal.{}={}&literal.{}={}'.format(extractargs,id_field,contentsHash,docnamesourcefield,os.path.basename(path))
         args+='&literal.{}={}&literal.{}={}'.format(filepathfield,relpath,pathhashfield,pathHash(path))
         #if a different field for hashcontents other than the unique ID (key) then store also in that field
@@ -305,7 +309,7 @@ def postSolr(args,path,mycore,timeout=1):
     extracturl=mycore.url+'/update/extract?'
     url=extracturl+args
     log.debug('POSTURL: {}  TIMEOUT: {}'.format(url,timeout))
-    log.debug('Types posturl: {} path: {}'.format(type(url),type(timeout)))
+    #log.debug('Types posturl: {} path: {}'.format(type(url),type(timeout)))
     try:
         res=s.resPostfile(url,path,timeout=timeout) #timeout=
         log.debug('Returned json: {} type: {}'.format(res._content,type(res._content)))
@@ -329,11 +333,18 @@ def postSolr(args,path,mycore,timeout=1):
     else:
         return False,0
 
-#check if filepath fits an ignore pattern (no check to see if file exists)
+
+"""UTILITIES:"""
+
+def make_relpath(path,docstore=''):
+    if not docstore:
+        docstore=DOCSTORE
+    return os.path.relpath(path,start=docstore)
+
 def ignorefile(path):
+    """check if filepath fits an ignore pattern (no check to see if file exists)"""
     head,filename=os.path.split(path)
     if any(fnmatch(filename, pattern) for pattern in IGNORELIST):
-        print('Ignore', filename)
         return True
     else:
         return False

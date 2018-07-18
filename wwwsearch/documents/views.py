@@ -110,8 +110,9 @@ def listfiles(request):
                 mycore.ping()
                 selected_collection=int(request.POST[u'choice'])
                 thiscollection=Collection.objects.get(id=selected_collection)
-                icount,iskipped,ifailed,skippedlist,failedlist=indexdocs(thiscollection,mycore,forceretry=True,useICIJ=True,ocr=False) #GO INDEX THE DOCS IN SOLR
-                return HttpResponse ("Indexing with ICIJ tool (no OCR).. <p>indexed: {} <p>skipped: {}<p>{}<p>failed: {}<p>{}".format(icount,iskipped,skippedlist,ifailed,failedlist))    
+                
+                ext=indexSolr.Extractor(thiscollection,mycore,forceretry=True,useICIJ=True,ocr=False) #GO INDEX THE DOCS IN SOLR
+                return HttpResponse ("Indexing with ICIJ tool (no OCR).. <p>indexed: {} <p>skipped: {}<p>{}<p>failed: {}<p>{}".format(ext.counter,ext.skipped,ext.skippedlist,ext.failed,ext.failedlist))    
     
     
     #CURSOR SEARCH OF SOLR INDEX
@@ -152,6 +153,7 @@ def listfiles(request):
         print ('caught requests connection error')
         return HttpResponse ("Indexing interrupted -- Solr Server not available")
 
+ 
 
 #@staff_member_required()
 #def list_solrfiles(request,path=''):

@@ -1,6 +1,9 @@
 """Delete all documents in a solr index"""
 import sys
-import wwwsearch_connect #Connect to Django project
+try:
+    import wwwsearch_connect #Connect to Django project
+except:
+    pass
 import ownsearch.solrJson as s
 import documents.updateSolr as u
 
@@ -27,7 +30,7 @@ def main(core):
         else:
             print (res,status)
             print ('Delete failed')
-        
+
 
 if __name__ == "__main__":
     if len(sys.argv) > 1:
