@@ -18,7 +18,7 @@ password = 'mypassword'
 class DocumentsTest(TestCase):
     def setUp(self):
 #        print('Tests: disable logging')
-        logging.disable(logging.CRITICAL)
+        #logging.disable(logging.CRITICAL)
         #print('Tests: setting up a user, usergroup and permissions')
         my_admin = User.objects.create_superuser('myuser', 'myemail@test.com', password)
 #        print(User.objects.all())
@@ -72,6 +72,9 @@ class DocumentsTest(TestCase):
     
     def test_searchpageview(self):
         """test search page view"""  
+        response = self.client.get(reverse('searchpageview', kwargs={'searchterm':'*', 'page_number':1,'sorttype':'relevance'}))
+        print("Response: {}".format(response.content))
+        self.assertFalse("No results for search" in response.content.decode("utf-8"))
         response = self.client.get(reverse('searchpageview', kwargs={'searchterm':'Trump', 'page_number':0,'sorttype':'date'}))
         self.assertEqual(response.status_code,200)
         #print('Tests: Index searches completed')

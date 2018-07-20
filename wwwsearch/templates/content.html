@@ -13,14 +13,16 @@
 
 {% block top_content %}
 <ol class="breadcrumb">
-{% if page.this_user.is_staff %}
+
+
+{% if page.this_user.is_staff and page.relpath_valid %}
   <li><a href="/documents/files">Home</a></li>
 {% else %}Home /
 {% endif %}
 
 {% for fullpath,relpath,basename in page.path_tags %}  
 
-{% if page.this_user.is_staff %}
+{% if page.this_user.is_staff and page.path_exists%}
   <li><a href="/documents/files/{{fullpath}}">{{basename}}</a></li>
 {% else %}
   <li>{{basename}}</li>

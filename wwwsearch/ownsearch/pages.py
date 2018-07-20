@@ -14,6 +14,14 @@ except ImportError:
 import os,logging
 log = logging.getLogger('ownsearch.pages')
 from .forms import TagForm
+from documents import file_utils
+
+try:
+    from usersettings import userconfig as config
+    BASEDIR=config['Models']['collectionbasepath'] #get base path of the docstore
+except:
+    BASEDIR=None
+
 
 class Page(object):
     def __init__(self,searchterm=''):
@@ -37,16 +45,24 @@ class Page(object):
             self.tagfilters=False
         self.filters.pop('None',None)
         log.debug('filters {}, tagfilters: {}'.format(self.filters,self.tagfilters))    
+
     @property
     def path_tags(self):
-        return directory_tags(self.docpath,isfile=True)
-        
+        return file_utils.directory_tags(self.docpath,isfile=True)
+    
+    @property
+    def path_exists(self):
+        return file_utils.relpath_exists(self.docpath)
+
+    @property
+    def relpath_valid(self):
+        return file_utils.relpath_valid(self.docpath) 
+
     def parse_dates(self):
         self.start_date=parse_digitstring(self.start_date_raw)
         self.end_date=parse_digitstring(self.end_date_raw)
         
-    
-          
+
 class SearchPage(Page):
     def __init__(self,searchurl='',page_number=0,searchterm='',direction='',pagemax=0,sorttype='relevance',tag1field='',tag1='',tag2field='',tag2='',tag3field='',tag3='',start_date='',end_date=''):
         super(SearchPage,self).__init__(searchterm=searchterm)
@@ -189,27 +205,6 @@ class ContentPage(Page):
         return TagForm(self.tagstring)
        
 
-def directory_tags(path,isfile=False):
-    """make subfolder tags from full filepath"""
-    #print('Path: {}'.format(path))
-    a,b=os.path.split(path)
-    if isfile:
-        tags=[]
-    else:
-        tags=[(path,a,b)]
-    path=a
-    while True:
-        a,b=os.path.split(path)
-
-        if b=='/' or b=='' or b=='\\':
-            #print('break')
-            
-            break
-        tags.append((path,a,b))
-        path=a
-        #print(a,b)
-    tags=tags[::-1]
-    return tags
 
 def time_digitstring(timeobject):
     return "{:%Y%m%d}".format(timeobject)

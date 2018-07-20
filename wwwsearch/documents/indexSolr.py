@@ -150,7 +150,7 @@ class Extractor():
                     file.save()
                 else:
                     log.info('PATH : '+file.filepath+' indexing failed')
-                    failed+=1
+                    self.failed+=1
                     file.indexedTry=True  #set flag to say we've tried
                     log.debug('Saving updated file info in database')
                     file.save()
@@ -312,11 +312,11 @@ def postSolr(args,path,mycore,timeout=1):
     #log.debug('Types posturl: {} path: {}'.format(type(url),type(timeout)))
     try:
         res=s.resPostfile(url,path,timeout=timeout) #timeout=
-        log.debug('Returned json: {} type: {}'.format(res._content,type(res._content)))
-        log.debug('{}'.format(res.json()['responseHeader']))
+        #log.debug('Returned json: {} type: {}'.format(res._content,type(res._content)))
+        log.debug('Response header:{}'.format(res.json()['responseHeader']))
         
         solrstatus=res.json()['responseHeader']['status']
-        log.debug(res.elapsed.total_seconds())
+        #log.debug(res.elapsed.total_seconds())
         solrelapsed=res.elapsed.total_seconds()
     except s.SolrTimeOut as e:
         log.error('Solr post timeout ')

@@ -107,6 +107,7 @@ class SolrCore:
                 log.debug('Core status: '+str(jres))
                 return False
         except requests.exceptions.ConnectionError as e:
+            log.debug(e)
 #            print('no connection to solr server')
             raise SolrConnectionError('Solr Connection Error')
             return False
@@ -422,16 +423,19 @@ def solrSearch(q,sorttype,startnumber,core,filters={},faceting=False,start_date=
     
 # get the response
     try:
-        log.debug('fq:{},args:{},core{}'.format(q,args,core))
+        jres={}
+        log.debug('q:{},args:{},core{}'.format(q,args,core.name))
         jres=getJSolrResponse(q,args,core=core)
-        #print(jres)
+        print(jres)
         #print(soup.prettify())    
 
         res=getlist(jres,startnumber,core=core)
     except requests.exceptions.RequestException as e:
         reslist=[]
         numbers=-2
-        log.warning('Connection error to Solr')
+        if jres:
+            log.debug('Jres: {}'.format(jres))
+        log.warning('Connection error to Solr: {}'.format(e))
         return None,None,None,None,None
     return res.results,res.numberfound,res.facets,res.facets2,res.facets3
     
@@ -444,7 +448,7 @@ def getJSolrResponse(searchterm,arguments,core):
     jres=res.json()
     return jres
 
-def resGet(url,timeout=1):
+def resGet(url,timeout=10):
     ses = SolrSession()
 # the session instance holds the cookie. So use it to get/post later
     try:
@@ -456,8 +460,10 @@ def resGet(url,timeout=1):
         else:
             return res
     except requests.exceptions.ConnectTimeout as e:
+        log.debug('url{} error:{}'.format(url,e))
         raise SolrTimeOut
     except requests.exceptions.ConnectionError as e:
+        log.debug('url{} error:{}'.format(url,e))
 #            print('no connection to solr server')
         raise SolrConnectionError('Solr Connection Error')
 

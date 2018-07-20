@@ -15,15 +15,15 @@ from .models import Collection,File,Index,UserEdit
 from ownsearch.hashScan import HexFolderTable as hex
 from ownsearch.hashScan import hashfile256 as hexfile
 from ownsearch.hashScan import FileSpecTable as filetable
-from ownsearch.pages import directory_tags
+from .file_utils import directory_tags
 import datetime, hashlib, os, logging, requests, json
-from . import indexSolr, updateSolr, solrDeDup, solrcursor,correct_paths,documentpage
+from . import indexSolr, updateSolr, solrDeDup, solrcursor,correct_paths,documentpage,file_utils
 import ownsearch.solrJson as solr
 
 from django.contrib.admin.views.decorators import staff_member_required
 log = logging.getLogger('ownsearch.docs.views')
 from usersettings import userconfig as config
-from django.template import loader
+
 
 BASEDIR=config['Models']['collectionbasepath'] #get base path of the docstore
 
@@ -205,37 +205,7 @@ def listfiles(request):
 @staff_member_required()
 def file_display(request,path=''):
     """display files in a directory"""
-    
-    def index_maker(path,index_collections):
-        def _index(root,depth,index_collections):
-            #print ('Root',root)
-            if depth<2:
-                files = os.listdir(root)
-                for mfile in files:
-                    t = os.path.join(root, mfile)
-                    relpath=os.path.relpath(t,BASEDIR)
-                    if os.path.isdir(t):
-                        subfiles=_index(os.path.join(root, t),depth+1,index_collections)
-                        #print(root,subfiles)
-                        yield loader.render_to_string('filedisplay/p_folder.html',
-                                                       {'file': mfile,
-                                                       	'filepath':relpath,
-                                                       	'rootpath':path,
-                                                        'subfiles': subfiles,
-                                                        	})
-                        continue
-                    else:
-                        stored,indexed=model_index(t,index_collections)
-                        #log.debug('Local check: {},indexed: {}, stored: {}'.format(t,indexed,stored))
-                        yield loader.render_to_string('filedisplay/p_file.html',{'file': mfile, 'local_index':stored,'indexed':indexed})
-                        continue
-        basepath=os.path.join(BASEDIR,path)
-        log.debug('Basepath: {}'.format(basepath))
-        if os.path.isdir(basepath):
-            return _index(basepath,0,index_collections)
-        else:
-            return "Invalid directory"
-    
+
     #get the core , or set the the default    
     page=documentpage.FilesPage()
     page.getcores(request.user,request.session.get('mycore')) #arguments: user, storedcore
@@ -244,7 +214,7 @@ def file_display(request,path=''):
 #        log.debug('Core set in request: {}'.format(request.session['mycore']))
     log.debug('CORE ID: {}'.format(page.coreID))    
         
-    c = index_maker(path,page.authorised_collections)
+    c = file_utils.index_maker(path,page.authorised_collections)
     if path:
         rootpath=path
         tags=directory_tags(path)
@@ -254,21 +224,9 @@ def file_display(request,path=''):
     return render(request,'filedisplay/listindex.html',
                                {'subfiles': c, 'rootpath':rootpath, 'tags':tags, 'form':page.form, 'path':path})
 
-def model_index(path,index_collections,hashcheck=False):
-    """check if file scanned into model index"""
-    stored=File.objects.filter(filepath=path, collection__in=index_collections)
-    if stored:
-        indexed=stored.exclude(solrid='')
-        return stored,indexed
-    else:
-        return None,None
-
 
 #checking for what files in existing solrindex
 def indexcheck(collection,thiscore):
-
-    #get the basefilepath
-    docstore=config['Models']['collectionbasepath'] #get base path of the docstore
 
     #first get solrindex ids and key fields
     try:#make a dictionary of filepaths from solr index
@@ -288,7 +246,7 @@ def indexcheck(collection,thiscore):
 
         #main loop - go through files in the collection
         for file in filelist:
-            relpath=os.path.relpath(file.filepath,start=docstore) #extract the relative path from the docstore
+            relpath=os.path.relpath(file.filepath,start=BASEDIR) #extract the relative path from the docstore
             hash=file.hash_contents #get the stored hash of the file contents
             #print (file.filepath,relpath,file.id,hash)
 

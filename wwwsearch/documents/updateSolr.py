@@ -321,6 +321,8 @@ def removedeleted(deletefiles,collection,docstore=DOCSTORE):
 
 def remove_filepath_or_delete_solrrecord(oldsolrid,filepath,mycore):
     olddoc=check_hash_in_solrdata(oldsolrid,mycore)
+    if not olddoc:
+        return False
     paths=olddoc.data.get('docpath')
     log.debug('Paths found in existing doc: {}'.format(paths))
     log.debug('Deleting \'{}\' from filepaths in solrdoc \'{}\''.format(filepath,oldsolrid))
