@@ -147,7 +147,7 @@ def process_api_result(jsonstring,test=False):
     """take API result and save to model database, set flag to update index"""
     decoded_data=deserial(jsonstring)
     for deserialized_object in decoded_data:
-        print('API result: {} in index {}'.format(deserialized_object.object,deserialized_object.object.corename))
+        log.debug('API result: {} in index {}'.format(deserialized_object.object,deserialized_object.object.corename))
         set_flag(deserialized_object,attr='index_updated',value=False)
         save_or_append(deserialized_object)
 
@@ -156,10 +156,10 @@ def update_unprocessed(admin=False,test=False):
     cores={}
     edits=unprocessed_edits(obj=UserEdit)
     if not edits:
-        print('No new edits to process')
+        log.debug('No new edits to process')
         return
     for edit in edits:
-        print('\n\nProcessing edit: {}'.format(edit))
+        log.debug('\n\nProcessing edit: {}'.format(edit))
         #print(edit.__dict__)
         new_taglist=deserial_taglist(edit.usertags)
 #        print(edit)
@@ -177,7 +177,7 @@ def update_unprocessed(admin=False,test=False):
             existing_list=solrJson.getfield(edit.solrid,core.usertags1field,core)
             existing_list=[existing_list] if not isinstance(existing_list,list) else existing_list
             
-            print('Existing tags: {}  Changed tags: {}'.format(existing_list,new_taglist))
+            log.debug('Existing tags: {}  Changed tags: {}'.format(existing_list,new_taglist))
             if new_taglist!=existing_list:
                 #now update solr
                 goahead=input('Make change? (y/n)')
@@ -185,32 +185,32 @@ def update_unprocessed(admin=False,test=False):
                     #make change
                     result=update_edit(edit,cores,test=test)
                     if result:
-                        print('Changes made')
+                        #print('Changes made')
                         if not test:
                             edit.index_updated=True
                             edit.save()
                     else:
-                        print("UPDATE FAILED for edit: {}".format(edit))
+                        log.debug("UPDATE FAILED for edit: {}".format(edit))
                 else:
                     #mark change ignored
                     if not test:
                         edit.index_updated=True
                         edit.save()
             else:
-                print('Identical: no update required')
+                log.debug('Identical: no update required')
                 edit.index_updated=True
                 edit.save()
                 
             
         except solrJson.Solr404:
             existing_list=[]
-            print('Local index \"{}\" not available'.format(edit.corename))
+            log.debug('Local index \"{}\" not available'.format(edit.corename))
             if not test:
                 edit.index_updated=True
                 edit.save()
             
         except solrJson.SolrDocNotFound:
-            print('Solr doc in edit not found - set edit as ignored')
+            log.debug('Solr doc in edit not found - set edit as ignored')
             #mark change ignored
             if not test:
                 edit.index_updated=True

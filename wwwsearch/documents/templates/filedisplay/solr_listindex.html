@@ -4,55 +4,50 @@
 
 <form action="{% url 'list_solrfiles' path=path %}" method ="post">
 {% csrf_token %}
-Index:{{form.CoreChoice}}
-<!--<p><input type="submit" name="switch" value="Switch Index" /><p> 
---></form>
+Index:{{form.corechoice}}
+<p>
+</form>
 
 </ul>
 {% endblock %}
+
 {% block body_content %}
 
+{% if result %}
+Indexed contents of folder:
+{% endif %}
 
 <ol class="breadcrumb">
-  <li><a href="/documents/indexedfiles">Home</a></li>
-{% for fullpath,relpath,basename in tags %}  
+<!--  <li><a href="/documents/indexedfiles">Home</a></li>
+-->
+	{% for fullpath,relpath,basename,hash in tags %}  
   <li><a href="/documents/indexedfiles/{{fullpath}}">{{basename}}</a></li>
 {% endfor %} 
 </ol>
 
+{% if result %}
+
+
+
 <p>
 <div class="panel-group" id="accordion" role="tablist" aria-multiselectable="true">
   <div class="panel panel-default">
-		<ul>
-		{% for key in result %}<li>{{key}}</li>{% endfor %}
-		</ul>	
+		<ul>		
+		{% for docpath,docs in result.items %}
+		<li>
+				<a style="color:green;" href="/ownsearch/doc={{docs.0.id}}&searchterm=">{{docs.0.docname}}</a>
+		</li>{% endfor %}
+<!--		<a style="color:green;" href="/ownsearch/doc={{indexed.0.solrid}}&searchterm=">{{file}}</a>
+-->		</ul>	
 	</div>
 </div>
+{% else%}
+
+No indexed contents for folder: {{path}}
+
+{% endif%}
 
 <script>
-$('.flip').click(function(e) {
-    var $this = $(this);
-    $this.next('div.subdir').slideToggle('fast');
-    $this.toggleClass('show');
-    if ($this.hasClass('show')) {
-        $this.html('<span style="font-size:8px">[hide}</span>');
-    } else {
-        $this.html(' +');
-};
-
-});
-
-$('.SeeMore2').click(function(){
-		var $this = $(this);
-		$this.next('div.subdir').slideToggle('fast');
-		$this.toggleClass('SeeMore2');
-		if($this.hasClass('SeeMore2')){
-			$this.text('See More');			
-		} else {
-			$this.text('See Less');
-		};
-
-	});
 
 </script>
 

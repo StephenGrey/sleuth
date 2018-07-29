@@ -47,8 +47,13 @@ class Page(object):
         log.debug('filters {}, tagfilters: {}'.format(self.filters,self.tagfilters))    
 
     @property
-    def path_tags(self):
-        return file_utils.directory_tags(self.docpath,isfile=True)
+    def path_tags(self,isfile=True):
+        return file_utils.directory_tags(self.docpath,isfile=isfile)
+
+    @property
+    def dirpath_tags(self,isfile=False):
+        return file_utils.directory_tags(self.docpath,isfile=isfile)
+
     
     @property
     def path_exists(self):

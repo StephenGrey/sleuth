@@ -5,7 +5,7 @@ try:
     from django.core.urlresolvers import reverse,resolve
 except ImportError:
     from django.urls import reverse,resolve,NoReverseMatch
-from documents.models import Index
+from documents.models import Index,Source
 from ownsearch import solrJson,pages,solr_indexes
 from documents import setup
 from django.test.client import Client
@@ -18,15 +18,17 @@ password = 'mypassword'
 class DocumentsTest(TestCase):
     def setUp(self):
 #        print('Tests: disable logging')
-        #logging.disable(logging.CRITICAL)
+        logging.disable(logging.CRITICAL)
         #print('Tests: setting up a user, usergroup and permissions')
         my_admin = User.objects.create_superuser('myuser', 'myemail@test.com', password)
 #        print(User.objects.all())
         self.admin_user=User.objects.get(username='myuser')
         #make an admin group and give it permissions
         admingroup,usergroup=setup.make_admingroup(self.admin_user,verbose=False)
-#        print(Group.objects.all())
-        setup.make_default_index(usergroup,verbose=False)
+
+        setup.make_default_index(usergroup,verbose=False,corename='tests_only',coreDisplayName='Tests')
+        self.sampleindex=Index.objects.get(corename='tests_only')
+        self.testsource, res=Source.objects.get_or_create(sourceDisplayName='Test source',sourcename='testsource')
         
         # You'll need to log him in before you can send requests through the client
         self.client.login(username=my_admin.username, password=password)
@@ -42,7 +44,7 @@ class DocumentsTest(TestCase):
         import ownsearch.authorise as a
         self.admin_user=User.objects.get(username='myuser')        
         authcores=a.AuthorisedCores(self.admin_user)
-        self.assertEqual(authcores.mycore.name,'coreexample')
+        self.assertEqual(authcores.mycore.name,'tests_only')
         #print('Authorise test complete')
 
     def test_testpage(self):
@@ -73,7 +75,7 @@ class DocumentsTest(TestCase):
     def test_searchpageview(self):
         """test search page view"""  
         response = self.client.get(reverse('searchpageview', kwargs={'searchterm':'*', 'page_number':1,'sorttype':'relevance'}))
-        print("Response: {}".format(response.content))
+        #print("Response: {}".format(response.content))
         self.assertFalse("No results for search" in response.content.decode("utf-8"))
         response = self.client.get(reverse('searchpageview', kwargs={'searchterm':'Trump', 'page_number':0,'sorttype':'date'}))
         self.assertEqual(response.status_code,200)

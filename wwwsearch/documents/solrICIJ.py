@@ -7,6 +7,10 @@ from usersettings import userconfig as config
 import subprocess, logging, os
 log = logging.getLogger('ownsearch.solrICIJ')
 
+class AuthenticationError(Exception):
+    pass
+
+
 #EXTRACT A FILE TO SOLR INDEX (defined in mycore (instance of solrSoup.SolrCore))
 #returns solrSoup.MissingConfigData error if path missing to extract.jar
 def ICIJextract(path,mycore,ocr=True):
@@ -42,7 +46,12 @@ def tryextract(path,mycore,ocr=True):
 #    print(output) #DEBUG : LOG IT instead
     for mtype,message in output:
         if mtype=='SEVERE':  #PRINT OUT ONLY SEVERE MESSAGES
-            print (mtype,message)
+            log.debug(f'Message type:{mtype},Message:{message}')
+            if "Expected mime type application/octet-stream but got text/html" in message:
+                log.debug('Unexpected response')
+                if "<title>Error 401 require authentication</title>" in message:
+                    log.debug('Authentication error')
+                    raise AuthenticationError
     if success == True:
         print ('Successful extract')
         #commit the results

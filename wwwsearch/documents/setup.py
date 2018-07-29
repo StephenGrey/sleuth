@@ -37,7 +37,7 @@ def make_admingroup(admin_user,verbose=True):
     
     return new_group,new_usergroup
 
-def make_default_index(new_usergroup,verbose=True,corename='coreexample'):
+def make_default_index(new_usergroup,verbose=True,corename='coreexample', coreDisplayName='Example index'):
     """install a default solr index"""
     
     #check if default exists
@@ -51,7 +51,7 @@ def make_default_index(new_usergroup,verbose=True,corename='coreexample'):
         if verbose:
             print('Installing \"{}\"'.format(corename))
         #add the default index, adding to usergroup1
-        s,screated=Index.objects.get_or_create(corename=corename,usergroup=new_usergroup, coreDisplayName='Example index')
+        s,screated=Index.objects.get_or_create(corename=corename,usergroup=new_usergroup, coreDisplayName=coreDisplayName)
         
         if verbose and screated:
             print('Solr index installed: {}'.format(s))

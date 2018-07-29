@@ -1,11 +1,39 @@
 # -*- coding: utf-8 -*-
 import os, logging
-from django.template import loader
-from usersettings import userconfig as config
-BASEDIR=config['Models']['collectionbasepath'] #get base path of the docstore
-log = logging.getLogger('docs.file_utils')    
-from documents.models import File
+from ownsearch.hashScan import pathHash
+try:
+    from django.template import loader
+    from documents.models import File
+    from usersettings import userconfig as config
+    BASEDIR=config['Models']['collectionbasepath'] #get base path of the docstore
+    log = logging.getLogger('ownsearch.docs.file_utils')    
+except:
+    #make usable outside the project
+    pass
 
+
+#HASH FILE FUNCTIONS
+
+def parent_hashes(filepaths):
+    "list of hashes of parent paths of files"""
+    if isinstance(filepaths, list):
+        pathhashes=[]
+        for path in filepaths:
+            pathhashes.append(parent_hash(path))
+        return pathhashes
+    else:
+        return [parent_hash(filepaths)]
+
+def parent_hash(filepath):
+    """hash of a file's parent directory"""
+    parent,filename=os.path.split(filepath)
+    return pathHash(parent)
+    
+    
+    
+
+
+#PATH METHODS
 def is_down(relpath, root=BASEDIR):
     path=os.path.abspath(os.path.join(root,relpath))
     return path.startswith(root)
@@ -55,12 +83,14 @@ def index_maker(path,index_collections):
 
 def directory_tags(path,isfile=False):
     """make subfolder tags from full filepath"""
-    #print('Path: {}'.format(path))
+    #returns fullrelativepath,folder,basename,hash_relpath
+    log.debug('Path: {}'.format(path))
     a,b=os.path.split(path)
     if isfile:
         tags=[]
     else:
-        tags=[(path,a,b)]
+        a_hash=pathHash(path)
+        tags=[(path,a,b,a_hash)]
     path=a
     while True:
         a,b=os.path.split(path)
@@ -69,12 +99,16 @@ def directory_tags(path,isfile=False):
             #print('break')
             
             break
-        tags.append((path,a,b))
+        a_hash=pathHash(path)
+        tags.append((path,a,b,a_hash))
         path=a
         
     tags=tags[::-1]
+    log.debug(tags)
     return tags
 
+
+#FILE MODEL METHODS
 
 def model_index(path,index_collections,hashcheck=False):
     """check if file scanned into model index"""
@@ -84,3 +118,6 @@ def model_index(path,index_collections,hashcheck=False):
         return True,indexed
     else:
         return None,None
+
+
+

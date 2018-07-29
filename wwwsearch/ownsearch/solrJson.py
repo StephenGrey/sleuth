@@ -68,6 +68,7 @@ class SolrCore:
             self.docnamesourcefield=config[core]['docnamesource']
             self.datesourcefield=config[core]['datesourcefield']
             #optional:
+            self.parenthashfield=config[core].get('parentpath_hash','')
             self.tags1field=config[core].get('tags1field','')
             self.usertags1field=config[core].get('usertags1field','')
             self.sourcefield=config[core].get('sourcefield','')
@@ -79,10 +80,12 @@ class SolrCore:
             if test==False:
                 if not fieldexists(self.tags1field,self): #check if the tag field is defined in index
                     self.tags1field=''
-                
-
         except KeyError:
             raise MissingConfigData
+
+    def __repr__(self):
+        return "SolrCore object: \'{}\'".format(self.name)
+
     def test(self):
         args=self.hlarguments+'0'
         jres=getJSolrResponse(self.dfltsearchterm,args,core=self)
@@ -111,6 +114,7 @@ class SolrCore:
 #            print('no connection to solr server')
             raise SolrConnectionError('Solr Connection Error')
             return False
+            
 
 class RemoteCore(SolrCore):
     """ link to another solr server"""
@@ -379,7 +383,7 @@ def solrSearch(q,sorttype,startnumber,core,filters={},faceting=False,start_date=
     core.ping()
 
     #make date filter
-    print('DATES',start_date,end_date)
+#    print('DATES',start_date,end_date)
     datefilter=make_datefilter(start_date,end_date)
 
     #create arguments
@@ -426,7 +430,6 @@ def solrSearch(q,sorttype,startnumber,core,filters={},faceting=False,start_date=
         jres={}
         log.debug('q:{},args:{},core{}'.format(q,args,core.name))
         jres=getJSolrResponse(q,args,core=core)
-        print(jres)
         #print(soup.prettify())    
 
         res=getlist(jres,startnumber,core=core)
@@ -525,7 +528,7 @@ def gettrimcontents(docid,core,maxlength):
     searchterm='{}:\"{}\"'.format(core.unique_id,docid)
     
     #MAKE ARGUMENTS FOR TRIMMED CONTENTS
-    fieldargs='&fl={},{},{},{},{},{},{},{},{},{},{},{},{},{}'.format(core.unique_id,core.docnamefield,core.docsizefield,core.hashcontentsfield,core.docpath,core.tags1field, core.preview_url,core.usertags1field,core.sourcefield,'extract_base_type','preview_html','SBdata_ID',core.datefield,core.emailmeta)
+    fieldargs='&fl={},{},{},{},{},{},{},{},{},{},{},{},{},{},{}'.format(core.unique_id,core.docnamefield,core.docsizefield,core.hashcontentsfield,core.docpath,core.tags1field, core.preview_url,core.usertags1field,core.sourcefield,'extract_base_type','preview_html','SBdata_ID',core.datefield,core.emailmeta,core.parenthashfield)
     fieldargs+=","+core.beforefield if core.beforefield else ""
     fieldargs+=","+core.nextfield if core.nextfield else ""
     fieldargs+=","+core.sequencefield if core.sequencefield else ""
@@ -639,6 +642,7 @@ def getfield(docid,field,core):
         results=SolrResult(jres,core,startcount=0).results
         if len(results)>0:
             result=results[0]
+            log.debug(result.__dict__)
             if field in result.data:
                 return result.data[field]
             else:

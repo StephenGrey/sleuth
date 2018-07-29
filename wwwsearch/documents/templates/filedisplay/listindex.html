@@ -5,8 +5,7 @@
 <form action="{% url 'listfiles' path=path %}" method ="post">
 {% csrf_token %}
 Index:{{form.corechoice}}
-<!--<p><input type="submit" name="switch" value="Switch Index" /><p> 
---></form>
+</form>
 
 
 </ul>
@@ -16,7 +15,7 @@ Index:{{form.corechoice}}
 
 <ol class="breadcrumb">
   <li><a href="/documents/files">Home</a></li>
-{% for fullpath,relpath,basename in tags %}  
+{% for fullpath,relpath,basename,hash in tags %}  
   <li><a href="/documents/files/{{fullpath}}">{{basename}}</a></li>
 {% endfor %} 
 </ol>

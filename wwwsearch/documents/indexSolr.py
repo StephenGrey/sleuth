@@ -14,7 +14,7 @@ from ownsearch.solrJson import SolrCoreNotFound
 from documents.updateSolr import delete,updatetags,check_hash_in_solrdata,check_file_in_solrdata,remove_filepath_or_delete_solrrecord
 from ownsearch import solrJson as s
 from fnmatch import fnmatch
-from . import solrICIJ
+from . import solrICIJ,file_utils
 
 try:
     from urllib.parse import quote #python3
@@ -102,7 +102,7 @@ class Extractor():
                 #now try the extract
                     if self.useICIJ:
                         log.info('using ICIJ extract method..')
-                        result = solrICIJ.ICIJextract(file.filepath,self.mycore,ocr=ocr)
+                        result = solrICIJ.ICIJextract(file.filepath,self.mycore,ocr=self.ocr)
                         if result is True:
                             try:
                                 new_id=s.hashlookup(file.hash_contents,self.mycore).results[0].id #id of the first result returned
@@ -160,14 +160,23 @@ class Extractor():
         """update meta of existing solr doc"""
         file.solrid=existing_doc.id
         log.debug('Existing docpath: {}'.format(existing_doc.data.get('docpath')))
+        log.debug('Existing parent path hashes: {}'.format(existing_doc.data.get(self.mycore.parenthashfield)))
+        
         #no need to extract
-        paths=existing_doc.data.get('docpath')
+        paths=existing_doc.data.get('docpath')        
         relpath=make_relpath(file.filepath,docstore=self.docstore)
+        
         if paths:
             if relpath not in paths:
                 paths.append(relpath)
                 log.debug('Updating doc \"{}\" to append the old and new filepath {} to make {}'.format(file.solrid,file.filepath,paths))
                 result=updatetags(file.solrid,self.mycore,field_to_update='docpath',value=paths)
+                
+                if result:
+                    parent_hashes=file_utils.parent_hashes(paths)
+                    result=updatetags(file.solrid,self.mycore,field_to_update=self.mycore.parenthashfield,value=parent_hashes)
+                
+                
             else:
                 log.debug('Path to file already stored in solr index')
                 result=True
@@ -222,27 +231,26 @@ def scanPath(parentFolder):  #recursively check all files in a file folder and g
 
 #SOLR METHODS
 
-
-
-def extract_test(test=True,timeout=TIMEOUT):
+def extract_test(test=True,timeout=TIMEOUT,mycore='',docstore=''):
     #get path to test file
-    path=settings.BASE_DIR+'/tests/testdocs/TESTFILE_BBCNews1.pdf'
+    path=settings.BASE_DIR+'/tests/testdocs/testfile/TESTFILE_BBCNews1.pdf'
     assert os.path.exists(path)
-    print(config['Solr'])
     
     #get hash
     hash=dup.hashfile256(path)
-    print(hash)
+    #print(hash)
     
-    #get default index
-    defaultID=config['Solr']['defaultcoreid']
-    cores=s.getcores()
-    mycore=cores[defaultID]
+    if not mycore:
+        #get default index
+        defaultID=config['Solr']['defaultcoreid']
+        cores=s.getcores()
+        mycore=cores[defaultID]
+
     #checks solr index is alive
     log.debug('Testing extract to {}'.format(mycore.name))
     mycore.ping()
     
-    result=extract(path,hash,mycore,test=test,timeout=TIMEOUT)
+    result=extract(path,hash,mycore,test=test,timeout=TIMEOUT,docstore=docstore)
     return result
 
 def extract(path,contentsHash,mycore,test=False,timeout=TIMEOUT,sourcetext='',docstore=''):
@@ -267,6 +275,7 @@ def extract(path,contentsHash,mycore,test=False,timeout=TIMEOUT,sourcetext='',do
         sourcefield=mycore.sourcefield
         id_field=mycore.unique_id
         pathhashfield=mycore.pathhashfield
+        parenthashfield=mycore.parenthashfield
 
     except AttributeError as e:
         log.error('Exception: {}'.format(e))
@@ -274,27 +283,31 @@ def extract(path,contentsHash,mycore,test=False,timeout=TIMEOUT,sourcetext='',do
         return False
 #    extracturl=mycore.url+'/update/extract?'
     extractargs='commit=true&wt=json'
-    if test==True:
-        args=extractargs+'&extractOnly=true' #does not index on test
-        print(('Testing extract args: '+args,'path: ',path,'mycore: ',mycore))
-    else:
-        #>>>>go index, use MD5 of path as unique ID
-        #and calculate filename to put in index
-        relpath=make_relpath(path,docstore=docstore)
-        #extract a relative path from the docstore root
-        args='{}&literal.{}={}&literal.{}={}'.format(extractargs,id_field,contentsHash,docnamesourcefield,os.path.basename(path))
-        args+='&literal.{}={}&literal.{}={}'.format(filepathfield,relpath,pathhashfield,pathHash(path))
-        #if a different field for hashcontents other than the unique ID (key) then store also in that field
-        if id_field != hashcontentsfield:
-            args+='&literal.{}={}'.format(hashcontentsfield,contentsHash)
-        #if sourcefield is define and sourcetext is not empty string, add that to the arguments
-        #make the sourcetext args safe, for example inserting %20 for spaces 
-        if sourcefield and sourcetext:
-            args+='&literal.{}={}'.format(sourcefield,quote(sourcetext))
-        
-        log.debug('extract args: {}, path: {}, solr core: {}'.format(args,path,mycore))
-
+    args='{}&literal.{}={}&literal.{}={}'.format(extractargs,id_field,contentsHash,docnamesourcefield,os.path.basename(path))
     
+    #extract a relative path from the docstore root
+    relpath=make_relpath(path,docstore=docstore)
+    args+='&literal.{}={}&literal.{}={}'.format(filepathfield,relpath,pathhashfield,pathHash(path))
+
+    #add hash of parent relative path
+    if parenthashfield:
+        parenthash=file_utils.parent_hash(relpath)
+        args+='&literal.{}={}'.format(parenthashfield,parenthash)
+
+    #if a different field for hashcontents other than the unique ID (key) then store also in that field
+    if id_field != hashcontentsfield:
+        args+='&literal.{}={}'.format(hashcontentsfield,contentsHash)
+    #if sourcefield is define and sourcetext is not empty string, add that to the arguments
+    #make the sourcetext args safe, for example inserting %20 for spaces 
+    if sourcefield and sourcetext:
+        args+='&literal.{}={}'.format(sourcefield,quote(sourcetext))
+    
+    log.debug('extract args: {}, path: {}, solr core: {}'.format(args,path,mycore))
+        
+    if test==True:
+        args +='&extractOnly=true' #does not index on test
+        log.debug('Testing extract args: {}, path: {}, mycore {}'.format(args,path,mycore))
+        
     result,elapsed=postSolr(args,path,mycore,timeout=timeout) #POST TO THE INDEX (returns True on success)
     if result:
         log.info('Extract SUCCEEDED in {:.2f} seconds'.format(elapsed))

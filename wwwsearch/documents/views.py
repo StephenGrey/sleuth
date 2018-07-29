@@ -21,12 +21,16 @@ from . import indexSolr, updateSolr, solrDeDup, solrcursor,correct_paths,documen
 import ownsearch.solrJson as solr
 
 from django.contrib.admin.views.decorators import staff_member_required
+from django.contrib.auth.decorators import login_required
 log = logging.getLogger('ownsearch.docs.views')
 from usersettings import userconfig as config
 
-
 BASEDIR=config['Models']['collectionbasepath'] #get base path of the docstore
 
+
+class NoIndexSelected(Exception):
+    pass
+    
 
 @staff_member_required()
 def index(request):
@@ -46,17 +50,23 @@ def index(request):
         log.error('Error: {}'.format(e))
         return HttpResponse('Can\'t find core/collection - retry')
 
-@staff_member_required()
-def listfiles(request):
-    #get the core , or set the the default    
-    page=documentpage.CollectionPage()
+def getcores(page,request):
+    """get the core , or set the the default """   
     page.getcores(request.user,request.session.get('mycore')) #arguments: user, storedcore
     if not page.stored_core:
         log.warning("Accessing listfiles before selecting index")
-        return HttpResponse( "No index selected...please go back")
-    
+        raise NoIndexSelected
     mycore=page.cores.get(int(page.coreID)) # get the working core
     log.info('using index: {}'.format(getattr(mycore,'name','')))
+    return mycore
+ 
+
+@staff_member_required()
+def listfiles(request):
+
+    page=documentpage.CollectionPage()
+    mycore=getcores(page,request)
+    
     try:
         if request.method == 'POST' and 'list' in request.POST and 'choice' in request.POST:
             #get the files in selected collection
@@ -65,7 +75,6 @@ def listfiles(request):
                 thiscollection=Collection.objects.get(id=selected_collection)
                 collectionpath=thiscollection.path
                 filelist=File.objects.filter(collection=thiscollection)
-                #print(filelist)
                 return render(request, 'documents/listdocs.html',{'results':filelist,'collection':collectionpath })
 #            except:
 #                return HttpResponse( "Error...please go back")
@@ -152,55 +161,33 @@ def listfiles(request):
     except requests.exceptions.RequestException as e:
         print ('caught requests connection error')
         return HttpResponse ("Indexing interrupted -- Solr Server not available")
+    except NoIndexSelected:
+        return HttpResponse( "No index selected...please go back")
 
- 
 
-#@staff_member_required()
-#def list_solrfiles(request,path=''):
-#    """display list of files in solr index"""
-#
-#    ##TODO duplication - 
-#    """get the core , or set the the default """
-#    thisuser=request.user
-#    storedcoreID=int(request.session.get('mycore'))
-#    try:
-#        authcores=authorise.AuthorisedCores(thisuser,storedcore=storedcoreID)
-#        coreID=authcores.mycoreID
-#        if 'mycore' not in request.session:  #set default if no core selected
-#            request.session['mycore']=coreID
-#    except authorise.NoValidCore as e:
-#        log.warning('Cannot find any valid coreID in authorised corelist')
-#        return HttpResponse('Missing any config data for any authorised index: contact administrator')
-#
-#    log.debug('CORE ID: {}'.format(coreID))
-#    
-#    if request.method=='POST': #if data posted # switch core
-#        #print('post data')
-#        form=IndexForm(request.POST)
-#        log.debug('Form: {} Valid: {} Post data: {}'.format(form.__dict__,form.is_valid(),request.POST))
-#        if form.is_valid():
-#            coreID=form.cleaned_data['corechoice']
-#            log.debug('change core to {}'.format(coreID))
-#            request.session['mycore']=coreID
-#            authcores.mycore=authcores[coreID]
-#        else:
-#            log.debug('posted form is not valid')
-#
-#    else:
-#        form=IndexForm(initial={'corechoice':coreID})
-#        log.debug('Core set in request: {}'.format(request.session['mycore']))
-#    
-#    mycore=authcores.mycore
-#    log.debug('mycore: {}'.format(mycore))
-#    searchterm="extract_paths:{}".format(path)
-#    result=solrcursor.cursor(mycore,searchterm=searchterm,keyfield="docname")
-#    log.debug(result)
-#    
-#    return render(request,'filedisplay/solr_listindex.html',
-#          {'result': result,
-#          	'form':form,
-##          	'rootpath':rootpath, 'tags':tags, 'form':form, 'path':path
-#          })
+@login_required
+def list_solrfiles(request,path=''):
+    """display list of files in solr index"""
+
+    try:
+        page=documentpage.SolrFilesPage(path=path)
+        page.getcores(request.user,request.session.get('mycore')) #arguments: user, storedcore
+        page.chooseindexes(request.method,request_postdata=request.POST)
+        tags=page.dirpath_tags
+        log.debug("Tags: {}".format(tags))
+    except NoIndexSelected:
+        return HttpResponse('No index selected')
+
+    log.debug('mycore: {}'.format(page.mycore.name))
+    searchterm=file_utils.pathHash(path)
+    searcharg="{}:{}".format(page.mycore.parenthashfield,searchterm)
+    log.debug(f'Searchterm: {searcharg}')
+    result=solrcursor.cursor(page.mycore,searchterm=searcharg,keyfield="docname")
+    log.debug(result)
+    return render(request,'filedisplay/solr_listindex.html',
+          {'result': result, 'form':page.form, 'path':page.docpath, 'tags':tags,
+          })
+#          	'rootpath':rootpath, 'tags':tags, 'form':form, 
 
 @staff_member_required()
 def file_display(request,path=''):

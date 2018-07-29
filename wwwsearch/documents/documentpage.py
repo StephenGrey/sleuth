@@ -11,7 +11,8 @@ class NoValidCore(Exception):
     pass
 
 class CollectionPage(Page):
-    pass
+    def __init__(self,path=''):
+        self.docpath=path
     
     def getcores(self,this_user,stored_core=None):
         """get authorised solr cores , choosed stored core or default """
@@ -20,11 +21,13 @@ class CollectionPage(Page):
             self.stored_core=None
             if self.defaultcoreID:
                 self.coreID=int(self.defaultcoreID)
+                
             else:
                 raise NoValidCore
         else:
             self.stored_core=stored_core
             self.coreID=int(stored_core)
+        self.mycore=self.cores[self.coreID]
             
     def post_indexform(self,form):
         """change index"""
@@ -34,6 +37,7 @@ class CollectionPage(Page):
             self.validform=True
             self.form=form
             log.debug('change core to {}'.format(self.coreID))
+            
         else:
             log.warning('posted form is not valid: {}'.format(form.errors))
             self.validform=False
@@ -51,17 +55,20 @@ class CollectionPage(Page):
         log.debug('CORES: '+str(self.cores)+' DEFAULT CORE:'+str(self.defaultcoreID))
         
     def chooseindexes(self,request_method,request_postdata='',test=False):
-        log.debug(request_method)
+        #log.debug(request_method)
         if request_method=='POST': #if data posted => switch core
             form=IndexForm(request_postdata)
             if test:
             #NOT CLEAR WHY THIS SHOULD BE NECESSARY
                 form.fields['corechoice'].choices=get_corechoices()
             self.post_indexform(form)
+            self.form=IndexForm(initial={'corechoice':self.coreID})
+            self.mycore=self.cores[self.coreID]
         else:
             self.form=IndexForm(initial={'corechoice':self.coreID})
-            log.debug('Form created: {} with choices: {}'.format(self.form.__dict__,self.form.fields['corechoice']))
-     
+            #log.debug('Form created: {} with choices: {}'.format(self.form.__dict__,self.form.fields['corechoice'].__dict__))
+            self.mycore=self.cores[self.coreID]
+            
     def get_collections(self):
         self.myindex=Index.objects.get(id=self.coreID)
         log.debug('my Index: {}'.format(self.myindex))
@@ -70,3 +77,8 @@ class CollectionPage(Page):
     
 class FilesPage(CollectionPage):
     pass
+    
+class SolrFilesPage(CollectionPage):
+    pass
+        
+        

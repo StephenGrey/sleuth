@@ -6,33 +6,46 @@
 	{% if page.docpaths.1%}
 	Identical docs:<p>
 		{% for path in page.docpaths%}
-			{{path}}
+			{{path}}<p>
 		{%endfor%}
 	{% endif %}	
 {% endblock %}
 
 {% block top_content %}
-<ol class="breadcrumb">
 
-
+BROWSE MEDIA VOLUME:
+<ol class="breadcrumb" >
 {% if page.this_user.is_staff and page.relpath_valid %}
-  <li><a href="/documents/files">Home</a></li>
+  <li><a href="/documents/files"  style="color:red;">Home</a></li>
 {% else %}Home /
 {% endif %}
 
-{% for fullpath,relpath,basename in page.path_tags %}  
+{% for fullpath,relpath,basename,hash in page.path_tags %}  
 
 {% if page.this_user.is_staff and page.path_exists%}
-  <li><a href="/documents/files/{{fullpath}}">{{basename}}</a></li>
+  <li><a href="/documents/files/{{fullpath}}"  style="color:red;">{{basename}}</a></li>
 {% else %}
   <li>{{basename}}</li>
 {% endif %}
 {% endfor %} 
-
-
 </ol>
 
+SOLR SEARCH
+<ol class="breadcrumb">
+<!--{% if page.this_user.is_staff and page.relpath_valid %}
+  <li><a href="/documents/indexedfiles">Home</a></li>
+{% else %}Home /
+{% endif %}
+-->
+{% for fullpath,relpath,basename,hash in page.path_tags %}  
 
+{% if page.this_user.is_staff%}
+  <li><a href="/documents/indexedfiles/{{fullpath}}">{{basename}}</a></li>
+{% else %}
+  <li>{{basename}}</li>
+{% endif %}
+{% endfor %} 
+</ol>
 
 
 	{% if page.result.data.message_from  %}

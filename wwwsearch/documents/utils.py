@@ -222,3 +222,6 @@ def listmeta(collection):
        #'Indexed?'+str(file.indexedSuccess),'IndexedTry'+str(file.indexedTry),'Contents:'+file.hash_contents,'Path:'+file.hash_filename)
 
 
+def addparenthashes(mycore,maxcount=10,test=False):
+    upd=u.AddParentHash(mycore,maxcount=maxcount,test_run=test)
+    
