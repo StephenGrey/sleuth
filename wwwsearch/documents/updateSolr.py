@@ -11,7 +11,7 @@ from .models import File,Collection
 from . import file_utils, changes
 from ownsearch.hashScan import HexFolderTable as hex
 from ownsearch.hashScan import hashfile256 as hexfile
-from ownsearch.hashScan import pathHash
+from .file_utils import pathHash
 from ownsearch.hashScan import FileSpecTable as filetable
 from django.utils import timezone
 import pytz #support localising the timezone
@@ -204,9 +204,10 @@ def scandocs(collection,delete_on=True,docstore=DOCSTORE):
         #make any changes to local file database
         scanner.update_database()        
     except Exception as e:
-        log.error('failed to make updates to file database')
+        log.error('Failed to make updates to file database')
         log.error(f'Error: {e}')
-        return [0,0,0,0,0]
+        scanner.scan_error=True
+        return scanner
 
     #remove deleted files from the index
     #(only remove from database when successfully removed from solrindex, so if solr is down won't lose sync)
@@ -219,8 +220,8 @@ def scandocs(collection,delete_on=True,docstore=DOCSTORE):
     #alters meta in the the solr index (via an atomic update)
     metaupdate(collection) 
 
-    return [scanner.new_files_count,scanner.deleted_files_count,scanner.moved_files_count,scanner.unchanged_files_count,scanner.changed_files_count]
-
+    return scanner
+    
 
 def check_hash_in_solrdata(contents_hash,mycore):    
     try:
@@ -607,8 +608,8 @@ def parsechanges(solrresult,file,mycore):
 #  
 
 #TESTING
-def listmeta():
-    collection=Collection.objects.get(id=2)
+def listmeta(id=2):
+    collection=Collection.objects.get(id=id)
     filelist=File.objects.filter(collection=collection)
     for file in filelist:
         if not file.indexedSuccess:

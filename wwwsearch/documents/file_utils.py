@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
-import os, logging
+import os, logging,hashlib
+from collections import defaultdict
 from ownsearch.hashScan import pathHash
 try:
     from django.template import loader
@@ -11,6 +12,44 @@ except:
     #make usable outside the project
     pass
 
+
+class DoesNotExist(Exception):
+    pass
+
+class Not_A_Directory(Exception):
+    pass
+
+class File:
+    def __init__(self,path,folder=False):
+        self.path=path
+        self.name=os.path.basename(path)
+        self.shortname, self.ext = os.path.splitext(self.name)
+        self.folder=folder
+        if folder:
+            if not os.path.isdir(self.path):
+                raise Not_A_Directory
+        
+        
+    @property
+    def length(self):
+        if self.exists:
+            return os.path.getsize(self.path) #get file length
+        else:
+            raise DoesNotExist
+
+    @property
+    def last_modified(self):
+        if self.exists:
+            return os.path.getmtime(self.path) #last modified time
+        else:
+            raise DoesNotExist
+
+    @property
+    def exists(self):
+        return os.path.exists(self.path)
+        
+    def __repr__(self):
+        return "File: {}".format(self.path)
 
 #HASH FILE FUNCTIONS
 
@@ -30,7 +69,22 @@ def parent_hash(filepath):
     return pathHash(parent)
     
     
-    
+def pathHash(path):
+    m=hashlib.md5()
+    m.update(path.encode('utf-8'))  #encoding avoids unicode error for unicode paths
+    return m.hexdigest()
+
+def get_contents_hash(path,blocksize = 65536):
+    afile = open(path, 'rb')
+    hasher = hashlib.sha256()
+    buf = afile.read(blocksize)
+    while len(buf) > 0:
+        hasher.update(buf)
+        buf = afile.read(blocksize)
+    afile.close()
+    return hasher.hexdigest()
+
+
 
 
 #PATH METHODS
@@ -120,4 +174,15 @@ def model_index(path,index_collections,hashcheck=False):
         return None,None
 
 
-
+def filespecs(parent_folder): #  
+    """return filespecs dict keyed to path"""
+    filespecs={}
+    for dirName, subdirs, fileList in os.walk(parent_folder): #go through every subfolder in a folder
+        for filename in fileList: #now through every file in the folder/subfolder
+            path = os.path.join(dirName, filename)
+            filespecs[path]=File(path)
+        for folder in subdirs:
+            path= os.path.join(dirName,folder)
+            filespecs[path]=File(path,folder=True)
+            print(path)
+    return filespecs

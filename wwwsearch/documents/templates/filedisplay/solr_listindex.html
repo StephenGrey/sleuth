@@ -35,10 +35,14 @@ Indexed contents of folder:
 		<ul>		
 		{% for docpath,docs in result.items %}
 		<li>
+				{% if docs.0.folder %}
+				<a style="color:darkblue;" href="/documents/indexedfiles/{{docs.0.data.docpath.0}}">{{docs.0.docname}}</a>
+				{% else %}
 				<a style="color:green;" href="/ownsearch/doc={{docs.0.id}}&searchterm=">{{docs.0.docname}}</a>
+				{% endif %}
 		</li>{% endfor %}
-<!--		<a style="color:green;" href="/ownsearch/doc={{indexed.0.solrid}}&searchterm=">{{file}}</a>
--->		</ul>	
+
+		</ul>	
 	</div>
 </div>
 {% else%}

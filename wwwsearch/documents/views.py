@@ -68,88 +68,65 @@ def listfiles(request):
     mycore=getcores(page,request)
     
     try:
-        if request.method == 'POST' and 'list' in request.POST and 'choice' in request.POST:
-            #get the files in selected collection
-            if True:
-                selected_collection=int(request.POST[u'choice'])
-                thiscollection=Collection.objects.get(id=selected_collection)
-                collectionpath=thiscollection.path
-                filelist=File.objects.filter(collection=thiscollection)
-                return render(request, 'documents/listdocs.html',{'results':filelist,'collection':collectionpath })
-#            except:
-#                return HttpResponse( "Error...please go back")
-    #SCAN DOCUMENTS IN A COLLECTION on disk hash contents and meta and update after changes.
-        elif request.method == 'POST' and 'scan' in request.POST and 'choice' in request.POST:
+        if request.method == 'POST' and 'choice' in request.POST:
             selected_collection=int(request.POST[u'choice'])
             thiscollection=Collection.objects.get(id=selected_collection)
             collectionpath=thiscollection.path
+            
+            if 'list' in request.POST:
+            #get the files in selected collection
+                filelist=File.objects.filter(collection=thiscollection)
+                return render(request, 'documents/listdocs.html',{'results':filelist,'collection':collectionpath })
+
+    #SCAN DOCUMENTS IN A COLLECTION on disk hash contents and meta and update after changes.
+            elif 'scan' in request.POST:
             #>> DO THE SCAN ON THIS COLLECTION
-            if True:
                 mycore.ping()
-                scanfiles=updateSolr.scandocs(thiscollection)
-                newfiles,deletedfiles,movedfiles,unchangedfiles,changedfiles=scanfiles
-                if sum(scanfiles)>0:
-                    return HttpResponse (" <p>Scanned "+str(sum(scanfiles))+" docs<p>New: "+str(newfiles)+"<p>Deleted: "+str(deletedfiles)+"<p> Moved: "+str(movedfiles)+"<p>Changed: "+str(changedfiles)+"<p>Unchanged: "+str(unchangedfiles))
+                scanner=updateSolr.scandocs(thiscollection)
+                if not scanner.scan_error:
+                    return HttpResponse (" <p>Scanned {} docs<p>New: {} <p>Deleted: {}<p> Moved: {}<p>Unchanged: {}<p>Changed: {}".format(scanner.scanned_files,  scanner.new_files_count,scanner.deleted_files_count,scanner.moved_files_count,scanner.unchanged_files_count,scanner.changed_files_count))
                 else:
-                    return HttpResponse (" Scan Failed!")
+                    return HttpResponse ("Scan Failed!")
     #INDEX DOCUMENTS IN COLLECTION IN SOLR
-        elif request.method == 'POST' and 'index' in request.POST and 'choice' in request.POST:
-            if True:
-                #print('try to index in Solr')
+            elif 'index' in request.POST:
                 mycore.ping()
-                selected_collection=int(request.POST[u'choice'])
-                thiscollection=Collection.objects.get(id=selected_collection)
                 ext=indexSolr.Extractor(thiscollection,mycore) #GO INDEX THE DOCS IN SOLR
                 return HttpResponse ("Indexing.. <p>indexed: {} <p>skipped: {}<p>{}<p>failed: {}<p>{}".format(ext.counter,ext.skipped,ext.skippedlist,ext.failed,ext.failedlist))
-
+                
     #INDEX VIA ICIJ 'EXTRACT' DOCUMENTS IN COLLECTION IN SOLR
-        elif request.method == 'POST' and 'indexICIJ' in request.POST and 'choice' in request.POST:
-            if True:
+            elif 'indexICIJ' in request.POST:
                 #print('try to index in Solr')
                 mycore.ping()
-                selected_collection=int(request.POST[u'choice'])
-                thiscollection=Collection.objects.get(id=selected_collection)
                 ext=indexSolr.Extractor(thiscollection,mycore,forceretry=True,useICIJ=True) #GO INDEX THE DOCS IN SOLR
                 return HttpResponse ("Indexing with ICIJ tool.. <p>indexed: {} <p>skipped: {}<p>{}<p>failed: {}<p>{}".format(ext.counter,ext.skipped,ext.skippedlist,ext.failed,ext.failedlist))
     
     #INDEX VIA ICIJ 'EXTRACT' DOCUMENTS IN COLLECTION IN SOLR ::: NO OCR PROCES
-        elif request.method == 'POST' and 'indexICIJ_NO_OCR' in request.POST and 'choice' in request.POST:
-            if True:
-                #print('try to index in Solr')
-                mycore.ping()
-                selected_collection=int(request.POST[u'choice'])
-                thiscollection=Collection.objects.get(id=selected_collection)
-                
+            elif 'indexICIJ_NO_OCR' in request.POST :
+                mycore.ping()                
                 ext=indexSolr.Extractor(thiscollection,mycore,forceretry=True,useICIJ=True,ocr=False) #GO INDEX THE DOCS IN SOLR
                 return HttpResponse ("Indexing with ICIJ tool (no OCR).. <p>indexed: {} <p>skipped: {}<p>{}<p>failed: {}<p>{}".format(ext.counter,ext.skipped,ext.skippedlist,ext.failed,ext.failedlist))    
     
     
     #CURSOR SEARCH OF SOLR INDEX
-        elif request.method == 'POST' and 'solrcursor' in request.POST and 'choice' in request.POST:
-            #print('try cursor scan of Solr Index')
-            if True:
+            elif 'solrcursor' in request.POST:
                 mycore.ping()
-                selected_collection=int(request.POST[u'choice'])
-                thiscollection=Collection.objects.get(id=selected_collection)
-            #print (thiscollection,mycore)
                 match,skipped,failed=indexcheck(thiscollection,mycore) #GO SCAN THE SOLR INDEX
                 return HttpResponse ("Checking solr index.. <p>files indexed: "+str(match)+"<p>files not found:"+str(skipped)+"<p>errors:"+str(failed))
+
+     #CHECK PATHS
+            elif 'path-check' in request.POST:
+                mycore.ping()
+                correct_paths.check(mycore,thiscollection)
+                return HttpResponse('checked paths')
+
     #REMOVE DUPLICATES FROM SOLR INDEX
         elif request.method == 'POST' and 'dupscan' in request.POST:
-            print('try scanning for duplicates')
+            log.debug('try scanning for duplicates')
             if True:
                 mycore.ping()
             #print (thiscollection,mycore)
                 dupcount,deletecount=solrDeDup.filepathdups(mycore,delete=True) #GO REMOVE DUPLICATES
                 return HttpResponse ("Checking solr index for duplicate paths/filenames in solr index \""+str(mycore)+"\"<p>duplicates found: "+str(dupcount)+"<p>files removed: "+str(deletecount))
-     #CHECK PATHS
-        elif request.method== 'POST' and 'path-check' in request.POST and 'choice' in request.POST:
-            if True:
-                mycore.ping()
-                selected_collection=int(request.POST[u'choice'])
-                thiscollection=Collection.objects.get(id=selected_collection)
-                correct_paths.check(mycore,thiscollection)
-                return HttpResponse('checked paths')
         else:
             return redirect('docs_index')
     except solr.SolrConnectionError:
@@ -275,10 +252,10 @@ def indexcheck(collection,thiscore):
                     skipped+=1
         return counter,skipped,failed
 
-    
-def pathHash(path):
-    m=hashlib.md5()
-    m.update(path.encode('utf-8'))  #encoding avoids unicode error for unicode paths
-    return m.hexdigest()
-
-   
+#    
+#def pathHash(path):
+#    m=hashlib.md5()
+#    m.update(path.encode('utf-8'))  #encoding avoids unicode error for unicode paths
+#    return m.hexdigest()
+#
+#   

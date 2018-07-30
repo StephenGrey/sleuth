@@ -45,6 +45,7 @@ class File(models.Model):
     indexedSuccess = models.BooleanField('IndexedOK',default=False)
     indexedTry=models.BooleanField('IndexedTry',default=False)
     indexUpdateMeta=models.BooleanField('UpdateMeta',default=False)
+    is_folder=models.BooleanField('IsFolder',default=False)
     hash_contents = models.CharField('Hash contents',max_length=200,default='')
     hash_filename = models.CharField('Hash doc name',max_length=200,default='')
     filename=models.CharField('Filename',max_length=100,default='')

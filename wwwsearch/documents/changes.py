@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 from .models import File,Collection
-from ownsearch.hashScan import FileSpecTable as filetable
-from ownsearch.hashScan import hashfile256 as hexfile
+from .file_utils import filespecs, get_contents_hash
+#from ownsearch.hashScan import FileSpecTable as filetable
+#from ownsearch.hashScan import hashfile256 as hexfile
 from ownsearch.hashScan import pathHash
 from ownsearch import solrJson
 import logging,os
@@ -18,6 +19,7 @@ class Scanner:
         self.test=test
         self.unchanged_files,self.changed_files,self.moved_files,self.new_files,self.deleted_files=[],[],[],[],[]
         self.missing_files,self.new_files_hash={},{}
+        self.scan_error=False
         self.process()
 
     
@@ -30,16 +32,18 @@ class Scanner:
         log.info('NEWFILES>>>>>{}'.format(self.new_files))
         log.info('DELETEDFILES>>>>>>>{}'.format(self.deleted_files))
         log.info('MOVED>>>>:{}'.format(self.moved_files))
-        #print('NOCHANGE>>>',unchanged)
+        print('NOCHANGE>>>',self.unchanged_files)
         log.info('CHANGEDFILES>>>>>>{}'.format(self.changed_files))
           
     def scan(self):
-        self.files_on_disk=filetable(self.collection.path) #get dict of specs of files in disk folder(and subfolders)
+        """1. scan all files in collection"""
+        
+        self.files_on_disk=filespecs(self.collection.path) #get dict of specs of files in disk folder(and subfolders)
         self.files_in_database=File.objects.filter(collection=self.collection)
         
 
     def find_on_disk(self):
-        #loop through files in the database
+        """2. loop through files in the database"""
         for database_file in self.files_in_database:
             if database_file.filepath in self.files_on_disk:
                 self.find_unchanged(database_file)
@@ -47,11 +51,11 @@ class Scanner:
                 self.missing_files[database_file.filepath]=database_file.hash_contents
 
     def find_unchanged(self,database_file):
-        """for a database file found on disk - add to changed or unchanged list/dict"""
+        """2a. For a database file found on disk - add to changed or unchanged list/dict"""
         file_meta=self.files_on_disk.pop(database_file.filepath)
         
-        latest_lastmodified=solrJson.timestamp2aware(file_meta[4]) #gets last modified info as stamp, makes GMT time object
-        latestfilesize=file_meta[1]
+        latest_lastmodified=solrJson.timestamp2aware(file_meta.last_modified) #gets last modified info as stamp, makes GMT time object
+        latestfilesize=file_meta.length
         if database_file.last_modified==latest_lastmodified and latestfilesize==database_file.filesize:
             #print(path+' hasnt changed')
             self.unchanged_files.append(database_file.filepath)
@@ -61,16 +65,20 @@ class Scanner:
             log.debug('Changed file: \nStored date: {} New date {}\n Stored filesize: {} New filesize: {}'.format(database_file.last_modified,latest_lastmodified,database_file.filesize,latestfilesize))
 
     def scan_new_files(self):
-        """make index of remaining files found on disk, using contents hash)"""
+        """3. make index of remaining files found on disk, using contents hash)"""
         for newpath in self.files_on_disk:
-            newhash=hexfile(newpath)
-            if newhash in self.new_files_hash:
-                self.new_files_hash[newhash].append(newpath)
+            if not self.files_on_disk[newpath].folder:
+                newhash=get_contents_hash(newpath)
+                if newhash in self.new_files_hash:
+                    self.new_files_hash[newhash].append(newpath)
+                else:
+                    self.new_files_hash[newhash]=[newpath]
             else:
-                self.new_files_hash[newhash]=[newpath]
-      
+                #print('New folder found: {}'.format(newpath))
+                self.new_files.append(newpath)
+
     def new_or_missing(self):        
-        """now work out which new files have been moved """
+        """4. now work out which new files have been moved """
         for missingfilepath in self.missing_files:
             missinghash=self.missing_files[missingfilepath]
             
@@ -106,9 +114,9 @@ class Scanner:
                     log.error(('ERROR: ',path,' does not exist'))
 
         if self.moved_files:
-            print((len(self.moved_files),' to move'))
+            #print((len(self.moved_files),' to move'))
             for newpath,oldpath in self.moved_files:
-                print(newpath,oldpath)
+                #print(newpath,oldpath)
     
                 #get the old file and then update it
                 file=filelist.get(filepath=oldpath)
@@ -116,7 +124,7 @@ class Scanner:
                 #if the file has been already indexed, flag to correct solr index meta
                 if file.indexedSuccess:
                     file.indexUpdateMeta=True  #flag to correct solrindex
-                    print('update meta')
+                    #print('update meta')
                 file.save()
                 
         if self.changed_files:
@@ -128,8 +136,8 @@ class Scanner:
     
                 #check if contents have changed and solr index needs changing
                 oldhash=file.hash_contents
-                newhash=hexfile(filepath)
-                if newhash!=hexfile:
+                newhash=get_contents_hash(filepath)
+                if newhash!=oldhash:
                     #contents change, flag for index
                     file.indexedSuccess=False
                     file.hash_contents=newhash
@@ -147,11 +155,12 @@ class Scanner:
         self.moved_files_count=len(self.moved_files)
         self.unchanged_files_count=len(self.unchanged_files)
         self.changed_files_count=len(self.changed_files)
+        self.scanned_files=self.new_files_count+self.deleted_files_count+self.moved_files_count+self.unchanged_files_count+self.changed_files_count
 
 
 def updatefiledata(file,path,makehash=False):
     """calculate all the metadata and update database; default don't make hash"""
-    try:
+    if True:
         file.filepath=path #
         file.hash_filename=pathHash(path) #get the HASH OF PATH
         filename=os.path.basename(path)
@@ -160,16 +169,20 @@ def updatefiledata(file,path,makehash=False):
         file.fileext=fileExt    
         modTime = os.path.getmtime(path) #last modified time
         file.last_modified=solrJson.timestamp2aware(modTime)
-        if makehash:
-            hash=hexfile(path) #GET THE HASH OF FULL CONTENTS
-            file.hash_contents=hash
+        if os.path.isdir(path):
+            file.is_folder=True
+        else:
+            file.is_folder=False
+            if makehash:
+                hash=get_contents_hash(path) #GET THE HASH OF FULL CONTENTS
+                file.hash_contents=hash
         file.filesize=os.path.getsize(path) #get file length
         file.save()
         return True
-    except Exception as e:
-        print(('Failed to update file database data for ',path))
-        print(('Error in updatefiledata(): ',str(e)))
-        raise ChangesError("Failed to update file database")
+#    except Exception as e:
+#        print(('Failed to update file database data for ',path))
+#        print(('Error in updatefiledata(): ',str(e)))
+#        raise ChangesError("Failed to update file database")
 
 
 def countchanges(changes):

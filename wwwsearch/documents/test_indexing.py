@@ -3,13 +3,13 @@ from django.contrib.auth.models import User, Group, Permission
 from django.core.management.base import BaseCommand, CommandError
 from django.db.models.query import QuerySet
 from django.urls import reverse
-from documents import setup, documentpage,solrcursor,updateSolr,api,indexSolr,file_utils
+from documents import setup, documentpage,solrcursor,updateSolr,api,indexSolr,file_utils,changes
 from documents.models import  Index, Collection, Source, UserEdit,File
 from ownsearch.solrJson import SolrResult,SolrCore
 from ownsearch import pages,solrJson
 from ownsearch import views as views_search
 from django.test.client import Client
-import logging,re,requests,getpass,os
+import logging,re,requests,getpass,os,shutil
 from django.core import serializers
 from django.conf import settings
 
@@ -177,7 +177,7 @@ class ExtractTest(TestCase):
     """test extract documents to Solr"""
     def setUp(self):
         #CONTROL LOGGING IN TESTS
-        #logging.disable(logging.CRITICAL)
+        logging.disable(logging.CRITICAL)
 
         
         #check admin user exists
@@ -215,19 +215,19 @@ class ExtractTest(TestCase):
         #NOTHING HAPPENS ON EMPTY FILELIST
         
         #NOW SCAN THE COLLECTION
-        scanfiles=updateSolr.scandocs(collection)
-        self.assertEquals(scanfiles,[0, 0, 0, 0, 0])
+        scanner=updateSolr.scandocs(collection)
+        self.assertEquals([scanner.new_files_count,scanner.deleted_files_count,scanner.moved_files_count,scanner.unchanged_files_count,scanner.changed_files_count],[0, 0, 0, 0, 0])
         collection.save()
         
         testdups_path=os.path.abspath(os.path.join(os.path.dirname(__file__), '../tests/testdocs/dups'))
         collectiondups=Collection.objects.get(path=testdups_path)
 
         #NOW SCAN THE COLLECTION
-        scanfiles=updateSolr.scandocs(collectiondups)        
-        self.assertEquals(scanfiles,[6, 0, 0, 0, 0])
+        scanner=updateSolr.scandocs(collectiondups)        
+        self.assertEquals([scanner.new_files_count,scanner.deleted_files_count,scanner.moved_files_count,scanner.unchanged_files_count,scanner.changed_files_count],[7, 0, 0, 0, 0])
 
         ext=indexSolr.Extractor(collectiondups,mycore,docstore=self.docstore,useICIJ=self.icij_extract)
-        self.assertEquals((4,2,0),(ext.counter,ext.skipped,ext.failed))
+        self.assertEquals((5,2,0),(ext.counter,ext.skipped,ext.failed))
 
         self.assertEquals(indexSolr.check_hash_in_solrdata("6d50ecaf0fb1fc3d59fd83f8e9ef962cf91eb14e547b2231e18abb12f6cfa809",mycore).data['docpath'],['dups/HilaryEmailC05793347.pdf', 'dups/HilaryEmailC05793347 copy.pdf', 'dups/dup_in_folder/HilaryEmailC05793347 copy.pdf'])
         
@@ -292,8 +292,8 @@ class ExtractTest(TestCase):
         #MOVE OUT OF COLLECTION
         os.rename(os.path.join(origindir,filename),os.path.join(tempdir,filename))
         
-        scanfiles=updateSolr.scandocs(collectiondups,docstore=self.docstore)
-        self.assertEquals(scanfiles,[0, 1, 0, 5, 0])      
+        scanner=updateSolr.scandocs(collectiondups,docstore=self.docstore)
+        self.assertEquals([scanner.new_files_count,scanner.deleted_files_count,scanner.moved_files_count,scanner.unchanged_files_count,scanner.changed_files_count],[0, 1, 0, 6, 0])      
         ext=indexSolr.Extractor(collectiondups,mycore,docstore=self.docstore,useICIJ=self.icij_extract)
         
         updated_doc=indexSolr.check_hash_in_solrdata("6d50ecaf0fb1fc3d59fd83f8e9ef962cf91eb14e547b2231e18abb12f6cfa809",mycore)
@@ -317,6 +317,9 @@ class ExtractTest(TestCase):
         testchanges_path=os.path.abspath(os.path.join(os.path.dirname(__file__), '../tests/testdocs/changes'))
         mycore=solrJson.SolrCore('tests_only')
         
+        #start with first version
+        shutil.copy2(os.path.join(testchanges_path,'1changingfile.txt'),os.path.join(testchanges_path,'changingfile.txt'))
+        
         #delete relevant files
         updateSolr.delete('d5cf9b334b0e479d2a070f9c239b154bf1a894d14f2547b3c894f95e6b0dad67',mycore)
         updateSolr.delete('4be826ace55d600ee70d7a4335ca26abc1b3e22dee62935c210f2c80ea5ba0d0',mycore)
@@ -329,18 +332,21 @@ class ExtractTest(TestCase):
         scanfiles=updateSolr.scandocs(collection,docstore=self.docstore) 
         ext=indexSolr.Extractor(collection,mycore,docstore=self.docstore,useICIJ=self.icij_extract)
         
-        updated_doc=indexSolr.check_hash_in_solrdata("d5cf9b334b0e479d2a070f9c239b154bf1a894d14f2547b3c894f95e6b0dad67",mycore)
-        self.assertEquals(updated_doc.data['docpath'],['changes/changingfile.txt'])
-        self.assertEquals(indexSolr.check_hash_in_solrdata("4be826ace55d600ee70d7a4335ca26abc1b3e22dee62935c210f2c80ea5ba0d0",mycore),None)
+
+        updated_doc=indexSolr.check_hash_in_solrdata("4be826ace55d600ee70d7a4335ca26abc1b3e22dee62935c210f2c80ea5ba0d0",mycore) #first hash
+        print(updated_doc.__dict__)
+        self.assertEquals(updated_doc.data['docpath'],['changes/changingfile.txt','changes/1changingfile.txt'])
+
+        self.assertEquals(indexSolr.check_hash_in_solrdata("d5cf9b334b0e479d2a070f9c239b154bf1a894d14f2547b3c894f95e6b0dad67",mycore),None) #second hash
         
         
         change_file()
         #NOW SCAN THE COLLECTION
         scanfiles=updateSolr.scandocs(collection,docstore=self.docstore) 
         ext=indexSolr.Extractor(collection,mycore,docstore=self.docstore,useICIJ=self.icij_extract)
+
         change_file()
-        self.assertEquals(indexSolr.check_hash_in_solrdata("d5cf9b334b0e479d2a070f9c239b154bf1a894d14f2547b3c894f95e6b0dad67",mycore),None)
-        self.assertEquals(indexSolr.check_hash_in_solrdata("4be826ace55d600ee70d7a4335ca26abc1b3e22dee62935c210f2c80ea5ba0d0",mycore).data['docpath'],['changes/changingfile.txt'])
+        self.assertEquals(indexSolr.check_hash_in_solrdata("d5cf9b334b0e479d2a070f9c239b154bf1a894d14f2547b3c894f95e6b0dad67",mycore).data['docpath'],['changes/changingfile.txt'])
 
     def test_change_dupfiles(self):
         testchanges_path=os.path.abspath(os.path.join(os.path.dirname(__file__), '../tests/testdocs/changes_and_dups'))
@@ -363,10 +369,37 @@ class ExtractTest(TestCase):
         ext=indexSolr.Extractor(collection,mycore,docstore=self.docstore,useICIJ=self.icij_extract)
         change_file(relpath='changes_and_dups/changingfile.txt')
 
-class ICIJExtractTest(ExtractTest):
-    def use_icij_extract(self):
-        return True
+    def test_updatefiledata(self):
+        #make non-existent collection
+        collection=Collection(path='some/path/somewhere',core=self.sampleindex,indexedFlag=False,source=self.testsource)
+        collection.save()
+        testchanges_path=os.path.abspath(os.path.join(os.path.dirname(__file__), '../tests/testdocs/changes_and_dups'))
         
+        newfile=File(collection=collection)
+        changes.updatefiledata(newfile,testchanges_path,makehash=True)
+        
+        self.assertTrue(newfile.is_folder)
+        self.assertEquals(newfile.hash_filename, '3fe0ede76e6d707f5a00a73e6318076b')
+        
+    def test_extract_folder(self):
+        testfolders_path=os.path.abspath(os.path.join(os.path.dirname(__file__), '../tests/testdocs/emptyfolders'))
+        collection=Collection(path=testfolders_path,core=self.sampleindex,indexedFlag=False,source=self.testsource)
+        collection.save()
+        mycore=solrJson.SolrCore('tests_only')
+        scanfiles=updateSolr.scandocs(collection,docstore=self.docstore) 
+        ext=indexSolr.Extractor(collection,mycore,docstore=self.docstore,useICIJ=self.icij_extract)
+        
+        updated_doc=indexSolr.check_hash_in_solrdata("7d963c20aa81721104c2089947c49c56",mycore)
+        print(updated_doc.__dict__)
+        
+        self.assertEquals(updated_doc.docname,'Folder: folder1')
+        self.assertEquals(updated_doc.data['docpath'],['emptyfolders/folder1'])
+        self.assertEquals(updated_doc.data['sb_parentpath_hash'], '50b1c5e4bb7678653bf119e2da8a7a30')
+#class ICIJExtractTest(ExtractTest):
+#    def use_icij_extract(self):
+#        return True
+#        
+
 class ChangeApiTests(TestCase):
     """test Api for returning user changes"""
     #
@@ -472,6 +505,20 @@ class ChangeApiTests(TestCase):
         stored="[u'Donald Trump', u'Richard Nixon']"
         #print(api.deserial_taglist(stored))
         self.assertEquals(api.deserial_taglist(stored),['Donald Trump', 'Richard Nixon'])
+
+class FileUtilsTest(TestCase):	
+    def setUp(self):
+        self.testdups_path=os.path.abspath(os.path.join(os.path.dirname(__file__), '../tests/testdocs/dups'))
+    
+    def test_filespecs(self):
+        specs=file_utils.filespecs(self.testdups_path)
+        spec=specs['/Users/Stephen/Code/SearchBox/wwwsearch/tests/testdocs/dups/dup_in_folder/HilaryEmailC05793347 copy.pdf']
+        self.assertEquals(spec.last_modified,1530258349.094962)
+        self.assertEquals(spec.length,118916)
+        self.assertTrue(spec.exists)
+        self.assertEquals(spec.name,'HilaryEmailC05793347 copy.pdf')
+        self.assertEquals(spec.ext,'.pdf')
+
 
 def make_admin_or_login(tester):
     try:

@@ -87,49 +87,56 @@ class Extractor():
                     sourcetext=''
                     log.debug('No source defined for file: {}'.format(file.filename))
                 
-                #getfile hash if not already done
-                if not file.hash_contents:
-                    file.hash_contents=hexfile(file.filepath)
-                    file.save()
                 
-                #check by hash of contents if doc exists already in solr index
-                existing_doc=check_file_in_solrdata(file,self.mycore) #searches by hashcontents, not solrid
-                if existing_doc:
-                    #FIX META ONLY
-                    result=self.update_existing_meta(file,existing_doc)
-
+                if file.is_folder:
+                    log.debug('Skipping extract of folder')
+                    result=self.extract_folder(file)
+                    
                 else:
-                #now try the extract
-                    if self.useICIJ:
-                        log.info('using ICIJ extract method..')
-                        result = solrICIJ.ICIJextract(file.filepath,self.mycore,ocr=self.ocr)
-                        if result is True:
-                            try:
-                                new_id=s.hashlookup(file.hash_contents,self.mycore).results[0].id #id of the first result returned
-                                file.solrid=new_id
-                                file.save()
-                                log.info('(ICIJ extract) New solr ID: '+new_id)
-                            except:
-                                log.warning('Extracted doc not found in index')
-                                result=False
-                        if result is True:
-                        #post extract process -- add meta data field to solr doc, e.g. source field
-                            try:
-                                sourcetext=file.collection.source.sourceDisplayName
-                            except:
-                                sourcetext=''
-                            if sourcetext:
-                                try:
-                                    result=solrICIJ.postprocess(new_id,sourcetext,file.hash_contents,self.mycore)
-                                    if result==True:
-                                        log.debug('Added source: \"{}\" to docid: {}'.format(sourcetext,new_id))
-                                except Exception as e:
-                                    log.error('Cannot add meta data to solrdoc: {}, error: {}'.format(new_id,e))
+                    #getfile hash if not already done
+                    if not file.hash_contents:
+                        file.hash_contents=file_utils.get_contents_hash(file.filepath)
+                        file.save()
+                    
+                    
+                    #check by hash of contents if doc exists already in solr index
+                    existing_doc=check_file_in_solrdata(file,self.mycore) #searches by hashcontents, not solrid
+                    if existing_doc:
+                        #FIX META ONLY
+                        result=self.update_existing_meta(file,existing_doc)
+    
                     else:
-                        try:
-                            result=extract(file.filepath,file.hash_contents,self.mycore,sourcetext=sourcetext,docstore=self.docstore)
-                        except (s.SolrCoreNotFound,s.SolrConnectionError,requests.exceptions.RequestException) as e:
-                            raise ExtractInterruption(self.interrupt_message())
+                    #now try the extract
+                        if self.useICIJ:
+                            log.info('using ICIJ extract method..')
+                            result = solrICIJ.ICIJextract(file.filepath,self.mycore,ocr=self.ocr)
+                            if result is True:
+                                try:
+                                    new_id=s.hashlookup(file.hash_contents,self.mycore).results[0].id #id of the first result returned
+                                    file.solrid=new_id
+                                    file.save()
+                                    log.info('(ICIJ extract) New solr ID: '+new_id)
+                                except:
+                                    log.warning('Extracted doc not found in index')
+                                    result=False
+                            if result is True:
+                            #post extract process -- add meta data field to solr doc, e.g. source field
+                                try:
+                                    sourcetext=file.collection.source.sourceDisplayName
+                                except:
+                                    sourcetext=''
+                                if sourcetext:
+                                    try:
+                                        result=solrICIJ.postprocess(new_id,sourcetext,file.hash_contents,self.mycore)
+                                        if result==True:
+                                            log.debug('Added source: \"{}\" to docid: {}'.format(sourcetext,new_id))
+                                    except Exception as e:
+                                        log.error('Cannot add meta data to solrdoc: {}, error: {}'.format(new_id,e))
+                        else:
+                            try:
+                                result=extract(file.filepath,file.hash_contents,self.mycore,sourcetext=sourcetext,docstore=self.docstore)
+                            except (s.SolrCoreNotFound,s.SolrConnectionError,requests.exceptions.RequestException) as e:
+                                raise ExtractInterruption(self.interrupt_message())
              
                 if result is True:
                     self.counter+=1
@@ -204,6 +211,31 @@ class Extractor():
 
     def interrupt_message(self):
         return '{} files extracted, {} files skipped and {} files failed.'.format(self.counter,self.skipped,self.failed)
+        
+    def extract_folder(self,file):
+        
+        file.solrid=file.hash_filename
+        
+        log.debug('extracting folder')
+           #extract a relative path from the docstore root
+        relpath=make_relpath(file.filepath,docstore=self.docstore)
+        #args+='&literal.{}={}&literal.{}={}'.format(filepathfield,relpath,pathhashfield,file_utils.pathHash(path))
+        result=updatetags(file.solrid,self.mycore,field_to_update='docpath',value=[relpath])
+        if result:
+            #add hash of parent relative path
+            if self.mycore.parenthashfield:
+                parenthash=file_utils.parent_hash(relpath)
+                #args+='&literal.{}={}'.format(parenthashfield,parenthash)
+                log.debug("Parenthash: {} Relpath: {}".format(parenthash,relpath))
+                result=updatetags(file.solrid,self.mycore,field_to_update=self.mycore.parenthashfield,value=parenthash)
+            else:
+                log.debug('no parenthashfield')
+                result=False    
+            
+            if result:
+                result=updatetags(file.solrid,self.mycore,field_to_update=self.mycore.docnamesourcefield,value='Folder: {}'.format(file.filename))
+        
+        return result
 
 
 class ExtractFile():
@@ -211,23 +243,23 @@ class ExtractFile():
         pass
 
     
-#FILE METHODS
-def pathHash(path):
-    m=hashlib.md5()
-    m.update(path.encode('utf-8'))  #cope with unicode filepaths; NB to work requred 'from __future__ import unicode_literals'
-    return m.hexdigest()
+##FILE METHODS
+#def pathHash(path):
+#    m=hashlib.md5()
+#    m.update(path.encode('utf-8'))  #cope with unicode filepaths; NB to work requred 'from __future__ import unicode_literals'
+#    return m.hexdigest()
 
-def scanPath(parentFolder):  #recursively check all files in a file folder and get specs 
-    if os.path.exists(parentFolder)==True: #check the folder exists
-        filedict=dup.HexFolderTable(parentFolder)
-        #print ('filedict',filedict)
-        for hexfile in filedict:
-        #hexfile is a list of duplicate files [[path,filelen,shortName,fileExt,modTime]...,[]]
-            path=filedict[hexfile][0][0]
-            #print (hexfile,path)
-            result=extract(path)
-            if result is True:
-                log.info ('PATH :'+path+'indexed successfully')
+#def scanPath(parentFolder):  #recursively check all files in a file folder and get specs 
+#    if os.path.exists(parentFolder)==True: #check the folder exists
+#        filedict=dup.HexFolderTable(parentFolder)
+#        #print ('filedict',filedict)
+#        for hexfile in filedict:
+#        #hexfile is a list of duplicate files [[path,filelen,shortName,fileExt,modTime]...,[]]
+#            path=filedict[hexfile][0][0]
+#            #print (hexfile,path)
+#            result=extract(path)
+#            if result is True:
+#                log.info ('PATH :'+path+'indexed successfully')
 
 #SOLR METHODS
 
@@ -287,7 +319,7 @@ def extract(path,contentsHash,mycore,test=False,timeout=TIMEOUT,sourcetext='',do
     
     #extract a relative path from the docstore root
     relpath=make_relpath(path,docstore=docstore)
-    args+='&literal.{}={}&literal.{}={}'.format(filepathfield,relpath,pathhashfield,pathHash(path))
+    args+='&literal.{}={}&literal.{}={}'.format(filepathfield,relpath,pathhashfield,file_utils.pathHash(path))
 
     #add hash of parent relative path
     if parenthashfield:
@@ -374,7 +406,7 @@ def ignorepath(parentFolder):
                 continue
     return ignorefiles
 
-
-if __name__ == '__main__':   #
-    scanpath('')
-    
+#
+#if __name__ == '__main__':   #
+#    scanpath('')
+#    

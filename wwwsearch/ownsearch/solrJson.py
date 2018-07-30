@@ -158,6 +158,11 @@ class Solrdoc:
             #give the KEY ATTRIBS standard names
             self.id=self.data.get(core.unique_id,'') #leave copy in data
             self.docname=self.data.pop(core.docnamefield,'')
+            if self.docname.startswith('Folder:'):
+                self.folder=True
+            else:
+                self.folder=False
+            
             self.date=self.data.pop(core.datefield,'')
             if isinstance(self.date,list):
                 self.date=self.date[0]
