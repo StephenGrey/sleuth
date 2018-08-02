@@ -177,7 +177,7 @@ class ExtractTest(TestCase):
     """test extract documents to Solr"""
     def setUp(self):
         #CONTROL LOGGING IN TESTS
-        logging.disable(logging.CRITICAL)
+        #logging.disable(logging.CRITICAL)
 
         
         #check admin user exists
@@ -324,8 +324,7 @@ class ExtractTest(TestCase):
         updateSolr.delete('d5cf9b334b0e479d2a070f9c239b154bf1a894d14f2547b3c894f95e6b0dad67',mycore)
         updateSolr.delete('4be826ace55d600ee70d7a4335ca26abc1b3e22dee62935c210f2c80ea5ba0d0',mycore)
 
-#        collection=Collection(path=self.testdups_path,core=self.sampleindex,indexedFlag=False,source=self.testsource)
-#        collectiondups.save()
+
         collection,res=Collection.objects.get_or_create(path=testchanges_path,core=self.sampleindex,indexedFlag=False,source=self.testsource)
         self.assertTrue(res)
 
@@ -348,6 +347,55 @@ class ExtractTest(TestCase):
         change_file()
         self.assertEquals(indexSolr.check_hash_in_solrdata("d5cf9b334b0e479d2a070f9c239b154bf1a894d14f2547b3c894f95e6b0dad67",mycore).data['docpath'],['changes/changingfile.txt'])
 
+    def test_change_meta(self):
+    	
+        testchanges_path=os.path.abspath(os.path.join(os.path.dirname(__file__), '../tests/testdocs/changes'))
+        mycore=solrJson.SolrCore('tests_only')
+        #start with first version
+        shutil.copy2(os.path.join(testchanges_path,'1changingfile.txt'),os.path.join(testchanges_path,'changingfile.txt'))
+        
+        #delete relevant files
+        updateSolr.delete('d5cf9b334b0e479d2a070f9c239b154bf1a894d14f2547b3c894f95e6b0dad67',mycore)
+        updateSolr.delete('4be826ace55d600ee70d7a4335ca26abc1b3e22dee62935c210f2c80ea5ba0d0',mycore)
+
+
+        collection,res=Collection.objects.get_or_create(path=testchanges_path,core=self.sampleindex,indexedFlag=False,source=self.testsource)
+        self.assertTrue(res)
+
+        scanfiles=updateSolr.scandocs(collection,docstore=self.docstore) 
+        ext=indexSolr.Extractor(collection,mycore,docstore=self.docstore,useICIJ=self.icij_extract)
+        
+
+        solrid="4be826ace55d600ee70d7a4335ca26abc1b3e22dee62935c210f2c80ea5ba0d0"
+
+        docs=solrJson.getmeta(solrid,mycore)
+        print(docs[0].__dict__)
+        
+        updateSolr.updatetags(solrid,mycore,value='newfilename',field_to_update='docnamesourcefield',newfield=False,test=False)
+        
+        newdate=solrJson.timestringGMT(solrJson.datetime.now())
+        
+        updateSolr.updatetags(solrid,mycore,value=newdate,field_to_update='datesourcefield',newfield=False,test=False)
+        
+        doc=solrJson.getmeta(solrid,mycore)[0]
+        self.assertEquals(doc.date,newdate)
+        self.assertEquals(doc.docname,'newfilename')
+
+        #ANOTHER UDPATE METHOD
+        
+        newdate=solrJson.timestringGMT(solrJson.datetime.now()+solrJson.timedelta(days=1))
+        changes=[]
+        
+        changes.append(('datesourcefield','date',newdate))
+        json2post=updateSolr.makejson(solrid,changes,mycore)
+        
+        response,updatestatus=updateSolr.post_jsonupdate(json2post,mycore)
+
+        doc=solrJson.getmeta(solrid,mycore)[0]
+        self.assertEquals(doc.date,newdate)
+
+
+   
     def test_change_dupfiles(self):
         testchanges_path=os.path.abspath(os.path.join(os.path.dirname(__file__), '../tests/testdocs/changes_and_dups'))
         mycore=solrJson.SolrCore('tests_only')

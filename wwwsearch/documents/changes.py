@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 from .models import File,Collection
-from .file_utils import filespecs, get_contents_hash
+from documents import file_utils
 #from ownsearch.hashScan import FileSpecTable as filetable
 #from ownsearch.hashScan import hashfile256 as hexfile
-from ownsearch.hashScan import pathHash
+#from ownsearch.hashScan import pathHash
 from ownsearch import solrJson
 import logging,os
 log = logging.getLogger('ownsearch.docs.changes')
@@ -38,7 +38,7 @@ class Scanner:
     def scan(self):
         """1. scan all files in collection"""
         
-        self.files_on_disk=filespecs(self.collection.path) #get dict of specs of files in disk folder(and subfolders)
+        self.files_on_disk=file_utils.filespecs(self.collection.path) #get dict of specs of files in disk folder(and subfolders)
         self.files_in_database=File.objects.filter(collection=self.collection)
         
 
@@ -68,7 +68,7 @@ class Scanner:
         """3. make index of remaining files found on disk, using contents hash)"""
         for newpath in self.files_on_disk:
             if not self.files_on_disk[newpath].folder:
-                newhash=get_contents_hash(newpath)
+                newhash=file_utils.get_contents_hash(newpath)
                 if newhash in self.new_files_hash:
                     self.new_files_hash[newhash].append(newpath)
                 else:
@@ -136,7 +136,7 @@ class Scanner:
     
                 #check if contents have changed and solr index needs changing
                 oldhash=file.hash_contents
-                newhash=get_contents_hash(filepath)
+                newhash=file_utils.get_contents_hash(filepath)
                 if newhash!=oldhash:
                     #contents change, flag for index
                     file.indexedSuccess=False
@@ -162,7 +162,7 @@ def updatefiledata(file,path,makehash=False):
     """calculate all the metadata and update database; default don't make hash"""
     if True:
         file.filepath=path #
-        file.hash_filename=pathHash(path) #get the HASH OF PATH
+        file.hash_filename=file_utils.pathHash(path) #get the HASH OF PATH
         filename=os.path.basename(path)
         file.filename=filename
         shortName, fileExt = os.path.splitext(filename)
@@ -174,7 +174,7 @@ def updatefiledata(file,path,makehash=False):
         else:
             file.is_folder=False
             if makehash:
-                hash=get_contents_hash(path) #GET THE HASH OF FULL CONTENTS
+                hash=file_utils.get_contents_hash(path) #GET THE HASH OF FULL CONTENTS
                 file.hash_contents=hash
         file.filesize=os.path.getsize(path) #get file length
         file.save()

@@ -68,6 +68,7 @@ class SolrCore:
             self.docnamesourcefield=config[core]['docnamesource']
             self.datesourcefield=config[core]['datesourcefield']
             #optional:
+            self.datesourcefield2=config[core].get('datesourcefield2')
             self.parenthashfield=config[core].get('parentpath_hash','')
             self.tags1field=config[core].get('tags1field','')
             self.usertags1field=config[core].get('usertags1field','')
@@ -633,7 +634,7 @@ def getmeta(docid,core):
     args+=","+core.nextfield if core.nextfield else ""
     args+=","+core.sequencefield if core.sequencefield else ""
     jres=getJSolrResponse(searchterm,args,core=core)
-    log.debug(args,jres)
+    #log.debug(args,jres)
     res=getlist(jres,0,core=core)
     return res.results
     
@@ -643,6 +644,7 @@ def getfield(docid,field,core):
     searchterm='{}:\"{}\"'.format(core.unique_id,docid)
     args='&fl={}'.format(field)
     jres=getJSolrResponse(searchterm,args,core=core)
+    log.debug(jres)
     try:
         results=SolrResult(jres,core,startcount=0).results
         if len(results)>0:
@@ -712,9 +714,6 @@ def getcores():
         for coredoc in sc.objects.all():
             core=coredoc.corename
             corenumber=coredoc.id
-#    for corenumber in config['Cores']:
-#        core=config['Cores'][corenumber]
-#        name=config[core]['name']
             try:
                 cores[corenumber]=SolrCore(core)
             except MissingConfigData:

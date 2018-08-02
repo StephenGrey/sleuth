@@ -55,7 +55,7 @@ def getcores(page,request):
     page.getcores(request.user,request.session.get('mycore')) #arguments: user, storedcore
     if not page.stored_core:
         log.warning("Accessing listfiles before selecting index")
-        raise NoIndexSelected
+        raise NoIndexSelected("No index selected")
     mycore=page.cores.get(int(page.coreID)) # get the working core
     log.info('using index: {}'.format(getattr(mycore,'name','')))
     return mycore
@@ -65,7 +65,11 @@ def getcores(page,request):
 def listfiles(request):
 
     page=documentpage.CollectionPage()
-    mycore=getcores(page,request)
+    
+    try:
+        mycore=getcores(page,request)
+    except NoIndexSelected:
+        return redirect('docs_index')
     
     try:
         if request.method == 'POST' and 'choice' in request.POST:
@@ -116,7 +120,7 @@ def listfiles(request):
      #CHECK PATHS
             elif 'path-check' in request.POST:
                 mycore.ping()
-                correct_paths.check(mycore,thiscollection)
+                correct_paths.check_solrpaths(mycore,thiscollection)
                 return HttpResponse('checked paths')
 
     #REMOVE DUPLICATES FROM SOLR INDEX

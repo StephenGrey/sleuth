@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import os, logging,hashlib
 from collections import defaultdict
-from ownsearch.hashScan import pathHash
+#from ownsearch.hashScan import pathHash
 try:
     from django.template import loader
     from documents.models import File
@@ -68,7 +68,6 @@ def parent_hash(filepath):
     parent,filename=os.path.split(filepath)
     return pathHash(parent)
     
-    
 def pathHash(path):
     m=hashlib.md5()
     m.update(path.encode('utf-8'))  #encoding avoids unicode error for unicode paths
@@ -83,8 +82,6 @@ def get_contents_hash(path,blocksize = 65536):
         buf = afile.read(blocksize)
     afile.close()
     return hasher.hexdigest()
-
-
 
 
 #PATH METHODS

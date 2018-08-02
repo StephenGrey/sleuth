@@ -8,10 +8,10 @@ import ownsearch.solrJson as s
 import documents.solrcursor as sc
 from datetime import datetime, date, time
 from .models import File,Collection
-from . import file_utils, changes
+from . import changes
 from ownsearch.hashScan import HexFolderTable as hex
 from ownsearch.hashScan import hashfile256 as hexfile
-from .file_utils import pathHash
+from .file_utils import pathHash,parent_hash,parent_hashes
 from ownsearch.hashScan import FileSpecTable as filetable
 from django.utils import timezone
 import pytz #support localising the timezone
@@ -19,6 +19,9 @@ log = logging.getLogger('ownsearch.updateSolr')
 from usersettings import userconfig as config
 
 DOCSTORE=config['Models']['collectionbasepath'] #get base path of the docstore
+
+class SolrdocNotFound(Exception):
+    pass
 
 
 class Updater:
@@ -121,7 +124,7 @@ class AddParentHash(UpdateField):
 
     
     def update_value(self,datasource_value):
-        return file_utils.parent_hashes(datasource_value)
+        return parent_hashes(datasource_value)
                         
 
 class SequenceByDate(Updater):
@@ -249,45 +252,78 @@ def removedeleted(deletefiles,collection,docstore=DOCSTORE):
     filelist=File.objects.filter(collection=collection)
     for path in deletefiles:
         file=filelist.get(filepath=path)
-        
-        #first remove from solrindex
+ 
         relpath=os.path.relpath(file.filepath,start=docstore)
         log.debug('File to delete {} from id: {}'.format(relpath,file.solrid))        
-        result=remove_filepath_or_delete_solrrecord(file.solrid,relpath,mycore)
-        if result:
-        #if no error then remove from file database
-            file.delete()
-            log.debug('Deleted {}'.format(path))
+        try:
+            result=remove_filepath_or_delete_solrrecord(file.solrid,relpath,mycore)
+            if result:
+                pass
+            else:
+                #try a fullpath
+                result=remove_filepath_or_delete_solrrecord(file.solrid,file.filepath,mycore)
+                if result:
+                    pass
+                else:
+                    log.debug('Failed to delete from solr index; deleting database entry anyway'.format(path))
+        except SolrdocNotFound:
+            log.debug('Both solr doc & disk path not found - remove database entry')
+        file.delete()
+        log.debug('Deleted {}'.format(path))
+        
     return
 
 def remove_filepath_or_delete_solrrecord(oldsolrid,filepath,mycore):
+    return remove_filepath(oldsolrid,filepath,mycore,deletedoc=True)
+    
+
+def remove_filepath(oldsolrid,filepath,mycore,deletedoc=False):
     olddoc=check_hash_in_solrdata(oldsolrid,mycore)
     if not olddoc:
-        return False
+        log.debug('Doc not found with ID: {} '.format(oldsolrid))
+        raise SolrdocNotFound
+
     paths=olddoc.data.get('docpath')
     log.debug('Paths found in existing doc: {}'.format(paths))
     log.debug('Deleting \'{}\' from filepaths in solrdoc \'{}\''.format(filepath,oldsolrid))
-    
 
-    
-    if len(paths)>1:
+    if not isinstance(paths,list):
+        paths=[paths]    
+
+    if filepath not in paths:
+        log.debug('{} not found in solrdoc existing filepaths'.format(filepath))
+        
+        return False
+        
+    if not deletedoc or (deletedoc and len(paths)>1):
         paths.remove(filepath)
         result=updatetags(oldsolrid,mycore,field_to_update='docpath',value=paths)
         log.info('Deleting {} from filepaths in solrdoc {}'.format(filepath,oldsolrid))
         
         if result:
-            parenthashes=olddoc.data.get(mycore.parenthashfield)
+            parenthashes=olddoc.data.get(mycore.parenthashfield,None)
+            if not isinstance(parenthashes,list):
+                parenthashes=[parenthashes]
             log.debug('Existing parentpath hashes: {}'.format(parenthashes))           
-            parenthashes.remove(file_utils.parent_hash(filepath))
-            result=updatetags(oldsolrid,mycore,field_to_update=mycore.parenthashfield,value=parenthashes)
-            
-        return result
-    else:
+            log.debug(parenthashes)
+            if parenthashes=='None':
+                print('None string')
+                
+            if parenthashes:
+                result=remove_hash(parenthashes,filepath,mycore,oldsolrid)
+            return result
+
+    elif deletedoc:
         response,status=delete(oldsolrid,mycore)
         if status:
             log.info('Deleted solr doc with ID:'+oldsolrid)
-            return True
+            return True            
+    return False
 
+def remove_hash(hashes,filepath,mycore,solrid):
+    hashes.remove(parent_hash(filepath))
+    result=updatetags(solrid,mycore,field_to_update=mycore.parenthashfield,value=hashes)
+    return result
 
 def delete(solrid,mycore):
     """delete a file from solr index"""
@@ -349,19 +385,45 @@ def update(id,changes,mycore):  #solrid, list of changes [(sourcefield, resultfi
         log.debug('solr changes not successful')    
     return response,updatestatus
 
-
-
 def makejson(solrid,changes,mycore):   #the changes use standard fields (e.g. 'datesourcefield'); so parse into actual solr fields
     """make json instructions to make atomic changes to solr core"""
     a=collections.OrderedDict()  #keeps the JSON file in a nice order
-    a['extract_id']=solrid 
-    for resultfield,sourcefield,value in changes:
+    a[mycore.unique_id]=solrid 
+    for sourcefield,resultfield,value in changes:
         solrfield=mycore.__dict__.get(sourcefield,sourcefield) #if defined in core, replace with standard field, or leave unchanged
         if solrfield !='':
             a[solrfield]={"set":value}
     data=json.dumps([a])
     return data
 
+def clear_date(solrid,mycore):
+    doc=s.getmeta(solrid,mycore)[0]
+    if doc.date:
+        data=make_remove_json(mycore,solrid,mycore.datesourcefield,doc.date)
+        response,poststatus=post_jsonupdate(data,mycore)
+        doc=s.getmeta(solrid,mycore)[0]
+        if doc.date and mycore.datesourcefield2:
+            data=make_remove_json(mycore,solrid,mycore.datesourcefield2,doc.date)
+            response,poststatus=post_jsonupdate(data,mycore)
+            doc=s.getmeta(solrid,mycore)[0]
+            if not doc.date:
+                return True
+            else:
+                return False
+        else:
+            if doc.date:
+                return False
+            else:
+                return True
+    else:
+        return True
+            
+def make_remove_json(mycore,solrid,field,value):
+    a=collections.OrderedDict()
+    a[mycore.unique_id]=solrid 
+    a[field]={"remove":value}
+    data=json.dumps([a])
+    return data
 
 def checkupdate(id,changes,mycore):
     """check success of an update"""
@@ -409,7 +471,7 @@ def post_jsonupdate(data,mycore,timeout=10,test=False):
             res=ses.post(url, data=data, headers=headers,timeout=timeout)
             jres=res.json()
             status=jres['responseHeader']['status']
-
+            log.debug(jres)
         else:
             log.info('TEST ONLY: simulate post to {}, with data {} and headers {}'.format(url,data,headers))
             status=0
@@ -419,7 +481,7 @@ def post_jsonupdate(data,mycore,timeout=10,test=False):
         else:
             statusOK = False
         return jres, statusOK
-    except Exception as e:
+    except IndexError as e:
         log.debug('Exception: {}'.format(e))
         return '',False
 
@@ -469,7 +531,7 @@ def metaupdate(collection):
                     #make changes to the solr index - using standardised fields
                     json2post=makejson(solrdoc.id,changes,mycore)
                     log.debug('{}'.format(json2post)) 
-#                    response,updatestatus=post_jsonupdate(json2post,mycore)
+                    response,updatestatus=post_jsonupdate(json2post,mycore)
                     if checkupdate(solrdoc.id,changes,mycore):
                         log.debug('solr successfully updated')
                         file.indexUpdateMeta=False
@@ -507,9 +569,9 @@ def parsechanges(solrresult,file,mycore):
         oldlastmodified='' 
     olddocname=solrresult.docname
 #    print olddocsize,olddocpath,olddocname, oldlastmodified
-    #compare solr data with new metadata & make list of changes
-    changes=[] #changes=[('tika_metadata_content_length','tika_metadata_content_length',100099)]
 
+    #compare solr data with new metadata & make list of changes
+    changes=[] 
 #DEBUG REMOVED BELOW - NEEDS TO COPE WITH DUP FILEPATHS 
 #    relpath=os.path.relpath(file.filepath,start=DOCSTORE) #extract the relative path from the docstore
 #    if olddocpath != relpath:
@@ -524,14 +586,15 @@ def parsechanges(solrresult,file,mycore):
     if olddate !=newlastmodified:
         log.info('need to update last_modified from \"{}\"  to \"{}\"'.format(oldlastmodified, newlastmodified))
         changes.append(('datesourcefield','date',newlastmodified))
+        if clear_date(file.solrid,mycore):
+            log.debug('cleared previous stored date')
+        else:
+            log.debug('failed to clear previous stored date')
     newfilename=file.filename
     if olddocname != newfilename:
         log.info('need to update filename from {} to {}'.format(olddocname,newfilename))
         changes.append(('docnamesourcefield','docname',newfilename))
     return changes
-
-
-
 
 #
 #COPIED TO OBJECT
