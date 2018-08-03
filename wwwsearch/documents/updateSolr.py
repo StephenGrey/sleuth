@@ -452,7 +452,7 @@ def checkupdate(id,changes,mycore):
                     log.debug('{} NOT updated; current value {}'.format(resultfield,value))
                     status=False
             else:
-                print(resultfield+' not found in solr result')
+                log.debug('{} not found in solr result'.format(resultfield))
                 status=False
     else:
         print(('error finding solr result for id',id))
@@ -500,7 +500,7 @@ def post_jsondoc(data,mycore):
             statusOK = False
         return res.json(), statusOK
     except Exception as e:
-        print(('Exception: ',str(e)))
+        log.debug('Exception:  {}'.format(e))
         statusOK=False
         return '',statusOK
 
@@ -786,7 +786,7 @@ def sequence(mycore,regex='^XXX(\d+)_Part(\d+)(_*)OCR'):
             json2post=makejson(doc.id,changes,mycore)
             log.debug('{}'.format(json2post)) 
             response,updatestatus=post_jsonupdate(json2post,mycore)
-            print((response,updatestatus))
+            #print((response,updatestatus))
             if checkupdate(doc.id,changes,mycore):
                 log.debug('solr successfully updated')
             else:

@@ -243,24 +243,6 @@ class ExtractFile():
         pass
 
     
-##FILE METHODS
-#def pathHash(path):
-#    m=hashlib.md5()
-#    m.update(path.encode('utf-8'))  #cope with unicode filepaths; NB to work requred 'from __future__ import unicode_literals'
-#    return m.hexdigest()
-
-#def scanPath(parentFolder):  #recursively check all files in a file folder and get specs 
-#    if os.path.exists(parentFolder)==True: #check the folder exists
-#        filedict=dup.HexFolderTable(parentFolder)
-#        #print ('filedict',filedict)
-#        for hexfile in filedict:
-#        #hexfile is a list of duplicate files [[path,filelen,shortName,fileExt,modTime]...,[]]
-#            path=filedict[hexfile][0][0]
-#            #print (hexfile,path)
-#            result=extract(path)
-#            if result is True:
-#                log.info ('PATH :'+path+'indexed successfully')
-
 #SOLR METHODS
 
 def extract_test(test=True,timeout=TIMEOUT,mycore='',docstore=''):
@@ -401,7 +383,7 @@ def ignorepath(parentFolder):
         #print('Scanning %s...' % dirName)
         for filename in fileList: #now through every file in the folder/subfolder
             if any(fnmatch(filename, pattern) for pattern in IGNORELIST):
-                print('Ignore', filename, os.path.abspath(filename))
+                log.debug('Ignoring \'{}\',\'{}\''.format(filename, os.path.abspath(filename)))
                 ignorefiles.append((filename, os.path.abspath(filename)))
                 continue
     return ignorefiles

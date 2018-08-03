@@ -19,7 +19,7 @@ class DoesNotExist(Exception):
 class Not_A_Directory(Exception):
     pass
 
-class File:
+class FileSpecs:
     def __init__(self,path,folder=False):
         self.path=path
         self.name=os.path.basename(path)
@@ -163,6 +163,7 @@ def directory_tags(path,isfile=False):
 
 def model_index(path,index_collections,hashcheck=False):
     """check if file scanned into model index"""
+    
     stored=File.objects.filter(filepath=path, collection__in=index_collections)
     if stored:
         indexed=stored.exclude(solrid='')
@@ -177,9 +178,8 @@ def filespecs(parent_folder): #
     for dirName, subdirs, fileList in os.walk(parent_folder): #go through every subfolder in a folder
         for filename in fileList: #now through every file in the folder/subfolder
             path = os.path.join(dirName, filename)
-            filespecs[path]=File(path)
+            filespecs[path]=FileSpecs(path)
         for folder in subdirs:
             path= os.path.join(dirName,folder)
-            filespecs[path]=File(path,folder=True)
-            print(path)
+            filespecs[path]=FileSpecs(path,folder=True)
     return filespecs

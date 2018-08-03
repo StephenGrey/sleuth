@@ -32,7 +32,7 @@ class Scanner:
         log.info('NEWFILES>>>>>{}'.format(self.new_files))
         log.info('DELETEDFILES>>>>>>>{}'.format(self.deleted_files))
         log.info('MOVED>>>>:{}'.format(self.moved_files))
-        print('NOCHANGE>>>',self.unchanged_files)
+        #print('NOCHANGE>>>',self.unchanged_files)
         log.info('CHANGEDFILES>>>>>>{}'.format(self.changed_files))
           
     def scan(self):

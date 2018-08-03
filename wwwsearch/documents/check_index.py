@@ -40,4 +40,3 @@ class IndexChecker:
                 result=remove_filepath_or_delete_solrrecord(doc.id,path,self.mycore)
                 print(f'Filepath removed')
                 
-                break

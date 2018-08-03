@@ -241,12 +241,12 @@ def indexcheck(collection,thiscore):
                 if len(solrresult)>0:
                     #if some files, take the first one
                     solrdata=solrresult[0]
-                    print('solrdata:',vars(solrdata))
+                    log.debug('solrdata: {}'.format(vars(solrdata)))
                     file.indexedSuccess=True
                     file.solrid=solrdata.id
                     file.save()
                     counter+=1
-                    print ('PATH :'+file.filepath+' indexed successfully (HASHMATCH)', 'Solr \'id\': '+solrdata.id)
+                    log.debug(f'PATH : {file.filepath} indexed successfully (HASHMATCH) Solr \'id\': {solrdata.id}')
                 #NO MATCHES< RETURN FAILURE
                 else:
                     log.info(file.filepath+'.. not found in Solr index')

@@ -17,192 +17,59 @@ from django.conf import settings
 PASSWORD = 'mypassword' 
 MANUAL=False
 
-class DocumentsTest(TestCase):
-    """ Tests for documents module """
-    def setUp(self):
-        #print('This is the set up')
-        #print (self._testMethodName)
-        #print('Tests: disable logging')
-        
-        #CONTROL LOGGING IN TESTS
-        logging.disable(logging.CRITICAL)
-        
-        #check admin user exists and login
-        make_admin_or_login(self)
-        
-        #make an admin group and give it permissions
-        admingroup,usergroup=setup.make_admingroup(self.admin_user,verbose=False)
-#        print(Group.objects.all())
-        setup.make_default_index(usergroup,verbose=False)
-        self.sampleindex=Index.objects.get(corename='coreexample')
-        
-        #make a sample source
-        source=Source(sourceDisplayName='Test source',sourcename='testsource')
-        source.save()
-        
-        #make a test collection
-        samplecollection=Collection(path='some/path/somewhere',core=self.sampleindex,indexedFlag=False,source=source)
-        samplecollection.save()
-        anothercollection=Collection(path='another/different/path/somewhere',core=self.sampleindex,indexedFlag=False,source=source)
-        anothercollection.save()
-
-#        # You'll need to log him in before you can send requests through the client
-#        self.client.login(username=my_admin.username, password=PASSWORD)
-        
-        # Establish an indexing page
-        self.page=documentpage.CollectionPage()
-
-    def test_getcores(self):
-        """test get cores"""
-        self.page.getcores(self.admin_user)
-        self.assertEqual(self.page.coreID,1)
-        self.assertEqual(self.page.cores[1].name,'coreexample')
-       
-    def test_choooseindexes(self):
-        self.page.getcores(self.admin_user)
-        
-        #post a choice
-        request_method="POST"
-        data={'corechoice': '1'}
-        self.page.chooseindexes(request_method,request_postdata=data,test=True)
-        self.assertEqual(self.page.coreID,1)
-        #print(self.page.form)
-        self.assertTrue(self.page.validform)
-
-        #get choice
-        request_method="GET"
-        data={}
-        self.page.chooseindexes(request_method,request_postdata=data)
-        self.assertEqual(self.page.coreID,1)
-        self.assertTrue(isinstance(self.page.form,documentpage.IndexForm))
-     
-    def test_indexform(self):
-        """index forms"""
-        from documents.forms import IndexForm,TestForm
-        from documents.forms import get_corechoices
-        choices=get_corechoices()
-        self.assertEqual(choices,((1, 'Example index'),))
-
-        #test the test form
-        f=TestForm(data={'testfield':'something','corechoice':"1"})
-        f.fields['corechoice'].choices=choices
-        f.is_valid()
-        self.assertTrue(f.is_valid())
-        
-        #test the index form
-        f=IndexForm(data={'corechoice':"1"})
-        #print(f.fields['corechoice'].choices)
-        #NOT CLEAR WHY THIS SHOULD BE NECESSARY
-        f.fields['corechoice'].choices=choices
-        #print(f.fields['corechoice'].choices)        
-        f.is_valid()
-        self.assertTrue(f.is_valid())
-        
-        #post data into the index form
-        self.page.post_indexform(f)
-        self.assertEqual(self.page.coreID,1)
-        self.assertTrue(self.page.validform)
-
-    def test_authorised_collections(self):
-        """get authorised collections"""
-        self.page.getcores(self.admin_user)
-        self.page.get_collections()
-        ac=self.page.authorised_collections
-        self.assertEqual(QuerySet,type(ac))
-        self.assertEqual(len(ac),2)
-        self.assertEqual(Collection,type(ac[0]))
-    	
-class CursorTest(TestCase):
-    """ Tests for solrcursor module """
-    def setUp(self):
-        #CONTROL LOGGING IN TESTS
-        logging.disable(logging.CRITICAL)
-            
-    def test_cursor_by_name(self):
-        """test cursor on named index"""
-        self.assertEqual(solrcursor.cursor_by_name(),{})
-        pass
-        
-    def test_cursor_sorted(self):
-        """test cursor sorted by key"""
-        res=solrcursor.cursor_sorted('*','docpath',solrcursor.solrJson.SolrCore('coreexample'))
-        assert isinstance(res,solrcursor.collections.OrderedDict)
-        
-    def test_cursor_next(self):
-        """test cursor_next - iterate in groups"""
-        res=solrcursor.cursor_next(solrcursor.solrJson.SolrCore('tests_only'),searchterm='*',highlights=True,lastresult=False,rows=10)
-        assert isinstance(res,SolrResult)
-        self.assertEqual(res.json['responseHeader']['status'],0) #good solr response
-
-class UpdatingTests(TestCase):
-    """tests for updateSolr module"""
-    def setUp(self):
-        #CONTROL LOGGING IN TESTS
-        logging.disable(logging.CRITICAL)    
-    
-    def test_updators(self):
-       mycore=solrcursor.solrJson.SolrCore('tests_only')
-       o=updateSolr.Updater(mycore)
-       self.assertIsInstance(o,updateSolr.Updater)
-
-       o=updateSolr.UpdateField(mycore)
-       #newvalue='test value',newfield=False,searchterm='*',field_datasource='docpath',field_to_update='sb_parentpath_hash',test_run=True,maxcount=100000
-       #args='&fl={},{},database_originalID, sb_filename'.format(o.mycore.unique_id,o.field_datasource_decoded)
-       
-       o.process(maxcount=1)
-       self.assertIsInstance(o,updateSolr.UpdateField)
-
-    
-    def test_addparenthash(self):
-       
-       hashes=file_utils.parent_hashes(['dups/HilaryEmailC05793347 copy.pdf', 'dups/dup_in_folder/HilaryEmailC05793347 copy.pdf', 'dups/HilaryEmailC05793347.pdf'])
-       self.assertEquals(hashes,['b7d16465ed3947cc5849328cf182130e', 'efc6d83504d6183aab785ac3d3576cd1', 'b7d16465ed3947cc5849328cf182130e'])
-       
-       mycore=solrcursor.solrJson.SolrCore('tests_only')
-       self.assertEquals(mycore.parenthashfield,'sb_parentpath_hash')
-       
-       o=updateSolr.AddParentHash(mycore,field_datasource='docpath',field_to_update=mycore.parenthashfield,test_run=True)
-       self.assertIsInstance(o,updateSolr.AddParentHash)
-#       print(o.__dict__)
-       self.assertFalse(o.update_errors)
-
-#LIVETEST
-#       o=updateSolr.AddParentHash(solrcursor.solrJson.SolrCore('tests_only'),field_datasource='docpath',field_to_update='sb_parentpath_hash',test_run=False)
-#       self.assertIsInstance(o,updateSolr.AddParentHash)
-       
-       
-
-class ExtractTest(TestCase):
-
-    """test extract documents to Solr"""
-    def setUp(self):
+class IndexTester(TestCase):
+    def makebase(self):
         #CONTROL LOGGING IN TESTS
         #logging.disable(logging.CRITICAL)
-
         
-        #check admin user exists
+        #check admin user exists and login
         make_admin_or_login(self)
 
         #make an admin group and give it permissions
         admingroup,usergroup=setup.make_admingroup(self.admin_user,verbose=False)
         setup.make_default_index(usergroup,verbose=False,corename='tests_only')
         self.sampleindex=Index.objects.get(corename='tests_only')
-        self.testsource, res=Source.objects.get_or_create(sourceDisplayName='Test source',sourcename='testsource')
-
-        self.docstore=os.path.abspath(os.path.join(os.path.dirname(__file__), '../tests/testdocs'))
-#        print(self.docstore)
         
+        #make a sample source
+        self.testsource=Source(sourceDisplayName='Test source',sourcename='testsource')
+        self.testsource.save()
+        
+
+        #make a test collection
+        samplecollection=Collection.objects.get_or_create(path='some/path/somewhere',core=self.sampleindex,indexedFlag=False,source=self.testsource)
+#        samplecollection.save()
+        anothercollection=Collection.objects.get_or_create(path='another/different/path/somewhere',core=self.sampleindex,indexedFlag=False,source=self.testsource)
+#        anothercollection.save()
+        
+        #DUPS
         self.testdups_path=os.path.abspath(os.path.join(os.path.dirname(__file__), '../tests/testdocs/dups'))
+
         collectiondups=Collection(path=self.testdups_path,core=self.sampleindex,indexedFlag=False,source=self.testsource)
         collectiondups.save()
+        self.collectiondups=collectiondups
         
+        # Establish an indexing page
+        self.page=documentpage.CollectionPage()
+
+        self.docstore=os.path.abspath(os.path.join(os.path.dirname(__file__), '../tests/testdocs'))
+        self.mycore=solrcursor.solrJson.SolrCore('tests_only')
+
+#        self.testdups_path=os.path.abspath(os.path.join(os.path.dirname(__file__), '../tests/testdocs/dups'))
+
+class ExtractTest(IndexTester):
+
+    """test extract documents to Solr"""
+    def setUp(self):
+        
+        self.makebase()
+                
         self.icij_extract=self.use_icij_extract()
 
     def use_icij_extract(self):
         return False
         
     def test_Extractor(self):
-        mycore=solrJson.SolrCore('tests_only')
+        mycore=self.mycore
         
         #ERASE EVERYTHING FROM TESTS_ONLY 
         res,status=updateSolr.delete_all(mycore)
@@ -219,24 +86,25 @@ class ExtractTest(TestCase):
         self.assertEquals([scanner.new_files_count,scanner.deleted_files_count,scanner.moved_files_count,scanner.unchanged_files_count,scanner.changed_files_count],[0, 0, 0, 0, 0])
         collection.save()
         
-        testdups_path=os.path.abspath(os.path.join(os.path.dirname(__file__), '../tests/testdocs/dups'))
-        collectiondups=Collection.objects.get(path=testdups_path)
+        collectiondups=Collection.objects.get(path=self.testdups_path)
 
         #NOW SCAN THE COLLECTION
         scanner=updateSolr.scandocs(collectiondups)        
-        self.assertEquals([scanner.new_files_count,scanner.deleted_files_count,scanner.moved_files_count,scanner.unchanged_files_count,scanner.changed_files_count],[7, 0, 0, 0, 0])
+        self.assertEquals([scanner.new_files_count,scanner.deleted_files_count,scanner.moved_files_count,scanner.unchanged_files_count,scanner.changed_files_count],[4, 0, 0, 0, 0])
 
         ext=indexSolr.Extractor(collectiondups,mycore,docstore=self.docstore,useICIJ=self.icij_extract)
-        self.assertEquals((5,2,0),(ext.counter,ext.skipped,ext.failed))
+        self.assertEquals((4,0,0),(ext.counter,ext.skipped,ext.failed))
 
-        self.assertEquals(indexSolr.check_hash_in_solrdata("6d50ecaf0fb1fc3d59fd83f8e9ef962cf91eb14e547b2231e18abb12f6cfa809",mycore).data['docpath'],['dups/HilaryEmailC05793347.pdf', 'dups/HilaryEmailC05793347 copy.pdf', 'dups/dup_in_folder/HilaryEmailC05793347 copy.pdf'])
+        self.assertEquals(indexSolr.check_hash_in_solrdata("6d50ecaf0fb1fc3d59fd83f8e9ef962cf91eb14e547b2231e18abb12f6cfa809",mycore).data['docpath'],['dups/HilaryEmailC05793347 copy.pdf', 'dups/dup_in_folder/HilaryEmailC05793347 copy.pdf'])
+        
+        #,['dups/HilaryEmailC05793347.pdf', 'dups/HilaryEmailC05793347 copy.pdf', 'dups/dup_in_folder/HilaryEmailC05793347 copy.pdf'])
         
         #,['dups/HilaryEmailC05793347.pdf', 'dups/HilaryEmailC05793347 copy.pdf', 'dups/dup_in_folder/HilaryEmailC05793347 copy.pdf'])
         
     
     def test_indexfile(self):
         #dummy run
-        mycore=solrJson.SolrCore('tests_only')
+        mycore=self.mycore
         indexSolr.extract_test(mycore=mycore,test=True,docstore=self.docstore)
         
         #livetest on test index
@@ -263,8 +131,8 @@ class ExtractTest(TestCase):
     def test_deletefiles(self):
         """ remove one among several duplicates"""
         
-        testdups_path=os.path.abspath(os.path.join(os.path.dirname(__file__), '../tests/testdocs/dups'))
-        collectiondups=Collection.objects.get(path=testdups_path)
+#        testdups_path=os.path.abspath(os.path.join(os.path.dirname(__file__), '../tests/testdocs/dups'))
+        collectiondups=Collection.objects.get(path=self.testdups_path)
         tempdir=os.path.join(self.docstore,'temp')
         origindir=os.path.join(self.docstore,'dups')
         filename='HilaryEmailC05793347.pdf'
@@ -293,7 +161,7 @@ class ExtractTest(TestCase):
         os.rename(os.path.join(origindir,filename),os.path.join(tempdir,filename))
         
         scanner=updateSolr.scandocs(collectiondups,docstore=self.docstore)
-        self.assertEquals([scanner.new_files_count,scanner.deleted_files_count,scanner.moved_files_count,scanner.unchanged_files_count,scanner.changed_files_count],[0, 1, 0, 6, 0])      
+        self.assertEquals([scanner.new_files_count,scanner.deleted_files_count,scanner.moved_files_count,scanner.unchanged_files_count,scanner.changed_files_count],[0, 1, 0, 4, 0])      
         ext=indexSolr.Extractor(collectiondups,mycore,docstore=self.docstore,useICIJ=self.icij_extract)
         
         updated_doc=indexSolr.check_hash_in_solrdata("6d50ecaf0fb1fc3d59fd83f8e9ef962cf91eb14e547b2231e18abb12f6cfa809",mycore)
@@ -398,7 +266,7 @@ class ExtractTest(TestCase):
    
     def test_change_dupfiles(self):
         testchanges_path=os.path.abspath(os.path.join(os.path.dirname(__file__), '../tests/testdocs/changes_and_dups'))
-        mycore=solrJson.SolrCore('tests_only')
+        mycore=self.mycore
         
         #delete relevant files
         updateSolr.delete('d5cf9b334b0e479d2a070f9c239b154bf1a894d14f2547b3c894f95e6b0dad67',mycore)
@@ -446,7 +314,148 @@ class ExtractTest(TestCase):
 #class ICIJExtractTest(ExtractTest):
 #    def use_icij_extract(self):
 #        return True
-#        
+
+
+class DocumentsTest(IndexTester):
+    """ Tests for documents module """
+    def setUp(self):
+        self.makebase()
+        
+
+    def test_getcores(self):
+        """test get cores"""
+        self.page.getcores(self.admin_user)
+        self.assertEqual(self.page.coreID,1)
+        self.assertEqual(self.page.cores[1].name,'tests_only')
+       
+    def test_choooseindexes(self):
+        self.page.getcores(self.admin_user)
+        
+        #post a choice
+        request_method="POST"
+        data={'corechoice': '1'}
+        self.page.chooseindexes(request_method,request_postdata=data,test=True)
+        self.assertEqual(self.page.coreID,1)
+        #print(self.page.form)
+        self.assertTrue(self.page.validform)
+
+        #get choice
+        request_method="GET"
+        data={}
+        self.page.chooseindexes(request_method,request_postdata=data)
+        self.assertEqual(self.page.coreID,1)
+        self.assertTrue(isinstance(self.page.form,documentpage.IndexForm))
+     
+    def test_indexform(self):
+        """index forms"""
+        from documents.forms import IndexForm,TestForm
+        from documents.forms import get_corechoices
+        choices=get_corechoices()
+        self.assertEqual(choices,((1, 'Example index'),))
+
+        #test the test form
+        f=TestForm(data={'testfield':'something','corechoice':"1"})
+        f.fields['corechoice'].choices=choices
+        f.is_valid()
+        self.assertTrue(f.is_valid())
+        
+        #test the index form
+        f=IndexForm(data={'corechoice':"1"})
+        #print(f.fields['corechoice'].choices)
+        #NOT CLEAR WHY THIS SHOULD BE NECESSARY
+        f.fields['corechoice'].choices=choices
+        #print(f.fields['corechoice'].choices)        
+        f.is_valid()
+        self.assertTrue(f.is_valid())
+        
+        #post data into the index form
+        self.page.post_indexform(f)
+        self.assertEqual(self.page.coreID,1)
+        self.assertTrue(self.page.validform)
+
+    def test_authorised_collections(self):
+        """get authorised collections"""
+        self.page.getcores(self.admin_user)
+        self.page.get_collections()
+        ac=self.page.authorised_collections
+        self.assertEqual(QuerySet,type(ac))
+        self.assertEqual(len(ac),3)
+        self.assertEqual(Collection,type(ac[0]))
+    	
+class CursorTest(TestCase):
+    """ Tests for solrcursor module """
+    def setUp(self):
+        #CONTROL LOGGING IN TESTS
+        logging.disable(logging.CRITICAL)
+            
+    def test_cursor_by_name(self):
+        """test cursor on named index"""
+        self.assertEqual(solrcursor.cursor_by_name(),{})
+        pass
+        
+    def test_cursor_sorted(self):
+        """test cursor sorted by key"""
+        res=solrcursor.cursor_sorted('*','docpath',solrcursor.solrJson.SolrCore('coreexample'))
+        assert isinstance(res,solrcursor.collections.OrderedDict)
+        
+    def test_cursor_next(self):
+        """test cursor_next - iterate in groups"""
+        res=solrcursor.cursor_next(solrcursor.solrJson.SolrCore('tests_only'),searchterm='*',highlights=True,lastresult=False,rows=10)
+        assert isinstance(res,SolrResult)
+        self.assertEqual(res.json['responseHeader']['status'],0) #good solr response
+
+class UpdatingTests(IndexTester):
+    """tests for updateSolr module"""
+    def setUp(self):
+       self.makebase()
+    
+    def test_updators(self):
+       mycore=self.mycore
+       o=updateSolr.Updater(mycore)
+       self.assertIsInstance(o,updateSolr.Updater)
+
+       o=updateSolr.UpdateField(mycore)
+       
+       o.process(maxcount=1)
+       self.assertIsInstance(o,updateSolr.UpdateField)
+
+    
+    def test_addparenthash(self):
+       
+       hashes=file_utils.parent_hashes(['dups/HilaryEmailC05793347 copy.pdf', 'dups/dup_in_folder/HilaryEmailC05793347 copy.pdf', 'dups/HilaryEmailC05793347.pdf'])
+       self.assertEquals(hashes,['b7d16465ed3947cc5849328cf182130e', 'efc6d83504d6183aab785ac3d3576cd1', 'b7d16465ed3947cc5849328cf182130e'])
+       
+       mycore=solrcursor.solrJson.SolrCore('tests_only')
+       self.assertEquals(mycore.parenthashfield,'sb_parentpath_hash')
+       
+       o=updateSolr.AddParentHash(mycore,field_datasource='docpath',field_to_update=mycore.parenthashfield,test_run=True)
+       self.assertIsInstance(o,updateSolr.AddParentHash)
+#       print(o.__dict__)
+       self.assertFalse(o.update_errors)
+
+#LIVETEST
+#       o=updateSolr.AddParentHash(solrcursor.solrJson.SolrCore('tests_only'),field_datasource='docpath',field_to_update='sb_parentpath_hash',test_run=False)
+#       self.assertIsInstance(o,updateSolr.AddParentHash)
+       
+class FileUtilsTest(IndexTester):
+    """test various fileutils"""
+    def setUp(self):
+        self.makebase()
+        
+	      
+    def test_model_index(self):
+        self.assertEquals(file_utils.model_index('somepath',[self.collectiondups]),(None,None))
+        
+    
+    def test_filespecs(self):
+        specs=file_utils.filespecs(self.testdups_path)
+        spec=specs['/Users/Stephen/Code/SearchBox/wwwsearch/tests/testdocs/dups/dup_in_folder/HilaryEmailC05793347 copy.pdf']
+        self.assertEquals(spec.last_modified,1530258349.094962)
+        self.assertEquals(spec.length,118916)
+        self.assertTrue(spec.exists)
+        self.assertEquals(spec.name,'HilaryEmailC05793347 copy.pdf')
+        self.assertEquals(spec.ext,'.pdf')
+ 
 
 class ChangeApiTests(TestCase):
     """test Api for returning user changes"""
@@ -554,18 +563,6 @@ class ChangeApiTests(TestCase):
         #print(api.deserial_taglist(stored))
         self.assertEquals(api.deserial_taglist(stored),['Donald Trump', 'Richard Nixon'])
 
-class FileUtilsTest(TestCase):	
-    def setUp(self):
-        self.testdups_path=os.path.abspath(os.path.join(os.path.dirname(__file__), '../tests/testdocs/dups'))
-    
-    def test_filespecs(self):
-        specs=file_utils.filespecs(self.testdups_path)
-        spec=specs['/Users/Stephen/Code/SearchBox/wwwsearch/tests/testdocs/dups/dup_in_folder/HilaryEmailC05793347 copy.pdf']
-        self.assertEquals(spec.last_modified,1530258349.094962)
-        self.assertEquals(spec.length,118916)
-        self.assertTrue(spec.exists)
-        self.assertEquals(spec.name,'HilaryEmailC05793347 copy.pdf')
-        self.assertEquals(spec.ext,'.pdf')
 
 
 def make_admin_or_login(tester):

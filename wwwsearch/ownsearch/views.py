@@ -134,7 +134,7 @@ def do_search(request,page_number=0,**kwargs):
             page.resultcount=-1
             request.session['lastsearch']=''
         page.process_page_meta()
-        log.debug('All page data: {}'.format(page.__dict__))
+        #log.debug('All page data: {}'.format(page.__dict__))
         return render(request, 'searchform.html', {'form': form, 'page':page})
 
     except solrJson.SolrCoreNotFound as e:
