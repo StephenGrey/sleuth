@@ -2,9 +2,42 @@
 from django.contrib.auth.models import User, Group, Permission
 from documents.models import Index
 from ownsearch import solrJson,pages, solr_indexes
+from django.core.management.base import BaseCommand, CommandError
+
+class Command(BaseCommand):
+    help = 'Test manage.py command'
+    
+    def handle(self, *args, **options):
+        check_solr(verbose=True)
+    
+
+
+def make_admin_or_login(tester):
+    """make admin or login for test object"""
+    username='myuser'
+    my_email='myemail@test.com'
+    password=tester.password
+    
+    tester.admin_user=get_or_create_admin(username,my_email,password)
+
+
+def get_or_create_admin(username,my_email,password):
+    try:
+        return get_admin(username)
+    except User.DoesNotExist:
+        return create_admin(username,my_email,password) 
+    
+def get_admin(username):
+    return User.objects.get(username=username)
+
+def create_admin(username,my_email,password):
+    my_admin = User.objects.create_superuser(username,my_email,password)
+    return User.objects.get(username=username)
+    
+
 
 def make_admingroup(admin_user,verbose=True): 
-    """make an adminusers group containing an admin user with all permissions"""  
+    """make an adminusers group containing a user with all permissions"""  
     new_group, created = Group.objects.get_or_create(name='adminusers')
     if verbose and created:
         print('New group "adminusers" created')
@@ -69,7 +102,8 @@ def check_solr(verbose=True):
             if defaultstatus.get('name')=='coreexample' and defaultstatus['index'].get('current')==True:
                 mycore=solrJson.SolrCore('coreexample')
                 if mycore.ping():
-                    print('Solr server and "coreexample" index operating and installed')
+                    pass
+                    #print('Solr server and "coreexample" index operating and installed')
                     
         return server
     except solrJson.SolrCoreNotFound as e:
@@ -81,6 +115,7 @@ def check_solr(verbose=True):
         print('Solr server needs to be started.\n(You can use shortcut from SearchBox installation folder:\n\b ./lsolr start \b\nor check configs.)')
         return server
     
+
     """ make a test search, to test further configs """
     page=trysearch(mycore,verbose=verbose)
 #    print('DUMMY SEARCH RESULT PAGE: {}'.format(page.__dict__))
@@ -105,7 +140,4 @@ def trysearch(mycore,verbose=True):
         print('Search complete.')
     return page
 
-
-    
-    
     

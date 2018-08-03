@@ -7,7 +7,8 @@ except ImportError:
     from django.urls import reverse,resolve,NoReverseMatch
 from documents.models import Index,Source
 from ownsearch import solrJson,pages,solr_indexes
-from documents import setup
+from documents.management.commands import setup
+from documents.management.commands.setup import make_admin_or_login
 from django.test.client import Client
 import logging,re,os
 log = logging.getLogger('ownsearch.tests')
@@ -167,7 +168,6 @@ class UrlsTest(TestCase):
          params={'page_number':1,'sorttype':'relevance','searchterm':'test'}
          params.update({'tag1field':'tag1','tag1':'sometag'})
          rev=reverse('searchpagefilters',kwargs=params)
-         print(rev)
          self.assertEquals(rev,"/ownsearch/searchterm=test&page=1&sorttype=relevance&filters=tag1=sometag")
          params.update({'start_date':'01012000'})
          rev=reverse('searchpagefilters',kwargs=params)
@@ -177,29 +177,5 @@ class UrlsTest(TestCase):
          self.assertEquals(rev,"/ownsearch/searchterm=test&page=1&sorttype=relevance&filters=tag1=sometag&tag=secondfield=secondvalue&start_date=01012000")
          
          res=resolve("/ownsearch/searchterm=test&page=1&sorttype=relevance&filters=tag1=sometag&tag=secondfield=secondvalue&start_date=01012000")
-         print(res.kwargs)
          self.assertEquals(res.kwargs,{'searchterm': 'test', 'page_number': '1', 'sorttype': 'relevance', 'tag1field': 'tag1', 'tag1': 'sometag', 'tag2field': 'secondfield', 'tag2': 'secondvalue', 'start_date': '01012000', 'end_date': None,'tag3field': None, 'tag3': None})
          
-##        firstchoice=choices[0][0] #get first choice of index available
-###        f.fields['CoreChoice'].widget.choices[
-##        #f=IndexForm()
-##        f=IndexForm(data={'csrfmiddlewaretoken':ctoken,'CoreChoice':"1"})   #'csrfmiddlewaretoken':ctoken,
-###         print('Choicefield: {}'.format(f.fields['CoreChoice'].__dict__))
-##        f.is_valid()
-##        print(f.__dict__, f.fields['CoreChoice'].choices)
-###        self.assertTrue(f.is_valid())
-##        
-##
-#
-##        cookies['csrftoken'].value)
-##        print(type(cookies))
-##        print(str(cookies))
-##        ctoken=re.match('.*csrftoken=(\w*);',cookies).group(1)
-##        print(ctoken)
-#
-##        print("Response: {}".format(response.content))
-#
-#
-##        response=self.client.get(reverse('test_index'))
-#
-##

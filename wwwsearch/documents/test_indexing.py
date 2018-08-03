@@ -3,7 +3,10 @@ from django.contrib.auth.models import User, Group, Permission
 from django.core.management.base import BaseCommand, CommandError
 from django.db.models.query import QuerySet
 from django.urls import reverse
-from documents import setup, documentpage,solrcursor,updateSolr,api,indexSolr,file_utils,changes
+from documents import documentpage,solrcursor,updateSolr,api,indexSolr,file_utils,changes
+
+from documents.management.commands import setup
+from documents.management.commands.setup import make_admin_or_login
 from documents.models import  Index, Collection, Source, UserEdit,File
 from ownsearch.solrJson import SolrResult,SolrCore
 from ownsearch import pages,solrJson
@@ -21,11 +24,16 @@ class IndexTester(TestCase):
     def makebase(self):
         #CONTROL LOGGING IN TESTS
         #logging.disable(logging.CRITICAL)
-        
+        self.password=PASSWORD
+        self.username='myuser'
+        self.my_email='myemail@test.com'
         #check admin user exists and login
         make_admin_or_login(self)
+        
+        #login as admin
+        self.client.login(username=self.username, password=self.password)
 
-        #make an admin group and give it permissions
+                #make an admin group and give it permissions
         admingroup,usergroup=setup.make_admingroup(self.admin_user,verbose=False)
         setup.make_default_index(usergroup,verbose=False,corename='tests_only')
         self.sampleindex=Index.objects.get(corename='tests_only')
@@ -90,14 +98,17 @@ class ExtractTest(IndexTester):
 
         #NOW SCAN THE COLLECTION
         scanner=updateSolr.scandocs(collectiondups)        
-        self.assertEquals([scanner.new_files_count,scanner.deleted_files_count,scanner.moved_files_count,scanner.unchanged_files_count,scanner.changed_files_count],[4, 0, 0, 0, 0])
+        self.assertEquals([scanner.new_files_count,scanner.deleted_files_count,scanner.moved_files_count,scanner.unchanged_files_count,scanner.changed_files_count],[5, 0, 0, 0, 0])
 
         ext=indexSolr.Extractor(collectiondups,mycore,docstore=self.docstore,useICIJ=self.icij_extract)
-        self.assertEquals((4,0,0),(ext.counter,ext.skipped,ext.failed))
+        self.assertEquals((5,0,0),(ext.counter,ext.skipped,ext.failed))
 
-        self.assertEquals(indexSolr.check_hash_in_solrdata("6d50ecaf0fb1fc3d59fd83f8e9ef962cf91eb14e547b2231e18abb12f6cfa809",mycore).data['docpath'],['dups/HilaryEmailC05793347 copy.pdf', 'dups/dup_in_folder/HilaryEmailC05793347 copy.pdf'])
+        self.assertEquals(indexSolr.check_hash_in_solrdata("6d50ecaf0fb1fc3d59fd83f8e9ef962cf91eb14e547b2231e18abb12f6cfa809",mycore).data['docpath'],['dups/HilaryEmailC05793347.pdf', 'dups/HilaryEmailC05793347 copy.pdf', 'dups/dup_in_folder/HilaryEmailC05793347 copy.pdf'])
         
-        #,['dups/HilaryEmailC05793347.pdf', 'dups/HilaryEmailC05793347 copy.pdf', 'dups/dup_in_folder/HilaryEmailC05793347 copy.pdf'])
+        
+        
+        #['dups/HilaryEmailC05793347 copy.pdf', 'dups/dup_in_folder/HilaryEmailC05793347 copy.pdf'])
+        
         
         #,['dups/HilaryEmailC05793347.pdf', 'dups/HilaryEmailC05793347 copy.pdf', 'dups/dup_in_folder/HilaryEmailC05793347 copy.pdf'])
         
@@ -201,7 +212,7 @@ class ExtractTest(IndexTester):
         
 
         updated_doc=indexSolr.check_hash_in_solrdata("4be826ace55d600ee70d7a4335ca26abc1b3e22dee62935c210f2c80ea5ba0d0",mycore) #first hash
-        print(updated_doc.__dict__)
+        #print(updated_doc.__dict__)
         self.assertEquals(updated_doc.data['docpath'],['changes/changingfile.txt','changes/1changingfile.txt'])
 
         self.assertEquals(indexSolr.check_hash_in_solrdata("d5cf9b334b0e479d2a070f9c239b154bf1a894d14f2547b3c894f95e6b0dad67",mycore),None) #second hash
@@ -233,11 +244,11 @@ class ExtractTest(IndexTester):
         scanfiles=updateSolr.scandocs(collection,docstore=self.docstore) 
         ext=indexSolr.Extractor(collection,mycore,docstore=self.docstore,useICIJ=self.icij_extract)
         
-
         solrid="4be826ace55d600ee70d7a4335ca26abc1b3e22dee62935c210f2c80ea5ba0d0"
 
         docs=solrJson.getmeta(solrid,mycore)
-        print(docs[0].__dict__)
+        self.assertEquals(docs[0].docname,'changingfile.txt')
+        self.assertEquals(docs[0].date,'')
         
         updateSolr.updatetags(solrid,mycore,value='newfilename',field_to_update='docnamesourcefield',newfield=False,test=False)
         
@@ -306,7 +317,7 @@ class ExtractTest(IndexTester):
         ext=indexSolr.Extractor(collection,mycore,docstore=self.docstore,useICIJ=self.icij_extract)
         
         updated_doc=indexSolr.check_hash_in_solrdata("7d963c20aa81721104c2089947c49c56",mycore)
-        print(updated_doc.__dict__)
+        #print(updated_doc.__dict__)
         
         self.assertEquals(updated_doc.docname,'Folder: folder1')
         self.assertEquals(updated_doc.data['docpath'],['emptyfolders/folder1'])
@@ -466,9 +477,13 @@ class ChangeApiTests(TestCase):
         #CONTROL LOGGING IN TESTS
         logging.disable(logging.CRITICAL)
 
-        #check admin user exists
-        make_admin_or_login(self)
-        
+        self.password=PASSWORD
+        self.username='myuser'
+        self.my_email='myemail@test.com'
+        self.admin_user=make_admin_or_login(self)
+        #login as admin
+        self.client.login(username=self.username, password=self.password)
+
          
         #make some user edits
         self.page=pages.ContentPage(doc_id='someid',searchterm='test searchterm')
@@ -565,15 +580,6 @@ class ChangeApiTests(TestCase):
 
 
 
-def make_admin_or_login(tester):
-    try:
-        tester.admin_user=User.objects.get(username='myuser')
-    except User.DoesNotExist:
-        my_admin = User.objects.create_superuser('myuser', 'myemail@test.com', PASSWORD)
-        tester.admin_user=User.objects.get(username='myuser')
-
-    #login as admin
-    tester.client.login(username=my_admin.username, password=PASSWORD)
         
 
 def change_file(docstore=os.path.abspath(os.path.join(os.path.dirname(__file__), '../tests/testdocs')),relpath='changes/changingfile.txt'):
