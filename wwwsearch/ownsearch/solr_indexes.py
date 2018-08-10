@@ -26,6 +26,10 @@ class SolrServer:
             if res.status_code == 404:
                 log.warning('404: Bad solr URL')
                 self.server_up=False
+            elif res.status_code == 401:
+                log.warning('401: Requires authentication')
+                self.server_up=False
+                raise solrJson.SolrAuthenticationError
             else:
                 jres=res.json()
                 self.header=jres.get("responseHeader",None)
@@ -41,6 +45,11 @@ class SolrServer:
         except ConnectionError:
             self.server_up=False
             raise solrJson.SolrConnectionError
+        except json.JSONDecodeError:
+            print('json error')
+            print(res)
+            self.server_up=False
+            self.status=None
     
     def getcores(self):
         self.cores=[]
@@ -64,13 +73,13 @@ class SolrServer:
 
     def check_default_indexes(self):
         """check if \'coreexample\' and \'tests_only\' index are up"""
-        defaultstatus=self.status.get('coreexample')
+        defaultstatus=self.core_status('coreexample')
         self.default_index_up=False
         if defaultstatus:
             if defaultstatus.get('name')=='coreexample' and defaultstatus['index'].get('current')==True:
                 mycore=solrJson.SolrCore('coreexample')
                 if mycore.ping():
-                    log.debug('Solr server and "coreexample" index operating and installed')
+                    log.info('Solr server and "coreexample" index operating and installed')
                     self.default_index_up=True
         test_index_status=self.status.get('tests_only')
         self.test_index_up=False
@@ -84,9 +93,29 @@ class SolrServer:
     def check_or_make_test_index(self):
         """if no tests only server, make it"""
         if not self.test_index_up:
-            log.critical('Creating \"tests only\" index on Solr server..')
-            copy_index_schema(self.solrdir, oldname='coreexample',newname='tests_only') #default: copy coreexample to tests_only
-            create_index(os.path.join(self.solrdir,'tests_only'))
+            self.make_new_index('tests_only')
+#            log.critical('Creating \"tests only\" index on Solr server..')
+#            copy_index_schema(self.solrdir, oldname='coreexample',newname='tests_only') #default: copy coreexample to tests_only
+#            create_index(os.path.join(self.solrdir,'tests_only'))
+    
+    def make_new_index(self,indexname,modelindex='coreexample'):
+        log.critical('Creating \"{}\" index on Solr server..'.format(indexname))
+        copy_index_schema(self.solrdir, oldname=modelindex,newname=indexname)
+        create_index(os.path.join(self.solrdir,indexname))
+
+            
+    def core_status(self,indexname):
+        return self.status.get(indexname)
+        
+    def index_up(self,indexname):
+        defaultstatus=self.core_status(indexname)
+        if defaultstatus:
+            if defaultstatus.get('name')==indexname and defaultstatus['index'].get('current')==True:
+                    mycore=solrJson.SolrCore(indexname)
+                    if mycore.ping():
+                        #print('Solr server and "coreexample" index operating and installed')
+                        return True
+
     
 
 def copy_index_schema(solrpath,oldname='coreexample',newname='tests_only'):

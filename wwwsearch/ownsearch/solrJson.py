@@ -378,7 +378,7 @@ try:
     REMOTE_SOLR_PASSWORD=config['Remote'].get('password',None)
     REMOTE_SOLR_CERT=config['Remote'].get('cert',None) 
 except:
-    log.warning('No remote solr server configured')
+    log.info('No remote solr server configured')
 
 def pagesearch(page):
     page.results,page.resultcount,page.facets,page.facets2,page.facets3=solrSearch(page.searchterm,page.sorttype,page.startnumber,page.mycore,filters=page.filters,faceting=page.faceting,start_date=page.start_date,end_date=page.end_date)
