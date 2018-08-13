@@ -142,12 +142,12 @@ class ExtractTest(IndexTester):
     def test_deletefiles(self):
         """ remove one among several duplicates"""
         
-#        testdups_path=os.path.abspath(os.path.join(os.path.dirname(__file__), '../tests/testdocs/dups'))
         collectiondups=Collection.objects.get(path=self.testdups_path)
         tempdir=os.path.join(self.docstore,'temp')
         origindir=os.path.join(self.docstore,'dups')
         filename='HilaryEmailC05793347.pdf'
         mycore=solrJson.SolrCore('tests_only')
+
 
         #ERASE EVERYTHING FROM TESTS_ONLY 
         res,status=updateSolr.delete_all(mycore)
@@ -304,9 +304,8 @@ class ExtractTest(IndexTester):
         
         newfile=File(collection=collection)
         changes.updatefiledata(newfile,testchanges_path,makehash=True)
-        
         self.assertTrue(newfile.is_folder)
-        self.assertEquals(newfile.hash_filename, '3fe0ede76e6d707f5a00a73e6318076b')
+        self.assertEquals(newfile.hash_filename, file_utils.pathHash(testchanges_path))
         
     def test_extract_folder(self):
         testfolders_path=os.path.abspath(os.path.join(os.path.dirname(__file__), '../tests/testdocs/emptyfolders'))
@@ -316,8 +315,8 @@ class ExtractTest(IndexTester):
         scanfiles=updateSolr.scandocs(collection,docstore=self.docstore) 
         ext=indexSolr.Extractor(collection,mycore,docstore=self.docstore,useICIJ=self.icij_extract)
         
-        updated_doc=indexSolr.check_hash_in_solrdata("7d963c20aa81721104c2089947c49c56",mycore)
-        #print(updated_doc.__dict__)
+        folder_solr_id=file_utils.pathHash(os.path.join(testfolders_path,'folder1'))
+        updated_doc=indexSolr.check_hash_in_solrdata(folder_solr_id,mycore)
         
         self.assertEquals(updated_doc.docname,'Folder: folder1')
         self.assertEquals(updated_doc.data['docpath'],['emptyfolders/folder1'])
@@ -460,8 +459,8 @@ class FileUtilsTest(IndexTester):
     
     def test_filespecs(self):
         specs=file_utils.filespecs(self.testdups_path)
-        spec=specs['/Users/Stephen/Code/SearchBox/wwwsearch/tests/testdocs/dups/dup_in_folder/HilaryEmailC05793347 copy.pdf']
-        self.assertEquals(spec.last_modified,1530258349.094962)
+        filepath=os.path.join(self.testdups_path,'dup_in_folder/HilaryEmailC05793347 copy.pdf')
+        spec=specs[filepath]
         self.assertEquals(spec.length,118916)
         self.assertTrue(spec.exists)
         self.assertEquals(spec.name,'HilaryEmailC05793347 copy.pdf')
