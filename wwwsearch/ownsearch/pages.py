@@ -198,9 +198,22 @@ class ContentPage(Page):
             self.tags1=False
         self.html=self.result.data.get('preview_html','')
         self.preview_url=self.result.data.get('preview_url','')
-        self.mimetype=self.result.data.get('extract_base_type','')
+        self.get_mimetype(self)
+        
 #        self.next_id=result.data.get('hashcontents')
 #        self.before_id=result.data.get('hashcontents')
+    
+    def get_mimetype(self):
+        mimetype=self.result.data.get('extract_base_type')
+        if not mimetype:
+            self.mimetype=self.result.data.get('content_type')
+        if not mimetype:
+            if self.docname.startswith('http:') or self.docname.startswith('www.') or self.docname.startswith('www.'):
+                mimetype='html'
+            else:
+                root,ext=os.path.splitext(self.docname)
+                print(ext)
+        self.mimetype=mimetype
     
     def tagform(self):
         self.initialtags=self.result.data.get(self.mycore.usertags1field,'')
