@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 
 {% block sidebar %}
+<span style="color:darkblue;word-wrap:break-word;">
 	<a href="{{page.searchurl}}">Back to Results</a>
 	<p><p>
 	{% if page.docpaths.1%}
@@ -9,11 +10,12 @@
 			{{path}}<p>
 		{%endfor%}
 	{% endif %}	
+</span>
 {% endblock %}
 
 {% block top_content %}
 
-BROWSE MEDIA VOLUME:
+BROWSE LOCAL DISK:
 <ol class="breadcrumb" >
 {% if page.this_user.is_staff and page.relpath_valid %}
   <li><a href="/documents/files"  style="color:red;">Home</a></li>
@@ -30,7 +32,7 @@ BROWSE MEDIA VOLUME:
 {% endfor %} 
 </ol>
 
-SOLR SEARCH
+INDEXED FOLDERS:
 <ol class="breadcrumb">
 <!--{% if page.this_user.is_staff and page.relpath_valid %}
   <li><a href="/documents/indexedfiles">Home</a></li>
@@ -65,7 +67,7 @@ SOLR SEARCH
 	<b><span class="titlename" >{{page.docname}}</span></b>
 		{% endif %}	
 	
-	{% if page.authflag%}<a href="/ownsearch/download={{page.matchfile_id}}&{{page.hashfilename}}"<b>&nbsp; &nbsp;Download</b></a><p>
+	{% if page.authflag%}&nbsp; &nbsp;<a href="/ownsearch/download={{page.matchfile_id}}&{{page.hashfilename}}"<b>Download</b></a><p>
 	{% endif %}
 
 
@@ -103,14 +105,33 @@ SOLR SEARCH
 {% endif %}
 
 {% endblock %}
+
 {% block embed_content %}
-	{% if page.pdf_url%}
-	{% if page.embed %}
-	<embed src="{{page.pdf_url}}" type="application/pdf" width="100%" height="2400px" />
-	{% endif %}{% endif %}
+
+		<div>
+{% if page.embed %}
+  <div class="panel-group">
+    <div class="panel panel-default">
+      <div class="panel-heading">
+        <h4 class="panel-title">
+        	<a data-toggle="collapse"  href="#collapse">Preview</a>
+      </div>
+      <div id="collapse" class="panel-collapse collapse">
+Embedding: {{page.mimetype}}<p>
+<object data="/ownsearch/embed={{page.matchfile_id}}&{{page.hashfilename}}&{{page.mimetype}}" type="{{page.mimetype}}" width="100%" height="100%">
+No preview available
+</object>
+
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
 	
-  {% if page.result.folder%}<p><p>
+			
+{% if page.result.folder%}<p><p>
   Tag for document folder: no extracted contents stored in index
-  {% endif%}
+{% endif%}
+
 
 {% endblock %}

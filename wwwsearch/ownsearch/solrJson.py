@@ -534,7 +534,7 @@ def gettrimcontents(docid,core,maxlength):
     searchterm='{}:\"{}\"'.format(core.unique_id,docid)
     
     #MAKE ARGUMENTS FOR TRIMMED CONTENTS
-    fieldargs='&fl={},{},{},{},{},{},{},{},{},{},{},{},{},{},{}'.format(core.unique_id,core.docnamefield,core.docsizefield,core.hashcontentsfield,core.docpath,core.tags1field, core.preview_url,core.usertags1field,core.sourcefield,'extract_base_type','preview_html','SBdata_ID',core.datefield,core.emailmeta,core.parenthashfield)
+    fieldargs='&fl={},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}'.format(core.unique_id,core.docnamefield,core.docsizefield,core.hashcontentsfield,core.docpath,core.tags1field, core.preview_url,core.usertags1field,core.sourcefield,'extract_base_type','content_type','preview_html','SBdata_ID',core.datefield,core.emailmeta,core.parenthashfield)
     fieldargs+=","+core.beforefield if core.beforefield else ""
     fieldargs+=","+core.nextfield if core.nextfield else ""
     fieldargs+=","+core.sequencefield if core.sequencefield else ""

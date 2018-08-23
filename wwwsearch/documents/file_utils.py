@@ -1,6 +1,13 @@
 # -*- coding: utf-8 -*-
-import os, logging,hashlib
+import os, logging,hashlib,re
 from collections import defaultdict
+
+try:
+    from django.http import HttpResponse
+except:
+    #usable outside Django
+    pass
+    
 #from ownsearch.hashScan import pathHash
 try:
     from django.template import loader
@@ -50,6 +57,36 @@ class FileSpecs:
         
     def __repr__(self):
         return "File: {}".format(self.path)
+
+
+def filespecs(parent_folder): #  
+    """return filespecs dict keyed to path"""
+    filespecs={}
+    for dirName, subdirs, fileList in os.walk(parent_folder): #go through every subfolder in a folder
+        for filename in fileList: #now through every file in the folder/subfolder
+            path = os.path.join(dirName, filename)
+            filespecs[path]=FileSpecs(path)
+        for folder in subdirs:
+            path= os.path.join(dirName,folder)
+            filespecs[path]=FileSpecs(path,folder=True)
+    return filespecs
+
+
+#DOWNLOADS / SERVE FILE
+
+def make_download(file_path):
+    return make_file(file_path,'application/force-download')
+    
+def make_file(file_path,content_type):    
+    if not os.path.exists(file_path):
+        raise DoesNotExist
+    cleanfilename=slugify(os.path.basename(file_path))
+    with open(file_path, 'rb') as thisfile:
+            #response=HttpResponse(thisfile.read(), )
+            response=HttpResponse(thisfile.read(), content_type=content_type)
+            response['Content-Disposition'] = 'inline; filename=' + cleanfilename
+    return response
+
 
 #HASH FILE FUNCTIONS
 
@@ -155,14 +192,30 @@ def directory_tags(path,isfile=False):
         path=a
         
     tags=tags[::-1]
-    log.debug(tags)
+    log.debug(f'Tags: {tags}')
     return tags
+
+def slugify(value):
+    """
+    Normalizes string, converts to lowercase, removes non-alpha characters,
+    and converts spaces to hyphens.
+    """
+    shortName, fileExt = os.path.splitext(value)
+    originalvalue=value
+    try:
+        value = unicodedata.normalize('NFKD', value).encode('ascii', 'ignore')        
+        value = unicode(re.sub('[^\w\s-]', '', value).strip().lower())
+        value = unicode(re.sub('[-\s]+', '-', value))
+    except NameError:
+        value = re.sub('[^\w\s-]', '', originalvalue).strip().lower()
+        value = re.sub('[-\s]+', '-', value)      
+    return value+fileExt
 
 
 #FILE MODEL METHODS
 
 def model_index(path,index_collections,hashcheck=False):
-    """check if file scanned into model index"""
+    """check if True/False file in collection is in database, return File object"""
     
     stored=File.objects.filter(filepath=path, collection__in=index_collections)
     if stored:
@@ -172,14 +225,3 @@ def model_index(path,index_collections,hashcheck=False):
         return None,None
 
 
-def filespecs(parent_folder): #  
-    """return filespecs dict keyed to path"""
-    filespecs={}
-    for dirName, subdirs, fileList in os.walk(parent_folder): #go through every subfolder in a folder
-        for filename in fileList: #now through every file in the folder/subfolder
-            path = os.path.join(dirName, filename)
-            filespecs[path]=FileSpecs(path)
-        for folder in subdirs:
-            path= os.path.join(dirName,folder)
-            filespecs[path]=FileSpecs(path,folder=True)
-    return filespecs

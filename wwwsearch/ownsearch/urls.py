@@ -29,7 +29,10 @@ urlpatterns = [
     url(r'^searchterm=(?P<searchterm>.*)&(?P<direction>back)frompage=(?P<page_number>\d+)&sorttype=(?P<sorttype>.*)$', views.do_search, name='backpageview'),
     url(r'^doc=(?P<doc_id>.*)&searchterm=(?P<searchterm>.*)&tagedit=(?P<tagedit>True)$', views.get_content, name='contentview'),
     url(r'^doc=(?P<doc_id>.*)&searchterm=(?P<searchterm>.*)$', views.get_content, name='contentview'),
+
     url(r'^download=(?P<doc_id>.*)&(?P<hashfilename>.*)$', views.download, name='download'),
+    url(r'^embed=(?P<doc_id>.*)&(?P<hashfilename>.*)&(?P<mimetype>.*)$', views.embed, name='embed'),
+
    ]
 
 urlpatterns += staticfiles_urlpatterns()

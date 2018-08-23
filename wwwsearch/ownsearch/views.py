@@ -9,10 +9,10 @@ from __future__ import absolute_import
 from builtins import str
 from .forms import SearchForm,TagForm
 from documents.models import File,Collection,Index,UserEdit
+from documents.file_utils import slugify,make_download,make_file,DoesNotExist
 from django.shortcuts import render
 from django.contrib.auth.decorators import login_required
-from django.http import HttpResponse
-from django.http import HttpResponseRedirect
+from django.http import HttpResponse, HttpResponseRedirect,Http404
 from django.urls import reverse
 from django.db.models.base import ObjectDoesNotExist
 from django.contrib.staticfiles.templatetags.staticfiles import static #returns static url
@@ -34,6 +34,7 @@ from . import pages,solrJson,authorise
 log = logging.getLogger('ownsearch.views')
 DOCBASEPATH=config['Models']['collectionbasepath']
 RESULTS_PER_PAGE=10
+MIMETYPES_THAT_EMBED=['application/pdf','image/jpeg']
 #max size of preview text to return (to avoid loading up full text of huge document in browser)
 try:
    CONTENTSMAX=int(config['Display']['maxcontents'])
@@ -144,10 +145,45 @@ def do_search(request,page_number=0,**kwargs):
         log.error(e)
         return HttpResponse('No response from solr server : try again or check network connection, solr status')
 
+
+@login_required
+def embed(request,doc_id,hashfilename,mimetype):
+    """return document to embed"""
+    log.debug(f'Embed of doc_id: {doc_id} hashfilename: {hashfilename} with mimetype: {mimetype}')
+        #check file exists in database and hash matches
+    if mimetype not in MIMETYPES_THAT_EMBED:
+        log.warning('Embedding document that cannot embed')
+        return None
+    try:
+        thisfile=File.objects.get(id=doc_id)
+        log.info('User: '+request.user.username+' embedding file: '+thisfile.filename)
+        assert thisfile.hash_filename==hashfilename
+    except AssertionError:
+        log.warning('Embed failed because of hash mismatch')
+        return None
+    except ObjectDoesNotExist:
+        log.warning('Embed failed as file ID not found in database')
+        return None
+        #check user authorised to download
+    if authorise.authid(request,thisfile) is False:
+        log.warning(thisfile.filename+' not authorised or not present')
+        return None
+
+    file_path = thisfile.filepath
+    try:
+        return make_file(file_path,mimetype)
+    except DoesNotExist:
+        log.error('DoesNotExist error in download embed: {}'.format(e))
+    except Exception as e:
+        log.error('Error in download embed: {}'.format(e))
+    return None
+
+    
 @login_required
 def download(request,doc_id,hashfilename):
     """download a document from the docstore"""
     log.debug('Download of doc_id:'+doc_id+' hashfilename:'+hashfilename)
+
     #MAKE CHECKS BEFORE DOWNLOAD
     #check file exists in database and hash matches
     try:
@@ -160,29 +196,28 @@ def download(request,doc_id,hashfilename):
     except ObjectDoesNotExist:
         log.warning('Download failed as file ID not found in database')
         return HttpResponse('File not stored on server')
+
     #check user authorised to download
     if authorise.authid(request,thisfile) is False:
         log.warning(thisfile.filename+' not authorised or not present')
         return HttpResponse('File NOT authorised for download')    
 
     file_path = thisfile.filepath
-    if os.path.exists(file_path):
-        cleanfilename=slugify(os.path.basename(file_path))
-        with open(file_path, 'rb') as thisfile:
-            response=HttpResponse(thisfile.read(), content_type='application/force-download')
-            response['Content-Disposition'] = 'inline; filename=' + cleanfilename
-            log.info('DOWNLOAD User: '+str(request.user)+' Filepath: '+file_path)
-            return response
-        raise Http404
-    else:
+    try:
+        log.info(f'DOWNLOAD by user: {request.user} of File: {file_path}')
+        return make_download(file_path)
+    except DoesNotExist:
         return HttpResponse('File not stored on server')
-
+    except Exception as e:
+        log.error('Error in download: {}'.format(e))
+        raise Http404
+    
 
 @login_required
 def get_content(request,doc_id,searchterm,tagedit='False'): 
     """make a page showing the extracted text, highlighting searchterm """
     
-    log.debug('Get content for doc id: {} from search term {}'.format(doc_id,searchterm))
+    log.info('User \'{}\' fetch content for doc id: \'{}\' from search term \'{}\''.format(request.user,doc_id,searchterm))
     #log.debug('Request session : {}'.format(request.session.__dict__))
     
     page=pages.ContentPage(doc_id=doc_id,searchterm=searchterm,tagedit='False')
@@ -256,23 +291,22 @@ def get_content(request,doc_id,searchterm,tagedit='False'):
         page.process_result(result)
         log.debug('Data ID: {}'.format(page.data_ID)) 
         
+        #        #check if file is registered and authorised to download
+        page.authflag,page.matchfile_id,page.hashfilename=authorise.authfile(request,page.hashcontents,page.docname)
+
+        
         #REDIRECT IF PREVIEW URL DEFINED
-        log.debug('Preview: {}'.format(page.preview_url))
+        log.debug('Stored preview html: {}'.format(page.preview_url))
         if page.preview_url:
             return HttpResponseRedirect(page.preview_url) 
         
-        if page.mimetype=='application/pdf':
-            page.pdf_url=static(os.path.join('files/',page.docpath))
-            log.debug('PDF URL: {}'.format(page.pdf_url))
-            #statdoc = finders.find(page.docpath)
-            log.debug(settings.STATIC_ROOT)
-            statpath=os.path.join(settings.STATIC_ROOT,'files/',page.docpath)
-            log.debug('statpath: {}'.format(statpath))
-            if os.path.exists(statpath):
-                log.debug('File exists in static: {}'.format(statpath))
+        if page.mimetype in MIMETYPES_THAT_EMBED:
+            if page.matchfile_id:
+                log.debug('Embed authorised')
                 page.embed=True
             else:
                 page.embed=False
+#            log.debug('PDF URL: {}'.format(page.pdf_url))
         else:
             page.embed=False
 
@@ -292,8 +326,6 @@ def get_content(request,doc_id,searchterm,tagedit='False'):
         if len(page.highlight)==CONTENTSMAX:
            #go get large highlights instead
            return get_bigcontent(request,page)
-#        #check if file is registered and authorised to download
-        page.authflag,page.matchfile_id,page.hashfilename=authorise.authfile(request,page.hashcontents,page.docname)
 
         #clean up and prepare the preview text for display
         page.splittext,page.last_snippet,page.cleanterm=cleanup(page.searchterm,page.highlight)
@@ -352,7 +384,7 @@ def cleanup(searchterm,highlight):
     cleaned=markup.urls(cleaned) #add links to text
     
     cleansearchterm=cleansterm(searchterm)
-    log.debug(cleansearchterm)
+    log.debug(f'Searchterm cleaned: {cleansearchterm}')
     lastscrap=''
     try:
         splittext=re.split(cleansearchterm,cleaned,flags=re.IGNORECASE) #make a list of text scraps, removing search term
@@ -383,21 +415,5 @@ def testsearch(request,doc_id,searchterm):
     else:
         return HttpResponseRedirect('/')        
         
-
-def slugify(value):
-    """
-    Normalizes string, converts to lowercase, removes non-alpha characters,
-    and converts spaces to hyphens.
-    """
-    shortName, fileExt = os.path.splitext(value)
-    originalvalue=value
-    try:
-        value = unicodedata.normalize('NFKD', value).encode('ascii', 'ignore')        
-        value = unicode(re.sub('[^\w\s-]', '', value).strip().lower())
-        value = unicode(re.sub('[-\s]+', '-', value))
-    except NameError:
-        value = re.sub('[^\w\s-]', '', originalvalue).strip().lower()
-        value = re.sub('[-\s]+', '-', value)      
-    return value+fileExt
 
 
