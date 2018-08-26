@@ -162,24 +162,36 @@ class UrlsTest(TestCase):
         logging.disable(logging.CRITICAL)
         
     def test_simplesearch(self):        
-         res=resolve("/ownsearch/searchterm=%252A&page=1&sorttype=relevance&filters=tag1=Donald Trump")
-         #print(res.__dict__)
-         self.assertEquals(res.kwargs,{'searchterm': '%252A', 'page_number': '1', 'sorttype': 'relevance', 'tag1field': 'tag1', 'tag1': 'Donald Trump', 'tag2field': None, 'tag2': None, 'tag3field': None, 'tag3': None,'start_date': None, 'end_date': None})
+        res=resolve("/ownsearch/searchterm=%252A&page=1&sorttype=relevance&filters=tag1=Donald Trump")
+        #print(res.__dict__)
+        self.assertEquals(res.kwargs,{'searchterm': '%252A', 'page_number': '1', 'sorttype': 'relevance', 'tag1field': 'tag1', 'tag1': 'Donald Trump', 'tag2field': None, 'tag2': None, 'tag3field': None, 'tag3': None,'start_date': None, 'end_date': None})
     def tests_tagsearch(self):
-         params={'page_number':1,'sorttype':'relevance','searchterm':'test'}
-         params.update({'tag1field':'tag1','tag1':'sometag'})
-         rev=reverse('searchpagefilters',kwargs=params)
-         self.assertEquals(rev,"/ownsearch/searchterm=test&page=1&sorttype=relevance&filters=tag1=sometag")
-         params.update({'start_date':'01012000'})
-         rev=reverse('searchpagefilters',kwargs=params)
-         self.assertEquals(rev,"/ownsearch/searchterm=test&page=1&sorttype=relevance&filters=tag1=sometag&start_date=01012000")
-         params.update({'tag2field': 'secondfield', 'tag2': 'secondvalue'})
-         rev=reverse('searchpagefilters',kwargs=params)
-         self.assertEquals(rev,"/ownsearch/searchterm=test&page=1&sorttype=relevance&filters=tag1=sometag&tag=secondfield=secondvalue&start_date=01012000")
+        params={'page_number':1,'sorttype':'relevance','searchterm':'test'}
+        params.update({'tag1field':'tag1','tag1':'sometag'})
+        rev=reverse('searchpagefilters',kwargs=params)
+        self.assertEquals(rev,"/ownsearch/searchterm=test&page=1&sorttype=relevance&filters=tag1=sometag")
+        params.update({'start_date':'01012000'})
+        rev=reverse('searchpagefilters',kwargs=params)
+        self.assertEquals(rev,"/ownsearch/searchterm=test&page=1&sorttype=relevance&filters=tag1=sometag&start_date=01012000")
+        params.update({'tag2field': 'secondfield', 'tag2': 'secondvalue'})
+        rev=reverse('searchpagefilters',kwargs=params)
+        self.assertEquals(rev,"/ownsearch/searchterm=test&page=1&sorttype=relevance&filters=tag1=sometag&tag=secondfield=secondvalue&start_date=01012000")
          
-         res=resolve("/ownsearch/searchterm=test&page=1&sorttype=relevance&filters=tag1=sometag&tag=secondfield=secondvalue&start_date=01012000")
-         self.assertEquals(res.kwargs,{'searchterm': 'test', 'page_number': '1', 'sorttype': 'relevance', 'tag1field': 'tag1', 'tag1': 'sometag', 'tag2field': 'secondfield', 'tag2': 'secondvalue', 'start_date': '01012000', 'end_date': None,'tag3field': None, 'tag3': None})
+        res=resolve("/ownsearch/searchterm=test&page=1&sorttype=relevance&filters=tag1=sometag&tag=secondfield=secondvalue&start_date=01012000")
+        self.assertEquals(res.kwargs,{'searchterm': 'test', 'page_number': '1', 'sorttype': 'relevance', 'tag1field': 'tag1', 'tag1': 'sometag', 'tag2field': 'secondfield', 'tag2': 'secondvalue', 'start_date': '01012000', 'end_date': None,'tag3field': None, 'tag3': None})
          
+    def test_strangekeywords(self):
+        res=resolve("/ownsearch/searchterm=pdf&page=1&sorttype=relevance&filters=tag1=Donald Trump")
+        print(res.__dict__)
+        self.assertEquals(res._func_path,'ownsearch.views.do_search')
+        
+        #add ampersand
+        res=resolve("/ownsearch/searchterm=pdf&page=1&sorttype=relevance&filters=tag1=Donald&Trump")
+        print(res.__dict__)
+        self.assertEquals(res._func_path,'ownsearch.views.do_search')
+
+
+        
          
 class ContentTest(TestCase):
     def setUp(self):        

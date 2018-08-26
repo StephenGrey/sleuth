@@ -38,6 +38,7 @@ class TagForm(forms.Form):
         self.initialtags=initialtags
         super(TagForm, self).__init__(*args, **kwargs) #having overridden initialisation; now run parent initialisation
         self.fields['keywords'] = CommaSeparatedCharField(label='User tags', min_length=1,max_length=30,initial=self.initialtags, required=False, widget=forms.Textarea(attrs={'rows': 1, 'cols': 75, 'pattern':'[A-Za-z ]+', 'blank': True}))
+        self.fields['doc_id']=forms.CharField(max_length=255,initial=None,required=False)
 
 class MinLengthValidator(validators.MinLengthValidator):
     message = 'Ensure this value has at least %(limit_value)d elements (it has %(show_value)d).'

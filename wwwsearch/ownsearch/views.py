@@ -12,13 +12,13 @@ from documents.models import File,Collection,Index,UserEdit
 from documents.file_utils import slugify,make_download,make_file,DoesNotExist
 from django.shortcuts import render
 from django.contrib.auth.decorators import login_required
-from django.http import HttpResponse, HttpResponseRedirect,Http404
+from django.http import HttpResponse, HttpResponseRedirect,Http404,JsonResponse
 from django.urls import reverse
 from django.db.models.base import ObjectDoesNotExist
 from django.contrib.staticfiles.templatetags.staticfiles import static #returns static url
 from django.contrib.staticfiles import finders #locates static file
 from django.conf import settings #to access settings constants
-import re, os, logging, unicodedata
+import re, os, logging, unicodedata, json
 from . import markup
 
 try:
@@ -47,7 +47,7 @@ def do_search(request,page_number=0,**kwargs):
 #    log.debug(request.__dict__)
     path_info=request.META.get('PATH_INFO')
     request.session['lastsearch']=path_info
-
+    log.debug(request.session.get('lastsearch'))
     page=pages.SearchPage(page_number=page_number,searchurl=path_info, **kwargs)
     
     #log.debug('SESSION CACHE: '+str(vars(request.session)))
@@ -218,14 +218,13 @@ def get_content(request,doc_id,searchterm,tagedit='False'):
     """make a page showing the extracted text, highlighting searchterm """
     
     log.info('User \'{}\' fetch content for doc id: \'{}\' from search term \'{}\''.format(request.user,doc_id,searchterm))
-    #log.debug('Request session : {}'.format(request.session.__dict__))
+    log.debug('Request session : {}'.format(request.session.__dict__))
     
     page=pages.ContentPage(doc_id=doc_id,searchterm=searchterm,tagedit='False')
     page.safe_searchterm()
     page.searchurl=request.session.get('lastsearch','/ownsearch') #store the return page
-    
-
-    
+    log.debug(type(page.searchurl))
+    log.debug(request.META.get('PATH_INFO'))
     #GET INDEX
     #only show content if index defined in session:
     if request.session.get('mycore') is None:
@@ -334,9 +333,9 @@ def get_content(request,doc_id,searchterm,tagedit='False'):
         return render(request, 'content_small.html', {'form':form,'page':page})
 
 
-def update_user_edits(page,keyclean,username):
+def update_user_edits(doc_id,mycore,keyclean,username):
      #log.debug('{}{}'.format(keyclean,type(keyclean)))
-     edit=UserEdit(solrid=page.doc_id,usertags=keyclean,corename=page.mycore.name)
+     edit=UserEdit(solrid=doc_id,usertags=keyclean,corename=mycore.name)
      edit.username=username
      edit.time_modified=solrJson.timeaware(datetime.now())
      edit.save()
@@ -394,6 +393,70 @@ def cleanup(searchterm,highlight):
         splittext=[cleaned]
     return splittext,lastscrap,cleansearchterm
     
+
+@login_required
+def post_usertags(request):
+    """API to update usertags from content page"""
+    jsonresponse={'saved':False, 'valid_form':False,'message':'Unknown error saving usertag'}
+    
+    #GET AUTHORISED CORES AND DEFAULT
+    try:
+        thisuser=request.user
+        storedcoreID=request.session.get('mycore','')
+        authcores=authorise.AuthorisedCores(thisuser,storedcore=storedcoreID)
+        #log.debug('Authcores: {}'.format(authcores.__dict__))
+        mycore=authcores.mycore	
+        if not request.is_ajax():
+            return HttpResponse('API call: Not Ajax')
+        else:
+            if request.method == 'POST':
+                log.debug('Raw Data: {}'.format( request.body))
+                response_json = json.dumps(request.POST)
+                data = json.loads(response_json)
+                log.debug ("Json data: {}.".format(data))
+                postdata=request.POST
+                jsonresponse=update_usertags(data,thisuser.username,postdata,mycore)
+                log.debug('Json response:{}'.format(jsonresponse))
+            else:
+                log.debug('Error: Get to API')
+    except Exception as e:
+        pass
+    return JsonResponse(jsonresponse)
+
+def update_usertags(data,username,postdata,mycore):
+    log.info(f'User {username} updating usertags in index {mycore} with {data}') 
+    try:
+        form=TagForm('',postdata)
+        #log.debug('Form data: {}'.format(form.__dict__))
+        log.debug('Data posted: {} Form all: {}'.format(postdata,form.__dict__))
+        if form.is_valid():
+            # process the data in form.cleaned_data as required
+            keywords=form.cleaned_data['keywords']
+            log.debug('Keywords from form: {}'.format(keywords))
+            #, type{}'.format([(word,type(word)) for word in keywords],type(keywords)))
+            if keywords != [form.fields['keywords'].label]: #eliminate default
+
+                """Permit only alphanumeric and numbers as user tags - support Cyrillic in Py3""" 
+                keyclean=[re.sub(r'[^\w, ]','',item) for item in keywords]
+                doc_id=form.cleaned_data['doc_id']
+                log.debug(doc_id)
+                if updateSolr.updatetags(doc_id,mycore,keyclean):
+                    log.info('Update success of user tags: {} in solrdoc: {} by user {}'.format(keyclean,doc_id,username))
+                    update_user_edits(doc_id,mycore,keyclean,username)
+                    return {'saved':True, 'verified':True,'message':None}
+                else:
+                    log.debug('Update failed of user tags: {} in solrdoc: {}'.format(keyclean,doc_id))
+                    return {'saved':False, 'verified':True,'message':'Update to index failed'}
+            else:
+                return {'saved':False, 'valid_form':False,'message':'Invalid tag'}
+        else:
+            log.debug('form not valid; errors: {}'.format(form.errors))
+            return {'saved':False, 'verified':False,'message':'Invalid tag'}
+            	  
+    except Exception as e:
+        log.error("Failed to edit usertags with data {} and error {}".format(postdata,e))
+        return {'saved':False, 'valid_form':True,'message':'Unknown error saving usertags'}
+
 
 @login_required
 def testsearch(request,doc_id,searchterm):

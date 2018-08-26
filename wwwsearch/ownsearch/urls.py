@@ -10,9 +10,9 @@ urlpatterns = [
     url(r'^searchterm=(?P<searchterm>.*)&(?P<direction>next)afterpage=(?P<page_number>\d+)&sorttype=(?P<sorttype>.+)&filters=(?P<tag1field>.*)=(?P<tag1>.*)$', views.do_search, name='nextpageview1'),
     url(r'^searchterm=(?P<searchterm>.*)&(?P<direction>next)afterpage=(?P<page_number>\d+)&sorttype=(?P<sorttype>.*)$', views.do_search, name='nextpageview'),
 
-    url(r'''^searchterm=(?P<searchterm>.*)&page=(?P<page_number>\d+)&sorttype=(?P<sorttype>.+)&filters=(?P<tag1field>[\w\s]*)=(?P<tag1>[^&=]*)'''
-    r'''(?:&tag=(?P<tag2field>[^&=]*)=(?P<tag2>[^&=]*|))?'''
-    r'''(?:&tag=(?P<tag3field>[^&=]*)=(?P<tag3>[^&=]*|))?''' 
+    url(r'''^searchterm=(?P<searchterm>.*)&page=(?P<page_number>\d+)&sorttype=(?P<sorttype>.+)&filters=(?P<tag1field>[\w\s]*)=(?P<tag1>[^=]*)'''
+    r'''(?:&tag=(?P<tag2field>[^=]*)=(?P<tag2>[^&=]*|))?'''
+    r'''(?:&tag=(?P<tag3field>[^=]*)=(?P<tag3>[^&=]*|))?''' 
     r'''(?:&start_date=(?P<start_date>[0-9]{8}|))?'''
     r'''(?:&end_date=(?P<end_date>[0-9]{8}|))?$'''
     	,
@@ -32,6 +32,8 @@ urlpatterns = [
 
     url(r'^download=(?P<doc_id>.*)&(?P<hashfilename>.*)$', views.download, name='download'),
     url(r'^embed=(?P<doc_id>.*)&(?P<hashfilename>.*)&(?P<mimetype>.*)$', views.embed, name='embed'),
+    
+    url(r'^ajax/post_usertags$',views.post_usertags,name='post_usertags'),
 
    ]
 

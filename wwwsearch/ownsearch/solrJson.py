@@ -13,7 +13,11 @@ from usersettings import userconfig as config
 from django.utils import timezone
 import pytz, iso8601 #support localising the timezone
 from datetime import datetime, timedelta
-
+try:
+    from urllib.parse import quote_plus #python3
+except ImportError:
+    from urllib import quote_plus #python2
+ 
 
 class MissingConfigData(Exception): 
     pass
@@ -188,10 +192,14 @@ class Solrdoc:
                             
             self.data['hashcontents']=self.data.pop(core.hashcontentsfield,'')
             self.data['tags1']=self.data.pop(core.tags1field,'')
+            if self.data['tags1']:
+                if isinstance(self.data['tags1'], str):
+                    tag=self.data['tags1']
+                    self.data['tags1']=[(tag,quote_plus(tag))]
+                else:
+                    self.data['tags1']=[(tag,quote_plus(tag)) for tag in self.data['tags1']]
+                    log.debug("tags1: {}".format(self.data['tags1']))
             self.data['preview_url']=self.data.pop(core.preview_url,'')
-            
-            if isinstance(self.data['tags1'], str):
-                self.data['tags1']=[self.data['tags1']]
             self.next_id=self.data.get(core.nextfield,'')
             self.before_id=self.data.get(core.beforefield,'')
             self.sequence=self.data.get(core.sequencefield,'')
@@ -382,6 +390,8 @@ except:
 
 def pagesearch(page):
     page.results,page.resultcount,page.facets,page.facets2,page.facets3=solrSearch(page.searchterm,page.sorttype,page.startnumber,page.mycore,filters=page.filters,faceting=page.faceting,start_date=page.start_date,end_date=page.end_date)
+    page.make_facets_safe()
+
     return
 
 #MAIN SEARCH METHOD  (q is search term)

@@ -73,6 +73,17 @@ class Page(object):
         
     def static_check(self):
         print(static('glyphicons-halflings-regular.woff2'))
+        
+    def make_facets_safe(self):
+        if self.facets:
+            self.facets=self.safe_list(self.facets)
+        if self.facets2:
+            self.facets2=self.safe_list(self.facets2)
+        if self.facets3:
+            self.facets3=self.safe_list(self.facets3)
+    
+    def safe_list(self,unsafelist):
+        return [(item,counter,quote_plus(item)) for item,counter in unsafelist]
 
 
 class SearchPage(Page):
@@ -200,15 +211,12 @@ class ContentPage(Page):
         #if multivalued, take the first one
         if isinstance(self.data_ID,list):
             page.data_ID=data_ID[0]
-        self.tags1=self.result.data.get('tags1',[False])[0]
-        if self.tags1=='':
+        self.tags1=self.result.data.get('tags1')
+        if self.tags1=='' or not self.tags1:
             self.tags1=False
         self.html=self.result.data.get('preview_html','')
         self.preview_url=self.result.data.get('preview_url','')
-#        self.get_mimetype()
         
-#        self.next_id=result.data.get('hashcontents')
-#        self.before_id=result.data.get('hashcontents')
     
     @property
     def mimetype(self):
@@ -229,9 +237,10 @@ class ContentPage(Page):
     
     def tagform(self):
         self.initialtags=self.result.data.get(self.mycore.usertags1field,'')
-        if not isinstance(self.initialtags,list):
+        if not isinstance(self.initialtags,list) and self.initialtags:
             self.initialtags=[self.initialtags]
         self.tagstring=','.join(map(str, self.initialtags))
+        #log.debug(f'{self.tagstring},{self.initialtags}')
         return TagForm(self.tagstring)
        
 

@@ -74,28 +74,33 @@ INDEXED FOLDERS:
 {% endblock %}
 
 {% block user_tags %}
-<form action="" method="post"> {% csrf_token %}
+
+<form action="" id="tagform" method="post"> {% csrf_token %}
 &nbsp; 
-{% if page.useredit %}
-		{{form.keywords.label}}{{form.keywords}}
-	<button type="submit" name='save' value='Save' class="btn btn-default btn-sm">
-	   <span class="glyphicon glyphicon-pencil">Save</span>
-	</button>
-		<button type="submit" name='cancel' value='Cancel' class="btn btn-default btn-sm">
-	   <span class="glyphicon glyphicon-pencil">Cancel</span>
-	</button>
-{% else %}
-	 User tags:<span class='tag'> 
- 	{% if page.initialtags %}
- 		{% for tag in page.initialtags %}
- 			{{ tag }}, 
- 		{% endfor %}
- 	{% endif %}</span>
-<button type="submit" name='edit' value='Edit' class="btn btn-default btn-sm">
-   <span class="glyphicon glyphicon-pencil">Edit</span>
-</button>
+	<div class="form-group">
+		<label class="control-label">User tags:</label>
+		<input type="text" class="form-control" name="keywords" id="usertags" label="" value="
+{% if page.initialtags %}
+{% for tag in page.initialtags %}
+{{ tag }}, 
+{% endfor %}
+{% else %}{{form.keywords.label}}
 {% endif %}
-	</form>
+" readonly >
+
+
+<span name='edit' id='edit_or_save_button' value='Edit' class="btn btn-default btn-sm">
+<span class="glyphicon glyphicon-pencil"></span>
+<span id="savebutton-text">Edit</span>
+</span>
+<span style="visibility: hidden;"  name='cancel' id='cancel_button' value='cancel' class="btn btn-default btn-sm" >
+<span class="glyphicon glyphicon-remove"></span>
+<span id="cancelbutton-text">Cancel</span>
+</span>
+<input type="hidden" name="doc_id" value="{{page.doc_id}}" />
+<span id='form-errors' style="color:red"></span>
+</form>
+</div>
 
 {% if page.result.before_id %}
 <a class="navigl" href="/ownsearch/doc={{ page.result.before_id }}&searchterm={{page.searchterm_urlsafe}}"><b>Before</b></a>
@@ -134,4 +139,65 @@ No preview available
 {% endif%}
 
 
+{% endblock %}
+
+{% block javascript %}
+
+<script>      
+	(function() {	
+            	
+            	document.getElementById("edit_or_save_button").addEventListener('click', editform);
+            	document.getElementById("cancel_button").addEventListener('click', cancel);
+              function cancel()
+              	{
+              	  document.getElementById("savebutton-text").innerHTML='Edit';
+              		document.getElementById('usertags').readOnly = true;
+              		document.getElementById("cancel_button").style.visibility = "hidden";
+              	};
+              
+              function editform()
+              	{
+//              	alert('you pressed edit');
+              	var btnText = document.getElementById('savebutton-text').innerHTML;
+              	if(btnText == 'Edit')
+              		{
+              		document.getElementById("savebutton-text").innerHTML='Save';
+              		document.getElementById('usertags').readOnly = false;
+              		document.getElementById("cancel_button").style.visibility = "visible";
+              		
+              		}
+              	else
+              		{
+              		document.getElementById("savebutton-text").innerHTML='Edit';
+              		document.getElementById('usertags').readOnly = true;
+              		document.getElementById("cancel_button").style.visibility = "hidden";
+
+              		var dataform=$('#tagform').serialize();
+              		//alert(dataform);
+              		$.post( '/ownsearch/ajax/post_usertags',dataform, function(data) 
+              			{
+              			console.log(data);
+                    if (data.saved==false) 
+                    	{
+                   		//console.log(data.message);
+                   		document.getElementById("form-errors").innerHTML='<p>Error:  '+data.message;
+                   		//alert('Failed to save');
+                      }
+                    else {
+                         document.getElementById("form-errors").innerHTML='';
+                      };
+                      //alert(temp1);
+                  //... do something with response from server
+                  	},
+                 		'json' // I expect a JSON response
+                  	)
+                  	.fail(function() {
+                  	alert( "Failed to save" );
+  									});
+
+                	};
+              	};
+              }
+	)();
+</script>
 {% endblock %}
