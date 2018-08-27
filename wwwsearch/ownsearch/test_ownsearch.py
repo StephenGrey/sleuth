@@ -182,12 +182,12 @@ class UrlsTest(TestCase):
          
     def test_strangekeywords(self):
         res=resolve("/ownsearch/searchterm=pdf&page=1&sorttype=relevance&filters=tag1=Donald Trump")
-        print(res.__dict__)
+        #print(res.__dict__)
         self.assertEquals(res._func_path,'ownsearch.views.do_search')
         
         #add ampersand
         res=resolve("/ownsearch/searchterm=pdf&page=1&sorttype=relevance&filters=tag1=Donald&Trump")
-        print(res.__dict__)
+        #print(res.__dict__)
         self.assertEquals(res._func_path,'ownsearch.views.do_search')
 
 

@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import os, logging,hashlib,re
+from pathlib import Path
 from collections import defaultdict
 
 try:
@@ -104,10 +105,11 @@ def parent_hash(filepath):
     """hash of a file's parent directory"""
     parent,filename=os.path.split(filepath)
     return pathHash(parent)
-    
+        
 def pathHash(path):
+    path=Path(path).as_posix()  #convert windows paths to unix paths for consistency across platforms
     m=hashlib.md5()
-    m.update(path.encode('utf-8'))  #encoding avoids unicode error for unicode paths
+    m.update(path.encode('utf-8')) #encoding avoids unicode error for unicode paths
     return m.hexdigest()
 
 def get_contents_hash(path,blocksize = 65536):

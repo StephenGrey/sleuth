@@ -1,12 +1,12 @@
 {% extends "content.html" %}
 
 {% block body_content %}
+TEST
 {% if page.splittext %} 
-{% for text_snippet in page.splittext %}
-<span class="content">{{text_snippet|safe | linebreaksbr}}</pre><b class="highlight">{{page.searchterm}}</b>
-</span>
-{% endfor %}
-<span class="content">{{page.last_snippet|linebreaksbr}}</span>
+	{% for text_snippet in page.splittext %}
+		<span class="content">{{text_snippet|safe | linebreaksbr}}</pre><b class="highlight">{{page.searchterm}}</b>
+		</span>
+	{% endfor %}
+	<span class="content">{{page.last_snippet|linebreaksbr}}</span>
 {% endif %}
-
 {% endblock %}
