@@ -1,59 +1,106 @@
 {% extends "base.html" %}
 
 {% block sidebar %}
+<span style="color:darkblue;word-wrap:break-word;">
 	<a href="{{page.searchurl}}">Back to Results</a>
+	<p><p>
+	{% if page.docpaths.1%}
+	Identical docs:<p>
+		{% for path in page.docpaths%}
+			{{path}}<p>
+		{%endfor%}
+	{% endif %}	
+</span>
 {% endblock %}
 
 {% block top_content %}
 
-<h5>Extracted Text</h5>
+BROWSE LOCAL DISK:
+<ol class="breadcrumb" >
+{% if page.this_user.is_staff and page.relpath_valid %}
+  <li><a href="/documents/files"  style="color:red;">Home</a></li>
+{% else %}Home /
+{% endif %}
+
+{% for fullpath,relpath,basename,hash in page.path_tags %}  
+
+{% if page.this_user.is_staff and page.path_exists%}
+  <li><a href="/documents/files/{{fullpath}}"  style="color:red;">{{basename}}</a></li>
+{% else %}
+  <li>{{basename}}</li>
+{% endif %}
+{% endfor %} 
+</ol>
+
+INDEXED FOLDERS:
+<ol class="breadcrumb">
+<!--{% if page.this_user.is_staff and page.relpath_valid %}
+  <li><a href="/documents/indexedfiles">Home</a></li>
+{% else %}Home /
+{% endif %}
+-->
+{% for fullpath,relpath,basename,hash in page.path_tags %}  
+
+{% if page.this_user.is_staff%}
+  <li><a href="/documents/indexedfiles/{{fullpath}}">{{basename}}</a></li>
+{% else %}
+  <li>{{basename}}</li>
+{% endif %}
+{% endfor %} 
+</ol>
+
+
 	{% if page.result.data.message_from  %}
 		<h3>Email <b>From:</b> {{page.result.data.message_from}} <b><br>To:</b> {{page.result.data.message_to}}</h3>
 	{% endif %}
 	{% if page.result.data.title  %}
 		<b><h3>Subject:</b><span class="titlename">{{page.result.data.title}}</span></h3>
 	<h4>{{page.datetext}}</h4>
-	<br>PATH: {{page.docpath}}&emsp; SIZE(bytes):{{page.docsize}}<br>
+	<br>SIZE(bytes):{{page.docsize}}<br>
 	<!--DIRECT FROM APACHE--<a href="/docstore/{{docpath}}"><b>Download</b></a>	-->
-	<b>Filename: <span >{{page.docname}}</span></b>
+	<b><span >{{page.docname}}</span></b>
 
 	{% else %}
-	<h4>{{page.datetext}}</h4>
-	<br>PATH: {{page.docpath}}&emsp; SIZE(bytes):{{page.docsize}}<br>
+	<h5>Date: {{page.datetext}} &nbsp; &nbsp; Size(bytes): {{page.docsize}}</h5>
+
 	<!--DIRECT FROM APACHE--<a href="/docstore/{{docpath}}"><b>Download</b></a>	-->
-	<b>Filename: <span class="titlename" >{{page.docname}}</span></b>
+	<b><span class="titlename" >{{page.docname}}</span></b>
 		{% endif %}	
 	
-	{% if page.authflag%}<a href="/ownsearch/download={{page.matchfile_id}}&{{page.hashfilename}}"<b>Download</b></a><p>
+	{% if page.authflag%}&nbsp; &nbsp;<a href="/ownsearch/download={{page.matchfile_id}}&{{page.hashfilename}}"<b>Download</b></a><p>
 	{% endif %}
-
 
 
 {% endblock %}
 
 {% block user_tags %}
-<form action="" method="post"> {% csrf_token %}
+
+<form action="" id="tagform" method="post"> {% csrf_token %}
 &nbsp; 
-{% if page.useredit %}
-		{{form.keywords.label}}{{form.keywords}}
-	<button type="submit" name='save' value='Save' class="btn btn-default btn-sm">
-	   <span class="glyphicon glyphicon-pencil">Save</span>
-	</button>
-		<button type="submit" name='cancel' value='Cancel' class="btn btn-default btn-sm">
-	   <span class="glyphicon glyphicon-pencil">Cancel</span>
-	</button>
-{% else %}
-	 User tags:<span class='tag'> 
- 	{% if page.initialtags %}
- 		{% for tag in page.initialtags %}
- 			{{ tag }}, 
- 		{% endfor %}
- 	{% endif %}</span>
-<button type="submit" name='edit' value='Edit' class="btn btn-default btn-sm">
-   <span class="glyphicon glyphicon-pencil">Edit</span>
-</button>
+	<div class="form-group">
+		<label class="control-label">User tags:</label>
+		<input type="text" class="form-control" name="keywords" id="usertags" label="" value="
+{% if page.initialtags %}
+{% for tag in page.initialtags %}
+{{ tag }}, 
+{% endfor %}
+{% else %}{{form.keywords.label}}
 {% endif %}
-	</form>
+" readonly >
+
+
+<span name='edit' id='edit_or_save_button' value='Edit' class="btn btn-default btn-sm">
+<span class="glyphicon glyphicon-pencil"></span>
+<span id="savebutton-text">Edit</span>
+</span>
+<span style="visibility: hidden;"  name='cancel' id='cancel_button' value='cancel' class="btn btn-default btn-sm" >
+<span class="glyphicon glyphicon-remove"></span>
+<span id="cancelbutton-text">Cancel</span>
+</span>
+<input type="hidden" name="doc_id" value="{{page.doc_id}}" />
+<span id='form-errors' style="color:red"></span>
+</form>
+</div>
 
 {% if page.result.before_id %}
 <a class="navigl" href="/ownsearch/doc={{ page.result.before_id }}&searchterm={{page.searchterm_urlsafe}}"><b>Before</b></a>
@@ -63,11 +110,94 @@
 {% endif %}
 
 {% endblock %}
-{% block embed_content %}
-	{% if page.pdf_url%}
-	{% if page.embed %}
-	<embed src="{{page.pdf_url}}" type="application/pdf" width="100%" height="2400px" />
-	{% endif %}{% endif %}
-	
 
+{% block embed_content %}
+
+		<div>
+{% if page.embed %}
+  <div class="panel-group">
+    <div class="panel panel-default">
+      <div class="panel-heading">
+        <h4 class="panel-title">
+        	<a data-toggle="collapse"  href="#collapse">Preview</a>
+      </div>
+      <div id="collapse" class="panel-collapse collapse">
+Embedding: {{page.mimetype}}<p>
+<object data="/ownsearch/embed={{page.matchfile_id}}&{{page.hashfilename}}&{{page.mimetype}}" type="{{page.mimetype}}" width="100%" height="100%">
+No preview available
+</object>
+
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+	
+			
+{% if page.result.folder%}<p><p>
+  Tag for document folder: no extracted contents stored in index
+{% endif%}
+
+
+{% endblock %}
+
+{% block javascript %}
+
+<script>      
+	(function() {	
+            	
+            	document.getElementById("edit_or_save_button").addEventListener('click', editform);
+            	document.getElementById("cancel_button").addEventListener('click', cancel);
+              function cancel()
+              	{
+              	  document.getElementById("savebutton-text").innerHTML='Edit';
+              		document.getElementById('usertags').readOnly = true;
+              		document.getElementById("cancel_button").style.visibility = "hidden";
+              	};
+              
+              function editform()
+              	{
+//              	alert('you pressed edit');
+              	var btnText = document.getElementById('savebutton-text').innerHTML;
+              	if(btnText == 'Edit')
+              		{
+              		document.getElementById("savebutton-text").innerHTML='Save';
+              		document.getElementById('usertags').readOnly = false;
+              		document.getElementById("cancel_button").style.visibility = "visible";
+              		
+              		}
+              	else
+              		{
+              		document.getElementById("savebutton-text").innerHTML='Edit';
+              		document.getElementById('usertags').readOnly = true;
+              		document.getElementById("cancel_button").style.visibility = "hidden";
+
+              		var dataform=$('#tagform').serialize();
+              		//alert(dataform);
+              		$.post( '/ownsearch/ajax/post_usertags',dataform, function(data) 
+              			{
+              			console.log(data);
+                    if (data.saved==false) 
+                    	{
+                   		//console.log(data.message);
+                   		document.getElementById("form-errors").innerHTML='<p>Error:  '+data.message;
+                   		//alert('Failed to save');
+                      }
+                    else {
+                         document.getElementById("form-errors").innerHTML='';
+                      };
+                      //alert(temp1);
+                  //... do something with response from server
+                  	},
+                 		'json' // I expect a JSON response
+                  	)
+                  	.fail(function() {
+                  	alert( "Failed to save" );
+  									});
+
+                	};
+              	};
+              }
+	)();
+</script>
 {% endblock %}

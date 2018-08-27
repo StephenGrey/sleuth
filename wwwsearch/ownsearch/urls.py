@@ -10,15 +10,31 @@ urlpatterns = [
     url(r'^searchterm=(?P<searchterm>.*)&(?P<direction>next)afterpage=(?P<page_number>\d+)&sorttype=(?P<sorttype>.+)&filters=(?P<tag1field>.*)=(?P<tag1>.*)$', views.do_search, name='nextpageview1'),
     url(r'^searchterm=(?P<searchterm>.*)&(?P<direction>next)afterpage=(?P<page_number>\d+)&sorttype=(?P<sorttype>.*)$', views.do_search, name='nextpageview'),
 
-    url(r'^searchterm=(?P<searchterm>.*)&page=(?P<page_number>\d+)&sorttype=(?P<sorttype>.+)&filters=(?P<tag1field>.*)=(?P<tag1>.*)&(?P<tag2field>.*)=(?P<tag2>.*)&(?P<tag3field>.*)=(?P<tag3>.*)$', views.do_search, name='searchpagefilters'),
-    url(r'^searchterm=(?P<searchterm>.*)&page=(?P<page_number>\d+)&sorttype=(?P<sorttype>.*)$', views.do_search, name='searchpageview'),
+    url(r'''^searchterm=(?P<searchterm>.*)&page=(?P<page_number>\d+)&sorttype=(?P<sorttype>.+)&filters=(?P<tag1field>[\w\s]*)=(?P<tag1>[^=]*)'''
+    r'''(?:&tag=(?P<tag2field>[^=]*)=(?P<tag2>[^&=]*|))?'''
+    r'''(?:&tag=(?P<tag3field>[^=]*)=(?P<tag3>[^&=]*|))?''' 
+    r'''(?:&start_date=(?P<start_date>[0-9]{8}|))?'''
+    r'''(?:&end_date=(?P<end_date>[0-9]{8}|))?$'''
+    	,
+    views.do_search, name='searchpagefilters'),
 
+    url(r'''^searchterm=(?P<searchterm>.*)&page=(?P<page_number>\d+)&sorttype=(?P<sorttype>\w+)'''
+    r'''(?:&start_date=(?P<start_date>[0-9]{8}))?'''
+    r'''(?:&end_date=(?P<end_date>[0-9]{8}))?$'''
+    , views.do_search, name='searchpageview'),
+ 
+	
     url(r'^searchterm=(?P<searchterm>.*)&(?P<direction>back)frompage=(?P<page_number>\d+)&sorttype=(?P<sorttype>.+)&tag2=(?P<tag2>.*)$', views.do_search, name='backpageview'),
     url(r'^searchterm=(?P<searchterm>.*)&(?P<direction>back)frompage=(?P<page_number>\d+)&sorttype=(?P<sorttype>.+)&tag1=(?P<tag1>.*)$', views.do_search, name='backpageview'),
     url(r'^searchterm=(?P<searchterm>.*)&(?P<direction>back)frompage=(?P<page_number>\d+)&sorttype=(?P<sorttype>.*)$', views.do_search, name='backpageview'),
     url(r'^doc=(?P<doc_id>.*)&searchterm=(?P<searchterm>.*)&tagedit=(?P<tagedit>True)$', views.get_content, name='contentview'),
     url(r'^doc=(?P<doc_id>.*)&searchterm=(?P<searchterm>.*)$', views.get_content, name='contentview'),
+
     url(r'^download=(?P<doc_id>.*)&(?P<hashfilename>.*)$', views.download, name='download'),
+    url(r'^embed=(?P<doc_id>.*)&(?P<hashfilename>.*)&(?P<mimetype>.*)$', views.embed, name='embed'),
+    
+    url(r'^ajax/post_usertags$',views.post_usertags,name='post_usertags'),
+
    ]
 
 urlpatterns += staticfiles_urlpatterns()

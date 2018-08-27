@@ -13,8 +13,7 @@ def hashdups(core):
     key='hashcontents'
     dups=dupkeys(core,key)
     
-    
-    
+
     return dups
     
 def filepathdups(core,delete=False):
@@ -68,14 +67,13 @@ def dupkeys(core,keyfield1,key2field=''):
 #        key2field=getattr(core,key2)    
     #get dictionary to entire solr index, keyed to main'key' e.g folder
     solrdict=solrcursor.cursor(core,keyfield=keyfield1)
+    
     #print (solrdict)
-
     for indexkey in solrdict: #e.g loop through each folder
         #CHECK ONE: #DUPLICATE ENTRY FOR KEY e.g folder
         if len(solrdict[indexkey])>1:
             #DUPLICATE ENTRY FOR KEY
             #print('\nPATH:'+indexkey)
-            
             if key2field:
                 #check for duplicate under second key e.g filename
                 sortagain={}
@@ -122,7 +120,7 @@ def listdups(dups,core):
             
 
     
-def test(core=''):
+def test(core='',delete=False):
     if core=='':
         #get a default core for test
         cores=solrSoup.getcores()
@@ -138,7 +136,7 @@ def test(core=''):
 #    key2='docnamefield'
 #    dups=hashdups(core)
 #    dups=dupkeys(core,key)
-    dupcount,deletecount=filepathdups(core,delete=True)
+    dupcount,deletecount=filepathdups(core,delete=delete)
 #    listdups(dups,core)
     return dupcount,deletecount
 

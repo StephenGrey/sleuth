@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+
+ {% block sidebar %}
+
+<form action="{% url 'list_solrfiles' path=path %}" method ="post">
+{% csrf_token %}
+Index:{{form.corechoice}}
+<p>
+</form>
+
+</ul>
+{% endblock %}
+
+{% block body_content %}
+
+{% if result %}
+Indexed contents of folder:
+{% endif %}
+
+<ol class="breadcrumb">
+<!--  <li><a href="/documents/indexedfiles">Home</a></li>
+-->
+	{% for fullpath,relpath,basename,hash in tags %}  
+  <li><a href="/documents/indexedfiles/{{fullpath}}">{{basename}}</a></li>
+{% endfor %} 
+</ol>
+
+{% if result %}
+
+
+
+<p>
+<div class="panel-group" id="accordion" role="tablist" aria-multiselectable="true">
+  <div class="panel panel-default">
+		<ul>		
+		{% for docpath,docs in result.items %}
+		<li>
+				{% if docs.0.folder %}
+				<a style="color:darkblue;" href="/documents/indexedfiles/{{docs.0.data.docpath.0}}">{{docs.0.docname}}</a>
+				{% else %}
+				<a style="color:green;" href="/ownsearch/doc={{docs.0.id}}&searchterm=">{{docs.0.docname}}</a>
+				{% endif %}
+		</li>{% endfor %}
+
+		</ul>	
+	</div>
+</div>
+{% else%}
+
+No indexed contents for folder: {{path}}
+
+{% endif%}
+
+<script>
+
+</script>
+
+
+{% endblock %}
+{% block javascript %}
+{% endblock %}
+

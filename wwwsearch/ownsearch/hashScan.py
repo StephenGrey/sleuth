@@ -5,7 +5,7 @@ from __future__ import print_function
 import os, sys, logging
 import hashlib
 import time
-log = logging.getLogger('ownsearch')
+log = logging.getLogger('ownsearch.hashscan')
 
 #new structure: key:[[filespecsx],[filespecsx+1]] etc where filespecs  = [path,filelen,shortName,fileExt,modTime]
 

@@ -5,20 +5,21 @@ from django.shortcuts import render
 from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.auth.models import User, Group, Permission
 from ownsearch import authorise
-
+import logging
+log = logging.getLogger('ownsearch.testviews')
 # Create your views here.
 
 def index(request):
-    print(request.__dict__)
-    print(request.user)
+    log.debug(request.__dict__)
+    log.debug(request.user)
     this_user=request.user
-    print(request.user.__dict__)
-    print(type(request.user))
-    print(User.objects.all())
-    print(Group.objects.all())
-    print(this_user.groups.all())
+    log.debug(request.user.__dict__)
+    log.debug(type(request.user))
+    log.debug(User.objects.all())
+    log.debug(Group.objects.all())
+    log.debug(this_user.groups.all())
     authcores=authorise.AuthorisedCores(this_user)
-    print(authcores.__dict__)
+    log.debug(authcores.__dict__)
     return HttpResponse ("Test only")
 
 

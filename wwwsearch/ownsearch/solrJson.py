@@ -12,8 +12,12 @@ from django.db.utils import OperationalError
 from usersettings import userconfig as config
 from django.utils import timezone
 import pytz, iso8601 #support localising the timezone
-from datetime import datetime
-#log = logging.getLogger('ownsearch.solrSoup')
+from datetime import datetime, timedelta
+try:
+    from urllib.parse import quote_plus #python3
+except ImportError:
+    from urllib import quote_plus #python2
+ 
 
 class MissingConfigData(Exception): 
     pass
@@ -30,9 +34,13 @@ class Solr404(Exception):
     pass
 class PostFailure(Exception):
     pass
+class SolrAuthenticationError(Exception):
+    pass
+class SolrDocNotFound(Exception):
+    pass
     
 class SolrCore:
-    def __init__(self,mycore):
+    def __init__(self,mycore,test=False):
         try:
             #if mycore is integer, make it string
             mycore=str(mycore)
@@ -44,7 +52,7 @@ class SolrCore:
             #variables that are specific to this core
             self.url=config['Solr']['url']+mycore # Solr:url is the network address of the Solr backend
             self.name=mycore
-                        
+            
             #variables that can take the defautls
             
             self.unique_id=config[core]['unique_id']
@@ -64,6 +72,8 @@ class SolrCore:
             self.docnamesourcefield=config[core]['docnamesource']
             self.datesourcefield=config[core]['datesourcefield']
             #optional:
+            self.datesourcefield2=config[core].get('datesourcefield2')
+            self.parenthashfield=config[core].get('parentpath_hash','')
             self.tags1field=config[core].get('tags1field','')
             self.usertags1field=config[core].get('usertags1field','')
             self.sourcefield=config[core].get('sourcefield','')
@@ -72,21 +82,31 @@ class SolrCore:
             self.beforefield=config[core].get('beforefield','')
             self.sequencefield=config[core].get('sequencefield','')
             self.preview_url=config[core].get('preview_url','')
-            if not fieldexists(self.tags1field,self): #check if the tag field is defined in index
-                self.tags1field=''
-
+            if test==False:
+                if not fieldexists(self.tags1field,self): #check if the tag field is defined in index
+                    self.tags1field=''
         except KeyError:
             raise MissingConfigData
+
+    def __repr__(self):
+        return "SolrCore object: \'{}\'".format(self.name)
+
     def test(self):
         args=self.hlarguments+'0'
         jres=getJSolrResponse(self.dfltsearchterm,args,core=self)
-        res,numbers,facets,facets2,facets3=getlist(jres,0,core=self)
-        return res,jres
+        res=getlist(jres,0,core=self)
+        return res.results,jres
+
+    def solr_session(self):
+        return SolrSession()
+    
     def ping(self):
         try:
-            res=requests.get(self.url+'/admin/ping')
+            res=self.solr_session().get(self.url+'/admin/ping')
             if res.status_code==404:
                 raise SolrCoreNotFound('Core not found')
+            elif res.status_code==401:
+                raise SolrAuthenticationError('Need to log-in')
             #jres=json.loads(res.content)
             jres=res.json()
             if jres['status']=='OK':
@@ -95,12 +115,26 @@ class SolrCore:
                 log.debug('Core status: '+str(jres))
                 return False
         except requests.exceptions.ConnectionError as e:
+            log.debug(e)
 #            print('no connection to solr server')
             raise SolrConnectionError('Solr Connection Error')
             return False
+            
 
-    def __str__(self):
-        return self.name
+class RemoteCore(SolrCore):
+    """ link to another solr server"""
+    def __init__(self,*args, **kwargs):
+        super(RemoteCore,self).__init__(*args, **kwargs)
+        if 'Remote' not in config:
+            raise MissingConfigData('Add \"Remote\" section to usersettings.config')
+        if 'url' not in config['Remote']:
+            raise MissingConfigData('Add \"url\" to \"Remote\" configs')
+        self.url=config['Remote']['url']+self.name
+        log.debug(self.url)
+        self.ping()
+
+    def solr_session(self):
+        return RemoteSolrSession()
 
 class Solrdoc:
     def __init__(self,data={},date='',datetext='',docname='',id=''):
@@ -129,6 +163,11 @@ class Solrdoc:
             #give the KEY ATTRIBS standard names
             self.id=self.data.get(core.unique_id,'') #leave copy in data
             self.docname=self.data.pop(core.docnamefield,'')
+            if self.docname.startswith('Folder:'):
+                self.folder=True
+            else:
+                self.folder=False
+            
             self.date=self.data.pop(core.datefield,'')
             if isinstance(self.date,list):
                 self.date=self.date[0]
@@ -146,16 +185,24 @@ class Solrdoc:
                 self.datetext=''
             self.data['solrdocsize']=self.data.pop(core.docsizefield,'')
             self.data['rawtext']=self.data.pop(core.rawtext,'')                
+            
             self.data['docpath']=self.data.pop(core.docpath,'')
+            if isinstance(self.data['docpath'], str):
+                self.data['docpath']=[self.data['docpath']]
+                            
             self.data['hashcontents']=self.data.pop(core.hashcontentsfield,'')
             self.data['tags1']=self.data.pop(core.tags1field,'')
+            if self.data['tags1']:
+                if isinstance(self.data['tags1'], str):
+                    tag=self.data['tags1']
+                    self.data['tags1']=[(tag,quote_plus(tag))]
+                else:
+                    self.data['tags1']=[(tag,quote_plus(tag)) for tag in self.data['tags1']]
+                    log.debug("tags1: {}".format(self.data['tags1']))
             self.data['preview_url']=self.data.pop(core.preview_url,'')
-            
-            if isinstance(self.data['tags1'], str):
-                self.data['tags1']=[self.data['tags1']]
-            self.next_id=self.data.pop(core.nextfield,'')
-            self.before_id=self.data.pop(core.beforefield,'')
-            self.sequence=self.data.pop(core.sequencefield,'')
+            self.next_id=self.data.get(core.nextfield,'')
+            self.before_id=self.data.get(core.beforefield,'')
+            self.sequence=self.data.get(core.sequencefield,'')
 
 class SolrResult:
     def __init__(self,jres,mycore,startcount=0):
@@ -305,16 +352,56 @@ class SolrResult:
                 #no action required - no highlights
                 pass
 
-
+class SolrSession(requests.Session):
+    def __init__(self):
+        super(SolrSession, self).__init__()
+        if SOLR_USER and SOLR_PASSWORD:
+            self.auth=(SOLR_USER,SOLR_PASSWORD)
+        if SOLR_CERT:
+            self.verify=SOLR_CERT
+            
+class RemoteSolrSession(requests.Session):
+    def __init__(self):
+        super(RemoteSolrSession, self).__init__()
+        if REMOTE_SOLR_USER and REMOTE_SOLR_PASSWORD:
+            self.auth(REMOTE_SOLR_USER,REMOTE_SOLR_PASSWORD)
+        if REMOTE_SOLR_CERT:
+            self.verify=REMOTE_SOLR_CERT
+            
+        log.debug(self.verify)
+    
 log = logging.getLogger('ownsearch.solrJson')
+#server variables
+try:
+    SOLR_USER=config['Solr'].get('user',None)
+    SOLR_PASSWORD=config['Solr'].get('password',None)
+    SOLR_CERT=config['Solr'].get('cert',None)
+except Exception as e:
+    log.error(e)
+    raise MissingConfigData
+
+#remote variables
+try:
+    REMOTE_SOLR_USER=config['Remote'].get('user',None)
+    REMOTE_SOLR_PASSWORD=config['Remote'].get('password',None)
+    REMOTE_SOLR_CERT=config['Remote'].get('cert',None) 
+except:
+    log.info('No remote solr server configured')
 
 def pagesearch(page):
-    page.results,page.resultcount,page.facets,page.facets2,page.facets3=solrSearch(page.searchterm,page.sorttype,page.startnumber,page.mycore,filters=page.filters,faceting=page.faceting)
+    page.results,page.resultcount,page.facets,page.facets2,page.facets3=solrSearch(page.searchterm,page.sorttype,page.startnumber,page.mycore,filters=page.filters,faceting=page.faceting,start_date=page.start_date,end_date=page.end_date)
+    page.make_facets_safe()
+
     return
 
 #MAIN SEARCH METHOD  (q is search term)
-def solrSearch(q,sorttype,startnumber,core,filters={},faceting=False):
+def solrSearch(q,sorttype,startnumber,core,filters={},faceting=False,start_date=None,end_date=None):
     core.ping()
+
+    #make date filter
+#    print('DATES',start_date,end_date)
+    datefilter=make_datefilter(start_date,end_date)
+
     #create arguments
     facetargs=''
     if faceting:
@@ -334,6 +421,8 @@ def solrSearch(q,sorttype,startnumber,core,filters={},faceting=False):
         args+='&sort={} asc'.format(core.docnamefield)
     elif sorttype=='docnameR':
         args+='&sort={} desc'.format(core.docnamefield)
+    
+    #make filters
     log.debug('Filter dict: {}'.format(filters))
     for filtertag in filters:
         filtertext=filters[filtertag]
@@ -343,59 +432,77 @@ def solrSearch(q,sorttype,startnumber,core,filters={},faceting=False):
             filterfield=core.usertags1field
         elif filtertag=='tag3':
             filterfield=core.sourcefield
+        elif filtertag=='path':
+            filterfield=core.docpath
         else:
             continue
         args=args+'&fq={}:"{}"'.format(filterfield,filtertext)
+    if datefilter:
+        args+='&fq={}:{}'.format(core.datefield,datefilter)
     log.debug('args: {}'.format(args))
     
 # get the response
     try:
+        jres={}
+        log.debug('q:{},args:{},core{}'.format(q,args,core.name))
         jres=getJSolrResponse(q,args,core=core)
-        #print(jres)
         #print(soup.prettify())    
-        reslist,numbers,facets,facets2,facets3=getlist(jres,startnumber,core=core)
+
+        res=getlist(jres,startnumber,core=core)
     except requests.exceptions.RequestException as e:
         reslist=[]
         numbers=-2
-        log.warning('Connection error to Solr')
-    return reslist,numbers,facets,facets2,facets3
-
+        if jres:
+            log.debug('Jres: {}'.format(jres))
+        log.warning('Connection error to Solr: {}'.format(e))
+        return None,None,None,None,None
+    return res.results,res.numberfound,res.facets,res.facets2,res.facets3
+    
 #JSON 
 def getJSolrResponse(searchterm,arguments,core):
 #    print(searchterm,arguments,core)
     searchurl='{}/select?&q={}{}'.format(core.url,searchterm,arguments)
 #    log.debug('GET URL '+searchurl)
     res=resGet(searchurl)
-#    jres=json.loads(content)
     jres=res.json()
     return jres
 
-def resGet(url,timeout=1):
-    ses = requests.Session()
+def resGet(url,timeout=10):
+    ses = SolrSession()
 # the session instance holds the cookie. So use it to get/post later
     try:
         res=ses.get(url, timeout=timeout)
         if res.status_code==404:
+            log.error('URL: {}'.format(url))
             raise Solr404('404 error - URL not found')
+            
         else:
             return res
     except requests.exceptions.ConnectTimeout as e:
+        log.debug('url{} error:{}'.format(url,e))
         raise SolrTimeOut
     except requests.exceptions.ConnectionError as e:
+        log.debug('url{} error:{}'.format(url,e))
 #            print('no connection to solr server')
         raise SolrConnectionError('Solr Connection Error')
 
-#Requests won't successfully post if unicode filenames in the header; so converted below
 def resPostfile(url,path,timeout=1):
-    try:
-        simplefilename=os.path.basename(path).encode('ascii','ignore')
-#        simplefilename=path.encode('ascii','ignore')
-    except:
-        simplefilename='Unicode filename DECODE error'
+    #python3: use bytes object for filepath
+    bytes_path=path.encode('utf-8')
+    simplefilename=os.path.basename(path)
+
+#needed for python2
+#    try:
+#        simplefilename=os.path.basename(path).encode('ascii','ignore')
+##        simplefilename=path.encode('ascii','ignore')
+#    except:
+#        simplefilename='Unicode filename DECODE error'
     try:
         with open(path,'rb') as f:
             file = {'myfile': (simplefilename,f)}
-            res=requests.post(url, files=file,timeout=timeout)
+            log.debug('Posting filename: {}'.format(simplefilename))
+            ses=SolrSession()
+            res=ses.post(url,files=file,timeout=timeout)
             resstatus=res.status_code
             log.debug('RESULT STATUS: {}'.format(resstatus))
             if resstatus==404:
@@ -437,7 +544,7 @@ def gettrimcontents(docid,core,maxlength):
     searchterm='{}:\"{}\"'.format(core.unique_id,docid)
     
     #MAKE ARGUMENTS FOR TRIMMED CONTENTS
-    fieldargs='&fl={},{},{},{},{},{},{},{},{},{},{},{},{},{}'.format(core.unique_id,core.docnamefield,core.docsizefield,core.hashcontentsfield,core.docpath,core.tags1field, core.preview_url,core.usertags1field,core.sourcefield,'extract_base_type','preview_html','SBdata_ID',core.datefield,core.emailmeta)
+    fieldargs='&fl={},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}'.format(core.unique_id,core.docnamefield,core.docsizefield,core.hashcontentsfield,core.docpath,core.tags1field, core.preview_url,core.usertags1field,core.sourcefield,'extract_base_type','content_type','preview_html','SBdata_ID',core.datefield,core.emailmeta,core.parenthashfield)
     fieldargs+=","+core.beforefield if core.beforefield else ""
     fieldargs+=","+core.nextfield if core.nextfield else ""
     fieldargs+=","+core.sequencefield if core.sequencefield else ""
@@ -471,13 +578,15 @@ def bighighlights(docid,core,q,contentsmax):
     SR.addhighlights(linebreaks=True,bighighlights=True)
     return SR
 
-def getlist(jres,counter,core,linebreaks=False,big=False): #this parses the list of results, starting at 'counter'
+def getlist(jres,counter,core,linebreaks=False,big=False):
+ #this parses the list of results, starting at 'counter'
     SR=SolrResult(jres,core,startcount=counter)
 #    log.debug([doc.data['resultnumber'] for doc in SR.results])
     SR.addstoredmeta()
     SR.addfacets()
     SR.addhighlights(linebreaks=linebreaks,bighighlights=big)
-    return SR.results,SR.numberfound,SR.facets,SR.facets2,SR.facets3
+    return SR
+#    .results,SR.numberfound,SR.facets,SR.facets2,SR.facets3
 
 def gethighlights(soup,linebreaks=False):
     highlights_all=soup.response.result.next_sibling
@@ -524,8 +633,8 @@ def getcontents(docid,core):
     jres=getJSolrResponse(searchterm,args,core=core)
 
     log.debug('{} {}'.format(args,jres))
-    res,numbers,facets,facets2,facets3=getlist(jres,0,core=core)
-    return res
+    res=getlist(jres,0,core=core)
+    return res.results
 
 def getmeta(docid,core):
     searchterm='{}:\"{}\"'.format(core.unique_id,docid)
@@ -535,10 +644,33 @@ def getmeta(docid,core):
     args+=","+core.nextfield if core.nextfield else ""
     args+=","+core.sequencefield if core.sequencefield else ""
     jres=getJSolrResponse(searchterm,args,core=core)
-    #print(args,jres)
-    res,numbers,facets,facets2,facets3=getlist(jres,0,core=core)
-    return res
+    #log.debug(args,jres)
+    res=getlist(jres,0,core=core)
+    return res.results
     
+
+def getfield(docid,field,core):
+    """return contents of single field in solr doc"""
+    searchterm='{}:\"{}\"'.format(core.unique_id,docid)
+    args='&fl={}'.format(field)
+    jres=getJSolrResponse(searchterm,args,core=core)
+    log.debug(jres)
+    try:
+        results=SolrResult(jres,core,startcount=0).results
+        if len(results)>0:
+            result=results[0]
+            log.debug(result.__dict__)
+            if field in result.data:
+                return result.data[field]
+            else:
+                log.debug('Field {} not found in solrdoc {}'.format(field,docid))
+                return None
+        else:
+            log.debug('Solrdoc {} not found on index {}'.format(docid,core.name))
+            raise SolrDocNotFound
+    except KeyError:
+        log.debug('Error on search for {} with field {} in index {}'.format(docid,field,core.name))
+        return None
 
 def parsebighighlights(highlights_all):
     highlights={}
@@ -592,9 +724,6 @@ def getcores():
         for coredoc in sc.objects.all():
             core=coredoc.corename
             corenumber=coredoc.id
-#    for corenumber in config['Cores']:
-#        core=config['Cores'][corenumber]
-#        name=config[core]['name']
             try:
                 cores[corenumber]=SolrCore(core)
             except MissingConfigData:
@@ -607,6 +736,15 @@ def getcores():
 
 ##TIME FUNCTIONS
 
+def make_datefilter(start_date,end_date):
+    assert isinstance(start_date,datetime) or not start_date
+    assert isinstance(end_date,datetime) or not end_date
+    if not start_date and not end_date:
+        return None
+    start_stamp=timestringGMT(start_date) if start_date else '*'
+    end_stamp=timestringGMT(end_date+timedelta(days=1)) if end_date else '*'
+    return "[{} TO {}]".format(start_stamp,end_stamp)
+    
 def timestamp2aware(timestamp):
     return timeaware(timefromstamp(timestamp))
 

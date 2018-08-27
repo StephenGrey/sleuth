@@ -3,7 +3,9 @@
     <div class="panel panel-default">
       <div class="panel-heading">
         <h4 class="panel-title">
-          <a data-toggle="collapse" {% if filter_records.verified %}class="alert-success"{% else %}class="alert-warning"{% endif %} id="notes-header{{filter}}" href="#collapse{{filter}}">Notes on {% if filter_name %}{{filter_name}} {% endif %}({{filternumber}})</a>
+          <a data-toggle="collapse" 
+          	{% if filter_records.verified %}class="alert-success"{% else %}class="alert-warning"
+          	{% endif %} id="notes-header{{filter}}" href="#collapse{{filter}}">Click to see notes on {% if filter_name %}{{filter_name}} {% endif %}({{filternumber}})</a>
       </div>
      <div id="collapse{{filter}}" class="panel-collapse collapse">
         <form class="form-vertical" id="myform{{filter}}" name="myform{{filter}}" method="post">
@@ -30,11 +32,12 @@
 						  	<input type="text" class="form-control" name="notes" id="notes{{filter}}" label="Notes:" value="{{filter_records.notes}}" readonly>
 						</div>
 						  <input type="hidden" name="record-ID" value="{{filter_records.id}}" />
-						
+						  <input type="hidden" name="original_ID" value="{{filter_records.original_ID}}" />
+						  <input type="hidden" name="number" value="{{filternumber}}" />
 							<label for='verified{{filter}}'>Verified:</label>
 							<select id="verified{{filter}}" name="verified{{filter}}" disabled>
-								<option value=1 {% if filter_records.verified %}selected='selected'{%endif%}>Yes</option>
-								<option value=0 {% if not filter_records.verified %}selected='selected'{%endif%}>No</option>
+								<option value="true" {% if filter_records.verified %}selected='selected'{%endif%}>Yes</option>
+								<option value="false" {% if not filter_records.verified %}selected='selected'{%endif%}>No</option>
 							</select> <br>
 					<label class="form-check-label" for="exampleCheck1">Personal </label>
 					<input type="checkbox" class="form-check-input" id="personalcheck{{filter}}" {%  if filter_records.personal%}checked{%endif%} disabled>
@@ -46,6 +49,8 @@
                   <span id="button-text{{filter}}">Edit</span>
              </span>
              </span>
+             <span id='form-errors-{{filter}}' style="color:red"></span>
+             
           </div><!--/li-->
             
 		</form>
@@ -57,7 +62,6 @@
               var btnText{{filter}} = document.getElementById('button-text{{filter}}').innerHTML;
               if(btnText{{filter}} == 'Edit')
               {
-              //alert ("Silly alert!");
 
               document.getElementById('name{{filter}}').readOnly = false;
               document.getElementById('name_source{{filter}}').readOnly = false;
@@ -92,9 +96,15 @@
                   //alert(dataform);
                   $.post( '/whatsapp/ajax/post_namefile',dataform, function(data) {
                       if (data.saved==false) {
-                   alert('Save Failure');
+                   //console.log(data.message);
+                   document.getElementById("form-errors-{{filter}}").innerHTML='<p>Errors found:<p> '+data.message;
+                   alert('Failed to save');
+                     }
+                     else {
+                         document.getElementById("form-errors-{{filter}}").innerHTML='';
                      };
                       if (data.verified==true){
+   
                       //alert ('verified true');
                       //var temp1=document.getElementById("namelabel{{filter}}").className;
                       //alert(temp1);
