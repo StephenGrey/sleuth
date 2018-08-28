@@ -3,7 +3,7 @@ from django.contrib.auth.models import User, Group, Permission
 from django.core.management.base import BaseCommand, CommandError
 from django.db.models.query import QuerySet
 from django.urls import reverse
-from documents import documentpage,solrcursor,updateSolr,api,indexSolr,file_utils,changes
+from documents import documentpage,solrcursor,updateSolr,api,indexSolr,file_utils,changes,check_pdf
 
 from documents.management.commands import setup
 from documents.management.commands.setup import make_admin_or_login
@@ -591,6 +591,25 @@ class ChangeApiTests(TestCase):
         self.assertEquals(api.deserial_taglist(stored),['Donald Trump', 'Richard Nixon'])
 
 
+class TestPdfChecks(TestCase):
+
+    def setUp(self):
+        self.docstore=os.path.abspath(os.path.join(os.path.dirname(__file__), '../tests/testdocs'))
+        
+    def test_pdf(self):
+        filepath=os.path.join(self.docstore,'pdfs','ocr_d','C05769606.pdf')
+        self.assertTrue(check_pdf.main(filepath))
+        
+        filepath=os.path.join(self.docstore,'pdfs','not_ocr_d','DOC_0005517469.pdf')
+        self.assertFalse(check_pdf.main(filepath))
+        
+    def test_pdfdirectory(self):
+        filepath=os.path.join(self.docstore,'pdfs','ocr_d')
+        check_pdf.crawl(filepath)
+        
+        filepath=os.path.join(self.docstore,'pdfs','not_ocr_d')
+        check_pdf.crawl(filepath)
+ 
 
         
 

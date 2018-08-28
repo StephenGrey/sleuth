@@ -275,13 +275,15 @@ def get_content(request,doc_id,searchterm,tagedit='False'):
     if True:
 
         #get a document content - up to max size characters
-        page.results=solrJson.gettrimcontents(page.doc_id,page.mycore,CONTENTSMAX).results  #returns SolrResult object
         try:
+            page.results=solrJson.gettrimcontents(page.doc_id,page.mycore,CONTENTSMAX).results  #returns SolrResult object
             result=page.results[0]
             #log.debug(vars(result))
         except IndexError as e:
             log.error('Error: {}'.format(e))
             return HttpResponse('Can\'t find document with ID {} COREID: {}'.format(page.doc_id,page.coreID))
+        except solrJson.SolrConnectionError:
+            return HttpResponse('No connection to solr index')
         except Exception as e:
             log.error('Error: {}'.format(e))
             return HttpResponse('Error fetching document with ID {} COREID: {}'.format(page.doc_id,page.coreID))
