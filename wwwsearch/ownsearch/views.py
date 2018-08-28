@@ -236,43 +236,43 @@ def get_content(request,doc_id,searchterm,tagedit='False'):
     corelist,DEFAULTCOREID,choice_list=authorise.authcores(page.this_user)
     page.mycore=corelist[page.coreID]
 
-    #HANDLE EDITS OF USER TAGS
-    useredit_str=request.session.get('useredit','')
-    log.debug('useredit: {}'.format(useredit_str))
-    if useredit_str=='True':
-        page.useredit=True	
-    else:
-        page.useredit= False
-    if request.method == 'POST': #if data posted from form
-        # create a form instance and populate it with data from the request:
-        form = TagForm('',request.POST)
-        log.debug('Tags data posted: {} Form all: {}'.format(request.POST,form.__dict__))
-            # check whether it's valid:
-        if request.POST.get('edit','')=='Edit':
-            log.debug('Editing user tags')
-            request.session['useredit']='True'
-            return HttpResponseRedirect("/ownsearch/doc={}&searchterm={}".format(page.doc_id,page.searchterm))
-        elif request.POST.get('cancel','')=='Cancel':
-            log.debug('Cancel edit user tags')
-            request.session['useredit']='False'
-            return HttpResponseRedirect("/ownsearch/doc={}&searchterm={}".format(page.doc_id,page.searchterm))            
-        elif request.POST.get('save','')=='Save':
-            log.debug('Save user tags')
-            request.session['useredit']=''
-            if form.is_valid():
-                # process the data in form.cleaned_data as required
-                keywords=form.cleaned_data['keywords']
-                log.debug('Keywords from form: {}, type{}'.format([(word,type(word)) for word in keywords],type(keywords)))
-                """Permit only alphanumeric and numbers as user tags - support Cyrillic in Py3""" 
-                keyclean=[re.sub(r'[^\w, ]','',item) for item in keywords]
-                updateresult=updateSolr.updatetags(page.doc_id,page.mycore,keyclean)
-                if updateresult:
-                    log.info('Update success of user tags: {} in solrdoc: {} by user {}'.format(keyclean,page.doc_id,request.user.username))
-                    update_user_edits(page,keyclean,request.user.username)
-                else:
-                    log.debug('Update failed of user tags: {} in solrdoc: {}'.format(keyclean,page.doc_id))
-            return HttpResponseRedirect("/ownsearch/doc={}&searchterm={}".format(page.doc_id,page.searchterm))
-    else:
+#    #HANDLE EDITS OF USER TAGS
+#    useredit_str=request.session.get('useredit','')
+#    log.debug('useredit: {}'.format(useredit_str))
+#    if useredit_str=='True':
+#        page.useredit=True	
+#    else:
+#        page.useredit= False
+#    if request.method == 'POST': #if data posted from form
+#        # create a form instance and populate it with data from the request:
+#        form = TagForm('',request.POST)
+#        log.debug('Tags data posted: {} Form all: {}'.format(request.POST,form.__dict__))
+#            # check whether it's valid:
+#        if request.POST.get('edit','')=='Edit':
+#            log.debug('Editing user tags')
+#            request.session['useredit']='True'
+#            return HttpResponseRedirect("/ownsearch/doc={}&searchterm={}".format(page.doc_id,page.searchterm))
+#        elif request.POST.get('cancel','')=='Cancel':
+#            log.debug('Cancel edit user tags')
+#            request.session['useredit']='False'
+#            return HttpResponseRedirect("/ownsearch/doc={}&searchterm={}".format(page.doc_id,page.searchterm))            
+#        elif request.POST.get('save','')=='Save':
+#            log.debug('Save user tags')
+#            request.session['useredit']=''
+#            if form.is_valid():
+#                # process the data in form.cleaned_data as required
+#                keywords=form.cleaned_data['keywords']
+#                log.debug('Keywords from form: {}, type{}'.format([(word,type(word)) for word in keywords],type(keywords)))
+#                """Permit only alphanumeric and numbers as user tags - support Cyrillic in Py3""" 
+#                keyclean=[re.sub(r'[^\w, ]','',item) for item in keywords]
+#                updateresult=updateSolr.updatetags(page.doc_id,page.mycore,keyclean)
+#                if updateresult:
+#                    log.info('Update success of user tags: {} in solrdoc: {} by user {}'.format(keyclean,page.doc_id,request.user.username))
+#                    update_user_edits(page,keyclean,request.user.username)
+#                else:
+#                    log.debug('Update failed of user tags: {} in solrdoc: {}'.format(keyclean,page.doc_id))
+#            return HttpResponseRedirect("/ownsearch/doc={}&searchterm={}".format(page.doc_id,page.searchterm))
+    if True:
 
         #get a document content - up to max size characters
         try:
@@ -384,17 +384,19 @@ def cleanup(searchterm,highlight):
 #    print('STRINGCLEANED'+repr(cleaned[:400]))
     cleaned=markup.urls(cleaned) #add links to text
     
-    cleansearchterm=cleansterm(searchterm)
-    log.debug(f'Searchterm cleaned: {cleansearchterm}')
-    lastscrap=''
-    try:
-        splittext=re.split(cleansearchterm,cleaned,flags=re.IGNORECASE) #make a list of text scraps, removing search term
-        if len(splittext) > 1:
-            lastscrap=splittext.pop() #remove last entry if more than one, as this last is NOT followed by searchterm
-    except:
-        splittext=[cleaned]
-    return splittext,lastscrap,cleansearchterm
-    
+    if searchterm:
+        cleansearchterm=cleansterm(searchterm)
+        log.debug(f'Searchterm cleaned: {cleansearchterm}')
+        lastscrap=''
+        try:
+            splittext=re.split(cleansearchterm,cleaned,flags=re.IGNORECASE) #make a list of text scraps, removing search term
+            if len(splittext) > 1:
+                lastscrap=splittext.pop() #remove last entry if more than one, as this last is NOT followed by searchterm
+        except:
+            splittext=[cleaned]
+        return splittext,lastscrap,cleansearchterm
+    else:
+    	   return [cleaned],'',''
 
 @login_required
 def post_usertags(request):
