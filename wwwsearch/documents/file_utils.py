@@ -152,7 +152,7 @@ def index_maker(path,index_collections):
                 if os.path.isdir(t):
                     subfiles=_index(os.path.join(root, t),depth+1,index_collections)
                     #print(root,subfiles)
-                    yield loader.render_to_string('filedisplay/p_folder.html',
+                    yield loader.render_to_string('documents/filedisplay/p_folder.html',
                                                    {'file': mfile,
                                                    	'filepath':relpath,
                                                    	'rootpath':path,
@@ -162,7 +162,7 @@ def index_maker(path,index_collections):
                 else:
                     stored,indexed=model_index(t,index_collections)
                     #log.debug('Local check: {},indexed: {}, stored: {}'.format(t,indexed,stored))
-                    yield loader.render_to_string('filedisplay/p_file.html',{'file': mfile, 'local_index':stored,'indexed':indexed})
+                    yield loader.render_to_string('documents/filedisplay/p_file.html',{'file': mfile, 'local_index':stored,'indexed':indexed})
                     continue
     basepath=os.path.join(BASEDIR,path)
     log.debug('Basepath: {}'.format(basepath))

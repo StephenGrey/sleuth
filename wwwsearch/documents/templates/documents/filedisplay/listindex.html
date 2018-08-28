@@ -1,4 +1,4 @@
-{% extends "base.html" %}
+{% extends "documents/filedisplay/base.html" %}
 
  {% block sidebar %}
 
@@ -30,7 +30,15 @@ Index:{{form.corechoice}}
 		</ul>	
 	</div>
 </div>
-
+<div class="menu">
+  <ul class="menu-options">
+    <li class="menu-option">Back</li>
+    <li class="menu-option">Reload</li>
+    <li class="menu-option">Save</li>
+    <li class="menu-option">Save As</li>
+    <li class="menu-option">Inspect</li>
+  </ul>
+</div>
 <script>
 $('.flip').click(function(e) {
     var $this = $(this);
@@ -56,6 +64,19 @@ $('.SeeMore2').click(function(){
 		};
 
 	});
+$('.du').click(function()
+	{
+	console.log('clicked',this);
+	});
+
+//window.oncontextmenu=function()
+//{
+//alert('right click')
+//return false	
+//};
+//
+
+
 
 </script>
 
@@ -63,22 +84,27 @@ $('.SeeMore2').click(function(){
 {% endblock %}
 {% block javascript %}
 <script>
-(function() {
-	
-	document.getElementById("baddiv").addEventListener('click', sillyalert);
-  
-  function makeRequest() {
-  alert ("Hello World!");
-  }
-  
-  function sillyalert() {
-  alert ("Silly alert!");
-  document.getElementById("baddiv").style.color = "blue"; // forecolor
-  
-  }
-  
-  
-})();
+const toggleMenu = command => {
+  menu.style.display = command === "show" ? "block" : "none";
+};
+
+const setPosition = ({ top, left }) => {
+  menu.style.left = `${left}px`;
+  menu.style.top = `${top}px`;
+  toggleMenu('show');
+};
+
+
+window.addEventListener("contextmenu", e => {
+  e.preventDefault();
+  const origin = {
+    left: e.pageX,
+    top: e.pageY
+  };
+  setPosition(origin);
+  return false;
+});
+
 
 </script>
 {% endblock %}

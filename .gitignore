@@ -48,3 +48,5 @@ tools/ocr.py
 *.bak
 wwwsearch/whatsapp.json
 wwwsearch/htmlcov/*
+wwwsearch/ownsearch/static/css/images/Thumbs.db
+wwwsearch/static/css/images/Thumbs.db

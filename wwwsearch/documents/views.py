@@ -165,7 +165,7 @@ def list_solrfiles(request,path=''):
     log.debug(f'Searchterm: {searcharg}')
     result=solrcursor.cursor(page.mycore,searchterm=searcharg,keyfield="docname")
     log.debug(result)
-    return render(request,'filedisplay/solr_listindex.html',
+    return render(request,'documents/filedisplay/solr_listindex.html',
           {'result': result, 'form':page.form, 'path':page.docpath, 'tags':tags,
           })
 #          	'rootpath':rootpath, 'tags':tags, 'form':form, 
@@ -189,7 +189,7 @@ def file_display(request,path=''):
     else:
         rootpath=""
         tags=None
-    return render(request,'filedisplay/listindex.html',
+    return render(request,'documents/filedisplay/listindex.html',
                                {'subfiles': c, 'rootpath':rootpath, 'tags':tags, 'form':page.form, 'path':path})
 
 
