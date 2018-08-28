@@ -66,17 +66,17 @@ def check(path):
 if __name__ == '__main__':
    if len(sys.argv)>1:
        filepath = sys.argv[1]
-       if os.path.isdir(path):
+       if os.path.isdir(filepath):
            crawl(filepath)
        else:
            try:
                hasOCR=main(filepath)
                if hasOCR:
-                   print(f'PATH: {path} has embedded text')
+                   print(f'PATH: {filepath} has embedded text')
                else:
-                   print(f'PATH: {path} has no text / IMAGE PDF')
+                   print(f'PATH: {filepath} has no text / IMAGE PDF')
            except PdfReadError:
-               print(f'Pdf read error for filepath: {path}')
+               print(f'Pdf read error for filepath: {filepath}')
 
    else:
        'Usage: python check_pdf.py ~/path/to/apdf.pdf'
