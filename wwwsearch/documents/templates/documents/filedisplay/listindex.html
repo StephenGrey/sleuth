@@ -1,57 +1,60 @@
 {% extends "documents/filedisplay/base.html" %}
 
  {% block sidebar %}
-
-<form action="{% url 'listfiles' path=path %}" method ="post">
-{% csrf_token %}
-Index:{{form.corechoice}}
-</form>
-
-
-</ul>
+	<ul class="sidebar-nav">
+		<form action="{% url 'listfiles' path=path %}" method ="post">
+		{% csrf_token %}
+		Index:{{form.corechoice}}
+		</form>
+	</ul>
 {% endblock %}
+
 {% block body_content %}
+		<div class="menu">
+		  <ul class="menu-options">
+		    <li class="menu-option">Back</li>
+		    <li class="menu-option">Reload</li>
+		    <li class="menu-option">Save</li>
+		    <li class="menu-option">Save As</li>
+		    <li class="menu-option">Inspect</li>
+		  </ul>
+		</div>
+		
+		<ol class="breadcrumb">
+		  <li><a href="/documents/files">Home</a></li>
+		{% for fullpath,relpath,basename,hash in tags %}  
+		  <li><a href="/documents/files/{{fullpath}}">{{basename}}</a></li>
+		{% endfor %} 
+		</ol>
+		
+		<p>
+		<div class="panel-group" id="accordion" role="tablist" aria-multiselectable="true">
+		  <div class="panel panel-default">
+				<ul>
+				{% for f in subfiles %}
+				{{ f }}
+				{% endfor %}
+				</ul>	
+			</div>
+		</div>
+
+{% endblock %}
 
 
-<ol class="breadcrumb">
-  <li><a href="/documents/files">Home</a></li>
-{% for fullpath,relpath,basename,hash in tags %}  
-  <li><a href="/documents/files/{{fullpath}}">{{basename}}</a></li>
-{% endfor %} 
-</ol>
-
-<p>
-<div class="panel-group" id="accordion" role="tablist" aria-multiselectable="true">
-  <div class="panel panel-default">
-		<ul>
-		{% for f in subfiles %}
-		{{ f }}
-		{% endfor %}
-		</ul>	
-	</div>
-</div>
-<div class="menu">
-  <ul class="menu-options">
-    <li class="menu-option">Back</li>
-    <li class="menu-option">Reload</li>
-    <li class="menu-option">Save</li>
-    <li class="menu-option">Save As</li>
-    <li class="menu-option">Inspect</li>
-  </ul>
-</div>
+{% block javascript %}
 <script>
+
 $('.flip').click(function(e) {
     var $this = $(this);
- //   $(this).parent('span').text("rubbish");
     $this.next('div.subdir').slideToggle('fast');
     $this.toggleClass('show');
     if ($this.hasClass('show')) {
         $this.html('<span style="font-size:8px">[hide}</span>');
     } else {
         $this.html(' +');
-};
+			};
 
-});
+		});
 
 $('.SeeMore2').click(function(){
 		var $this = $(this);
@@ -64,26 +67,7 @@ $('.SeeMore2').click(function(){
 		};
 
 	});
-$('.du').click(function()
-	{
-	console.log('clicked',this);
-	});
 
-//window.oncontextmenu=function()
-//{
-//alert('right click')
-//return false	
-//};
-//
-
-
-
-</script>
-
-
-{% endblock %}
-{% block javascript %}
-<script>
 const toggleMenu = command => {
   menu.style.display = command === "show" ? "block" : "none";
 };
@@ -94,9 +78,9 @@ const setPosition = ({ top, left }) => {
   toggleMenu('show');
 };
 
-
 window.addEventListener("contextmenu", e => {
   e.preventDefault();
+  alert('context');
   const origin = {
     left: e.pageX,
     top: e.pageY
@@ -105,6 +89,18 @@ window.addEventListener("contextmenu", e => {
   return false;
 });
 
+////INTERCEPT CLICK ON LIST ITEM
+//$('.du').click(function()
+//	{
+//	console.log('clicked',this);
+//	});
+//
+//window.oncontextmenu=function()
+//{
+//alert('right click')
+//return false	
+//};
+//
 
 </script>
 {% endblock %}
