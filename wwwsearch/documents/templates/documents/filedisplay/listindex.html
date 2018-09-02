@@ -45,18 +45,19 @@
 <script>
 
 $('.flip').click(function(e) {
+//    alert('clicked this')
     var $this = $(this);
     $this.next('div.subdir').slideToggle('fast');
     $this.toggleClass('show');
     if ($this.hasClass('show')) {
-        $this.html('<span style="font-size:8px">[hide}</span>');
+        $this.html('<span style="font-size:12px">[hide}</span>');
     } else {
         $this.html(' +');
 			};
 
 		});
 
-$('.SeeMore2').click(function(){
+/*$('.SeeMore2').click(function(){
 		var $this = $(this);
 		$this.next('div.subdir').slideToggle('fast');
 		$this.toggleClass('SeeMore2');
@@ -66,41 +67,8 @@ $('.SeeMore2').click(function(){
 			$this.text('See Less');
 		};
 
-	});
+	});*/
 
-const toggleMenu = command => {
-  menu.style.display = command === "show" ? "block" : "none";
-};
-
-const setPosition = ({ top, left }) => {
-  menu.style.left = `${left}px`;
-  menu.style.top = `${top}px`;
-  toggleMenu('show');
-};
-
-window.addEventListener("contextmenu", e => {
-  e.preventDefault();
-  alert('context');
-  const origin = {
-    left: e.pageX,
-    top: e.pageY
-  };
-  setPosition(origin);
-  return false;
-});
-
-////INTERCEPT CLICK ON LIST ITEM
-//$('.du').click(function()
-//	{
-//	console.log('clicked',this);
-//	});
-//
-//window.oncontextmenu=function()
-//{
-//alert('right click')
-//return false	
-//};
-//
 
 </script>
 {% endblock %}

@@ -142,17 +142,25 @@ def relpath_valid(relpath,root=BASEDIR):
     return relpath_exists(relpath,root=root) and not is_absolute(relpath,root=root) and is_down(relpath,root=root)
     
 def index_maker(path,index_collections):
-    def _index(root,depth,index_collections):
-        #print ('Root',root)
-        if depth<2:
+    def _index(root,depth,index_collections,maxdepth=2):
+        #print (f'Root :{root} Depth: {depth}')
+        if True:
             files = os.listdir(root)
             for mfile in files:
                 t = os.path.join(root, mfile)
                 relpath=os.path.relpath(t,BASEDIR)
-                if os.path.isdir(t):
-                    subfiles=_index(os.path.join(root, t),depth+1,index_collections)
-                    #print(root,subfiles)
-                    yield loader.render_to_string('documents/filedisplay/p_folder.html',
+                #print(f'FILE/DIR: {t}')
+                if os.path.isdir(t):    
+                    if depth==maxdepth-1:
+                        yield loader.render_to_string('documents/filedisplay/p_folder_nosub.html',
+                                                   {'file': mfile,
+                                                   	'filepath':relpath,
+                                                   	'rootpath':path,
+                                                    	})
+                    else:
+                        subfiles=_index(os.path.join(root, t),depth+1,index_collections)
+                        #print(f'ROOT:{root},SUBFILES:{subfiles}')
+                        yield loader.render_to_string('documents/filedisplay/p_folder.html',
                                                    {'file': mfile,
                                                    	'filepath':relpath,
                                                    	'rootpath':path,
@@ -164,6 +172,8 @@ def index_maker(path,index_collections):
                     #log.debug('Local check: {},indexed: {}, stored: {}'.format(t,indexed,stored))
                     yield loader.render_to_string('documents/filedisplay/p_file.html',{'file': mfile, 'local_index':stored,'indexed':indexed})
                     continue
+        else:
+            print('look no further')
     basepath=os.path.join(BASEDIR,path)
     log.debug('Basepath: {}'.format(basepath))
     if os.path.isdir(basepath):

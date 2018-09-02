@@ -9,12 +9,10 @@ color:red
   width: 120px;
   box-shadow: 0 4px 5px 3px rgba(0, 0, 0, 0.2);
   position: relative;
-  display: show;
-  color: red;
+  display: none;
+  color: green;
   
-}
-
-/*  .menu-options {
+  .menu-options {
     list-style: none;
     padding: 10px 0;
 
@@ -30,5 +28,5 @@ color:red
     }
   }
 }
-*/
+
 </style>
