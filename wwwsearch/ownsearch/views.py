@@ -18,6 +18,7 @@ from django.db.models.base import ObjectDoesNotExist
 from django.contrib.staticfiles.templatetags.staticfiles import static #returns static url
 from django.contrib.staticfiles import finders #locates static file
 from django.conf import settings #to access settings constants
+from documents.management.commands import setup
 import re, os, logging, unicodedata, json
 from . import markup
 
@@ -398,6 +399,21 @@ def cleanup(searchterm,highlight):
     else:
     	   return [cleaned],'',''
 
+
+@login_required
+def check_solr(request):
+    """API to check solr index is up"""
+    jsonresponse={'error':True, 'solr_up':False,'message':'Unknown error checking solr index'}
+    
+    try:
+        server=setup.check_solr(verbose=False) 
+        if server.server_up:
+            jsonresponse={'error':False, 'solr_up':True,'message': None}
+    except Exception as e:
+        pass
+    return JsonResponse(jsonresponse)
+
+
 @login_required
 def post_usertags(request):
     """API to update usertags from content page"""
@@ -426,6 +442,7 @@ def post_usertags(request):
     except Exception as e:
         pass
     return JsonResponse(jsonresponse)
+
 
 def update_usertags(data,username,postdata,mycore):
     log.info(f'User {username} updating usertags in index {mycore} with {data}') 

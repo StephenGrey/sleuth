@@ -36,6 +36,12 @@ class DocumentsTest(TestCase):
         self.client.login(username=my_admin.username, password=password)
         
 
+    def test_check_solr(self):
+        """checking solr check api"""
+        self.client.login(username='myuser', password=password)
+        response=self.client.get(reverse('check_solr_api')) 
+        print(response.__dict__)
+
     def test_indexes(self):
         """check access to solrindex """
         server=setup.check_solr(verbose=False)
@@ -154,6 +160,7 @@ class SolrIndexesTest(TestCase):
         self.assertTrue(self.server.status.get('coreexample'))
         self.assertTrue(self.server.status['coreexample']['index']['current'])
         
+
 
 
 class UrlsTest(TestCase):

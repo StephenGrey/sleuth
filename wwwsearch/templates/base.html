@@ -29,7 +29,9 @@
 <!--<a href="{% static 'Squirrel.jpg' %}">test picture</a>
 -->
 {% if user.is_authenticated %}
-<div class='login'>    Logged in as: {{ user.username }}  <a href="{% url 'logout' %}?next=/ownsearch/"">[logout]</a>
+
+
+<div class='login'><span class='solr_check' id="solr_check">Index CONNECTED </span>   Logged in as: {{ user.username }}  <a href="{% url 'logout' %}?next=/ownsearch/"">[logout]</a>
 </div>
 </div>
 
@@ -63,6 +65,47 @@
 {% comment %}
 modified log-in code from: https://rayed.com/wordpress/?p=1350
  {% endcomment %}
+
+
+
+<script>
+(function() {
+
+	$.get( '/ownsearch/ajax/check_solr', function(data) 
+		{
+    if (data.error==true){
+    	document.getElementById("solr_check").innerHTML="Index OFFLINE "
+    	document.getElementById("solr_check").style.color="red"	
+    	console.log(data.message);
+    }
+    else
+    {
+    	if (data.solr_up==true){
+    		document.getElementById("solr_check").style.color="green"
+    		document.getElementById("solr_check").innerHTML="Index CONNECTED "	
+    	};
+    };
+    
+//    	'solr_up':True,'message': None
+    
+//        if (data.saved==false) {
+//                   //console.log(data.message);
+//                   document.getElementById("form-errors-{{filter}}").innerHTML='<p>Errors found:<p> '+data.message;
+//                   alert('Failed to save');
+//                     }
+//                     else {
+//                         document.getElementById("form-errors-{{filter}}").innerHTML='';
+//                     };
+//        if (data.verified==true){  
+//                       document.getElementById("namelabel{{filter}}").classList.remove("glyphicon-question-sign");
+//                      document.getElementById("notes-header{{filter}}").classList.add("alert-success");
+//                      };
+     },
+                 'json' // I expect a JSON response
+                  );
+
+})();
+</script>
 
 </html>
 
