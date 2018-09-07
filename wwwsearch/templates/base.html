@@ -31,7 +31,7 @@
 {% if user.is_authenticated %}
 
 
-<div class='login'><span class='solr_check' id="solr_check">Index CONNECTED </span>   Logged in as: {{ user.username }}  <a href="{% url 'logout' %}?next=/ownsearch/"">[logout]</a>
+<div class='login'><span class='solr_check' id="solr_check"></span>   Logged in as: {{ user.username }}  <a href="{% url 'logout' %}?next=/ownsearch/"">[logout]</a>
 </div>
 </div>
 
@@ -82,7 +82,7 @@ modified log-in code from: https://rayed.com/wordpress/?p=1350
     {
     	if (data.solr_up==true){
     		document.getElementById("solr_check").style.color="green"
-    		document.getElementById("solr_check").innerHTML="Index CONNECTED "	
+    		document.getElementById("solr_check").innerHTML="CONNECTED "	
     	};
     };
     
