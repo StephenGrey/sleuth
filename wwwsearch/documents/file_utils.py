@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-import os, logging,hashlib,re
+import os, logging,hashlib,re,datetime,unicodedata
 from pathlib import Path
 from collections import defaultdict
 
@@ -32,11 +32,11 @@ class FileSpecs:
         self.path=path
         self.name=os.path.basename(path)
         self.shortname, self.ext = os.path.splitext(self.name)
-        self.folder=folder
         if folder:
             if not os.path.isdir(self.path):
                 raise Not_A_Directory
-        
+        self.folder=os.path.isdir(self.path)
+                
         
     @property
     def length(self):
@@ -51,6 +51,49 @@ class FileSpecs:
             return os.path.getmtime(self.path) #last modified time
         else:
             raise DoesNotExist
+
+    @property
+    def date_from_path(self):
+        """find a date in US format in filename"""
+        m=re.match('.*(\d{4})[-_](\d{2})[-_](\d{2})',self.name)
+        try:
+            if m:
+                year=int(m[1])
+                if year<2019 and year>1900:
+                    month=int(m[2])
+                    day=int(m[3])
+                    date=datetime.datetime(year=year,month=month,day=day)
+                    return date
+        except Exception as e:
+            pass
+        m=re.match('.*(\d{2})[-_](\d{2})[-_](\d{2})',self.name)
+        try:
+            if m:
+                year=int(m[1])
+                print(year)
+                if year>50:
+                    year+=50
+                else:
+                    year+=2000
+                if year<2050 and year>1950:
+                    month=int(m[2])
+                    day=int(m[3])
+                    date=datetime.datetime(year=year,month=month,day=day)
+                    return date
+        except Exception as e:
+            pass
+        return None
+    
+    @property
+    def pathhash(self):
+        path=Path(self.path).as_posix()  #convert windows paths to unix paths for consistency across platforms
+        m=hashlib.md5()
+        m.update(path.encode('utf-8')) #encoding avoids unicode error for unicode paths
+        return m.hexdigest()
+        
+    @property
+    def contents_hash(self):
+        return get_contents_hash(self.path)
 
     @property
     def exists(self):
@@ -212,16 +255,22 @@ def slugify(value):
     Normalizes string, converts to lowercase, removes non-alpha characters,
     and converts spaces to hyphens.
     """
-    shortName, fileExt = os.path.splitext(value)
+    value, fileExt = os.path.splitext(value)
     originalvalue=value
     try:
         value = unicodedata.normalize('NFKD', value).encode('ascii', 'ignore')        
         value = unicode(re.sub('[^\w\s-]', '', value).strip().lower())
         value = unicode(re.sub('[-\s]+', '-', value))
-    except NameError:
-        value = re.sub('[^\w\s-]', '', originalvalue).strip().lower()
-        value = re.sub('[-\s]+', '-', value)      
+    except NameError: #python3
+    #except IndexError:
+        value = unicodedata.normalize('NFKD', originalvalue).encode('ascii', 'ignore').decode()
+        value = re.sub('[^\w\s-]', '', value).strip().lower()
+        value = re.sub('[-\s]+', '-', value) if value else 'filename'
+        #value=value.encode('ascii','ignore')      
     return value+fileExt
+
+
+
 
 
 #FILE MODEL METHODS

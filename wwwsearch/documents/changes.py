@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 from .models import File,Collection
-from documents import file_utils
+from documents import file_utils,time_utils
 #from ownsearch.hashScan import FileSpecTable as filetable
 #from ownsearch.hashScan import hashfile256 as hexfile
 #from ownsearch.hashScan import pathHash
@@ -54,7 +54,10 @@ class Scanner:
         """2a. For a database file found on disk - add to changed or unchanged list/dict"""
         file_meta=self.files_on_disk.pop(database_file.filepath)
         
-        latest_lastmodified=solrJson.timestamp2aware(file_meta.last_modified) #gets last modified info as stamp, makes GMT time object
+        #path_date=file_meta.date_from_path
+        latest_lastmodified=time_utils.timestamp2aware(file_meta.last_modified)
+        # if not path_date else path_date #gets last modified info as stamp, makes GMT time object
+
         latestfilesize=file_meta.length
         if database_file.last_modified==latest_lastmodified and latestfilesize==database_file.filesize:
             #print(path+' hasnt changed')
@@ -161,22 +164,20 @@ class Scanner:
 def updatefiledata(file,path,makehash=False):
     """calculate all the metadata and update database; default don't make hash"""
     if True:
+        specs=file_utils.FileSpecs(path)
         file.filepath=path #
-        file.hash_filename=file_utils.pathHash(path) #get the HASH OF PATH
-        filename=os.path.basename(path)
-        file.filename=filename
-        shortName, fileExt = os.path.splitext(filename)
+        file.hash_filename=specs.pathhash #get the HASH OF PATH
+        file.filename=specs.name
+        shortName, fileExt = specs.shortname, specs.ext
         file.fileext=fileExt    
-        modTime = os.path.getmtime(path) #last modified time
-        file.last_modified=solrJson.timestamp2aware(modTime)
-        if os.path.isdir(path):
-            file.is_folder=True
-        else:
-            file.is_folder=False
-            if makehash:
-                hash=file_utils.get_contents_hash(path) #GET THE HASH OF FULL CONTENTS
-                file.hash_contents=hash
-        file.filesize=os.path.getsize(path) #get file length
+        modTime = specs.last_modified
+        file.last_modified=time_utils.timestamp2aware(modTime) #use GMT aware last modified
+        pathdate=specs.date_from_path
+        file.content_date=file.last_modified if not pathdate else time_utils.timeaware(pathdate)
+        file.is_folder=specs.folder
+        if not file.is_folder and makehash:
+            file.hash_contents=specs.contents_hash
+        file.filesize=specs.length
         file.save()
         return True
 #    except Exception as e:

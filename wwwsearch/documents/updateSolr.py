@@ -506,7 +506,7 @@ def post_jsondoc(data,mycore):
 
         
 
-def metaupdate(collection):
+def metaupdate(collection,test_run=False):
     """update the metadata in the SOLR index"""
     #print ('testing collection:',collection,'from core',collection.core,'core ID',collection.core.coreDisplayName)
     cores=s.getcores() #fetch dictionary of installed solr indexes (cores)
@@ -531,17 +531,21 @@ def metaupdate(collection):
                     #make changes to the solr index - using standardised fields
                     json2post=makejson(solrdoc.id,changes,mycore)
                     log.debug('{}'.format(json2post)) 
-                    response,updatestatus=post_jsonupdate(json2post,mycore)
-                    if checkupdate(solrdoc.id,changes,mycore):
-                        log.debug('solr successfully updated')
-                        file.indexUpdateMeta=False
-                        file.save()
+                    if not test_run:
+                        response,updatestatus=post_jsonupdate(json2post,mycore)
+                        if checkupdate(solrdoc.id,changes,mycore):
+                            log.debug('solr successfully updated')
+                            file.indexUpdateMeta=False
+                            file.save()
+                        else:
+                            log.debug('solr changes not successful')
                     else:
-                        log.debug('solr changes not successful')
+                        log.debug('TEST run: no changes made')
                 else:
                     log.debug('Nothing to update!')
-                    file.indexUpdateMeta=False
-                    file.save()
+                    if not test_run:
+                        file.indexUpdateMeta=False
+                        file.save()
                 #remove indexUpdateMeta flag
             else:
                 log.debug('[metaupdate]file not found in solr index')

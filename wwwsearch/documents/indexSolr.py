@@ -239,9 +239,12 @@ class Extractor():
 
 
 class ExtractFile():
-    def __init__(self):
-        pass
-
+    def __init__(self,path,mycore,hash_contents='',sourcetext='',docstore='',test=False):
+        self.path=path
+        self.mycore=mycore
+        self.hash_contents = hash_contents if hash_contents else dup.hashfile256(path)
+        self.result=extract(self.path,self.hash_contents,self.mycore,timeout=TIMEOUT,docstore=docstore,test=test)
+        log.debug(self.result) 
     
 #SOLR METHODS
 
@@ -339,8 +342,9 @@ def postSolr(args,path,mycore,timeout=1):
     #log.debug('Types posturl: {} path: {}'.format(type(url),type(timeout)))
     try:
         res=s.resPostfile(url,path,timeout=timeout) #timeout=
-        #log.debug('Returned json: {} type: {}'.format(res._content,type(res._content)))
+#        log.debug('Returned json: {} type: {}'.format(res._content,type(res._content)))
         log.debug('Response header:{}'.format(res.json()['responseHeader']))
+#        log.debug(res.__dict__)
         
         solrstatus=res.json()['responseHeader']['status']
         #log.debug(res.elapsed.total_seconds())

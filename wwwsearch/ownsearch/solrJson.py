@@ -7,6 +7,7 @@ import requests, requests.exceptions
 import os, logging
 import re, json
 from documents.models import File,Collection
+from documents.file_utils import slugify
 from documents.models import Index as sc
 from django.db.utils import OperationalError
 from usersettings import userconfig as config
@@ -489,8 +490,8 @@ def resGet(url,timeout=10):
 def resPostfile(url,path,timeout=1):
     #python3: use bytes object for filepath
     bytes_path=path.encode('utf-8')
-    simplefilename=os.path.basename(path)
-
+    simplefilename=slugify(os.path.basename(path))
+    
 #needed for python2
 #    try:
 #        simplefilename=os.path.basename(path).encode('ascii','ignore')
@@ -733,8 +734,18 @@ def getcores():
     return cores
 
 
+def getSortAttrib(sorttype,core):
+    if sorttype == 'documentID':
+        sortattrib = core.docsort
+    elif sorttype == 'last_modified':
+        sortattrib = core.datesort
+    else: #this is the default - sort by relevance
+        sortattrib = ''
+    return sortattrib
 
-##TIME FUNCTIONS
+
+
+##TIME FUNCTIONS  >>> COPIED TO TIME_UTILS.PY
 
 def make_datefilter(start_date,end_date):
     assert isinstance(start_date,datetime) or not start_date
@@ -761,14 +772,6 @@ def timestring(timeobject):
 def timestringGMT(timeobject):
     return timeobject.strftime("%Y-%m-%dT%H:%M:%SZ")
     
-def getSortAttrib(sorttype,core):
-    if sorttype == 'documentID':
-        sortattrib = core.docsort
-    elif sorttype == 'last_modified':
-        sortattrib = core.datesort
-    else: #this is the default - sort by relevance
-        sortattrib = ''
-    return sortattrib
 
 def ISOtimestring(timeobject_aware):
     return timeobject_aware.astimezone(pytz.utc).isoformat()[:19]+'Z'
@@ -778,3 +781,5 @@ def easydate(timeobject):
 
 def parseISO(timestring):
     return iso8601.parse_date(timestring)
+    
+    

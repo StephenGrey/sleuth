@@ -1,9 +1,10 @@
+# -*- coding: utf-8 -*-
 from django.test import TestCase
 from django.contrib.auth.models import User, Group, Permission
 from django.core.management.base import BaseCommand, CommandError
 from django.db.models.query import QuerySet
 from django.urls import reverse
-from documents import documentpage,solrcursor,updateSolr,api,indexSolr,file_utils,changes,check_pdf
+from documents import documentpage,solrcursor,updateSolr,api,indexSolr,file_utils,changes,check_pdf,time_utils
 
 from documents.management.commands import setup
 from documents.management.commands.setup import make_admin_or_login
@@ -44,8 +45,10 @@ class IndexTester(TestCase):
         
 
         #make a test collection
-        samplecollection=Collection.objects.get_or_create(path=os.path.join('some','path','somewhere'),core=self.sampleindex,indexedFlag=False,source=self.testsource)
-#        samplecollection.save()
+        samplecollection,created=Collection.objects.get_or_create(path=os.path.join('some','path','somewhere'),core=self.sampleindex,indexedFlag=False,source=self.testsource)
+        self.sample_collection=samplecollection
+
+
         anothercollection=Collection.objects.get_or_create(path=os.path.join('some','different','path','somewhere'),core=self.sampleindex,indexedFlag=False,source=self.testsource)
 #        anothercollection.save()
         
@@ -121,6 +124,71 @@ class ExtractTest(IndexTester):
         #livetest on test index
         indexSolr.extract_test(mycore=mycore,test=False,docstore=self.docstore)
     
+    
+    def test_extractfile(self):
+        #path=os.path.abspath(os.path.join(os.path.dirname(__file__), '../tests/testdocs/docx/2018-01-23 Sale of Maltese passports nets Malta over €277m in one year.docx'))
+        
+        updateSolr.delete("fed766bc65fd9415917f0ded164a435011aab5247b2ee393929ec92bd96ffe74",self.mycore)
+        
+        path=os.path.abspath(os.path.join(os.path.dirname(__file__), '../tests/testdocs/pdfs/ocr_d/C05769606.pdf'))
+        print(os.path.exists(path))
+        extractor=indexSolr.ExtractFile(path,self.mycore,hash_contents='',sourcetext='',docstore=self.docstore,test=True)
+        
+        extractor=indexSolr.ExtractFile(path,self.mycore,hash_contents='',sourcetext='',docstore=self.docstore,test=False)
+        
+        self.assertTrue(extractor.result)
+        
+        updateSolr.delete("fed766bc65fd9415917f0ded164a435011aab5247b2ee393929ec92bd96ffe74",self.mycore)
+        
+    def test_filenames(self):
+        """index non-ascii filenames"""
+        folder="../tests/testdocs/longnames/"
+        filename="emdashfilename–.pdf"
+        path=os.path.abspath(os.path.join(os.path.dirname(__file__), folder,filename))
+        
+        extractor=indexSolr.ExtractFile(path,self.mycore,hash_contents='',sourcetext='',docstore=self.docstore,test=True)
+                
+        self.assertTrue(extractor.result)
+
+        filename="chinese漢字filename.pdf"
+        path=os.path.abspath(os.path.join(os.path.dirname(__file__), folder,filename))
+        
+        extractor=indexSolr.ExtractFile(path,self.mycore,hash_contents='',sourcetext='',docstore=self.docstore,test=True)
+                
+        self.assertTrue(extractor.result)
+        
+        #ASCII FILENAME BUT CHINESE CHARACTERS IN SOLR FIELDS
+        filename="normalfilename.pdf"
+        path=os.path.abspath(os.path.join(os.path.dirname(__file__), folder,filename))
+
+        args="commit=true&wt=json&literal.extract_id=SOMEID8bc9&literal.tika_metadata_resourcename=chinese漢字.pdf&literal.extract_paths=somepathwithchinese漢字&literal.sb_pathhash=2be738d4a6acef35febfa0d9ef5e6f65&literal.sb_parentpath_hash=710ea88f1e278e3795b76368927c1d5c&extractOnly=true"
+        
+        result,elapsed=indexSolr.postSolr(args,path,self.mycore,timeout=1)
+        self.assertTrue(result)
+
+        extractor=indexSolr.ExtractFile(path,self.mycore,hash_contents='',sourcetext='',docstore=self.docstore,test=False)
+
+        filename="normalfilename.pdf"
+#        
+        path=os.path.abspath(os.path.join(os.path.dirname(__file__), folder,filename))
+#        
+        extractor=indexSolr.ExtractFile(path,self.mycore,hash_contents='',sourcetext='',docstore=self.docstore,test=True)
+#        
+#        print(len(path))
+#        
+        self.assertTrue(extractor.result)
+#        
+
+    def test_slugify(self):
+        """check slugifying non-ascii filenames"""
+        filename="chinese漢字filename.pdf"
+        clean=file_utils.slugify(filename)
+        self.assertEquals(clean,'chinesefilename.pdf')
+        
+        filename="漢字漢字漢字漢字.pdf"
+        clean=file_utils.slugify(filename)
+        self.assertEquals(clean,'filename.pdf')
+        
     def test_update_parent_hashes(self):
         #index sample PDF
         
@@ -200,10 +268,25 @@ class ExtractTest(IndexTester):
         [os.path.join('dups','HilaryEmailC05793347 copy.pdf'), os.path.join('dups','dup_in_folder','HilaryEmailC05793347 copy.pdf'), os.path.join('dups','HilaryEmailC05793347.pdf')])
 
         self.assertEquals(updated_doc.data[mycore.parenthashfield],["b7d16465ed3947cc5849328cf182130e", "efc6d83504d6183aab785ac3d3576cd1", "b7d16465ed3947cc5849328cf182130e"])
+    
+    def test_specs(self):
+        pp=os.path.abspath(os.path.join(os.path.dirname(__file__), '../tests/testdocs/docx/2018-01-23 Sale of Maltese passports nets Malta over €277m in one year.docx'))
+        specs=file_utils.FileSpecs(pp)
+        self.assertEquals(specs.length,154209)
+#        print(time_utils.timestamp2aware(specs.last_modified))
+        self.assertEquals(specs.date_from_path.day,23)
+        self.assertEquals(specs.date_from_path.month,1)
         
+        newfile=File(collection=self.sample_collection)
+        changes.updatefiledata(newfile,pp,makehash=True)
+        
+        #print(Collection.objects.all())
+        
+            
     def test_changefiles(self):
         testchanges_path=os.path.abspath(os.path.join(os.path.dirname(__file__), '../tests/testdocs/changes'))
         mycore=solrJson.SolrCore('tests_only')
+        
         
         #start with first version
         shutil.copy2(os.path.join(testchanges_path,'1changingfile.txt'),os.path.join(testchanges_path,'changingfile.txt'))

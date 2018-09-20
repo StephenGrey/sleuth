@@ -52,6 +52,7 @@ class File(models.Model):
     fileext=models.CharField('File Extension',max_length=10,default='')
     filesize = models.IntegerField('Filesize',default=0)
     last_modified=models.DateTimeField('date modified',blank=True)
+    content_date=models.DateTimeField('content date',blank=True,null=True)
     solrid=models.CharField('Solr ID',max_length=100,default='',blank=True)
     child=models.BooleanField('Child document',default=False) #if an extracted child doc (e.g. attachment or embedded image)
 
