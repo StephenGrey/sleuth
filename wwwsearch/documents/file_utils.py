@@ -9,7 +9,6 @@ except:
     #usable outside Django
     pass
     
-#from ownsearch.hashScan import pathHash
 try:
     from django.template import loader
     from documents.models import File
@@ -18,6 +17,7 @@ try:
     log = logging.getLogger('ownsearch.docs.file_utils')    
 except:
     #make usable outside the project
+    BASEDIR=''
     pass
 
 
@@ -175,8 +175,8 @@ def is_absolute(path,root=BASEDIR):
     return path.startswith(root)
     
 def relpath_exists(relpath,root=BASEDIR):
-    if BASEDIR:
-        return os.path.exists(os.path.join(BASEDIR,relpath))
+    if root:
+        return os.path.exists(os.path.join(root,relpath))
     else:
         return False
 

@@ -110,7 +110,7 @@ class SolrCore:
                 raise SolrAuthenticationError('Need to log-in')
             #jres=json.loads(res.content)
             jres=res.json()
-            if jres['status']=='OK':
+            if jres.get('status')=='OK':
                 return True
             else:
                 log.debug('Core status: '+str(jres))

@@ -67,6 +67,20 @@ class Updater:
         except s.SolrConnectionError:
             log.debug('Solr connection error: failed after {} records'.format(counter))        
 
+class PurgeField(Updater):
+    """remove all contents of a single field"""
+    def __init__(self,mycore,field):
+        self.field=field
+        searchterm=f'*&fq={field}:[* TO *]'
+        super(PurgeField,self).__init__(mycore,searchterm=searchterm)
+        
+    def modify(self,result):
+        currentvalue=result.data.get(self.field)
+        print(f'SolrID: {result.id}  Current value: {currentvalue}')
+        data=make_remove_json(self.mycore,result.id,self.field,currentvalue)
+        print(data)
+        post_jsondoc(data,self.mycore)
+
 class UpdateField(Updater):
     """ modify fields in solr index"""
     def __init__(self,mycore,newvalue='test value',newfield=False,searchterm='*',field_datasource='docpath',field_to_update='sb_parentpath_hash',test_run=True,maxcount=100000):
@@ -193,6 +207,8 @@ class SequenceByDate(Updater):
             else:
                 log.info('Nothing to update!')
 #    
+  
+
         
 
 #            #EXAMPLE FILTER = TEST IF ANY DATA IN FIELD - DATABASE_ORIGINALID _ AND UPDATE OTHERS
@@ -419,11 +435,17 @@ def clear_date(solrid,mycore):
         return True
             
 def make_remove_json(mycore,solrid,field,value):
+    """json to clear a field value"""
     a=collections.OrderedDict()
     a[mycore.unique_id]=solrid 
     a[field]={"remove":value}
     data=json.dumps([a])
     return data
+
+
+
+
+
 
 def checkupdate(id,changes,mycore):
     """check success of an update"""
@@ -435,8 +457,13 @@ def checkupdate(id,changes,mycore):
         doc=res[0]
         for sourcefield, resultfield,value in changes:
             #print('Change',sourcefield,resultfield,value)
-            solrfield=mycore.__dict__.get(resultfield,resultfield)
+            solrfield=resultfield            
             newvalue=doc.__dict__.get(solrfield,doc.data.get(solrfield,''))
+            if not newvalue:
+                solrfield=mycore.__dict__.get(resultfield,resultfield)
+                newvalue=doc.__dict__.get(solrfield,doc.data.get(solrfield,''))
+            log.debug(doc.data)
+            log.debug(doc.__dict__)
             if newvalue:
                 #print(newvalue,type(newvalue))
                 if isinstance(newvalue,int):
@@ -486,6 +513,7 @@ def post_jsonupdate(data,mycore,timeout=10,test=False):
         return '',False
 
 def post_jsondoc(data,mycore):
+    """post json to solr index"""
     updateurl=mycore.url+'/update/json/docs?commit=true'
     url=updateurl
     headers={'Content-type': 'application/json'}
@@ -576,12 +604,7 @@ def parsechanges(solrresult,file,mycore):
 
     #compare solr data with new metadata & make list of changes
     changes=[] 
-#DEBUG REMOVED BELOW - NEEDS TO COPE WITH DUP FILEPATHS 
-#    relpath=os.path.relpath(file.filepath,start=DOCSTORE) #extract the relative path from the docstore
-#    if olddocpath != relpath:
-#        log.info('need to update filepath from old: {} to new: {}'.format(olddocpath,relpath))
-#        changes.append(('docpath','docpath',relpath))
-# 
+
     if olddocsize != file.filesize:
         log.info('need to update filesize from old {} to new {}'.format(olddocsize,file.filesize))
         changes.append(('solrdocsize','solrdocsize',file.filesize))

@@ -2,6 +2,10 @@
 
 	{% block sidebar %}
 	
+	{% if user.is_staff %}
+	<a href="/documents/" role="button" class="btn btn-warning btn-block" >Index Settings</a>
+	<p><p>
+	{% endif %}
 	<form action="/ownsearch/" method="post">
     {% csrf_token %}
 Index:{{form.CoreChoice}}<p>

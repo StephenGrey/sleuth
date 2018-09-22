@@ -139,7 +139,33 @@ class ExtractTest(IndexTester):
         self.assertTrue(extractor.result)
         
         updateSolr.delete("fed766bc65fd9415917f0ded164a435011aab5247b2ee393929ec92bd96ffe74",self.mycore)
+    
+    def test_morefilenames(self):
+        """ test with % character """
+
+        folder="../tests/testdocs/longnames/"
+        filename="percent%filename.pdf"
+        path=os.path.abspath(os.path.join(os.path.dirname(__file__), folder,filename))
         
+        extractor=indexSolr.ExtractFile(path,self.mycore,hash_contents='',sourcetext='',docstore=self.docstore,test=False)
+        
+        extractor.post_process()
+        self.assertTrue(extractor.result)
+        self.assertTrue(extractor.post_result)
+    
+    def test_opendoc(self):
+        """extract odt format """
+
+        folder="../tests/testdocs/odt/"
+        filename="opendoc.odt"
+        path=os.path.abspath(os.path.join(os.path.dirname(__file__), folder,filename))
+        
+        extractor=indexSolr.ExtractFile(path,self.mycore,hash_contents='',sourcetext='',docstore=self.docstore,test=False)
+        self.assertTrue(extractor.result)
+        if extractor.result:
+            extractor.post_process()
+            self.assertTrue(extractor.post_result)        
+    
     def test_filenames(self):
         """index non-ascii filenames"""
         folder="../tests/testdocs/longnames/"
@@ -147,15 +173,17 @@ class ExtractTest(IndexTester):
         path=os.path.abspath(os.path.join(os.path.dirname(__file__), folder,filename))
         
         extractor=indexSolr.ExtractFile(path,self.mycore,hash_contents='',sourcetext='',docstore=self.docstore,test=True)
-                
+        extractor.post_process()
         self.assertTrue(extractor.result)
+        self.assertTrue(extractor.post_result)
 
         filename="chinese漢字filename.pdf"
         path=os.path.abspath(os.path.join(os.path.dirname(__file__), folder,filename))
         
         extractor=indexSolr.ExtractFile(path,self.mycore,hash_contents='',sourcetext='',docstore=self.docstore,test=True)
-                
+        extractor.post_process()
         self.assertTrue(extractor.result)
+        self.assertTrue(extractor.post_result)
         
         #ASCII FILENAME BUT CHINESE CHARACTERS IN SOLR FIELDS
         filename="normalfilename.pdf"
@@ -167,16 +195,18 @@ class ExtractTest(IndexTester):
         self.assertTrue(result)
 
         extractor=indexSolr.ExtractFile(path,self.mycore,hash_contents='',sourcetext='',docstore=self.docstore,test=False)
-
+        extractor.post_process()
         filename="normalfilename.pdf"
 #        
         path=os.path.abspath(os.path.join(os.path.dirname(__file__), folder,filename))
 #        
         extractor=indexSolr.ExtractFile(path,self.mycore,hash_contents='',sourcetext='',docstore=self.docstore,test=True)
+        extractor.post_process()
 #        
 #        print(len(path))
 #        
         self.assertTrue(extractor.result)
+        self.assertTrue(extractor.post_result)
 #        
 
     def test_slugify(self):

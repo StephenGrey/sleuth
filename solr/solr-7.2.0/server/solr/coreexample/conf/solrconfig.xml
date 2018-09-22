@@ -803,6 +803,7 @@
       <str name="fmap.meta">ignored_</str>
       <str name="fmap.content">tika_content</str>
       <str name="captureAttr">true</str>
+      <str name="uprefix">ignored_</str>
     </lst>
   </requestHandler>
 

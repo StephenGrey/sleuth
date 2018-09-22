@@ -11,7 +11,7 @@ log = logging.getLogger('ownsearch.indexsolr')
 from usersettings import userconfig as config
 from ownsearch.solrJson import SolrConnectionError
 from ownsearch.solrJson import SolrCoreNotFound
-from documents.updateSolr import delete,updatetags,check_hash_in_solrdata,check_file_in_solrdata,remove_filepath_or_delete_solrrecord
+from documents.updateSolr import delete,updatetags,check_hash_in_solrdata,check_file_in_solrdata,remove_filepath_or_delete_solrrecord,makejson,update as update_meta
 from ownsearch import solrJson as s
 from fnmatch import fnmatch
 from . import solrICIJ,file_utils
@@ -51,7 +51,7 @@ class DuplicateRecords(Exception):
 
 class Extractor():
     """extract a collection of docs into solr"""
-    def __init__(self,collection,mycore,forceretry=False,useICIJ=False,ocr=True,docstore=''):
+    def __init__(self,collection,mycore,forceretry=False,useICIJ=False,ocr=True,docstore=DOCSTORE):
         
         if not isinstance(mycore,s.SolrCore) or not isinstance(collection,Collection):
             raise BadParameters("Bad parameters for extraction")
@@ -74,7 +74,8 @@ class Extractor():
         for file in self.filelist:
             #log.debug(file.__dict__)
             if self.skip_file(file):
-                log.debug('Skipping {}'.format(file))
+                pass
+                #log.debug('Skipping {}'.format(file))
             else:
                 log.info('Attempting index of {}'.format(file.filepath))
                 
@@ -134,7 +135,11 @@ class Extractor():
                                         log.error('Cannot add meta data to solrdoc: {}, error: {}'.format(new_id,e))
                         else:
                             try:
-                                result=extract(file.filepath,file.hash_contents,self.mycore,sourcetext=sourcetext,docstore=self.docstore)
+                                extractor=ExtractFile(file.filepath,self.mycore,hash_contents=file.hash_contents,sourcetext=sourcetext,docstore=self.docstore,test=False)
+                                result=extractor.result
+                                if result:
+                                    extractor.post_process()
+                                    result=extractor.post_result
                             except (s.SolrCoreNotFound,s.SolrConnectionError,requests.exceptions.RequestException) as e:
                                 raise ExtractInterruption(self.interrupt_message())
              
@@ -241,10 +246,26 @@ class Extractor():
 class ExtractFile():
     def __init__(self,path,mycore,hash_contents='',sourcetext='',docstore='',test=False):
         self.path=path
+        self.filename=os.path.basename(path)
         self.mycore=mycore
-        self.hash_contents = hash_contents if hash_contents else dup.hashfile256(path)
+        self.docstore=docstore
+        self.hash_contents = hash_contents if hash_contents else file_utils.get_contents_hash(path)
+        self.solrid=self.hash_contents
         self.result=extract(self.path,self.hash_contents,self.mycore,timeout=TIMEOUT,docstore=docstore,test=test)
-        log.debug(self.result) 
+        log.debug(self.result)
+        
+    def post_process(self):
+        changes=[]
+        changes.append((self.mycore.docnamesourcefield,'docname',self.filename))
+        #extract a relative path from the docstore root
+        relpath=make_relpath(self.path,docstore=self.docstore)
+        changes.append((self.mycore.docpath,'docpath',relpath))
+        
+        response,updatestatus=update_meta(self.solrid,changes,self.mycore)
+        log.debug(response)
+        #jsondata=makejson(self.solrid,changes,self.mycore)
+        self.post_result=updatestatus
+        #log.debug(jsondata)
     
 #SOLR METHODS
 
@@ -283,7 +304,7 @@ def extract(path,contentsHash,mycore,test=False,timeout=TIMEOUT,sourcetext='',do
     mycore.ping() #       throws a SolrConnectionError if solr is down; throw error to higher level.
 
     if contentsHash =='':
-        contentsHash=dup.hashfile256(path)    
+        contentsHash=file_utils.get_contents_hash(path)    
 
     try:
         docnamesourcefield=mycore.docnamesourcefield
@@ -300,11 +321,12 @@ def extract(path,contentsHash,mycore,test=False,timeout=TIMEOUT,sourcetext='',do
         return False
 #    extracturl=mycore.url+'/update/extract?'
     extractargs='commit=true&wt=json'
-    args='{}&literal.{}={}&literal.{}={}'.format(extractargs,id_field,contentsHash,docnamesourcefield,os.path.basename(path))
+    args='{}&literal.{}={}'.format(extractargs,id_field,contentsHash)
     
     #extract a relative path from the docstore root
     relpath=make_relpath(path,docstore=docstore)
-    args+='&literal.{}={}&literal.{}={}'.format(filepathfield,relpath,pathhashfield,file_utils.pathHash(path))
+
+    args+='&literal.{}={}'.format(pathhashfield,file_utils.pathHash(path))
 
     #add hash of parent relative path
     if parenthashfield:
