@@ -5,21 +5,30 @@ from collections import defaultdict
 
 try:
     from django.http import HttpResponse
+    from django.template import loader
 except:
     #usable outside Django
     pass
     
 try:
-    from django.template import loader
     from documents.models import File
-    from usersettings import userconfig as config
-    BASEDIR=config['Models']['collectionbasepath'] #get base path of the docstore
-    log = logging.getLogger('ownsearch.docs.file_utils')    
+    MODELS=True
+except:
+    MODELS=False
+
+try:
+    #from usersettings import userconfig as config
+    from configs import config
+    DOCSTORE=config['Models']['collectionbasepath'] #get base path of the docstore
 except:
     #make usable outside the project
-    BASEDIR=''
+    DOCSTORE=''
     pass
 
+try:
+    log = logging.getLogger('ownsearch.docs.file_utils')    
+except:
+    pass
 
 class DoesNotExist(Exception):
     pass
@@ -167,35 +176,39 @@ def get_contents_hash(path,blocksize = 65536):
 
 
 #PATH METHODS
-def is_down(relpath, root=BASEDIR):
+def is_down(relpath, root=DOCSTORE):
     path=os.path.abspath(os.path.join(root,relpath))
     return path.startswith(root)
 
-def is_absolute(path,root=BASEDIR):
+def is_absolute(path,root=DOCSTORE):
     return path.startswith(root)
     
-def relpath_exists(relpath,root=BASEDIR):
+def relpath_exists(relpath,root=DOCSTORE):
     if root:
         return os.path.exists(os.path.join(root,relpath))
     else:
         return False
 
-def relpath_valid(relpath,root=BASEDIR):
+def relpath_valid(relpath,root=DOCSTORE):
     """check relative path exists, is a sub of the docstore, and is not an absolute path"""
     return relpath_exists(relpath,root=root) and not is_absolute(relpath,root=root) and is_down(relpath,root=root)
     
 def index_maker(path,index_collections):
+    print(f'PATH: {path}, DOCSTORE: {DOCSTORE}')
     def _index(root,depth,index_collections,maxdepth=2):
-        #print (f'Root :{root} Depth: {depth}')
-        if True:
+        print (f'Root :{root} Depth: {depth}')
+        try:
+            
             files = os.listdir(root)
+            
+            
             for mfile in files:
                 t = os.path.join(root, mfile)
-                relpath=os.path.relpath(t,BASEDIR)
+                relpath=os.path.relpath(t,DOCSTORE)
                 #print(f'FILE/DIR: {t}')
                 if os.path.isdir(t):    
                     if depth==maxdepth-1:
-                        yield loader.render_to_string('documents/filedisplay/p_folder_nosub.html',
+                        yield loader.render_to_string('dups/p_folder_nosub.html',
                                                    {'file': mfile,
                                                    	'filepath':relpath,
                                                    	'rootpath':path,
@@ -203,7 +216,7 @@ def index_maker(path,index_collections):
                     else:
                         subfiles=_index(os.path.join(root, t),depth+1,index_collections)
                         #print(f'ROOT:{root},SUBFILES:{subfiles}')
-                        yield loader.render_to_string('documents/filedisplay/p_folder.html',
+                        yield loader.render_to_string('dups/p_folder.html',
                                                    {'file': mfile,
                                                    	'filepath':relpath,
                                                    	'rootpath':path,
@@ -211,13 +224,13 @@ def index_maker(path,index_collections):
                                                     	})
                     continue
                 else:
-                    stored,indexed=model_index(t,index_collections)
+                    stored,indexed=model_index(t,index_collections) if MODELS else None,None
                     #log.debug('Local check: {},indexed: {}, stored: {}'.format(t,indexed,stored))
-                    yield loader.render_to_string('documents/filedisplay/p_file.html',{'file': mfile, 'local_index':stored,'indexed':indexed})
+                    yield loader.render_to_string('dups/p_file.html',{'file': mfile, 'local_index':stored,'indexed':indexed})
                     continue
-        else:
-            print('look no further')
-    basepath=os.path.join(BASEDIR,path)
+        except PermissionError:
+            log.debug(f'Permission error while reading: {root}')
+    basepath=os.path.join(DOCSTORE,path)
     log.debug('Basepath: {}'.format(basepath))
     if os.path.isdir(basepath):
         return _index(basepath,0,index_collections)

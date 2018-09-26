@@ -11,7 +11,7 @@ from . import solrJson
 from documents.models import File,Index,Collection
 import logging,os
 log = logging.getLogger('ownsearch.authorise')
-from usersettings import userconfig as config
+from configs import config
 
 try:
     DEFAULTCORE=config['Solr']['defaultcore']

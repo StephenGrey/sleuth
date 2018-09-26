@@ -2,7 +2,7 @@
 from __future__ import unicode_literals, print_function
 from documents import solrcursor,updateSolr
 from ownsearch import solrJson
-from usersettings import userconfig as config
+from configs import config
 import os
 #get cursor of solr index, indexing that by key which can be any field, usually a filename or contentshash
 #optionally delete the newest version of any duplicate solrdoc indexed by that key

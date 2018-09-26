@@ -8,7 +8,7 @@ log = logging.getLogger('ownsearch.solr_indexes')
 from requests.exceptions import ConnectionError
 
 try:
-    from usersettings import userconfig as config
+    from configs import config
     SOLR_URL=config['Solr']['url']
 except:
     SOLR_URL=''

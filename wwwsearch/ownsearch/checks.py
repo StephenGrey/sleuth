@@ -3,7 +3,7 @@ from __future__ import unicode_literals
 from __future__ import print_function
 from documents.models import File,Collection,Index,UserEdit
 from documents import solrcursor
-from usersettings import userconfig as config
+from configs import config
 from ownsearch import solrJson,pages
 import logging
 log = logging.getLogger('ownsearch.checks')

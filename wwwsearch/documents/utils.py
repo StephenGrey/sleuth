@@ -14,7 +14,7 @@ from ownsearch.hashScan import FileSpecTable as filetable
 from documents import views as v
 from django.utils import timezone
 import pytz #support localising the timezone
-from usersettings import userconfig as config
+from configs import  config
 from datetime import datetime, date, time
 import subprocess
 from subprocess import Popen, PIPE, STDOUT

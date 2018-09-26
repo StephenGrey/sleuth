@@ -23,7 +23,7 @@ import ownsearch.solrJson as solr
 from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.auth.decorators import login_required
 log = logging.getLogger('ownsearch.docs.views')
-from usersettings import userconfig as config
+from configs import config
 
 BASEDIR=config['Models']['collectionbasepath'] #get base path of the docstore
 

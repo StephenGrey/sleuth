@@ -28,7 +28,7 @@ except ImportError:
     from urllib import quote_plus #python2
 from documents import solrcursor,updateSolr
 from datetime import datetime
-from usersettings import userconfig as config
+from configs import config
 from . import pages,solrJson,authorise
 
 

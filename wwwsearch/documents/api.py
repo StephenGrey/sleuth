@@ -8,7 +8,7 @@ from django.core import serializers
 from django.urls import reverse
 from documents import updateSolr
 from ownsearch import solrJson
-from usersettings import userconfig
+from configs import config as userconfig
 
 LOGIN_URL="/admin/login/"
 API_URL="/documents/api/changes/"

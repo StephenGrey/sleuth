@@ -22,7 +22,7 @@ MIMETYPES={
 
 
 try:
-    from usersettings import userconfig as config
+    from configs import config
     BASEDIR=config['Models']['collectionbasepath'] #get base path of the docstore
 except:
     BASEDIR=None

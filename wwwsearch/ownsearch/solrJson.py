@@ -10,7 +10,7 @@ from documents.models import File,Collection
 from documents.file_utils import slugify
 from documents.models import Index as sc
 from django.db.utils import OperationalError
-from usersettings import userconfig as config
+from configs import config
 from django.utils import timezone
 import pytz, iso8601 #support localising the timezone
 from datetime import datetime, timedelta

@@ -3,7 +3,7 @@ from __future__ import unicode_literals, print_function
 from builtins import str
 from ownsearch import solrJson as s
 from documents import updateSolr as u
-from usersettings import userconfig as config
+from configs import config
 import subprocess, logging, os
 log = logging.getLogger('ownsearch.solrICIJ')
 

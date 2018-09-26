@@ -1,7 +1,7 @@
 from django import forms
 from django.forms.fields import ChoiceField
 #from django.forms.widgets import RadioSelect
-from usersettings import userconfig as config
+from configs import config
 from documents.models import Index
 #NB values fetched at server restart, not dynamic
 from django.db.utils import OperationalError

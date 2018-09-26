@@ -16,7 +16,7 @@ from ownsearch.hashScan import FileSpecTable as filetable
 from django.utils import timezone
 import pytz #support localising the timezone
 log = logging.getLogger('ownsearch.updateSolr')
-from usersettings import userconfig as config
+from configs import config
 
 DOCSTORE=config['Models']['collectionbasepath'] #get base path of the docstore
 

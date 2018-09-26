@@ -5,12 +5,12 @@ from __future__ import absolute_import
 import os, logging
 log = logging.getLogger('ownsearch.correctpaths')
 from . import solrcursor,updateSolr
-from usersettings import userconfig as config
+from configs import config
 from ownsearch import solrJson
 from .models import Collection,File,Index
 from . import file_utils
 
-DOCSTORE=file_utils.BASEDIR
+DOCSTORE=file_utils.DOCSTORE
 
 def check_solrpaths(mycore,collection):
     #print((mycore,collection))            
