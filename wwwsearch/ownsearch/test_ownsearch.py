@@ -40,7 +40,7 @@ class DocumentsTest(TestCase):
         """checking solr check api"""
         self.client.login(username='myuser', password=password)
         response=self.client.get(reverse('check_solr_api')) 
-        print(response.__dict__)
+        #print(response.__dict__)
 
     def test_indexes(self):
         """check access to solrindex """

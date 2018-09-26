@@ -131,7 +131,7 @@ class ExtractTest(IndexTester):
         updateSolr.delete("fed766bc65fd9415917f0ded164a435011aab5247b2ee393929ec92bd96ffe74",self.mycore)
         
         path=os.path.abspath(os.path.join(os.path.dirname(__file__), '../tests/testdocs/pdfs/ocr_d/C05769606.pdf'))
-        print(os.path.exists(path))
+        #print(os.path.exists(path))
         extractor=indexSolr.ExtractFile(path,self.mycore,hash_contents='',sourcetext='',docstore=self.docstore,test=True)
         
         extractor=indexSolr.ExtractFile(path,self.mycore,hash_contents='',sourcetext='',docstore=self.docstore,test=False)

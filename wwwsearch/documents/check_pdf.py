@@ -3,7 +3,6 @@ from __future__ import unicode_literals
 from __future__ import print_function
 
 
-
 import PyPDF2,sys,os, logging
 from PyPDF2.utils import PdfReadError
 log = logging.getLogger('ownsearch.docs.check_pdf')
@@ -27,17 +26,17 @@ def main(path):
 
 def crawl(path):
     if os.path.isdir(path):
-        print('Filepath is directory')
+        log.debug('Filepath is directory')
         for root, dirs, files in os.walk(path):
             for name in files:
                 try:
                     main(os.path.join(root, name))
                 except PdfReadError:
-                    print(f'Pdf read error for filepath: {path}')
+                    log.info(f'Pdf read error for filepath: {path}')
                 except PDFCheckException as e:
-                    print(f'Error: {e}')      
+                    log.info(f'Error: {e}')      
     else:
-        print('No directory to crawl')
+        log.debug('No directory to crawl')
 
 def check(path):
     if True:
