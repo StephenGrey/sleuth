@@ -1,0 +1,24 @@
+<li class="du" id="{{filepath}}" src="{{dupcheck.contents_hash}}" size="{{dupcheck.size}}" master_scan="{{dupcheck.master_scan}}" master_changed="{{dupcheck.master_changed}}" hash_in_master="{{dupcheck.hash_in_master}}" local_scan="{{dupcheck.local_scan}}" local_changed="{{dupcheck.local_changed}}" m_dup="{{dupcheck.master_dup}}" l_dup="{{dupcheck.local_dup}}" m_dups="{{dupcheck.m_dups}}" l_dups="{{dupcheck.dups}}">
+{% if dupcheck.master_scan and not dupcheck.master_changed %}
+<span style="color:green;">{{ file }} <span class="minitext">Archived OK</span></span>
+{% elif dupcheck.master_scan and dupcheck.master_changed %}
+<span style="color:orange;">{{ file }} <span class="minitext">Rescan Master</span></span>
+{% elif not dupcheck.master_scan and dupcheck.hash_in_master%}
+<span style="color:gray;">{{ file }} <span class="minitext">Archived in Master</span></span>
+{% elif dupcheck.local_changed and dupcheck.local_scan%}
+<span style="color:red;">{{ file }} <span class="minitext">Rescan!</span></span>
+{% elif not dupcheck.master_scan and not dupcheck.local_scan%}
+<span style="color:red;">{{ file }} <span class="minitext">Not Scanned!</span></span>
+{% elif not dupcheck.local_changed and dupcheck.local_scan%}
+<span style="color:red;">{{ file }} <span class="minitext">Scanned / Not Archived!</span></span>
+{% else%}
+<span style="color:red;">{{ file }} <span class="minitext">Not Archived!</span></span>
+{% endif %}
+{%if dupcheck.master_scan and dupcheck.master_dup %}
+<span class="minitext" style="color:red;">Duplicate ({{dupcheck.m_dups}})</span>
+{% endif %}
+{%if not dupcheck.master_scan and dupcheck.local_dup %}
+<span class="minitext" style="color:red;">Duplicate ({{dupcheck.dups}})</span>
+{% endif %}
+<span class="sizetext">{{dupcheck.size}}</span>
+</li>

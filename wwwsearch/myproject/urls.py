@@ -26,6 +26,7 @@ urlpatterns = [
     url(r'^ownsearch/',include('ownsearch.urls')),
     url(r'^documents/',include('documents.urls')),
     url(r'^scraper/',include('scraper.urls')),
+    url(r'^dups/',include('dups.urls')),
     url(r'^whatsapp/',include('whatsapp.urls')),
     url(r'^tests/',include('tests.urls')),
     url(r'^accounts/login/$', auth_views.LoginView.as_view(),name='login'),

@@ -98,11 +98,15 @@ class ExtractTest(IndexTester):
         collection.save()
         
         collectiondups=Collection.objects.get(path=self.testdups_path)
+        
+
 
         #NOW SCAN THE COLLECTION
         scanner=updateSolr.scandocs(collectiondups)        
         self.assertEquals([scanner.new_files_count,scanner.deleted_files_count,scanner.moved_files_count,scanner.unchanged_files_count,scanner.changed_files_count],[5, 0, 0, 0, 0])
 
+        #print(File.objects.filter(collection=collectiondups))
+        
         ext=indexSolr.Extractor(collectiondups,mycore,docstore=self.docstore,useICIJ=self.icij_extract)
         self.assertEquals((5,0,0),(ext.counter,ext.skipped,ext.failed))
        
@@ -585,6 +589,8 @@ class FileUtilsTest(IndexTester):
     
     def test_filespecs(self):
         specs=file_utils.filespecs(self.testdups_path)
+        print(self.testdups_path)
+        print(specs)
         filepath=os.path.join(self.testdups_path,'dup_in_folder','HilaryEmailC05793347 copy.pdf')
         spec=specs[filepath]
         self.assertEquals(spec.length,118916)

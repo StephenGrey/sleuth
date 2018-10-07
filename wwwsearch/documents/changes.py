@@ -41,7 +41,6 @@ class Scanner:
         self.files_on_disk=file_utils.filespecs(self.collection.path) #get dict of specs of files in disk folder(and subfolders)
         self.files_in_database=File.objects.filter(collection=self.collection)
         
-
     def find_on_disk(self):
         """2. loop through files in the database"""
         for database_file in self.files_in_database:
