@@ -3,6 +3,7 @@ import os, logging,hashlib,re,datetime,unicodedata,pickle
 from pathlib import Path
 from collections import defaultdict
 
+
 try:
     from django.http import HttpResponse
     from django.template import loader
@@ -11,10 +12,15 @@ except:
     pass
     
 try:
-    from documents.models import File
+    from documents.models import File,Collection
     MODELS=True
 except:
     MODELS=False
+
+try:
+    from documents import time_utils
+except:
+    pass
 
 try:
     #from usersettings import userconfig as config
@@ -26,10 +32,10 @@ except:
     pass
 
 try:
-    logging.basicConfig()
-    logging.getLogger().setLevel(logging.DEBUG)
+#    logging.basicConfig()
+#    logging.getLogger().setLevel(logging.DEBUG)
     log = logging.getLogger('ownsearch.docs.file_utils')
-    log.debug('Logging in operation')  
+#    log.debug('Logging in operation')  
 except:
     print('No logging')
     pass
@@ -70,7 +76,7 @@ class FileSpecs:
             return os.path.getmtime(self.path) #last modified time
         else:
             raise DoesNotExist
-
+            
     @property
     def date_from_path(self):
         """find a date in US format in filename"""
@@ -124,7 +130,8 @@ class FileSpecs:
         return "File: {}".format(self.path)
 
 class PathIndex:
-    def __init__(self,folder):
+    def __init__(self,folder,ignore_pattern='X-'):
+        self.ignore_pattern=ignore_pattern
         self.folder_path=folder
         self.specs_dict=True
         self.scan_or_rescan()
@@ -135,25 +142,31 @@ class PathIndex:
         self.files={}
         self.specs_dict=specs_dict
         
-        print(self.__dict__)
+        #print(self.__dict__)
         
         for dirName, subdirs, fileList in os.walk(self.folder_path): #go through every subfolder in a folder
             log.info(f'Scanning {dirName} ...')
             for filename in fileList: #now through every file in the folder/subfolder
-                path = os.path.join(dirName, filename)
-                if specs_dict:
-                    self.update_record(path,scan_contents=scan_contents)
+                if self.ignore_pattern and filename.startswith(self.ignore_pattern):
+                    pass
                 else:
-                    self.files[path]=FileSpecs(path)
+                    path = os.path.join(dirName, filename)
+                    if specs_dict:
+                        self.update_record(path,scan_contents=scan_contents)
+                    else:
+                        self.files[path]=FileSpecs(path)
   
             for subfolder in subdirs:
-                path= os.path.join(dirName,subfolder)
-                if specs_dict:
-                    spec=FileSpecs(path,folder=True)
-                    docspec=spec.__dict__
-                    self.files[path]=docspec
+                if self.ignore_pattern and subfolder.startswith(self.ignore_pattern):
+                    subdirs.remove(subfolder)
                 else:
-                    self.files[path]=FileSpecs(path,folder=True)
+                    path= os.path.join(dirName,subfolder)
+                    if specs_dict:
+                        spec=FileSpecs(path,folder=True)
+                        docspec=spec.__dict__
+                        self.files[path]=docspec
+                    else:
+                        self.files[path]=FileSpecs(path,folder=True)
 
     def hash_scan(self):
         self.hash_index={}
@@ -199,7 +212,7 @@ class PathIndex:
         except Exception as e:
             log.warning(e)
             log.warning(f'Cannot save filespecs in {self.folder_path}')
-        #Sophie loves cats!!!!!
+
 
     def scan_and_save(self):
         self.scan(specs_dict=self.specs_dict)
@@ -279,34 +292,46 @@ class PathIndex:
                 self.files[path]=FileSpecs(path)
                 
 
-
     
     def list_directory(self):
         filelist=[]
         for dirName, subdirs, fileList in os.walk(self.folder_path): #go through every subfolder in a folder
             #log.info(f'Scanning {dirName} ...')
             for filename in fileList: #now through every file in the folder/subfolder
-                path = os.path.join(dirName, filename)
-                filelist.append(path)
+                if self.ignore_pattern and filename.startswith(self.ignore_pattern):
+                    pass
+                else:
+                    path = os.path.join(dirName, filename)
+                    filelist.append(path)
+                
+            for subfolder in subdirs:
+                if self.ignore_pattern and subfolder.startswith(self.ignore_pattern):
+                    subdirs.remove(subfolder)
+                else:
+                    path= os.path.join(dirName,subfolder)
+                    filelist.append(path)
         self.filelist=filelist
                 
 class PathFileIndex(PathIndex):
     """index of FileSpec objects"""
-    def __init__(self,folder,specs_dict=False,scan_contents=True):
+    def __init__(self,folder,specs_dict=False,scan_contents=True,ignore_pattern='X-'):
         self.folder_path=folder
+        self.ignore_pattern=ignore_pattern
         self.scan(specs_dict=specs_dict,scan_contents=scan_contents)
         
 class StoredPathIndex(PathIndex):
     """retrieve pickled index"""
-    def __init__(self,folder_path):
+    def __init__(self,folder_path,ignore_pattern='X-'):
         self.folder_path=folder_path
+        self.ignore_pattern=ignore_pattern
         if self.check_pickle():
             self.get_saved_specs()
         else:
             raise DoesNotExist('No stored filespecs')
                         
 class HashIndex(PathIndex):
-    def __init__(self):
+    def __init__(self,ignore_pattern='X-'):
+        self.ignore_pattern=ignore_pattern
         pass
 
 def changed(oldspecs):
@@ -524,7 +549,6 @@ def sizeof_fmt(num, suffix='B'):
 
 
 #FILE MODEL METHODS
-
 def model_index(path,index_collections,hashcheck=False):
     """check if True/False file in collection is in database, return File object"""
     
@@ -534,9 +558,18 @@ def model_index(path,index_collections,hashcheck=False):
         return True,indexed
     else:
         return None,None
+        
+def find_collections(path):
+    match_collections=[]
+    for collection in Collection.objects.all():
+        if is_inside(path, collection.path) and path !=collection.path:
+            match_collections.append(collection)
+    return match_collections
 
+
+
+    
 #DUP CHECKS
-
 class DupCheck:
     def __init__(self,filepath,specs,masterindex):
         self.filepath=filepath

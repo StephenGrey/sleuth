@@ -97,6 +97,15 @@ def listfiles(request):
                 ext=indexSolr.Extractor(thiscollection,mycore) #GO INDEX THE DOCS IN SOLR
                 return HttpResponse ("Indexing.. <p>indexed: {} <p>skipped: {}<p>{}<p>failed: {}<p>{}".format(ext.counter,ext.skipped,ext.skippedlist,ext.failed,ext.failedlist))
                 
+    #INDEX DOCUMENTS WITH RETRY
+            elif 'index-retry' in request.POST:
+                mycore.ping()
+                ext=indexSolr.Extractor(thiscollection,mycore,forceretry=True) #GO INDEX THE DOCS IN SOLR
+                
+                return HttpResponse ("Indexing with retry.. <p>indexed: {} <p>skipped: {}<p>{}<p>failed: {}<p>{}".format(ext.counter,ext.skipped,ext.skippedlist,ext.failed,ext.failedlist))
+                                
+                
+                
     #INDEX VIA ICIJ 'EXTRACT' DOCUMENTS IN COLLECTION IN SOLR
             elif 'indexICIJ' in request.POST:
                 #print('try to index in Solr')

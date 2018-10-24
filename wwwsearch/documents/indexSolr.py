@@ -11,10 +11,10 @@ log = logging.getLogger('ownsearch.indexsolr')
 from configs import config
 from ownsearch.solrJson import SolrConnectionError
 from ownsearch.solrJson import SolrCoreNotFound
-from documents.updateSolr import delete,updatetags,check_hash_in_solrdata,check_file_in_solrdata,remove_filepath_or_delete_solrrecord,makejson,update as update_meta
+from documents.updateSolr import delete,updatetags,check_hash_in_solrdata,check_file_in_solrdata,remove_filepath_or_delete_solrrecord,makejson,update as update_meta,get_source
 from ownsearch import solrJson as s
 from fnmatch import fnmatch
-from . import solrICIJ,file_utils
+from . import solrICIJ,file_utils,changes,time_utils
 
 try:
     from urllib.parse import quote #python3
@@ -82,12 +82,8 @@ class Extractor():
                 #if was previously indexed, store old solr ID and then delete if new index successful
                 oldsolrid=file.solrid
                 #get source
-                try:
-                    sourcetext=file.collection.source.sourceDisplayName
-                except:
-                    sourcetext=''
-                    log.debug('No source defined for file: {}'.format(file.filename))
-                
+                sourcetext=get_source(file)
+                                
                 
                 if file.is_folder:
                     log.debug('Skipping extract of folder')
@@ -173,17 +169,42 @@ class Extractor():
         file.solrid=existing_doc.id
         log.debug('Existing docpath: {}'.format(existing_doc.data.get('docpath')))
         log.debug('Existing parent path hashes: {}'.format(existing_doc.data.get(self.mycore.parenthashfield)))
+        log.debug(f'Existing source: {existing_doc.data.get(self.mycore.sourcefield)}')
         
+        #add a source if no source
+        solr_source=existing_doc.data.get(self.mycore.sourcefield)
+        if not solr_source:
+            file_source=get_source(file)
+            if file_source:
+                log.debug(f'Adding missing source {file_source}')
+                result=updatetags(file.solrid,self.mycore,value=file_source,field_to_update='sourcefield',newfield=False,test=False)
+                if not result:
+                    log.error('Failed to add source field')
+        
+        if file.content_date:
+            date_from_path=time_utils.timestringGMT(file.content_date)
+            log.debug(f'Existing date: {existing_doc.date}')
+            log.debug(f'Date from path {date_from_path}')
+            if existing_doc.date != date_from_path:
+                log.debug('Date from path altered; update in index')
+                result=updatetags(file.solrid,self.mycore,value=date_from_path,field_to_update='datesourcefield',newfield=False,test=False)
+                if not result:
+                    log.error('Failed in updating date from path')
+            else:
+                log.debug('Date from path unchanged')
+
         #no need to extract
         paths=existing_doc.data.get('docpath')        
         relpath=make_relpath(file.filepath,docstore=self.docstore)
         
+        #1. update list of relatives paths of this identical document
         if paths:
             if relpath not in paths:
                 paths.append(relpath)
                 log.debug('Updating doc \"{}\" to append the old and new filepath {} to make {}'.format(file.solrid,file.filepath,paths))
                 result=updatetags(file.solrid,self.mycore,field_to_update='docpath',value=paths)
                 
+                #2. if paths saved OK, now update list of hashes of parent paths
                 if result:
                     parent_hashes=file_utils.parent_hashes(paths)
                     result=updatetags(file.solrid,self.mycore,field_to_update=self.mycore.parenthashfield,value=parent_hashes)
@@ -209,6 +230,7 @@ class Extractor():
             #skip this file because it is on ignore list
             log.info('Ignoring: {}'.format(file.filepath))
         else:
+            #don't skip
             return False
         self.skipped+=1
         self.skippedlist.append(file.filepath)
@@ -242,17 +264,29 @@ class Extractor():
         
         return result
 
+class UpdateMeta(Extractor):
+    def __init__(self,mycore,file,existing_doc,docstore=DOCSTORE):
+        if not isinstance(mycore,s.SolrCore):
+            raise BadParameters("Bad parameters for extraction")
+        self.mycore=mycore
+        self.docstore=docstore
+        self.update_existing_meta(file,existing_doc)   
 
 class ExtractFile():
     def __init__(self,path,mycore,hash_contents='',sourcetext='',docstore='',test=False):
         self.path=path
-        self.filename=os.path.basename(path)
+        specs=file_utils.FileSpecs(path,scan_contents=False)###
+        self.filename=specs.name
+        self.date_from_path,self.last_modified=changes.parse_date(specs)
         self.mycore=mycore
+        self.test=test
+        self.sourcetext=sourcetext
         self.docstore=docstore
         self.hash_contents = hash_contents if hash_contents else file_utils.get_contents_hash(path)
         self.solrid=self.hash_contents
-        self.result=extract(self.path,self.hash_contents,self.mycore,timeout=TIMEOUT,docstore=docstore,test=test)
+        self.result=extract(self.path,self.hash_contents,self.mycore,timeout=TIMEOUT,docstore=docstore,test=self.test,sourcetext=self.sourcetext)
         log.debug(self.result)
+        
         
     def post_process(self):
         changes=[]
@@ -260,12 +294,23 @@ class ExtractFile():
         #extract a relative path from the docstore root
         relpath=make_relpath(self.path,docstore=self.docstore)
         changes.append((self.mycore.docpath,'docpath',relpath))
+        if self.date_from_path:
+            changes.append((self.mycore.datesourcefield,'date',time_utils.timestringGMT(self.date_from_path)))
+
+        log.debug(f'CHANGES: {changes}')
         
         response,updatestatus=update_meta(self.solrid,changes,self.mycore)
         log.debug(response)
+        
+#        changes=[]
+#        log.debug(f'CHANGES: {changes}')
+#        dateresponse,dateupdatestatus=update_meta(self.solrid,changes,self.mycore)
+#        log.debug(dateresponse)
         #jsondata=makejson(self.solrid,changes,self.mycore)
         self.post_result=updatestatus
         #log.debug(jsondata)
+        
+        #newlastmodified=s.timestringGMT(file.last_modified)
     
 #SOLR METHODS
 
@@ -388,6 +433,9 @@ def postSolr(args,path,mycore,timeout=1):
 
 
 """UTILITIES:"""
+
+
+
 
 def make_relpath(path,docstore=''):
     if not docstore:

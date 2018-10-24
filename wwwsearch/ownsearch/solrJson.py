@@ -644,6 +644,7 @@ def getmeta(docid,core):
     args+=","+core.beforefield if core.beforefield else ""
     args+=","+core.nextfield if core.nextfield else ""
     args+=","+core.sequencefield if core.sequencefield else ""
+    args+=","+core.sourcefield if core.sourcefield else ""
     jres=getJSolrResponse(searchterm,args,core=core)
     #log.debug(args,jres)
     res=getlist(jres,0,core=core)
@@ -664,8 +665,13 @@ def getfield(docid,field,core):
             if field in result.data:
                 return result.data[field]
             else:
-                log.debug('Field {} not found in solrdoc {}'.format(field,docid))
-                return None
+                print('no')
+                field_text=getattr(result,field,None)
+                if field_text:
+                    return field_text
+                else:
+                    log.debug('Field {} not found in solrdoc {}'.format(field,docid))
+                    return None
         else:
             log.debug('Solrdoc {} not found on index {}'.format(docid,core.name))
             raise SolrDocNotFound

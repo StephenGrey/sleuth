@@ -3,19 +3,33 @@
   <head> 
 {% load static %}
 {% block title %} <title>SearchBox</title>{% endblock %}
+
+<!--
+<script src="http://ajax.googleapis.com/ajax/libs/jquery/1.9.1/jquery.min.js"></script>
+<script src="https://ajax.googleapis.com/ajax/libs/jqueryui/1.12.1/jquery-ui.min.js"></script>
+
+-->
+<!-- Latest compiled and minified JavaScript -->
+<!--<script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js" integrity="sha384-Tc5IQib027qvyjSMfHjOMaLkfuWVxZxUPnCJA7l2mCWNIpG9mGCD8wGNIcPD7Txa" crossorigin="anonymous"></script>
+-->
+
+<!-- Latest compiled and minified CSS -->
+<!--<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous">
+<link rel="stylesheet" href="https://ajax.googleapis.com/ajax/libs/jqueryui/1.12.1/themes/smoothness/jquery-ui.css">
+-->
+
+
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-<!--<link rel="stylesheet" type="text/css" href="{% static 'css/bootstrap1.min.css' %}" />
- <link rel="stylesheet" type="text/css" href="{% static 'css/jquery-ui.css' %}" />
-    -->
-<!--    <link rel="stylesheet" type="text/css" href="{% static 'css/bootstrap-theme.min.css' %}" /> -->
+    <link rel="stylesheet" type="text/css" href="{% static 'css/bootstrap1.min.css' %}" />
+    <link rel="stylesheet" type="text/css" href="{% static 'css/jquery-ui.css' %}" />
+    <link rel="stylesheet" type="text/css" href="{% static 'css/bootstrap-theme.min.css' %}" />
     <link rel="stylesheet" type="text/css" href="{% static 'css/dups.css' %}" />
-<!--    <script src="{% static 'js/jquery.min.js' %}"></script>-->
-<!--    <script src="{% static 'js/bootstrap.min.js' %}"></script>  
-    <script src="{% static 'js/jquery-ui.min.js' %}"></script>-->
+    <script src="{% static 'js/jquery.min.js' %}"></script>
+    <script src="{% static 'js/bootstrap.min.js' %}"></script>  
+    <script src="{% static 'js/jquery-ui.min.js' %}"></script>
+
  
-<!--"https://ajax.googleapis.com/ajax/libs/jqueryui/1.12.1/jquery-ui.min.js" type="text/javascript">
--->
 {% block stylesheet %}{% endblock %}
 </head>
 

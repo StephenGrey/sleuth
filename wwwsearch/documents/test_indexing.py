@@ -13,7 +13,7 @@ from ownsearch.solrJson import SolrResult,SolrCore
 from ownsearch import pages,solrJson
 from ownsearch import views as views_search
 from django.test.client import Client
-import logging,re,requests,getpass,os,shutil
+import logging,re,requests,getpass,os,shutil,json,datetime
 from django.core import serializers
 from django.conf import settings
 
@@ -79,6 +79,19 @@ class ExtractTest(IndexTester):
     def use_icij_extract(self):
         return False
         
+    def extract_document(self,_id,_relpath):
+        
+        updateSolr.delete(_id,self.mycore)
+        path=os.path.abspath(os.path.join(os.path.dirname(__file__), '../tests/testdocs', _relpath))
+        #first a test run, then a full extract into index        
+        self.assertTrue(os.path.exists(path))
+        extractor=indexSolr.ExtractFile(path,self.mycore,hash_contents='',sourcetext='',docstore=self.docstore,test=True)
+        extractor=indexSolr.ExtractFile(path,self.mycore,hash_contents='',sourcetext='',docstore=self.docstore,test=False)
+        self.assertTrue(extractor.result)
+        extractor.post_process()
+        return extractor
+
+    
     def test_Extractor(self):
         mycore=self.mycore
         
@@ -132,17 +145,11 @@ class ExtractTest(IndexTester):
     def test_extractfile(self):
         #path=os.path.abspath(os.path.join(os.path.dirname(__file__), '../tests/testdocs/docx/2018-01-23 Sale of Maltese passports nets Malta over €277m in one year.docx'))
         
-        updateSolr.delete("fed766bc65fd9415917f0ded164a435011aab5247b2ee393929ec92bd96ffe74",self.mycore)
+        _id="fed766bc65fd9415917f0ded164a435011aab5247b2ee393929ec92bd96ffe74"
+        _path="pdfs/ocr_d/C05769606.pdf"
+        extractor=self.extract_document(_id,_path)
         
-        path=os.path.abspath(os.path.join(os.path.dirname(__file__), '../tests/testdocs/pdfs/ocr_d/C05769606.pdf'))
-        #print(os.path.exists(path))
-        extractor=indexSolr.ExtractFile(path,self.mycore,hash_contents='',sourcetext='',docstore=self.docstore,test=True)
-        
-        extractor=indexSolr.ExtractFile(path,self.mycore,hash_contents='',sourcetext='',docstore=self.docstore,test=False)
-        
-        self.assertTrue(extractor.result)
-        
-        updateSolr.delete("fed766bc65fd9415917f0ded164a435011aab5247b2ee393929ec92bd96ffe74",self.mycore)
+        updateSolr.delete(_id,self.mycore)
     
     def test_morefilenames(self):
         """ test with % character """
@@ -152,7 +159,6 @@ class ExtractTest(IndexTester):
         path=os.path.abspath(os.path.join(os.path.dirname(__file__), folder,filename))
         
         extractor=indexSolr.ExtractFile(path,self.mycore,hash_contents='',sourcetext='',docstore=self.docstore,test=False)
-        
         extractor.post_process()
         self.assertTrue(extractor.result)
         self.assertTrue(extractor.post_result)
@@ -314,9 +320,71 @@ class ExtractTest(IndexTester):
         newfile=File(collection=self.sample_collection)
         changes.updatefiledata(newfile,pp,makehash=True)
         
+        self.assertEquals(changes.time_utils.timeaware(specs.date_from_path),newfile.content_date)
+        
         #print(Collection.objects.all())
         
-            
+    def test_extract_withdate(self):
+#        #start fresh
+        _id='9ea57f8bd36c23f2b8316b621fedef1182b8f47c23fc4220ed0a44f67c52998b'
+        _relpath='docx/2018-01-23 Sale of Maltese passports nets Malta over €277m in one year.docx'
+        ##
+        extractor=self.extract_document(_id,_relpath)
+        self.assertEquals(solrJson.getmeta(_id,self.mycore)[0].datetext,'Jan 23, 2018')
+        updateSolr.delete(_id,self.mycore)
+#        updateSolr.delete("fed766bc65fd9415917f0ded164a435011aab5247b2ee393929ec92bd96ffe74",self.mycore)
+    def test_extract_withdate2(self):
+#        #start fresh
+        _id='ffbb5c2510c33e980ad7a523f1e9c90ca6d968066f61fd04a253182d09da76d3'
+        _relpath='docx/2013-03-10 Labour claims largest majority ever in post.docx'
+        
+        extractor=self.extract_document(_id,_relpath)    
+
+        self.assertEquals(solrJson.getmeta(_id,self.mycore)[0].datetext,'Mar 10, 2013')
+        updateSolr.delete(_id,self.mycore)
+#            
+     
+    def test_change_date(self):
+        _id='ffbb5c2510c33e980ad7a523f1e9c90ca6d968066f61fd04a253182d09da76d3'
+        _relpath='docx/2013-03-10 Labour claims largest majority ever in post.docx'
+        extractor=self.extract_document(_id,_relpath)
+        
+        upd={"extract_id": _id, "last_modified": {"set": "2009-04-10T00:00:00Z"}}
+        data=json.dumps([upd])
+        response,updatestatus=updateSolr.post_jsonupdate(data,self.mycore)
+        #print(f'Response: {response}; Status: {updatestatus}')   
+        self.assertEquals(solrJson.getmeta(_id,self.mycore)[0].datetext,'Apr 10, 2009')
+        self.assertTrue(updatestatus)
+        
+        #change another way
+        
+        updateSolr.updatetags(_id,self.mycore,value="2039-10-10T00:00:00Z",field_to_update='datesourcefield',newfield=False,test=False)
+        
+        self.assertEquals(solrJson.getmeta(_id,self.mycore)[0].datetext,'Oct 10, 2039')        
+        
+        updateSolr.delete(_id,self.mycore)        
+
+    def test_path_date_changed(self):
+        _id='ffbb5c2510c33e980ad7a523f1e9c90ca6d968066f61fd04a253182d09da76d3'
+        _relpath='docx/2013-03-10 Labour claims largest majority ever in post.docx'
+        extractor=self.extract_document(_id,_relpath)
+        
+        doc=updateSolr.check_hash_in_solrdata(_id,self.mycore)
+        
+        newfile=File(collection=self.collectiondups)
+        changes.updatefiledata(newfile,extractor.path,makehash=False)
+        
+        newdate=time_utils.timeaware(datetime.datetime.now())
+        newdatetext=time_utils.easydate(newdate)
+        
+        newfile.content_date=newdate
+        
+        updater=indexSolr.UpdateMeta(self.mycore,newfile,doc,docstore=self.docstore)
+        
+        self.assertEquals(solrJson.getmeta(_id,self.mycore)[0].datetext,newdatetext)    
+
+        newfile.delete()
+    
     def test_changefiles(self):
         testchanges_path=os.path.abspath(os.path.join(os.path.dirname(__file__), '../tests/testdocs/changes'))
         mycore=solrJson.SolrCore('tests_only')

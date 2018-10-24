@@ -53,9 +53,11 @@ class Scanner:
         """2a. For a database file found on disk - add to changed or unchanged list/dict"""
         file_meta=self.files_on_disk.pop(database_file.filepath)
         
-        #path_date=file_meta.date_from_path
+#        path_date=time_utils.timeaware(file_meta.date_from_path)
+#        if database_file.content_date != path_date:
+#            log.debug(f'Path date modified: database: {database_file.content_date} local: {path_date}')
+#        
         latest_lastmodified=time_utils.timestamp2aware(file_meta.last_modified)
-        # if not path_date else path_date #gets last modified info as stamp, makes GMT time object
 
         latestfilesize=file_meta.length
         if database_file.last_modified==latest_lastmodified and latestfilesize==database_file.filesize:
@@ -106,50 +108,20 @@ class Scanner:
         filelist=File.objects.filter(collection=self.collection)
         if self.new_files:
             for path in self.new_files:
-                if os.path.exists(path)==True: #check file exists
-                    #now create new entry in File database
-                    newfile=File(collection=self.collection)
-                    updatefiledata(newfile,path,makehash=True)
-                    newfile.indexedSuccess=False #NEEDS TO BE INDEXED IN SOLR
-                    newfile.save()
-                else:
-                    log.error(('ERROR: ',path,' does not exist'))
-
+                newfile(path,self.collection)
         if self.moved_files:
             #print((len(self.moved_files),' to move'))
             for newpath,oldpath in self.moved_files:
                 #print(newpath,oldpath)
-    
-                #get the old file and then update it
-                file=filelist.get(filepath=oldpath)
-                updatefiledata(file,newpath) #check all metadata;except contentsHash
-                #if the file has been already indexed, flag to correct solr index meta
-                if file.indexedSuccess:
-                    file.indexUpdateMeta=True  #flag to correct solrindex
-                    #print('update meta')
-                file.save()
+                _file=filelist.get(filepath=oldpath)
+                movefile(_file,newpath)
                 
         if self.changed_files:
             log.debug('{} changed file(s) '.format(len(self.changed_files)))
             for filepath in self.changed_files:
                 log.debug('Changed file: {}'.format(filepath))
                 file=filelist.get(filepath=filepath)
-                updatesuccess=updatefiledata(file,filepath)
-    
-                #check if contents have changed and solr index needs changing
-                oldhash=file.hash_contents
-                newhash=file_utils.get_contents_hash(filepath)
-                if newhash!=oldhash:
-                    #contents change, flag for index
-                    file.indexedSuccess=False
-                    file.hash_contents=newhash
-    #                file.indexUpdateMeta=True  #flag to correct solrindex
-                #NB the solrid field is not cleared = the index checks it exists and deletes the old doc
-                #else-if the file has been already indexed, flag to correct solr index meta
-                elif file.indexedSuccess==True:
-                    file.indexUpdateMeta=True  #flag to correct solrindex
-                #else no change in contents - no need to flag for index
-                file.save()
+                changefile(file)
 
     def count_changes(self):
         self.new_files_count=len(self.new_files)
@@ -160,32 +132,86 @@ class Scanner:
         self.scanned_files=self.new_files_count+self.deleted_files_count+self.moved_files_count+self.unchanged_files_count+self.changed_files_count
 
 
+def movefile(_file,newpath):
+    updatefiledata(_file,newpath) #check all metadata;except contentsHash
+    #if the file has been already indexed, flag to correct solr index meta
+    if _file.indexedSuccess:
+        _file.indexUpdateMeta=True  #flag to correct solrindex
+        _file.save()
+
+
+def newfile(path,collection):
+    if os.path.exists(path)==True: #check file exists
+        #now create new entry in File database
+        try:
+            _newfile=File(collection=collection)
+            updatefiledata(_newfile,path,makehash=True)
+            _newfile.indexedSuccess=False #NEEDS TO BE INDEXED IN SOLR
+            _newfile.save()
+            return _newfile
+        except Exception as e:
+            print(e)
+            return None
+    else:
+        log.error(('ERROR: ',path,' does not exist'))
+
+def changefile(file):
+    updatesuccess=updatefiledata(file,file.filepath)
+    if file.is_folder:
+        if file.indexedSuccess: #if already indexed in solr
+            file.indexUpdateMeta=True  #flag to correct meta only in
+    else:
+        #check if contents have changed and solr index needs changing
+        oldhash=file.hash_contents
+        newhash=file_utils.get_contents_hash(file.filepath)
+        if newhash!=oldhash:
+            #contents change, flag for index
+            file.indexedSuccess=False
+            file.hash_contents=newhash
+        #NB the solrid field is not cleared = the index checks it exists and deletes the old doc
+        #otherwise if no change in hash and file already indexed, flag to correct meta only in solr 
+        elif file.indexedSuccess:
+            file.indexUpdateMeta=True  #flag to correct solrindex
+        #else no change in contents - no need to flag for index
+    file.save()
+    return True
+
+
 def updatefiledata(file,path,makehash=False):
     """calculate all the metadata and update database; default don't make hash"""
-    if True:
+    try:
         specs=file_utils.FileSpecs(path)
         file.filepath=path #
         file.hash_filename=specs.pathhash #get the HASH OF PATH
         file.filename=specs.name
         shortName, fileExt = specs.shortname, specs.ext
-        file.fileext=fileExt    
-        modTime = specs.last_modified
-        file.last_modified=time_utils.timestamp2aware(modTime) #use GMT aware last modified
-        pathdate=specs.date_from_path
-        file.content_date=file.last_modified if not pathdate else time_utils.timeaware(pathdate)
+        file.fileext=fileExt   
+        file.content_date,file.last_modified=parse_date(specs)
         file.is_folder=specs.folder
         if not file.is_folder and makehash:
             file.hash_contents=specs.contents_hash
         file.filesize=specs.length
         file.save()
         return True
-#    except Exception as e:
-#        print(('Failed to update file database data for ',path))
-#        print(('Error in updatefiledata(): ',str(e)))
-#        raise ChangesError("Failed to update file database")
+    except Exception as e:
+        log.debug(f'Failed to update file database data for {path}')
+        log.debug(f'Error in updatefiledata ({e}): ')
+        raise ChangesError("Failed to update file database")
+
+
+def parse_date(specs):
+    modTime = specs.last_modified
+    last_modified=time_utils.timestamp2aware(modTime) #use GMT aware last modified
+    pathdate=specs.date_from_path
+    content_date=time_utils.timeaware(pathdate) if pathdate else None
+    return content_date,last_modified
 
 
 def countchanges(changes):
     return [len(changes['newfiles']),len(changes['deletedfiles']),len(changes['movedfiles']),len(changes['unchanged']),len(changes['changedfiles'])]
 
-
+def path_date_changed(file,existingdoc):
+    log.debug(existingdoc.date)
+    
+    
+    

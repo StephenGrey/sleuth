@@ -17,8 +17,8 @@ dupsconfig=configs.config.get('Dups')
 DEFAULT_MASTERINDEX_PATH=dupsconfig.get('masterindex_path') if dupsconfig else None
 MEDIAROOT=dupsconfig.get('rootpath') if dupsconfig else None
 
-log.debug(MEDIAROOT)
-log.debug(DEFAULT_MASTERINDEX_PATH)
+#log.debug(MEDIAROOT)
+#log.debug(DEFAULT_MASTERINDEX_PATH)
 
 @staff_member_required()
 def index(request,path=''):
@@ -75,7 +75,7 @@ def index(request,path=''):
     except:
         page.masterspecs=None
     
-    if True:
+    if os.path.exists(os.path.join(MEDIAROOT,path)):
         page.masterpath=masterindex_path
         print(f'Path{path} Master: {masterindex_path}')
         page.masterpath_url=f'/dups/folder/{masterindex_path}'
@@ -94,7 +94,8 @@ def index(request,path=''):
             tags=None
         return render(request,'dups/listindex.html',
                                    {'page': page, 'subfiles': c, 'rootpath':rootpath, 'tags':tags,  'path':path})
-
+    else:
+        return redirect('dups_index',path='')
 
 
 @login_required
