@@ -334,6 +334,19 @@ class HashIndex(PathIndex):
         self.ignore_pattern=ignore_pattern
         pass
 
+
+def changed_file(_file):
+    newspecs=FileSpecs(_file.filepath,scan_contents=False)
+    
+    
+    log.debug(f'Comparing.. LAST-MOD Old: {_file.last_modified} New: {time_utils.timestamp2aware(newspecs.last_modified)} LENGTH Old: {_file.filesize} New: {newspecs.length}')
+    
+    if _file.last_modified != time_utils.timestamp2aware(newspecs.last_modified) or _file.filesize != newspecs.length:
+        return True
+    return False
+
+
+
 def changed(oldspecs):
     if not oldspecs.get('folder'): #ignore folders
         if 'path' not in oldspecs:
@@ -428,6 +441,12 @@ def relpath_exists(relpath,root=DOCSTORE):
         return os.path.exists(os.path.join(root,relpath))
     else:
         return False
+
+def make_relpath(path,docstore=''):
+    if not docstore:
+        docstore=DOCSTORE
+    return os.path.relpath(path,start=docstore)
+
 
 def relpath_valid(relpath,root=DOCSTORE):
     """check relative path exists, is a sub of the docstore, and is not an absolute path"""

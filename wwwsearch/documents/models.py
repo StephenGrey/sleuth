@@ -55,6 +55,7 @@ class File(models.Model):
     content_date=models.DateTimeField('content date',blank=True,null=True)
     solrid=models.CharField('Solr ID',max_length=100,default='',blank=True)
     child=models.BooleanField('Child document',default=False) #if an extracted child doc (e.g. attachment or embedded image)
+    oldpaths_to_delete=models.TextField('Old paths',blank=True,null=True)
 
     def __str__(self):
         return self.filepath

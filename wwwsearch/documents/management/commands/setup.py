@@ -10,7 +10,6 @@ from django.db import connections, DEFAULT_DB_ALIAS
 import getpass,re
 
 
-
 class Command(BaseCommand):
     help = 'Test manage.py command'
     
@@ -65,29 +64,12 @@ class Command(BaseCommand):
                 print('5. CREATE BLANK SOLR INDEX')
                 print('A blank index can be created, copying the standards settings from the \'coreexample\' index')
                 if answer_yes('Make a new index (y/n)?'):
-                    indexname=''
-                    while not indexname:
-                        indexname=get_corename()                        
-                    displayname=''
-                    while not displayname:
-                        displayname=get_displayname()
-                    print('Making new index with name: \'{}\' nd displayname: \'{}\''.format(indexname,displayname))
-                    
-                    if server.core_status(indexname):
-                        print('Index exists already')
-                        
-                    else:
-                        server.make_new_index(indexname)
-                        server.status_check()
-                    if not server.index_up(indexname):
-                        print('ERROR: index \'{}\' not running'.format(indexname))
-                    else:
-                        print('.... index \'{}\' up and running on solr'.format(indexname))
-                        print('Now adding to database')
-                        
-                        if new_usergroup:
-                            make_default_index(new_usergroup,verbose=True,corename=indexname, coreDisplayName=displayname)
-                            
+                    indexname=make_new_index_on_server(server)
+                    print('Now adding to database')      
+                    displayname=make_new_displayname()
+
+                    if new_usergroup:
+                        make_default_index(new_usergroup,verbose=True,corename=indexname, coreDisplayName=displayname)
                 print("""
 Default installation complete
 
@@ -109,6 +91,36 @@ To search the index, visit:
 
 
                             """)
+
+def make_new_displayname():
+    displayname=''
+    while not displayname:
+        displayname=get_displayname()
+    return displayname
+
+def make_new_index():
+    server=check_solr(verbose=True) 
+    indexname=make_new_index_on_server(server)
+    return indexname
+
+def make_new_index_on_server(server):
+    indexname=''
+    while not indexname:
+        indexname=get_corename()                        
+    displayname=''
+    print(f'Making new index {indexname}')
+    
+    if server.core_status(indexname):
+        print('Index exists already')
+        
+    else:
+        server.make_new_index(indexname)
+        server.status_check()
+    if not server.index_up(indexname):
+        print('ERROR: index \'{}\' not running'.format(indexname))
+    else:
+        print('.... index \'{}\' up and running on solr'.format(indexname))
+    return indexname
 
 def make_admin_or_login(tester):
     """make admin or login for test object"""

@@ -235,18 +235,24 @@ def indexcheck(collection,thiscore):
                 file.solrid=solrdata.id
                 file.save()
                 counter+=1
-        #INDEX CHECK: METHOD TWO: CHECK IF FILE STORED IN SOLR INDEX UNDER CONTENTS HASH                
-            else:
-                log.debug('trying hash method')
-                #is there a stored hash, if not get one
-                if not hash:
-                    hash=hexfile(file.filepath)
-                    file.hash_contents=hash
-                    file.save()
-                #now lookup hash in solr index
-                log.debug('looking up hash : '+hash)
-                solrresult=solr.hashlookup(hash,thiscore).results
-                log.debug(solrresult)
+                continue
+        #INDEX CHECK: METHOD TWO: CHECK IF FILE STORED IN SOLR INDEX UNDER CONTENTS HASH
+            elif not file.is_folder:
+                try:
+                    log.debug('trying hash method')
+                    #is there a stored hash, if not get one
+                    if not hash:
+                        hash=hexfile(file.filepath)
+                        file.hash_contents=hash
+                        file.save()
+                    #now lookup hash in solr index
+                    log.debug('looking up hash : '+hash)
+                    solrresult=solr.hashlookup(hash,thiscore).results
+                    log.debug(solrresult)
+                except Exception as e:
+                    log.error(e)
+                    solrresult=''
+                
                 if len(solrresult)>0:
                     #if some files, take the first one
                     solrdata=solrresult[0]
@@ -256,19 +262,17 @@ def indexcheck(collection,thiscore):
                     file.save()
                     counter+=1
                     log.debug(f'PATH : {file.filepath} indexed successfully (HASHMATCH) Solr \'id\': {solrdata.id}')
-                #NO MATCHES< RETURN FAILURE
-                else:
-                    log.info(file.filepath+'.. not found in Solr index')
-                    file.indexedSuccess=False
-                    file.solrid='' #wipe any stored solr id; DEBUG: this wipes also oldsolr ids scheduled for delete
-                    file.save()
-                    skipped+=1
+                    
+                    continue
+                    
+            #NO MATCHES< RETURN FAILURE
+
+            log.info(file.filepath+'.. not found in Solr index')
+            file.indexedSuccess=False
+            file.solrid='' #wipe any stored solr id; DEBUG: this wipes also oldsolr ids scheduled for delete
+            file.save()
+            skipped+=1
+                
+                    
         return counter,skipped,failed
 
-#    
-#def pathHash(path):
-#    m=hashlib.md5()
-#    m.update(path.encode('utf-8'))  #encoding avoids unicode error for unicode paths
-#    return m.hexdigest()
-#
-#   

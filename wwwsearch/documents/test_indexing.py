@@ -385,6 +385,63 @@ class ExtractTest(IndexTester):
 
         newfile.delete()
     
+    
+    def test_changesize(self):
+        _id='ffbb5c2510c33e980ad7a523f1e9c90ca6d968066f61fd04a253182d09da76d3'
+        _relpath='docx/2013-03-10 Labour claims largest majority ever in post.docx'
+        extractor=self.extract_document(_id,_relpath)
+        
+        doc=updateSolr.check_hash_in_solrdata(_id,self.mycore)
+
+        
+        newfile=File(collection=self.collectiondups)
+        
+        changes.updatefiledata(newfile,extractor.path,makehash=False)
+        
+        print('now parse')
+        _changes=updateSolr.parsechanges(doc,newfile,self.mycore)
+        response,updatestatus=updateSolr.update(_id,_changes,self.mycore)
+
+        doc=updateSolr.check_hash_in_solrdata(_id,self.mycore)
+        print('do again')
+        newfile.filesize=999
+                
+        _changes=updateSolr.parsechanges(doc,newfile,self.mycore)
+        
+        print(_changes)
+        if _changes:
+            response,updatestatus=updateSolr.update(_id,_changes,self.mycore)
+        
+    
+    def test_jpg(self):
+        _id='909e8c759f760ee45c9735274e71d66d8f112e8e14387ff2e7d4af064091afe0'
+        _relpath='jpg/Squirrel.jpg'
+        extractor=self.extract_document(_id,_relpath)
+        
+        doc=updateSolr.check_hash_in_solrdata(_id,self.mycore)
+
+        newfile=File(collection=self.collectiondups)
+        newfile.solrid=_id
+        changes.updatefiledata(newfile,extractor.path,makehash=True)
+        
+        print(newfile.__dict__)
+        
+        print('PARSE CHANGES')
+        _changes=updateSolr.parsechanges(doc,newfile,self.mycore)
+        response,updatestatus=updateSolr.update(_id,_changes,self.mycore)
+
+        newfile.filesize=999
+
+        doc=updateSolr.check_hash_in_solrdata(_id,self.mycore)                
+        _changes=updateSolr.parsechanges(doc,newfile,self.mycore)
+        
+        print(_changes)
+        if _changes:
+            response,updatestatus=updateSolr.update(_id,_changes,self.mycore)
+
+        
+        
+    
     def test_changefiles(self):
         testchanges_path=os.path.abspath(os.path.join(os.path.dirname(__file__), '../tests/testdocs/changes'))
         mycore=solrJson.SolrCore('tests_only')

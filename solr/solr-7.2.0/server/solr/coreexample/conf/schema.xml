@@ -640,6 +640,7 @@
   <field name="rows_per_strip" type="text_general"/>
   <field name="samples_per_pixel" type="text_general"/>
   <field name="sb_filename" type="string" multiValued="false" stored="false"/>
+  <field name="sb_size" type="plongs" multiValued="false" stored="false"/>
   <field name="sb_before" type="string" multiValued="false" stored="true"/>
   <field name="sb_next" type="string" multiValued="false" stored="true"/>
   <field name="sb_parentpath_hash" type="string" multiValued="true" indexed="true" stored="true"/>
@@ -1044,7 +1045,6 @@
   <dynamicField name="*_txt_sv" type="text_sv" indexed="true" stored="true"/>
   <dynamicField name="*_txt_th" type="text_th" indexed="true" stored="true"/>
   <dynamicField name="*_txt_tr" type="text_tr" indexed="true" stored="true"/>
-  <dynamicField name="*_point" type="point" indexed="true" stored="true"/>
   <dynamicField name="*_srpt" type="location_rpt" indexed="true" stored="true"/>
   <dynamicField name="attr_*" type="text_general" multiValued="true" indexed="true" stored="true"/>
   <dynamicField name="*_txt" type="text_general" indexed="true" stored="true"/>
@@ -1072,7 +1072,9 @@
 <!--  <dynamicField name="*" type="text_general" multiValued="true" indexed="true" stored="true"/>
 -->
   <copyField source="last_modified" dest="sb_last_modified"/>
-  <copyField source="stream_size" dest="tika_metadata_content_length"/>
+<!--  <copyField source="stream_size" dest="tika_metadata_content_length"/>-->
+  <copyField source="stream_size" dest="sb_size"/>
+  <copyField source="tika_metadata_content_length" dest="sb_size"/>  
   <copyField source="tika_metadata_last_modified" dest="sb_last_modified" multiValued="false" stored="false"/>
   <copyField source="tika_metadata_resourcename" dest="sb_filename" maxChars="256"/>
   <copyField source="pdf_docinfo_creator_tool" dest="pdf_docinfo_creator_tool_str" maxChars="256"/>

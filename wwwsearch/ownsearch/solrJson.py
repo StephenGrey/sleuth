@@ -67,6 +67,8 @@ class SolrCore:
             self.rawtext=config[core]['rawtext']
             self.cursorargs=config[core]['cursorargs']
             self.docsizefield=config[core]['docsize']
+            self.docsizesourcefield1=config[core]['docsizesourcefield1']
+            self.docsizesourcefield2=config[core]['docsizesourcefield2']
             self.hashcontentsfield=config[core]['hashcontents']
             self.pathhashfield=config[core]['hashpath']
             self.datefield=config[core]['datefield']
@@ -641,6 +643,7 @@ def getmeta(docid,core):
     searchterm='{}:\"{}\"'.format(core.unique_id,docid)
     args='&fl={}'.format(core.unique_id)
     args+=","+core.docpath+","+core.datefield+","+core.docsizefield+","+core.datefield+","+core.docnamefield
+    args+=","+core.parenthashfield if core.parenthashfield else ""
     args+=","+core.beforefield if core.beforefield else ""
     args+=","+core.nextfield if core.nextfield else ""
     args+=","+core.sequencefield if core.sequencefield else ""

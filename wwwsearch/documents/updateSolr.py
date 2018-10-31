@@ -11,7 +11,7 @@ from .models import File,Collection
 from . import changes, time_utils
 from ownsearch.hashScan import HexFolderTable as hex
 from ownsearch.hashScan import hashfile256 as hexfile
-from .file_utils import pathHash,parent_hash,parent_hashes
+from .file_utils import pathHash,parent_hash,parent_hashes,make_relpath,relpath_exists
 from ownsearch.hashScan import FileSpecTable as filetable
 from django.utils import timezone
 import pytz #support localising the timezone
@@ -267,25 +267,26 @@ def removedeleted(deletefiles,collection,docstore=DOCSTORE):
     log.debug('Delete from core: {}'.format(mycore))
     filelist=File.objects.filter(collection=collection)
     for path in deletefiles:
-        file=filelist.get(filepath=path)
-        if file.solrid:
-            relpath=os.path.relpath(file.filepath,start=docstore)
-            log.debug('File to delete {} from solr id: {}'.format(relpath,file.solrid))        
-            try:
-                result=remove_filepath_or_delete_solrrecord(file.solrid,relpath,mycore)
-                if result:
-                    pass
-                else:
-                    #try a fullpath
-                    result=remove_filepath_or_delete_solrrecord(file.solrid,file.filepath,mycore)
+        files=filelist.filter(filepath=path)
+        for file in files:
+            if file.solrid:
+                relpath=os.path.relpath(file.filepath,start=docstore)
+                log.debug('File to delete {} from solr id: {}'.format(relpath,file.solrid))        
+                try:
+                    result=remove_filepath_or_delete_solrrecord(file.solrid,relpath,mycore)
                     if result:
                         pass
                     else:
-                        log.debug('Failed to delete from solr index; deleting database entry anyway'.format(path))
-            except SolrdocNotFound:
-                log.debug('Both solr doc & disk path not found - remove database entry')
-        file.delete()
-        log.debug(f'Deleted \'{path}\' from collection: \'{collection}\' in index: \'{file.collection.core}\'')
+                        #try a fullpath
+                        result=remove_filepath_or_delete_solrrecord(file.solrid,file.filepath,mycore)
+                        if result:
+                            pass
+                        else:
+                            log.debug('Failed to delete from solr index; deleting database entry anyway'.format(path))
+                except SolrdocNotFound:
+                    log.debug('Both solr doc & disk path not found - remove database entry')
+            file.delete()
+            log.debug(f'Deleted \'{path}\' from collection: \'{collection}\' in index: \'{file.collection.core}\'')
         
     return
 
@@ -312,9 +313,9 @@ def remove_filepath(oldsolrid,filepath,mycore,deletedoc=False):
         return False
         
     if not deletedoc or (deletedoc and len(paths)>1):
+        log.info('Deleting {} from filepaths in solrdoc {}'.format(filepath,oldsolrid))
         paths.remove(filepath)
         result=updatetags(oldsolrid,mycore,field_to_update='docpath',value=paths)
-        log.info('Deleting {} from filepaths in solrdoc {}'.format(filepath,oldsolrid))
         
         if result:
             parenthashes=olddoc.data.get(mycore.parenthashfield,None)
@@ -325,7 +326,7 @@ def remove_filepath(oldsolrid,filepath,mycore,deletedoc=False):
             if parenthashes=='None':
                 print('None string')
                 
-            if parenthashes:
+            if parenthashes and parenthashes !=[None]:
                 result=remove_hash(parenthashes,filepath,mycore,oldsolrid)
             return result
 
@@ -436,7 +437,8 @@ def clear_date(solrid,mycore):
                 return True
     else:
         return True
-            
+
+
 def make_remove_json(mycore,solrid,field,value):
     """json to clear a field value"""
     a=collections.OrderedDict()
@@ -444,10 +446,6 @@ def make_remove_json(mycore,solrid,field,value):
     a[field]={"remove":value}
     data=json.dumps([a])
     return data
-
-
-
-
 
 
 def checkupdate(id,changes,mycore):
@@ -465,7 +463,7 @@ def checkupdate(id,changes,mycore):
             if not newvalue:
                 solrfield=mycore.__dict__.get(resultfield,resultfield)
                 newvalue=doc.__dict__.get(solrfield,doc.data.get(solrfield,''))
-            #log.debug(doc.data)
+            #log.debug(f'Solrdoc.data {doc.data} solrfield: {solrfield} newvalue={newvalue} targetvalue={value}')
             #log.debug(doc.__dict__)
             if newvalue:
                 #print(newvalue,type(newvalue))
@@ -475,12 +473,18 @@ def checkupdate(id,changes,mycore):
                     except:
                         pass
                 elif isinstance(newvalue, list): #check for a list e.g date(not a string)
-                    newvalue=newvalue[-1] if len(newvalue)>0 else '' #use the last in list
-                if newvalue==value: 
-                    log.debug('{} successfully updated to {}'.format(resultfield,value))
+                    if newvalue==value: 
+                        log.debug('{} successfully updated to {}'.format(resultfield,value))
+                    else:
+                        newvalue=newvalue[-1] if len(newvalue)>0 else '' #use the last in list
+                        if newvalue==value: 
+                            log.debug('{} successfully updated to {}'.format(resultfield,value))
                 else:
-                    log.debug('{} NOT updated; current value {}'.format(resultfield,value))
-                    status=False
+                    if newvalue==value: 
+                        log.debug('{} successfully updated to {}'.format(resultfield,value))
+                    else:
+                        log.debug('{} NOT updated; current value {}'.format(resultfield,value))
+                        status=False
             else:
                 log.debug('{} not found in solr result'.format(resultfield))
                 status=False
@@ -558,21 +562,23 @@ def metaupdate_rawfile(_file,test_run=False):
     metaupdate_file(_file,mycore,test_run=test_run)
 
 def metaupdate_file(_file,mycore,test_run=False):
-    assert _file.indexUpdateMeta
+    if not _file.indexUpdateMeta:
+        log.debug('Wrong call to metaupdate: Not flagged for update')
+        return
     assert _file.solrid
     log.debug('ID: {}'.format(_file.solrid))
     log.debug('Solr meta data flagged for update')
     results=s.getmeta(_file.solrid,core=mycore)  #get current contents of solr doc, without full contents
     if len(results)>0:
         solrdoc=results[0] #results come as a list so just take the first one
-        changes=parsechanges(solrdoc,_file,mycore) #returns list of tuples [(field,newvalue),]
-        if changes:
+        _changes=parsechanges(solrdoc,_file,mycore) #returns list of tuples [(field,newvalue),]
+        if _changes:
             #make changes to the solr index - using standardised fields
-            json2post=makejson(solrdoc.id,changes,mycore)
+            json2post=makejson(solrdoc.id,_changes,mycore)
             log.debug('{}'.format(json2post)) 
             if not test_run:
                 response,updatestatus=post_jsonupdate(json2post,mycore)
-                if checkupdate(solrdoc.id,changes,mycore):
+                if checkupdate(solrdoc.id,_changes,mycore):
                     log.debug('solr successfully updated')
                     _file.indexUpdateMeta=False
                     _file.save()
@@ -585,12 +591,44 @@ def metaupdate_file(_file,mycore,test_run=False):
             if not test_run:
                 _file.indexUpdateMeta=False
                 _file.save()
+        #tidy up
+        #remove old paths
+        remove_oldpaths(_file,mycore)
     else:
         log.debug('[metaupdate]file not found in solr index')
 
+def remove_oldpaths(_file,mycore):
+    existing_oldpaths_raw=_file.oldpaths_to_delete
+    oldpaths=json.loads(existing_oldpaths_raw) if existing_oldpaths_raw else ''
+    if oldpaths:
+        for path in oldpaths:
+            if os.path.exists(path):
+                #relpath_exists(path,root=DOCSTORE):
+                log.warning('Trying to delete a path that exists - ignoring')
+            else:
+                relpath=make_relpath(path,docstore=DOCSTORE)
+                if remove_filepath(_file.solrid,relpath,mycore,deletedoc=False):
+                    log.debug(f'Successfully removed filepath {path}')
 
-def parsechanges(solrresult,file,mycore): 
-    """take a Solr Result object,compare with file database, 
+def check_paths(solr_result,_file,mycore,docstore=DOCSTORE):
+    """check if path needs updated, return new paths and parent_hashes"""
+    paths=solr_result.data.get('docpath')        
+    if not paths:
+        log.error('Filepath not found in existing doc')
+        return False,None,None
+    relpath=make_relpath(_file.filepath,docstore=docstore)
+    if relpath in paths:
+        log.debug('Filepath already stored in doc')
+        return False,None,None
+    else:
+        paths.append(relpath)
+        p_hashes=parent_hashes(paths)
+        return True,paths,p_hashes
+
+
+
+def parsechanges(solrresult,_file,mycore): 
+    """take a Solr Result object,compare with _file database, 
    return change list [(standardisedsourcefield,resultfield,newvalue),..]"""
     #print(solrresult)
     solrdocsize=solrresult.data['solrdocsize']
@@ -602,8 +640,11 @@ def parsechanges(solrresult,file,mycore):
     olddocpath=solrresult.data['docpath']
     olddate=solrresult.date
     oldsource=solrresult.data.get(mycore.sourcefield)
+    log.debug(f'solrresult: {solrresult.__dict__}')
     
-     
+    
+    
+    
     if olddate:
         try:
             oldlastmodified=time_utils.parseISO(olddate)#convert raw time text from solr into time object
@@ -621,33 +662,39 @@ def parsechanges(solrresult,file,mycore):
     #compare solr data with new metadata & make list of changes to make in solr
     changes=[] 
 
+    paths_are_missing,paths,p_hashes=check_paths(solrresult,_file,mycore)
+    if paths_are_missing:
+        log.debug(f'Updating paths to: {paths}') 
+        changes.append(('docpath','docpath',paths))
+        changes.append((mycore.parenthashfield,mycore.parenthashfield,p_hashes))
+
     if not oldsource:
-        newsource=get_source(file)
+        newsource=get_source(_file)
         if newsource:
             changes.append((mycore.sourcefield,mycore.sourcefield,newsource))
 
-    if olddocsize != file.filesize:
-        log.info('need to update filesize from old {} to new {}'.format(olddocsize,file.filesize))
-        changes.append((mycore.docsizefield,'solrdocsize',file.filesize))
+    if olddocsize != _file.filesize:
+        log.info('need to update filesize from old {} to new {}'.format(olddocsize,_file.filesize))
+        changes.append((mycore.docsizesourcefield1,'solrdocsize',_file.filesize))
         
-    newlastmodified=time_utils.timestringGMT(file.content_date) if file.content_date else time_utils.timestringGMT(file.last_modified)
+    newlastmodified=time_utils.timestringGMT(_file.content_date) if _file.content_date else time_utils.timestringGMT(_file.last_modified)
     
    
-#    file.last_modified.strftime("%Y-%m-%dT%H:%M:%SZ")
+#    _file.last_modified.strftime("%Y-%m-%dT%H:%M:%SZ")
     if olddate !=newlastmodified:
         log.info('need to update last_modified from \"{}\"  to \"{}\"'.format(oldlastmodified, newlastmodified))
         changes.append(('datesourcefield','date',newlastmodified))
-        if clear_date(file.solrid,mycore):
+        if clear_date(_file.solrid,mycore):
             log.debug('cleared previous stored date')
         else:
             log.debug('failed to clear previous stored date')
-    newfilename=file.filename
+    newfilename=f'Folder: {_file.filename}' if _file.is_folder else _file.filename
+
     if olddocname != newfilename:
         log.info('need to update filename from {} to {}'.format(olddocname,newfilename))
         changes.append(('docnamesourcefield','docname',newfilename))
     
-    
-    
+
     return changes
 
 #
@@ -856,3 +903,10 @@ def get_source(file):
         log.debug('No source defined for file: {}'.format(file.filename))
     return sourcetext
 
+def get_collection_source(collection):
+    try:
+        sourcetext=collection.source.sourceDisplayName
+    except:
+        sourcetext=''
+        log.debug('No source defined for collection: {}'.format(collection))
+    return sourcetext

@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import json
 from .models import File,Collection
 from documents import file_utils,time_utils
 #from ownsearch.hashScan import FileSpecTable as filetable
@@ -133,12 +134,22 @@ class Scanner:
 
 
 def movefile(_file,newpath):
+    oldpath=_file.filepath
     updatefiledata(_file,newpath) #check all metadata;except contentsHash
     #if the file has been already indexed, flag to correct solr index meta
     if _file.indexedSuccess:
+        add_oldpaths(_file,oldpath) #store old filepath to delete from solr
         _file.indexUpdateMeta=True  #flag to correct solrindex
         _file.save()
 
+def add_oldpaths(_file,oldpath):
+    existing_oldpaths_raw=_file.oldpaths_to_delete
+    oldpaths=json.loads(existing_oldpaths_raw) if existing_oldpaths_raw else []
+    if oldpath not in oldpaths:
+        oldpaths.append(oldpath)
+        oldpaths_raw=json.dumps(oldpaths)
+        _file.oldpaths_to_delete=oldpaths_raw
+        _file.save()
 
 def newfile(path,collection):
     if os.path.exists(path)==True: #check file exists
