@@ -1,0 +1,9 @@
+bs4==0.0.1
+Django==2.0.6
+future==0.16.0
+iso8601==0.1.12
+MacFSEvents==0.8.1
+PyPDF2==1.26.0
+requests==2.19.1
+urllib3==1.23
+watchdog==0.9.0

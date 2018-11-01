@@ -197,7 +197,7 @@ class Extractor():
                 log.debug('Date from path unchanged')
 
         #check paths
-        paths_are_missing,paths,parent_hashes=check_paths(existing_doc,file,mycore,docstore=self.docstore)
+        paths_are_missing,paths,parent_hashes=check_paths(existing_doc,file,self.mycore,docstore=self.docstore)
         if paths_are_missing:
             log.debug('Updating doc \"{}\" to append the old and new filepath {} to make {}'.format(file.solrid,file.filepath,paths))
             result=updatetags(file.solrid,self.mycore,field_to_update='docpath',value=paths)
