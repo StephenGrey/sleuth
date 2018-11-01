@@ -24,18 +24,15 @@ MEDIAROOT=dupsconfig.get('rootpath') if dupsconfig else None
 def index(request,path=''):
     """display files in a directory"""
     
-#    return HttpResponse(f"""
-#    MEDIAROOT: {MEDIAROOT}\n 
-#    PATH: {path}\n 
-#    DEFAULT MASTERINDEX:{DEFAULT_MASTERINDEX_PATH}
-#    """)
-#    
-#    file_utils.DOCSTORE=MEDIAROOT
-#    MASTERINDEX_PATH='Crypt/ownCloud'
     local_scanpath=request.session.get('scanfolder')
     masterindex_path=request.session.get('masterfolder',DEFAULT_MASTERINDEX_PATH)
     log.debug(f'Masterindex path: {masterindex_path}')
     log.debug(f'path: {path}')
+    log.debug(f'Mediaroot: {MEDIAROOT}')
+    
+    if not MEDIAROOT or not masterindex_path:
+    	    return HttpResponse ("Missing 'Dups' configuration information in user.settings : set the 'rootpath' and 'masterindex_path' variables")
+    
     if request.method == 'POST':
        if 'scan' in request.POST:
            print('scanning')
