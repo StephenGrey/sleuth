@@ -28,6 +28,11 @@ def index(request,path=''):
     masterindex_path=request.session.get('masterfolder',DEFAULT_MASTERINDEX_PATH)
     log.debug(f'Masterindex path: {masterindex_path}')
     log.debug(f'path: {path}')
+    log.debug(f'Mediaroot: {MEDIAROOT}')
+    
+    if not MEDIAROOT or not masterindex_path:
+    	    return HttpResponse ("Missing 'Dups' configuration information in user.settings : set the 'rootpath' and 'masterindex_path' variables")
+    
     if request.method == 'POST':
        if 'scan' in request.POST:
            log.debug('scanning')
