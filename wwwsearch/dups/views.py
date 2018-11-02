@@ -24,24 +24,16 @@ MEDIAROOT=dupsconfig.get('rootpath') if dupsconfig else None
 def index(request,path=''):
     """display files in a directory"""
     
-#    return HttpResponse(f"""
-#    MEDIAROOT: {MEDIAROOT}\n 
-#    PATH: {path}\n 
-#    DEFAULT MASTERINDEX:{DEFAULT_MASTERINDEX_PATH}
-#    """)
-#    
-#    file_utils.DOCSTORE=MEDIAROOT
-#    MASTERINDEX_PATH='Crypt/ownCloud'
     local_scanpath=request.session.get('scanfolder')
     masterindex_path=request.session.get('masterfolder',DEFAULT_MASTERINDEX_PATH)
     log.debug(f'Masterindex path: {masterindex_path}')
     log.debug(f'path: {path}')
     if request.method == 'POST':
        if 'scan' in request.POST:
-           print('scanning')
+           log.debug('scanning')
            local_scanpath=request.POST.get('local-path')
            if not os.path.exists(os.path.join(MEDIAROOT,local_scanpath)):
-               print('scan request sent non-existent path')
+               log.debug('scan request sent non-existent path')
                return redirect('dups_index',path=path)
            specs=file_utils.PathIndex(os.path.join(MEDIAROOT,local_scanpath))
            #print(specs.files)
@@ -77,7 +69,7 @@ def index(request,path=''):
     
     if os.path.exists(os.path.join(MEDIAROOT,path)):
         page.masterpath=masterindex_path
-        print(f'Path{path} Master: {masterindex_path}')
+        log.debug(f'Path{path} Master: {masterindex_path}')
         page.masterpath_url=f'/dups/folder/{masterindex_path}'
         if masterindex_path:
             page.inside_master=path.startswith(masterindex_path)
