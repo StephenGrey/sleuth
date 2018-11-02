@@ -141,21 +141,28 @@ class PathIndex:
         """make filespecs dict keyed to path"""
         self.files={}
         self.specs_dict=specs_dict
-        
+        counter=0
         #print(self.__dict__)
         
         for dirName, subdirs, fileList in os.walk(self.folder_path): #go through every subfolder in a folder
             log.info(f'Scanning {dirName} ...')
+            print(f'Scanning {dirName} ...')
             for filename in fileList: #now through every file in the folder/subfolder
                 if self.ignore_pattern and filename.startswith(self.ignore_pattern):
                     pass
                 else:
+                    counter+=1
                     path = os.path.join(dirName, filename)
                     if specs_dict:
                         self.update_record(path,scan_contents=scan_contents)
                     else:
                         self.files[path]=FileSpecs(path)
-  
+                    if counter%1000==0:
+                        log.info(f'Scanned {counter} files.. dumping output')
+                        self.save()
+                    elif counter%200==0:
+                        log.info(f'Scanned {counter} files)')
+
             for subfolder in subdirs:
                 if self.ignore_pattern and subfolder.startswith(self.ignore_pattern):
                     subdirs.remove(subfolder)
@@ -215,7 +222,13 @@ class PathIndex:
 
 
     def scan_and_save(self):
-        self.scan(specs_dict=self.specs_dict)
+        try:
+            self.scan(specs_dict=self.specs_dict)
+        except KeyboardInterrupt:
+        	   print('keyboard')
+        	   return
+        except Exception as e:
+            log.warning(e)
         self.save()
 
     def load_filespecs_or_scan(self):
@@ -236,12 +249,18 @@ class PathIndex:
         if self.check_pickle():
             try:
                 self.get_saved_specs()
-                self.rescan()
-                self.save()
             except Exception as e:
                 log.warning(e)
                 log.warning(f'Cannot load stored filespecs; fresh new scan')
                 self.scan_and_save()
+            try:
+                self.rescan()
+            except Exception as e:
+                log.warning(e)
+            try:
+                self.save()
+            except Exception as e:
+                log.warning(e)
         else:
             self.scan_and_save()
         
@@ -270,10 +289,22 @@ class PathIndex:
                 self.update_record(docpath)
         
         #add new files    
+        log.info('Checking unscanned files')
+        counter=0
         for docpath in self.filelist:
-            self.update_record(docpath)
-            log.info(f'Added \'{docpath}\' to index')
-            
+            try:
+                self.update_record(docpath)
+            except Exception as e:
+                log.info(f'Update failed for {docpath}: {e}')
+            #log.debug(f'Added {docpath} to index')
+            counter+=1
+            if counter%200==0:
+                log.info(f'{counter} files updated')
+                try:
+                    self.save()
+                except Exception as e:
+                    log.info(f'Save failure: {e}')
+                	
         #delete deleted files
         for docpath in deletedfiles:
             self.files.pop(docpath)
@@ -295,6 +326,7 @@ class PathIndex:
     
     def list_directory(self):
         filelist=[]
+        counter=0
         for dirName, subdirs, fileList in os.walk(self.folder_path): #go through every subfolder in a folder
             #log.info(f'Scanning {dirName} ...')
             for filename in fileList: #now through every file in the folder/subfolder
@@ -303,7 +335,9 @@ class PathIndex:
                 else:
                     path = os.path.join(dirName, filename)
                     filelist.append(path)
-                
+                counter+=1
+                if counter%500==0:
+                    log.info(f'Collecting filespecs of {counter} files')
             for subfolder in subdirs:
                 if self.ignore_pattern and subfolder.startswith(self.ignore_pattern):
                     subdirs.remove(subfolder)
@@ -311,14 +345,16 @@ class PathIndex:
                     path= os.path.join(dirName,subfolder)
                     filelist.append(path)
         self.filelist=filelist
-                
+        self.save()
 class PathFileIndex(PathIndex):
     """index of FileSpec objects"""
     def __init__(self,folder,specs_dict=False,scan_contents=True,ignore_pattern='X-'):
         self.folder_path=folder
         self.ignore_pattern=ignore_pattern
         self.scan(specs_dict=specs_dict,scan_contents=scan_contents)
-        
+
+
+
 class StoredPathIndex(PathIndex):
     """retrieve pickled index"""
     def __init__(self,folder_path,ignore_pattern='X-'):
@@ -342,6 +378,7 @@ def changed_file(_file):
     log.debug(f'Comparing.. LAST-MOD Old: {_file.last_modified} New: {time_utils.timestamp2aware(newspecs.last_modified)} LENGTH Old: {_file.filesize} New: {newspecs.length}')
     
     if _file.last_modified != time_utils.timestamp2aware(newspecs.last_modified) or _file.filesize != newspecs.length:
+        log.debug('file changed')
         return True
     return False
 
