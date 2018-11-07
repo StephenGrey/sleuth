@@ -1,9 +1,7 @@
-import sys
-import time
-import logging
+import sys, logging, redis,time
 from watchdog.observers import Observer
 from watchdog.events import LoggingEventHandler, FileSystemEventHandler
-from SearchBox.watcher import watch_dispatch
+from SearchBox.watcher import watch_dispatch2 as watch_dispatch
 
 # handles sync event actions, only modified 
 class MySyncHandler(FileSystemEventHandler):

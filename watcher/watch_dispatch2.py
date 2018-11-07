@@ -1,4 +1,4 @@
-import sys,datetime,time, logging
+import sys,datetime,time, logging, redis
 
 from SearchBox.tools import wwwsearch_connect #Connect to Django project
 from django.conf import settings
@@ -11,6 +11,7 @@ if (log.hasHandlers()):
 
 log.info('This is test log entry')
 
+r=redis.Redis()
 
 """
 
@@ -72,8 +73,10 @@ class Index_Dispatch:
             MODIFIED_TIMES[self.sourcepath]=time.time()
             for _file in self.source_in_database:
                 #putting modified file in q
-                MODIFIED_FILES.setdefault(self.sourcepath,set()).add(_file.id)
-                #print(f'Added: \'{_file}\' to modification queue')
+                #MODIFIED_FILES.setdefault(self.sourcepath,set()).add(_file.id)
+                r.sadd('MODIFIED_FILES',_file.id)
+                r.set(f'MODIFIED.{_file.id}',time.time())
+                print(f'Added: \'{_file}\' with id {_file.id}to modification queue')
 #                if changes.changefile(_file):
 #                    print(f'Modified: \'{_file}\' in Index: \'{_file.collection.core}\'')
         else:
@@ -136,6 +139,9 @@ def index_file(_file):
     else:
         print('Extraction failed')
         return False
+
+def index_file2(_file):
+    pass
 
 
 def update_file(_file):

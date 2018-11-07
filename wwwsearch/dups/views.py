@@ -40,7 +40,7 @@ def index(request,path=''):
            if not os.path.exists(os.path.join(MEDIAROOT,local_scanpath)):
                log.debug('scan request sent non-existent path')
                return redirect('dups_index',path=path)
-           specs=file_utils.PathIndex(os.path.join(MEDIAROOT,local_scanpath))
+           specs=file_utils.BigFileIndex(os.path.join(MEDIAROOT,local_scanpath))
            #print(specs.files)
            specs.hash_scan()
            request.session['scanfolder']=local_scanpath
@@ -49,7 +49,7 @@ def index(request,path=''):
        elif 'masterscan' in request.POST:
            full_masterpath=os.path.join(MEDIAROOT,masterindex_path)
            log.debug(f'scanning master: {full_masterpath}')
-           masterspecs=file_utils.PathIndex(full_masterpath)
+           masterspecs=file_utils.BigFileIndex(full_masterpath)
            masterspecs.hash_scan()
            request.session['masterfolder']=masterindex_path
            return redirect('dups_index',path=path)           
@@ -61,14 +61,14 @@ def index(request,path=''):
     log.debug(f'stored scanpath: {page.scanpath}')
     if page.scanpath:
         try:
-            page.specs=file_utils.StoredPathIndex(os.path.join(MEDIAROOT,page.scanpath))
+            page.specs=file_utils.StoredBigFileIndex(os.path.join(MEDIAROOT,page.scanpath))
         except:
             page.specs=None
     else:
         page.specs=None
         
     try:
-        page.masterspecs=file_utils.StoredPathIndex(os.path.join(MEDIAROOT,masterindex_path))
+        page.masterspecs=file_utils.StoredBigFileIndex(os.path.join(MEDIAROOT,masterindex_path))
     except:
         page.masterspecs=None
     

@@ -2,7 +2,7 @@
 import os, logging,hashlib,re,datetime,unicodedata,pickle
 from pathlib import Path
 from collections import defaultdict
-
+from klepto.archives import *
 
 try:
     from django.http import HttpResponse
@@ -41,6 +41,7 @@ except:
     pass
 
 SPECS_FILENAME='.filespecs.p'
+ARCH_FILENAME='.kfilespecs.p'
 
 class DoesNotExist(Exception):
     pass
@@ -134,16 +135,16 @@ class PathIndex:
         self.ignore_pattern=ignore_pattern
         self.folder_path=folder
         self.specs_dict=True
+        self.files={}
         self.scan_or_rescan()
 
 
     def scan(self,specs_dict=False,scan_contents=True):
         """make filespecs dict keyed to path"""
-        self.files={}
         self.specs_dict=specs_dict
-        counter=0
+        self.counter=0
         #print(self.__dict__)
-        
+        print('scanning ...',self.folder_path)
         for dirName, subdirs, fileList in os.walk(self.folder_path): #go through every subfolder in a folder
             log.info(f'Scanning {dirName} ...')
             print(f'Scanning {dirName} ...')
@@ -151,30 +152,35 @@ class PathIndex:
                 if self.ignore_pattern and filename.startswith(self.ignore_pattern):
                     pass
                 else:
-                    counter+=1
+                    self.counter+=1
                     path = os.path.join(dirName, filename)
                     if specs_dict:
                         self.update_record(path,scan_contents=scan_contents)
                     else:
                         self.files[path]=FileSpecs(path)
-                    if counter%1000==0:
-                        log.info(f'Scanned {counter} files.. dumping output')
+                    if self.counter%1000==0:
+                        log.info(f'Scanned {self.counter} files.. dumping output')
                         self.save()
-                    elif counter%200==0:
-                        log.info(f'Scanned {counter} files)')
+                    elif self.counter%200==0:
+                        log.info(f'Scanned {self.counter} files)')
 
             for subfolder in subdirs:
                 if self.ignore_pattern and subfolder.startswith(self.ignore_pattern):
                     subdirs.remove(subfolder)
                 else:
                     path= os.path.join(dirName,subfolder)
-                    if specs_dict:
-                        spec=FileSpecs(path,folder=True)
-                        docspec=spec.__dict__
-                        self.files[path]=docspec
-                    else:
-                        self.files[path]=FileSpecs(path,folder=True)
+                    self.update_folder(path)
 
+
+    def update_folder(self,path):
+        if self.specs_dict:
+            spec=FileSpecs(path,folder=True)
+            docspec=spec.__dict__
+            self.files[path]=docspec
+        else:
+            self.files[path]=FileSpecs(path,folder=True)        
+        
+    
     def hash_scan(self):
         self.hash_index={}
 
@@ -190,7 +196,7 @@ class PathIndex:
                     #log.debug(f'Contents hash: {contents_hash}')
                     self.hash_index.setdefault(contents_hash,[]).append(filespec)
 
-        self.save()    
+#        self.save()    
     def check_pickle(self):
         return os.path.exists(os.path.join(self.folder_path,SPECS_FILENAME))
 
@@ -245,8 +251,8 @@ class PathIndex:
         
     def scan_or_rescan(self):
         """scan filespecs, rescan if exists"""
-        #print(self.folder_path)
         if self.check_pickle():
+            
             try:
                 self.get_saved_specs()
             except Exception as e:
@@ -271,6 +277,7 @@ class PathIndex:
         
     def rescan(self):
         """rescan changed files in dictionary of filespecs"""
+        print('rescanning ... ',self.folder_path)
         self.list_directory() #rescan original disk
         deletedfiles=[]
         
@@ -292,8 +299,11 @@ class PathIndex:
         log.info('Checking unscanned files')
         counter=0
         for docpath in self.filelist:
-            try:
-                self.update_record(docpath)
+            try:            
+                if os.path.isdir(docpath):
+                    self.update_folder(docpath)
+                else:
+                    self.update_record(docpath)
             except Exception as e:
                 log.info(f'Update failed for {docpath}: {e}')
             #log.debug(f'Added {docpath} to index')
@@ -311,19 +321,17 @@ class PathIndex:
    
     
     def update_record(self,path, scan_contents=True):
+        spec=FileSpecs(path)
         if self.specs_dict:
-            spec=FileSpecs(path)
             docspec=spec.__dict__
             docspec.update({'last_modified':spec.last_modified})
             docspec.update({'length':spec.length})
             if scan_contents:
                 docspec.update({'contents_hash':spec.contents_hash})
                 self.files[path]=docspec
-            else:
-                self.files[path]=FileSpecs(path)
+        else:
+            self.files[path]=FileSpecs(path)
                 
-
-    
     def list_directory(self):
         filelist=[]
         counter=0
@@ -345,14 +353,42 @@ class PathIndex:
                     path= os.path.join(dirName,subfolder)
                     filelist.append(path)
         self.filelist=filelist
-        self.save()
+#        self.save()
+
 class PathFileIndex(PathIndex):
     """index of FileSpec objects"""
     def __init__(self,folder,specs_dict=False,scan_contents=True,ignore_pattern='X-'):
         self.folder_path=folder
         self.ignore_pattern=ignore_pattern
+        self.files={}
         self.scan(specs_dict=specs_dict,scan_contents=scan_contents)
 
+
+class BigFileIndex(PathIndex):
+    """index of Filespec objects using Klepto"""
+    def __init__(self,folder,specs_dict=True,scan_contents=True,ignore_pattern='X-'):
+        self.folder_path=folder
+        self.ignore_pattern=ignore_pattern
+        self.specs_dict=specs_dict
+        self.files=file_archive(os.path.join(self.folder_path,ARCH_FILENAME),cache=False)
+        self.files.load()
+        print('loaded files ..',len(self.files))
+        self.scan_or_rescan()
+        self.files.load() #after scanning - load back entire folder scan into memory.
+        
+    def save(self):
+        print('saving',len(self.files))
+        self.files.dump() #save from cache to filestore
+        self.files.clear() #clear memory cache
+
+    def check_pickle(self):
+        if self.files:
+            return True #the pickled file is loaded or created on _init
+        else:
+            return False
+
+    def get_saved_specs(self):
+        pass
 
 
 class StoredPathIndex(PathIndex):
@@ -360,11 +396,24 @@ class StoredPathIndex(PathIndex):
     def __init__(self,folder_path,ignore_pattern='X-'):
         self.folder_path=folder_path
         self.ignore_pattern=ignore_pattern
-        if self.check_pickle():
-            self.get_saved_specs()
-        else:
+        if not self.check_pickle():
             raise DoesNotExist('No stored filespecs')
-                        
+
+class StoredBigFileIndex(BigFileIndex):
+    def __init__(self,folder,specs_dict=True,scan_contents=True,ignore_pattern='X-'):
+        self.folder_path=folder
+        self.ignore_pattern=ignore_pattern
+        self.specs_dict=specs_dict
+        self.files=file_archive(os.path.join(self.folder_path,ARCH_FILENAME),cache=False)
+        self.files.load()
+        print('loaded files ..',len(self.files))
+        if not self.check_pickle():
+            raise DoesNotExist('No stored filespecs')
+        self.hash_scan()
+        self.files.load()
+
+
+           
 class HashIndex(PathIndex):
     def __init__(self,ignore_pattern='X-'):
         self.ignore_pattern=ignore_pattern

@@ -1,4 +1,4 @@
-import json
+import json,time
 from klepto.archives import *
 
 DEFAULT_ROOT_FILENAME='R:/temp/dumper'
@@ -13,7 +13,6 @@ def dumpthis(_dict):
     for key in _dict:
         counter+=1
         chunk_data[key]=_dict[key]
-        
         if counter%40000==0:
             chunk+=1
             result=save_chunk(chunk_data,chunk)
@@ -60,23 +59,30 @@ def archive_dict(_dict,archive=DEFAULT_ARCHIVE):
         counter+=1
         arch[key]=value
         if counter%20000==0:
-            arch.sync()
+            arch.dump()
             print('saving to disk')
     
 def archive_direct(_dict,archive=DEFAULT_ARCHIVE):
     arch=file_archive(archive,cache=False)
+    print(f'archiving to {arch}')
     counter=0
     for key,value in _dict.items():
         counter+=1
-        arch.archive[key]=value
-#        if counter%20000==0:
-#            arch.sync()
-#            print('saving to disk')
+        arch[key]=value
+        if counter%20000==0:
+            start=time.time()
+            print('saving to disk ...')
+            arch.dump()
+            end=time.time()
+            duration=end-start
+            print(f'.. completed in {duration:.4f} seconds')
+            arch.clear() #clear memory cache
+
 def json_to_klepto(root_filename=DEFAULT_ROOT_FILENAME,archive=DEFAULT_ARCHIVE):
     _dict=load_this(start=0,root_filename=root_filename)
-    archive_dict(_dict,archive=archive)
+    archive_direct(_dict,archive=archive)
     
-    
+
     
     
     
