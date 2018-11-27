@@ -1,7 +1,8 @@
+# -*- coding: utf-8 -*-
 import sys, logging, redis,time
 from watchdog.observers import Observer
 from watchdog.events import LoggingEventHandler, FileSystemEventHandler
-from SearchBox.watcher import watch_dispatch2 as watch_dispatch
+from SearchBox.watcher import watch_dispatch
 
 # handles sync event actions, only modified 
 class MySyncHandler(FileSystemEventHandler):
@@ -46,20 +47,19 @@ class MySyncHandler(FileSystemEventHandler):
 #        watch_dispatch.Index_Dispatch('modified',event._src_path,None)
 #        
 #
-
-def modify_check(timeout):
-    #print(f'Modification queues: {watch_dispatch.MODIFIED_FILES}, TIMES: {watch_dispatch.MODIFIED_TIMES}')
-    modified_done=[]
-    for _filepath in watch_dispatch.MODIFIED_TIMES:
-        _now=time.time()
-        _modtime=watch_dispatch.MODIFIED_TIMES[_filepath]
-        if _now-_modtime>timeout:
-            if watch_dispatch.update_filepath(_filepath):
-                modified_done.append(_filepath)
-            else:
-                modified_done.append(_filepath)
-    for _filepath in modified_done:
-        watch_dispatch.MODIFIED_TIMES.pop(_filepath)
+#def modify_check(timeout):
+#    #print(f'Modification queues: {watch_dispatch.MODIFIED_FILES}, TIMES: {watch_dispatch.MODIFIED_TIMES}')
+#    modified_done=[]
+#    for _filepath in watch_dispatch.MODIFIED_TIMES:
+#        _now=time.time()
+#        _modtime=watch_dispatch.MODIFIED_TIMES[_filepath]
+#        if _now-_modtime>timeout:
+#            if watch_dispatch.update_filepath(_filepath):
+#                modified_done.append(_filepath)
+#            else:
+#                modified_done.append(_filepath)
+#    for _filepath in modified_done:
+#        watch_dispatch.MODIFIED_TIMES.pop(_filepath)
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO,
@@ -74,8 +74,8 @@ if __name__ == "__main__":
     try:
         while True:
             time.sleep(1)
-            modify_check(5)
-            
+            watch_dispatch.modify_check(5)
+            watch_dispatch.task_check()
     except KeyboardInterrupt:
         observer.stop()
     observer.join()

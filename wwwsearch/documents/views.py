@@ -16,14 +16,14 @@ from ownsearch.hashScan import HexFolderTable as hex
 from ownsearch.hashScan import hashfile256 as hexfile
 from ownsearch.hashScan import FileSpecTable as filetable
 from .file_utils import directory_tags
-import datetime, hashlib, os, logging, requests, json
+import datetime, hashlib, os, logging, requests, json, redis
 from . import indexSolr, updateSolr, solrDeDup, solrcursor,correct_paths,documentpage,file_utils
 import ownsearch.solrJson as solr
-
 from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.auth.decorators import login_required
 log = logging.getLogger('ownsearch.docs.views')
 from configs import config
+from SearchBox.watcher import watch_dispatch
 
 BASEDIR=config['Models']['collectionbasepath'] #get base path of the docstore
 
@@ -31,13 +31,27 @@ BASEDIR=config['Models']['collectionbasepath'] #get base path of the docstore
 class NoIndexSelected(Exception):
     pass
     
-
 @staff_member_required()
 def index(request):
     """ Display collections, options to scan,list,extract """
     try:
-        #get the core , or set the the default    
+        
+
         page=documentpage.CollectionPage()
+
+        job_id=request.session.get('tasks')
+        log.info(f'Stored jobs: {job_id}')                
+        if job_id:
+            job=f'SB_TASK.{job_id}'
+            log.debug(f'job: {job}')
+            page.results=watch_dispatch.get_extract_results(job)
+            log.debug(f'task results: {page.results}')
+            page.job=job
+        else:
+            page.results=None
+            page.job=None
+        #get the core , or set the the default    
+
         page.getcores(request.user,request.session.get('mycore')) #arguments: user, storedcore
         page.chooseindexes(request.method,request_postdata=request.POST)
         page.get_collections() #filter authorised collections
@@ -45,7 +59,7 @@ def index(request):
         log.debug('CORE ID: {} COLLECTIONS: {}'.format(page.coreID,page.authorised_collections))    
         
         request.session['mycore']=page.coreID
-        return render(request, 'documents/scancollection.html',{'form': page.form, 'latest_collection_list': page.authorised_collections})
+        return render(request, 'documents/scancollection.html',{'form': page.form, 'latest_collection_list': page.authorised_collections,'results':page.results, 'job':page.job})
     except Exception as e:
         log.error('Error: {}'.format(e))
         return HttpResponse('Can\'t find core/collection - retry')
@@ -64,6 +78,8 @@ def getcores(page,request):
 @staff_member_required()
 def listfiles(request):
 
+    job_id=request.session.get('tasks')
+    log.info(f'Stored jobs: {job_id}')
     page=documentpage.CollectionPage()
     
     try:
@@ -86,25 +102,43 @@ def listfiles(request):
             elif 'scan' in request.POST:
             #>> DO THE SCAN ON THIS COLLECTION
                 mycore.ping()
-                scanner=updateSolr.scandocs(thiscollection)
-                if not scanner.scan_error:
-                    return HttpResponse (" <p>Scanned {} docs<p>New: {} <p>Deleted: {}<p> Moved: {}<p>Unchanged: {}<p>Changed: {}".format(scanner.scanned_files,  scanner.new_files_count,scanner.deleted_files_count,scanner.moved_files_count,scanner.unchanged_files_count,scanner.changed_files_count))
+                job_id=watch_dispatch.make_scan_job(thiscollection.id,_test=False)
+                if job_id:
+                    request.session['tasks']=job_id
+                    return redirect('docs_index')
+#                    return HttpResponse(f"Indexing task created: id \"{job_id}\"")
                 else:
-                    return HttpResponse ("Scan Failed!")
+                    return HttpResponse("Scannning of this collection already queued")
+ 
+#                scanner=updateSolr.scandocs(thiscollection)
+#                if not scanner.scan_error:
+#                    return HttpResponse (" <p>Scanned {} docs<p>New: {} <p>Deleted: {}<p> Moved: {}<p>Unchanged: {}<p>Changed: {}".format(scanner.scanned_files,  scanner.new_files_count,scanner.deleted_files_count,scanner.moved_files_count,scanner.unchanged_files_count,scanner.changed_files_count))
+#                else:
+#                    return HttpResponse ("Scan Failed!")
     #INDEX DOCUMENTS IN COLLECTION IN SOLR
             elif 'index' in request.POST:
                 mycore.ping()
-                ext=indexSolr.Extractor(thiscollection,mycore) #GO INDEX THE DOCS IN SOLR
-                return HttpResponse ("Indexing.. <p>indexed: {} <p>skipped: {}<p>{}<p>failed: {}<p>{}".format(ext.counter,ext.skipped,ext.skippedlist,ext.failed,ext.failedlist))
+                
+                job_id=watch_dispatch.make_index_job(thiscollection.id,_test=False)
+                #ext=indexSolr.Extractor(thiscollection,mycore) #GO INDEX THE DOCS IN SOLR
+                request.session['tasks']=job_id
+                return redirect('docs_index')
+##                    return HttpResponse(f"Indexing task created: id \"{job_id}\"")
+#                else:
+#                    return HttpResponse("Indexing of this collection already queued")
                 
     #INDEX DOCUMENTS WITH RETRY
             elif 'index-retry' in request.POST:
                 mycore.ping()
-                ext=indexSolr.Extractor(thiscollection,mycore,forceretry=True) #GO INDEX THE DOCS IN SOLR
                 
-                return HttpResponse ("Indexing with retry.. <p>indexed: {} <p>skipped: {}<p>{}<p>failed: {}<p>{}".format(ext.counter,ext.skipped,ext.skippedlist,ext.failed,ext.failedlist))
-                                
-                
+                job_id=watch_dispatch.make_index_job(thiscollection.id,_test=False,force_retry=True)
+                #ext=indexSolr.Extractor(thiscollection,mycore) #GO INDEX THE DOCS IN SOLR
+                if job_id:
+                    request.session['tasks']=job_id
+                    return redirect('docs_index')
+#                    return HttpResponse(f"Indexing task created: id \"{job_id}\"")
+                else:
+                    return HttpResponse("Indexing of this collection already queued")
                 
     #INDEX VIA ICIJ 'EXTRACT' DOCUMENTS IN COLLECTION IN SOLR
             elif 'indexICIJ' in request.POST:

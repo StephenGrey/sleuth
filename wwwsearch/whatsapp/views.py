@@ -4,6 +4,7 @@ View WhatsApp conversations
 
 """
 from __future__ import unicode_literals
+from django.contrib.auth.decorators import login_required
 from django.shortcuts import render
 from django.http import JsonResponse, HttpResponse
 from django.db.models import Q,Count #Count to count up unique entries
@@ -15,6 +16,7 @@ from .conversation import Conversation, get_name, list_messages
 log=logging.getLogger('ownsearch.whatsapp.views')
 
 
+@login_required
 def home(request):    
     """To/From list of contacts with message count"""
     try:
@@ -24,6 +26,7 @@ def home(request):
         log.error('Error fetching list of WhatsApp messages: {}'.format(e))
         return HttpResponse('Error fetching list of WhatsApp messages')
 
+@login_required
 def messages(request,filter1='',filter2=''):
     """Display a WhatsApp conversation"""
     try:
@@ -36,7 +39,7 @@ def messages(request,filter1='',filter2=''):
         log.error('Error fetching WhatsApp conversation: {}'.format(e))
         return HttpResponse('Error fetching WhatsApp conversation')
         
-
+@login_required
 def post_namefiles(request):
     """Use Ajax to update records for WhatsApp contact"""
     errorjson={'saved':False, 'verified':False}

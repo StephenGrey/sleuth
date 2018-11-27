@@ -20,7 +20,10 @@ try:
     from urllib.parse import quote #python3
 except ImportError:
     from urllib import quote #python2
+import time
+from .redis_cache import redis_connection as r
 
+#from watcher import watch_dispatch2 as watch_dispatch
 
 try:
     IGNORELIST=config['Solr']['ignore_list'].split(',')
@@ -51,7 +54,7 @@ class DuplicateRecords(Exception):
 
 class Extractor():
     """extract a collection of docs into solr"""
-    def __init__(self,collection,mycore,forceretry=False,useICIJ=False,ocr=True,docstore=DOCSTORE):
+    def __init__(self,collection,mycore,forceretry=False,useICIJ=False,ocr=True,docstore=DOCSTORE,job=None):
         
         if not isinstance(mycore,s.SolrCore) or not isinstance(collection,Collection):
             raise BadParameters("Bad parameters for extraction")
@@ -61,16 +64,18 @@ class Extractor():
         self.useICIJ=useICIJ
         self.ocr=ocr
         self.docstore=docstore
+        self.job=job
         self.counter,self.skipped,self.failed=0,0,0
         self.skippedlist,self.failedlist=[],[]
 
         self.filelist=File.objects.filter(collection=collection)
-        
+        self.target_count=len(self.filelist)
+        self.update_extract_results()
         self.extract()
-    
+        self.update_extract_results()
     
     def extract_file(self,file):
-        #log.debug(file.__dict__)
+        
         if self.skip_file(file):
             pass
             #log.debug('Skipping {}'.format(file))
@@ -161,14 +166,24 @@ class Extractor():
                 log.debug('Saving updated file info in database')
                 file.save()
                 self.failedlist.append(file.filepath)
-
+        if self.job and r:
+            self.update_extract_results()
+                
+                
     def extract(self):
         #main loop
         for _file in self.filelist:
-            self.extract_file(_file)
+            try:
+                self.extract_file(_file)
+            except Exception as e:
+                log.info('PATH : '+_file.filepath+' indexing failed')
+                _file.indexedTry=True  #set flag to say we've tried
+                _file.save()
+                raise e
 
     def update_existing_meta(self,file,existing_doc):
         """update meta of existing solr doc"""
+        result=True
         file.solrid=existing_doc.id
         log.debug('Existing docpath: {}'.format(existing_doc.data.get('docpath')))
         log.debug('Existing parent path hashes: {}'.format(existing_doc.data.get(self.mycore.parenthashfield)))
@@ -248,9 +263,16 @@ class Extractor():
             
             if result:
                 result=updatetags(solrid,self.mycore,field_to_update=self.mycore.docnamesourcefield,value='Folder: {}'.format(file.filename))
-                
-        
         return result
+    #REDIS UPDATES
+    
+    def update_extract_results(self):
+        processed=self.counter+self.skipped+self.failed
+        progress=f'{((processed/self.target_count)*100):.0f}'
+        progress_str=f"{processed} of {self.target_count} files" #0- replace 0 for decimal places
+        log.debug(f'Progress: {progress_str}')
+        r.hmset(self.job,{'progress':progress,'progress_str':progress_str,'target_count':self.target_count,'counter':self.counter,'skipped':self.skipped,'failed':self.failed,'failed_list':self.failedlist})
+    
 
 class UpdateMeta(Extractor):
     def __init__(self,mycore,file,existing_doc,docstore=DOCSTORE):
@@ -317,6 +339,9 @@ class ExtractFile():
         #log.debug(jsondata)
         
         #newlastmodified=s.timestringGMT(file.last_modified)
+
+
+
     
 #SOLR METHODS
 

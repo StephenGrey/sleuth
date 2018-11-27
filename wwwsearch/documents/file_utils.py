@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-import os, logging,hashlib,re,datetime,unicodedata,pickle
+import os, logging,hashlib,re,datetime,unicodedata,pickle,time
 from pathlib import Path
 from collections import defaultdict
 from klepto.archives import *
@@ -7,6 +7,8 @@ from klepto.archives import *
 try:
     from django.http import HttpResponse
     from django.template import loader
+    from .redis_cache import redis_connection as r
+
 except:
     #usable outside Django
     pass
@@ -131,28 +133,39 @@ class FileSpecs:
         return "File: {}".format(self.path)
 
 class PathIndex:
-    def __init__(self,folder,ignore_pattern='X-'):
+    def __init__(self,folder,ignore_pattern='X-',job=None):
         self.ignore_pattern=ignore_pattern
         self.folder_path=folder
         self.specs_dict=True
         self.files={}
         self.scan_or_rescan()
+        self.job=job
 
 
     def scan(self,specs_dict=False,scan_contents=True):
         """make filespecs dict keyed to path"""
         self.specs_dict=specs_dict
         self.counter=0
+        self.total= sum([len(subdir)+len(files) for r, subdir, files in os.walk(self.folder_path)])
+        if self.job:
+            log.info(f'Scanjob: \'{self.job}\'')
+        
         #print(self.__dict__)
-        print('scanning ...',self.folder_path)
+        print(f'scanning ... {self.folder_path}')
         for dirName, subdirs, fileList in os.walk(self.folder_path): #go through every subfolder in a folder
             log.info(f'Scanning {dirName} ...')
             print(f'Scanning {dirName} ...')
+            
+            
+            if self.job:
+                self.update_results()
+                
             for filename in fileList: #now through every file in the folder/subfolder
+                self.counter+=1
                 if self.ignore_pattern and filename.startswith(self.ignore_pattern):
                     pass
                 else:
-                    self.counter+=1
+                    
                     path = os.path.join(dirName, filename)
                     if specs_dict:
                         self.update_record(path,scan_contents=scan_contents)
@@ -165,11 +178,23 @@ class PathIndex:
                         log.info(f'Scanned {self.counter} files)')
 
             for subfolder in subdirs:
+                self.counter+=1
                 if self.ignore_pattern and subfolder.startswith(self.ignore_pattern):
                     subdirs.remove(subfolder)
                 else:
                     path= os.path.join(dirName,subfolder)
                     self.update_folder(path)
+
+    def update_results(self):
+        log.debug(f'scanned files: {self.counter}')
+        progress=f'{((self.counter/self.total)*100):.0f}'
+        progress_str=f" disk {self.counter} of {self.total} files/folders " #0- replace 0 for decimal places
+        log.debug(f'Progress: {progress_str}')
+        r.hmset(self.job,{
+            'progress':progress,
+            'progress_str':progress_str,
+            'total':self.total,
+            })
 
 
     def update_folder(self,path):
@@ -357,11 +382,13 @@ class PathIndex:
 
 class PathFileIndex(PathIndex):
     """index of FileSpec objects"""
-    def __init__(self,folder,specs_dict=False,scan_contents=True,ignore_pattern='X-'):
+    def __init__(self,folder,specs_dict=False,scan_contents=True,ignore_pattern='X-',job=None):
+        self.job=job
         self.folder_path=folder
         self.ignore_pattern=ignore_pattern
         self.files={}
         self.scan(specs_dict=specs_dict,scan_contents=scan_contents)
+
 
 
 class BigFileIndex(PathIndex):
@@ -443,8 +470,8 @@ def changed(oldspecs):
             return True
     return False
 
-def filespecs(parent_folder,specs_dict=False,scan_contents=True): #  
-    specs=PathFileIndex(parent_folder,specs_dict=specs_dict,scan_contents=scan_contents)
+def filespecs(parent_folder,specs_dict=False,scan_contents=True,job=None): #  
+    specs=PathFileIndex(parent_folder,specs_dict=specs_dict,scan_contents=scan_contents,job=job)
     return specs.files
 
 def hashspecs(parent_folder): #  

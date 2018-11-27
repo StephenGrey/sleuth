@@ -14,7 +14,7 @@ LOGIN_URL="/admin/login/"
 API_URL="/documents/api/changes/"
 
 log.info('launching API')
-
+from SearchBox.watcher import watch_dispatch
 
 try:
     REMOTE_URL=userconfig['Remote']['remote_url']
@@ -64,7 +64,7 @@ class Updater():
             #print(posturl)
             response=self.session.post(posturl,data={'username':self.remote_user,'password':self.remote_password},headers=headers)
             #print(response.__dict__)
-            assert response.url=='https://zerobeach.ddns.net/documents/api/changes/1'
+            assert response.url=='{}/documents/api/changes/1'.format(REMOTE_URL)
             assert response.status_code==200
             self.logged_in=True        
         except Exception as e:
@@ -124,7 +124,23 @@ def api_changes_json(user_edit_id=1):
     return jsondata
 
 
+@staff_member_required()
+def api_task_progress(request,job):
+    """API to check progress of task"""
+    jsonresponse={'error':True, 'results':None,'message':f'Unknown error checking task {job}'}    
+    try:
+        results=watch_dispatch.r.hgetall(job)
+        log.debug(job,results)
+        #{'counter':ext.counter,'skipped':ext.skipped,'failed':ext.failed,'failed_list':ext.failedlist})
+        jsonresponse={'error':False, 'results':results,'message':'done'}
+    except Exception as e:
+        log.debug(e)
+    return JsonResponse(jsonresponse)
 
+def api_clear_tasks(request):
+    """clear task from session"""
+    request.session['tasks']=''
+    return JsonResponse({'error':False})
 
 #RECEIVE FROM API
 

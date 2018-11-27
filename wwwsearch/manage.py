@@ -1,9 +1,14 @@
-#!/usr/bin/env python
+# -*- coding: utf-8 -*-
 import os
 import sys
 
 if __name__ == "__main__":
     os.environ.setdefault("DJANGO_SETTINGS_MODULE", "myproject.settings")
+    import myproject.startup as startup
+    startup.run()
+    TASKS=startup.TASKS
+    #print('manage.py: started up background tasks')
+
     try:
         from django.core.management import execute_from_command_line
     except ImportError:
@@ -19,4 +24,16 @@ if __name__ == "__main__":
                 "forget to activate a virtual environment?"
             )
         raise
-    execute_from_command_line(sys.argv)
+    
+    try:
+        execute_from_command_line(sys.argv)
+    
+    finally:
+        print('Closing down background tasks')
+    
+        for t in TASKS:
+            t.stop()
+            t.stopper()
+        
+        
+    

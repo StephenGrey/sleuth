@@ -214,10 +214,10 @@ class SequenceByDate(Updater):
 #            #EXAMPLE FILTER = TEST IF ANY DATA IN FIELD - DATABASE_ORIGINALID _ AND UPDATE OTHERS
 
 
-def scandocs(collection,delete_on=True,docstore=DOCSTORE):
+def scandocs(collection,delete_on=True,docstore=DOCSTORE,job=None):
     """SCAN AND MAKE UPDATES TO BOTH LOCAL FILE META DATABASE AND SOLR INDEX"""
     
-    scanner=changes.Scanner(collection)  #get dictionary of changes to file collection (compare disk folder to meta database)
+    scanner=changes.Scanner(collection,job=job)  #get dictionary of changes to file collection (compare disk folder to meta database)
     
     try:
         #make any changes to local file database
@@ -548,13 +548,21 @@ def metaupdate(collection,test_run=False):
     cores=s.getcores() #fetch dictionary of installed solr indexes (cores)
     mycore=cores[collection.core.id]
     #main code
+    
     filelist=File.objects.filter(collection=collection)
         
     for _file in filelist: #loop through files in collection
-        if _file.indexUpdateMeta and _file.solrid: #do action if indexUpdateMeta flag is true; and there is a stored solrID
-            metaupdate_file(_file,mycore,test_run=test_run)
+        log.debug(f'File: {_file} Updatemetaflag: \'{_file.indexUpdateMeta}\'  ID:\'{_file.solrid}\'')
+        if _file.solrid:
+            #do action if indexUpdateMeta flag is true; and there is a stored solrID
+            if _file.indexUpdateMeta:
+                metaupdate_file(_file,mycore,test_run=test_run)
+            else:
+                #log.debug('file not flagged for meta update')
+                pass
         else:
-            log.debug('[metaupdate]file not found in solr index')
+            #log.debug('[metaupdate]file not found in solr index')
+            pass
 
 def metaupdate_rawfile(_file,test_run=False):
     cores=s.getcores() #fetch dictionary of installed solr indexes (cores)

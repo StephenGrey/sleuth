@@ -742,6 +742,9 @@ def getcores():
         pass
     return cores
 
+def core_from_collection(_collection):
+    return SolrCore(_collection.core.corename)
+    
 
 def getSortAttrib(sorttype,core):
     if sorttype == 'documentID':
