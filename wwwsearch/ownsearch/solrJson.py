@@ -4,6 +4,7 @@ from __future__ import print_function
 from builtins import str #backwards to 2.X
 #from bs4 import BeautifulSoup as BS
 import requests, requests.exceptions
+from requests.exceptions import ConnectionError, RequestException, ConnectTimeout, ReadTimeout
 import os, logging
 import re, json
 from documents.models import File,Collection
@@ -73,6 +74,7 @@ class SolrCore:
             self.pathhashfield=config[core]['hashpath']
             self.datefield=config[core]['datefield']
             self.docnamesourcefield=config[core]['docnamesource']
+            self.docnamesourcefield2=config[core]['docnamesource2']
             self.datesourcefield=config[core]['datesourcefield']
             #optional:
             self.datesourcefield2=config[core].get('datesourcefield2')
@@ -117,7 +119,7 @@ class SolrCore:
             else:
                 log.debug('Core status: '+str(jres))
                 return False
-        except requests.exceptions.ConnectionError as e:
+        except ConnectionError as e:
             log.debug(e)
 #            print('no connection to solr server')
             raise SolrConnectionError('Solr Connection Error')
@@ -452,7 +454,7 @@ def solrSearch(q,sorttype,startnumber,core,filters={},faceting=False,start_date=
         #print(soup.prettify())    
 
         res=getlist(jres,startnumber,core=core)
-    except requests.exceptions.RequestException as e:
+    except RequestException as e:
         reslist=[]
         numbers=-2
         if jres:
@@ -481,11 +483,11 @@ def resGet(url,timeout=10):
             
         else:
             return res
-    except requests.exceptions.ConnectTimeout as e:
-        log.debug('url{} error:{}'.format(url,e))
+    except ConnectTimeout as e:
+        log.error('url{} error:{}'.format(url,e))
         raise SolrTimeOut
-    except requests.exceptions.ConnectionError as e:
-        log.debug('url{} error:{}'.format(url,e))
+    except ConnectionError as e:
+        log.error('url{} error:{}'.format(url,e))
 #            print('no connection to solr server')
         raise SolrConnectionError('Solr Connection Error')
 
@@ -515,11 +517,11 @@ def resPostfile(url,path,timeout=1):
             else:
                 log.debug('Post result {}'.format(res.content))
                 raise PostFailure(resstatus)
-    except requests.exceptions.ConnectTimeout as e:
+    except ConnectTimeout as e:
         raise SolrTimeOut
-    except requests.exceptions.ReadTimeout as e:
+    except ReadTimeout as e:
         raise SolrTimeOut
-    except requests.exceptions.RequestException as e:
+    except RequestException as e:
         log.debug('Exception in postSolr: {}{}'.format(str(e),e))
         raise PostFailure
     except ValueError as e:

@@ -147,7 +147,7 @@ def index_file2(_file):
     pass
 
 
-def make_index_job(collection_id,_test=False,force_retry=False):
+def make_index_job(collection_id,_test=False,force_retry=False,use_icij=False):
     job_id=f'CollectionExtract.{collection_id}'
     makejob=r.sadd('SEARCHBOX_JOBS',job_id)
     if not makejob:
@@ -155,7 +155,10 @@ def make_index_job(collection_id,_test=False,force_retry=False):
         return job_id
     else:
         job=f'SB_TASK.{job_id}'
-        r.hset(job,'task','extract_collection_force_retry') if force_retry else r.hset(job,'task','extract_collection')
+        if use_icij:
+            r.hset(job,'task','extract_collection_force_retry_icij') if force_retry else r.hset(job,'task','extract_collection_icij')
+        else:
+            r.hset(job,'task','extract_collection_force_retry') if force_retry else r.hset(job,'task','extract_collection')
         r.hset(job,'collection_id',collection_id)
         r.hset(job,'status','queued')
         r.hset(job,'test',_test)
@@ -188,14 +191,15 @@ def task_check():
         if r.exists(job):
             log.debug(f'Processing {job}')
             task=r.hget(job,'task')
-            if task=='extract_collection' or task=='extract_collection_force_retry':
+            if task=='extract_collection' or task=='extract_collection_force_retry' or task=='extract_collection_icij' or task=='extract_collection_force_retry_icij':
+                useICIJ= True if task[-5:]=='_icij' else False
                 collection_id=r.hget(job,'collection_id')
                 r.hset(job,'status','started')
                 _test=True if r.hget(job,'test')=='True' else False
                 log.info('This is a test') if _test else None
                 log.info(f'indexing collection {collection_id}')
                 try:
-                    index_collection_id(job,collection_id,_test) if task=='extract_collection' else index_collection_id(job,collection_id,_test,forceretry=True)
+                    index_collection_id(job,collection_id,_test,useICIJ=useICIJ) if task=='extract_collection' else index_collection_id(job,collection_id,_test,forceretry=True,useICIJ=useICIJ)
                 except updateSolr.s.SolrConnectionError as e:
                     log.error(f'Solr Connection Error: {e}')
                     r.hset(job,'status','error')
@@ -243,10 +247,10 @@ def collection_from_id(collection_id):
     _mycore=indexSolr.s.core_from_collection(_collection)
     return _collection,_mycore
 
-def index_collection_id(job,collection_id,_test=False,forceretry=False):
+def index_collection_id(job,collection_id,_test=False,forceretry=False,useICIJ=False):
     try:
         _collection,_mycore=collection_from_id(collection_id)
-        ext=index_collection(_collection,_mycore,_test=_test,job=job)
+        ext=index_collection(_collection,_mycore,_test=_test,job=job,useICIJ=useICIJ)
         r.hset(job,'status','completed')
         if ext:
             r.hmset(job,{'counter':ext.counter,'skipped':ext.skipped,'failed':ext.failed,'failed_list':ext.failedlist})
@@ -257,11 +261,11 @@ def index_collection_id(job,collection_id,_test=False,forceretry=False):
         r.hset(job,'message','collection not valid')
         r.srem('COLLECTIONS_TO_INDEX',collection_id)
                 
-def index_collection(thiscollection,mycore,_test=False,job=None,forceretry=False):
+def index_collection(thiscollection,mycore,_test=False,job=None,forceretry=False,useICIJ=False):
     assert isinstance(thiscollection,Collection)
     assert isinstance(mycore,indexSolr.s.SolrCore)
     log.info(f'extracting {thiscollection} in {mycore}')
-    ext=indexSolr.Extractor(thiscollection,mycore,job=job,forceretry=True) if not _test else None #GO INDEX THE DOCS IN SOLR
+    ext=indexSolr.Extractor(thiscollection,mycore,job=job,forceretry=True,useICIJ=useICIJ) if not _test else None #GO INDEX THE DOCS IN SOLR
     return ext
 
 def modify_check(time_before_check):

@@ -151,10 +151,9 @@ class PathIndex:
             log.info(f'Scanjob: \'{self.job}\'')
         
         #print(self.__dict__)
-        print(f'scanning ... {self.folder_path}')
+        log.debug(f'scanning ... {self.folder_path}')
         for dirName, subdirs, fileList in os.walk(self.folder_path): #go through every subfolder in a folder
             log.info(f'Scanning {dirName} ...')
-            print(f'Scanning {dirName} ...')
             
             
             if self.job:
@@ -610,8 +609,11 @@ def index_maker(path,index_collections,specs=None,masterindex=None, rootpath=DOC
         except PermissionError:
             log.debug(f'Permission error while reading: {root}')
     basepath=os.path.join(rootpath,path)
-    
-    file_count=len([filename for filename in os.listdir(basepath)]) if hidden_files else len([filename for filename in os.listdir(basepath) if not is_hidden_file(filename)])
+    try:
+        file_count=len([filename for filename in os.listdir(basepath)]) if hidden_files else len([filename for filename in os.listdir(basepath) if not is_hidden_file(filename)])
+    except PermissionError as e:
+        log.info(f'Permission error accessing {basepath}')
+        raise EmptyDirectory('Permission denied to display contents of folder')
     if file_count==0:
         raise EmptyDirectory('No files to display in folder')
     log.debug(file_count)

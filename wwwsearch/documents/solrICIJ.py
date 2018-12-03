@@ -3,13 +3,19 @@ from __future__ import unicode_literals, print_function
 from builtins import str
 from ownsearch import solrJson as s
 from documents import updateSolr as u
+from documents import file_utils
 from configs import config
 import subprocess, logging, os
 log = logging.getLogger('ownsearch.solrICIJ')
 
+MEM_MIN_ARG="-Xms512m"
+MEM_MAX_ARG="-Xmx2048m"
+
 class AuthenticationError(Exception):
     pass
 
+class NotFound(Exception):
+    pass
 
 #EXTRACT A FILE TO SOLR INDEX (defined in mycore (instance of solrSoup.SolrCore))
 #returns solrSoup.MissingConfigData error if path missing to extract.jar
@@ -31,16 +37,24 @@ def tryextract(path,mycore,ocr=True):
         extractpath=config['Extract']['extractpath'] #get location of Extract java JAR
     except KeyError as e:
         raise s.MissingConfigData
+    
+    
+    
     solrurl=mycore.url
     target=path
     #extract via ICIJ extract
-    if ocr==True:
-        args=["java","-jar", extractpath, "spew","-o", "solr", "-s"]
-    else:
-        args=["java","-jar", extractpath, "spew","--ocr","no","-o", "solr", "-s"]
-    log.debug('Extract args: {}'.format(args))
+    args=["java","-jar", MEM_MIN_ARG,MEM_MAX_ARG, extractpath, "spew","-o", "solr", "-s"]
     args.append(solrurl)
+
+    if not ocr:
+       args.extend(["--ocr","no"])
+
+    _user,_pass=authenticate()
+    if _user and _pass:
+        args.extend(["-U",_user,"-P",_pass])
+
     args.append(target)
+    log.debug('Extract args: {}'.format(args))
     result=subprocess.Popen(args, stderr=subprocess.PIPE, stdout=subprocess.PIPE,shell=False)
     output,success=parse_out(result)
 #    print(output) #DEBUG : LOG IT instead
@@ -53,23 +67,32 @@ def tryextract(path,mycore,ocr=True):
                     log.debug('Authentication error')
                     raise AuthenticationError
     if success == True:
-        print ('Successful extract')
+        log.info('Successful extract')
         #commit the results
-        print ('Committing ..')
+        log.debug ('Committing ..')
         args=["java","-jar",extractpath,"commit","-s"]
         args.append(solrurl) #tests - add deliberate error
-#        print (args)
-        result=subprocess.Popen(args, stderr=subprocess.PIPE, stdout=subprocess.PIPE,shell=False)
+
+        if _user and _pass:
+            args.extend(["-U",_user,"-P",_pass])
+        
+        try:
+            result=subprocess.Popen(args, stderr=subprocess.PIPE, stdout=subprocess.PIPE,shell=False)
 #        print (result, vars(result)) #
-        commitout,ignore=parse_out(result)
-        if commitout==[]:
-            print ('No errors from commit')
+            commitout,ignore=parse_out(result)
+            log.debug('No errors from commit')
             return True 
+        except AuthenticationError:
+            log.debug('Authentication error')
+        except NotFound:
+            log.debug('Error 404 : Not Found')
+        except Exception as e:
+            log.debug(e)
     return False
     
 def parse_out(result):
     #calling a java app produces no stdout -- but for debug, output it if any
-    log.debug(result.__dict__)
+    #log.debug(result.__dict__)
     if result.stdout:
        sout=bytes(result.stdout.read()).decode()
        if sout != '':
@@ -80,19 +103,24 @@ def parse_out(result):
     postsolr = False
     while True:
         line = bytes(result.stderr.readline()).decode()
-        #print(line)
+        log.debug(f'{line}')
         if line != '':
             linestrip=line.rstrip()
             #print (linestrip)
+            if 'Error 401' in message:
+                    raise AuthenticationError
+            elif 'Error 404' in message:
+                raise NotFound
             if line[:5]=='INFO:':
                 
                 #dump previous message
                 if message:
                     output.append((ltype,message))
                 message=line[5:]
-                log.info(message)
-                if message[:23]==' Document added to Solr':
+                #log.info(f'\"{message}\"')
+                if 'Document added to Solr' in message:
                     postsolr = True
+                
                 ltype='INFO'
             elif line[:8]=='WARNING:':
                 #dump previous message
@@ -118,17 +146,19 @@ def parse_out(result):
 
     return output, postsolr
 
-def postprocess(solrid,sourcetext,hashcontents, core):
-    """ADD ADDITIONAL META NOT ADDED AUTOMATICALLY BY THE EXTRACT METHOD"""
-    #add source info to the extracted document
-    result=u.updatetags(solrid,core,value=sourcetext,standardfield='sourcefield',newfield=False)
-    if result == False:
-        print('Update failed for solrID: {}'.format(solrid))
-        return False
-    #now add source to any children
-    result=childprocess(hashcontents,sourcetext,core)
-    return result
-    
+#def add_source(solrid,sourcetext,hashcontents, core):
+#    """ADD ADDITIONAL META NOT ADDED AUTOMATICALLY BY THE EXTRACT METHOD"""
+#    #add source info to the extracted document
+#    result=u.updatetags(solrid,core,value=sourcetext,field_to_update='sourcefield',newfield=False)
+#    if result == False:
+#        print('Update failed for solrID: {}'.format(solrid))
+#        return False
+#    
+#
+#    #now add source to any children
+#    result=childprocess(hashcontents,sourcetext,core)
+#    return result
+#    
     
 def childprocess(hashcontents,sourcetext,core):
     #also add source to child documents created
@@ -146,3 +176,12 @@ def childprocess(hashcontents,sourcetext,core):
             print(e)
             return False
     return True
+    
+    
+def authenticate():
+    try:
+        return s.SOLR_USER, s.SOLR_PASSWORD
+    except:
+        return Null, Null
+        
+        

@@ -53,13 +53,11 @@ class Scanner:
         self.files_in_database=File.objects.filter(collection=self.collection)
         self.files_on_disk=file_utils.filespecs(self.collection.path,job=self.job) #get dict of specs of files in disk folder(and subfolders)
         
-        log.debug(self.files_on_disk["""/Volumes/Crypt/ownCloud/testfolder/2012-09-23 Mizzi ‘We have a roadmap’.pdf"""].contents_hash)
         self.total=len(self.files_on_disk)
         
     def find_on_disk(self):
         """2. loop through files in the database"""
         self.update_progress('Comparing files on disk with database')
-        time.sleep(5)
         for database_file in self.files_in_database:
             if database_file.filepath in self.files_on_disk:
                 self.find_unchanged(database_file)
@@ -89,7 +87,7 @@ class Scanner:
         """3. make index of remaining files found on disk, using contents hash)"""
         self.update_progress('Adding new files to database')
         log.debug('Adding new files to database')
-        time.sleep(10)
+        #time.sleep(10)
         for newpath in self.files_on_disk:
             if not self.files_on_disk[newpath].folder:
                 newhash=file_utils.get_contents_hash(newpath)

@@ -123,30 +123,24 @@ def listfiles(request):
                 #ext=indexSolr.Extractor(thiscollection,mycore) #GO INDEX THE DOCS IN SOLR
                 request.session['tasks']=job_id
                 return redirect('docs_index')
-##                    return HttpResponse(f"Indexing task created: id \"{job_id}\"")
-#                else:
-#                    return HttpResponse("Indexing of this collection already queued")
                 
     #INDEX DOCUMENTS WITH RETRY
             elif 'index-retry' in request.POST:
                 mycore.ping()
-                
                 job_id=watch_dispatch.make_index_job(thiscollection.id,_test=False,force_retry=True)
-                #ext=indexSolr.Extractor(thiscollection,mycore) #GO INDEX THE DOCS IN SOLR
-                if job_id:
-                    request.session['tasks']=job_id
-                    return redirect('docs_index')
-#                    return HttpResponse(f"Indexing task created: id \"{job_id}\"")
-                else:
-                    return HttpResponse("Indexing of this collection already queued")
+                request.session['tasks']=job_id
+                return redirect('docs_index')
                 
     #INDEX VIA ICIJ 'EXTRACT' DOCUMENTS IN COLLECTION IN SOLR
             elif 'indexICIJ' in request.POST:
-                #print('try to index in Solr')
                 mycore.ping()
-                ext=indexSolr.Extractor(thiscollection,mycore,forceretry=True,useICIJ=True) #GO INDEX THE DOCS IN SOLR
-                return HttpResponse ("Indexing with ICIJ tool.. <p>indexed: {} <p>skipped: {}<p>{}<p>failed: {}<p>{}".format(ext.counter,ext.skipped,ext.skippedlist,ext.failed,ext.failedlist))
-    
+                job_id=watch_dispatch.make_index_job(thiscollection.id,_test=False,force_retry=True,use_icij=True)
+                request.session['tasks']=job_id
+                return redirect('docs_index')                
+                
+#                ext=indexSolr.Extractor(thiscollection,mycore,forceretry=True,useICIJ=True) #GO INDEX THE DOCS IN SOLR
+#                return HttpResponse ("Indexing with ICIJ tool.. <p>indexed: {} <p>skipped: {}<p>{}<p>failed: {}<p>{}".format(ext.counter,ext.skipped,ext.skippedlist,ext.failed,ext.failedlist))
+#    
     #INDEX VIA ICIJ 'EXTRACT' DOCUMENTS IN COLLECTION IN SOLR ::: NO OCR PROCES
             elif 'indexICIJ_NO_OCR' in request.POST :
                 mycore.ping()                

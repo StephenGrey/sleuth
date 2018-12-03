@@ -1,14 +1,28 @@
 # -*- coding: utf-8 -*-
 import os
 import sys
+#
+#print(f'Current directory: {os.getcwd()}')
+#abspath=os.path.abspath(__file__)
+#dname=os.path.dirname(abspath)
+#os.chdir(dname) #this switches current directory to file's directory
+#print(f'Current directory: {os.getcwd()}')
 
 if __name__ == "__main__":
     os.environ.setdefault("DJANGO_SETTINGS_MODULE", "myproject.settings")
-    import myproject.startup as startup
-    startup.run()
-    TASKS=startup.TASKS
+    print (sys.argv)
+    try:
+        if sys.argv[1]=="runserver":
+            
+            import myproject.startup as startup
+            startup.run()
+            TASKS=startup.TASKS
+        else:
+            TASKS=[]
     #print('manage.py: started up background tasks')
-
+    except: 
+        TASKS=[]
+    
     try:
         from django.core.management import execute_from_command_line
     except ImportError:
@@ -26,6 +40,7 @@ if __name__ == "__main__":
         raise
     
     try:
+        sys.argv[0]='manage.py' #to permit this file to be executed from any location
         execute_from_command_line(sys.argv)
     
     finally:

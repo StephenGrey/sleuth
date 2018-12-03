@@ -517,9 +517,13 @@ def post_jsonupdate(data,mycore,timeout=10,test=False):
             statusOK = False
         return jres, statusOK
     except IndexError as e:
-        log.debug('Exception: {}'.format(e))
-        return '',False
-
+        log.error('Exception: {}'.format(e))
+    except s.ConnectionError as e:
+        log.error('Connection Error')
+    except Exception as e:
+        log.error(f'Unknown exception: {e}')
+    return '',False
+        
 def post_jsondoc(data,mycore):
     """post json to solr index"""
     updateurl=mycore.url+'/update/json/docs?commit=true'

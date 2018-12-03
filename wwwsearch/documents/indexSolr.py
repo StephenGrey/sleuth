@@ -11,7 +11,7 @@ log = logging.getLogger('ownsearch.indexsolr')
 from configs import config
 from ownsearch.solrJson import SolrConnectionError
 from ownsearch.solrJson import SolrCoreNotFound
-from documents.updateSolr import delete,updatetags,check_hash_in_solrdata,check_file_in_solrdata,remove_filepath_or_delete_solrrecord,makejson,update as update_meta,get_source,get_collection_source,check_paths
+from documents.updateSolr import delete,updatetags,check_hash_in_solrdata,check_file_in_solrdata,remove_filepath_or_delete_solrrecord,makejson,update as update_meta,get_source,get_collection_source,check_paths,clear_date
 from ownsearch import solrJson as s
 from fnmatch import fnmatch
 from . import solrICIJ,file_utils,changes,time_utils
@@ -24,6 +24,8 @@ import time
 from .redis_cache import redis_connection as r
 
 #from watcher import watch_dispatch2 as watch_dispatch
+
+MAXSIZE=5000000 #5MB max size
 
 try:
     IGNORELIST=config['Solr']['ignore_list'].split(',')
@@ -67,7 +69,6 @@ class Extractor():
         self.job=job
         self.counter,self.skipped,self.failed=0,0,0
         self.skippedlist,self.failedlist=[],[]
-
         self.filelist=File.objects.filter(collection=collection)
         self.target_count=len(self.filelist)
         self.update_extract_results()
@@ -107,6 +108,8 @@ class Extractor():
 
                 else:
                 #now try the extract
+                    file.indexedTry=True  #set flag to say we've tried
+                    file.save()
                     if self.useICIJ:
                         log.info('using ICIJ extract method..')
                         result = solrICIJ.ICIJextract(file.filepath,self.mycore,ocr=self.ocr)
@@ -125,13 +128,12 @@ class Extractor():
                                 sourcetext=file.collection.source.sourceDisplayName
                             except:
                                 sourcetext=''
-                            if sourcetext:
-                                try:
-                                    result=solrICIJ.postprocess(new_id,sourcetext,file.hash_contents,self.mycore)
-                                    if result==True:
-                                        log.debug('Added source: \"{}\" to docid: {}'.format(sourcetext,new_id))
-                                except Exception as e:
-                                    log.error('Cannot add meta data to solrdoc: {}, error: {}'.format(new_id,e))
+
+                            try:
+                                ext=ICIJ_Post_Processor(file.filepath,self.mycore,hash_contents=file.solrid, sourcetext=sourcetext,docstore=self.docstore,test=False)
+                            except Exception as e:
+                                log.error(f'Cannot add meta data to solrdoc: {new_id}, error: {e}')
+                            
                     else:
                         try:
                             extractor=ExtractFile(file.filepath,self.mycore,hash_contents=file.hash_contents,sourcetext=sourcetext,docstore=self.docstore,test=False)
@@ -162,9 +164,6 @@ class Extractor():
             else:
                 log.info('PATH : '+file.filepath+' indexing failed')
                 self.failed+=1
-                file.indexedTry=True  #set flag to say we've tried
-                log.debug('Saving updated file info in database')
-                file.save()
                 self.failedlist.append(file.filepath)
         if self.job and r:
             self.update_extract_results()
@@ -205,6 +204,8 @@ class Extractor():
             log.debug(f'Date from path {date_from_path}')
             if existing_doc.date != date_from_path:
                 log.debug('Date from path altered; update in index')
+                if not clear_date(self.solrid,self.mycore):
+                    log.error('Failed to clear previous date')
                 result=updatetags(file.solrid,self.mycore,value=date_from_path,field_to_update='datesourcefield',newfield=False,test=False)
                 if not result:
                     log.error('Failed in updating date from path')
@@ -231,6 +232,9 @@ class Extractor():
         elif ignorefile(file.filepath) is True:
             #skip this file because it is on ignore list
             log.info('Ignoring: {}'.format(file.filepath))
+        elif file.filesize>MAXSIZE:
+            #skip the extract, it's too big
+            log.info('Skipping {} : too large {}b'.format(file.filepath,file.filesize))
         else:
             #don't skip
             return False
@@ -267,11 +271,15 @@ class Extractor():
     #REDIS UPDATES
     
     def update_extract_results(self):
-        processed=self.counter+self.skipped+self.failed
-        progress=f'{((processed/self.target_count)*100):.0f}'
-        progress_str=f"{processed} of {self.target_count} files" #0- replace 0 for decimal places
-        log.debug(f'Progress: {progress_str}')
-        r.hmset(self.job,{'progress':progress,'progress_str':progress_str,'target_count':self.target_count,'counter':self.counter,'skipped':self.skipped,'failed':self.failed,'failed_list':self.failedlist})
+        if self.job:
+            processed=self.counter+self.skipped+self.failed
+            try:
+                progress=f'{((processed/self.target_count)*100):.0f}'
+            except ZeroDivisionError:
+                progress=f'100'
+            progress_str=f"{processed} of {self.target_count} files" #0- replace 0 for decimal places
+            log.debug(f'Progress: {progress_str}')
+            r.hmset(self.job,{'progress':progress,'progress_str':progress_str,'target_count':self.target_count,'counter':self.counter,'skipped':self.skipped,'failed':self.failed,'failed_list':self.failedlist})
     
 
 class UpdateMeta(Extractor):
@@ -323,7 +331,19 @@ class ExtractFile():
         relpath=make_relpath(self.path,docstore=self.docstore)
         changes.append((self.mycore.docpath,'docpath',relpath))
         if self.date_from_path:
+            if not clear_date(self.solrid,self.mycore):
+                log.error('Failed to clear previous date')
             changes.append((self.mycore.datesourcefield,'date',time_utils.timestringGMT(self.date_from_path)))
+            
+    #if sourcefield is define and sourcetext is not empty string, add that to the arguments
+    #make the sourcetext args safe, for example inserting %20 for spaces 
+        if self.mycore.sourcefield and self.sourcetext:
+            changes.append((self.mycore.sourcefield,self.mycore.sourcefield,self.sourcetext))
+
+        #add hash of parent relative path
+        if self.mycore.parenthashfield:
+            parenthash=file_utils.parent_hash(relpath)
+            changes.append((self.mycore.parenthashfield,self.mycore.parenthashfield,parenthash))
 
         log.debug(f'CHANGES: {changes}')
         
@@ -337,9 +357,57 @@ class ExtractFile():
         #jsondata=makejson(self.solrid,changes,self.mycore)
         self.post_result=updatestatus
         #log.debug(jsondata)
+        self.process_children()
         
-        #newlastmodified=s.timestringGMT(file.last_modified)
 
+    def process_children(self):
+        result=True
+        solr_result=s.hashlookup(self.hash_contents, self.mycore,children=True)
+        for solrdoc in solr_result.results:
+        #add source info to the extracted document
+            log.debug(solrdoc.__dict__)
+            
+            if not solrdoc.docname: #no stored filename
+                filename=solrdoc.data[self.mycore.docnamesourcefield2]
+                if filename:
+                    result=updatetags(solrdoc.id,self.mycore,value=filename,field_to_update='docnamefield',newfield=False)
+                    if result:
+                        log.debug(f'added filename \'{filename}\' to child doc')
+                    else:
+                        log.debug(f'failed to add filename \'{filename}\' to child doc')
+                        return False
+            if self.sourcetext:
+                try:
+                    result=updatetags(solrdoc.id,self.mycore,value=self.sourcetext,field_to_update='sourcefield',newfield=False)
+                    if result==True:
+                        log.info('Added source \"{}\" to child-document \"{}\", id {}'.format(self.sourcetext,solrdoc.docname,solrdoc.id))
+                    else:
+                        log.error('Failed to add source to child document id: {}'.format(solrdoc.id))
+                        return False
+                except Exception as e:
+                    log.error(e)
+                    return False
+        return True
+    
+        
+    	
+        #newlastmodified=s.timestringGMT(file.last_modified)
+        
+     
+
+class ICIJ_Post_Processor(ExtractFile):
+    def __init__(self,path,mycore,hash_contents='',sourcetext='',docstore='',test=False):
+        self.path=path
+        specs=file_utils.FileSpecs(path,scan_contents=False)###
+        self.filename=specs.name
+        self.docstore=docstore
+        self.sourcetext=sourcetext
+        self.date_from_path,self.last_modified=changes.parse_date(specs)
+        self.mycore=mycore
+        self.test=test
+        self.hash_contents = hash_contents if hash_contents else file_utils.get_contents_hash(path)
+        self.solrid=self.hash_contents
+        self.post_process()
 
 
     
@@ -386,7 +454,7 @@ def extract(path,contentsHash,mycore,test=False,timeout=TIMEOUT,sourcetext='',do
         docnamesourcefield=mycore.docnamesourcefield
         hashcontentsfield=mycore.hashcontentsfield
         filepathfield=mycore.docpath
-        sourcefield=mycore.sourcefield
+
         id_field=mycore.unique_id
         pathhashfield=mycore.pathhashfield
         parenthashfield=mycore.parenthashfield
@@ -404,19 +472,11 @@ def extract(path,contentsHash,mycore,test=False,timeout=TIMEOUT,sourcetext='',do
 
     args+='&literal.{}={}'.format(pathhashfield,file_utils.pathHash(path))
 
-    #add hash of parent relative path
-    if parenthashfield:
-        parenthash=file_utils.parent_hash(relpath)
-        args+='&literal.{}={}'.format(parenthashfield,parenthash)
-
     #if a different field for hashcontents other than the unique ID (key) then store also in that field
     if id_field != hashcontentsfield:
         args+='&literal.{}={}'.format(hashcontentsfield,contentsHash)
-    #if sourcefield is define and sourcetext is not empty string, add that to the arguments
-    #make the sourcetext args safe, for example inserting %20 for spaces 
-    if sourcefield and sourcetext:
-        args+='&literal.{}={}'.format(sourcefield,quote(sourcetext))
-    
+
+
     log.debug('extract args: {}, path: {}, solr core: {}'.format(args,path,mycore))
         
     if test==True:
