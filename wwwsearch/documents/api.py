@@ -137,11 +137,37 @@ def api_task_progress(request,job):
         log.debug(e)
     return JsonResponse(jsonresponse)
 
+@staff_member_required()
 def api_clear_tasks(request):
     """clear task from session"""
     request.session['tasks']=''
     return JsonResponse({'error':False})
 
+@staff_member_required()
+def api_check_redis(request):
+    jsonresponse={'error':False}
+    try:
+        return JsonResponse({'redis_alive':redis_check()})
+    except Exception as e:
+        log.error(e)
+        return JsonResponse({'redis_alive':'error'})
+
+def redis_check():
+    return watch_dispatch.r.ping()
+    
+    
+@staff_member_required()
+def api_check_taskmanager(request):
+    pass
+    
+def taskmanager_check():
+    return watch_dispatch.HBEAT.alive
+    
+    
+    
+	
+	
+	
 #RECEIVE FROM API
 
 def get_remotechanges(test=False,remote_startid=''):

@@ -129,7 +129,8 @@ class DocProcessor(StoppableThread):
             while (not self.killswitch.is_set()):
                 #print('doing a background task then wait')
                 time.sleep(1)
-                watch_dispatch.task_check()   
+                watch_dispatch.task_check()
+                watch_dispatch.HBEAT.tick()   #heartbeat signal
         except Terminate:
             pass            
         finally:

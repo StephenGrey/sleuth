@@ -19,7 +19,6 @@ if __name__ == "__main__":
             TASKS=startup.TASKS
         else:
             TASKS=[]
-    #print('manage.py: started up background tasks')
     except: 
         TASKS=[]
     

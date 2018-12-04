@@ -4,7 +4,20 @@
 
 {% block sidebar %}
 	<ul class="sidebar-nav">
-		Master Archive Folder:
+	{% if user.is_staff %}
+	<a href="/documents/" role="button" class="btn btn-warning btn-block" >Index Settings</a>
+	<p><p>
+	<a href="/dups/" role="button" class="btn btn-warning btn-block" >Inspect Media</a>	
+	<p><p>	
+	<a href="/admin/" role="button" class="btn btn-warning btn-block" >Admin</a>	
+	
+	</ul>
+	
+	{% endif %}
+
+<p><p>
+	<div class="panel panel-default">
+		<h4><b>Master Archive Folder:</b></h4>
 		{% if page.masterpath %}
 		
 		<form action="/dups/folder/{{path}}" method ="post" id="master-folder-form">
@@ -12,26 +25,28 @@
 		<p>
 			<div class="master-url">
 			<a href="{{page.masterpath_url}}">{{page.masterpath}}</a>
-			</div>
+		</div>
 		<p>
 		<p>
-		<button type="submit" name="masterscan"> Scan Master</button>
+		<button type="submit" class="btn btn-info btn-block" name="masterscan"> Scan Master</button>
     <p><p>
 		</form>
 		{% endif %} 
-		
+	</div>
+	<div class="panel panel-default">
 		<p><p><p><p>
 			<form action="/dups/folder/{{path}}" method ="post" name="scan-folder-form" id="scan-folder-form">
 			{% csrf_token %}
-			Scan Folder:
+			<h4><b>Scan Folder:</b></h4>
 			<div class="local-url">
 			<a href="/dups/folder/{{page.scanpath}}">{{page.scanpath}}</a>
 			</div>
 			{% if not page.inside_master %}
 					 <input type="hidden" id="local-path" name="local-path" value="{{page.scanpath}}">
-  					<button type="submit" name="scan" class="btn btn-sm btn-success">Scan Folder</button>
+  					<button type="submit" name="scan" class="btn btn-success btn-block">Scan Folder</button>
 			{% endif %} 
 			</form>
+	</div>
 	</ul>
 {% endblock %}
 

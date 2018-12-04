@@ -3,15 +3,15 @@ import sys,datetime,time, logging, redis
 
 from SearchBox.tools import wwwsearch_connect #Connect to Django project
 from django.conf import settings
-from documents import file_utils,changes,updateSolr,indexSolr
+from documents import file_utils,changes,updateSolr,indexSolr,redis_cache
 from documents.models import File,Collection
 logging.config.dictConfig(settings.LOGGING)
 log = logging.getLogger('ownsearch.watch_dispatch')
 #if (log.hasHandlers()):
 #    print('has handler')
 
-
-r=redis.Redis(charset="utf-8", decode_responses=True)
+r=redis_cache.redis_connection
+#redis.Redis(charset="utf-8", decode_responses=True)
 
 
 """
@@ -30,6 +30,22 @@ worker thread: take action on fileevents
 """
 MODIFIED_FILES={}
 MODIFIED_TIMES={}
+
+
+class HeartBeat:
+    def tick(self):
+        r.set('SB_heartbeat','tick')
+    def tock(self):
+        r.set('SB_heartbeat','tock')
+
+    @property
+    def alive(self):
+        if r.get('SB_heartbeat') == 'tock':
+            return False
+        self.tock()
+        return True
+
+
 
 class Index_Dispatch:
     def __init__(self,event_type,sourcepath,destpath):
@@ -132,6 +148,8 @@ class Index_Dispatch:
             elif _file.indexUpdateMeta:
                 log.debug(f'Now should update solr meta for {_file}')
                 updateSolr.metaupdate_rawfile(_file)
+
+
 
 def index_file(_file):
     extractor=indexSolr.ExtractSingleFile(_file)
@@ -317,6 +335,10 @@ def file_from_id(_id):
 def files_from_id(_ids):
     return [File.objects.get(id=_id) for _id in _ids]
 #
+
+HBEAT=HeartBeat()
+
+
 #if __name__ == "__main__":
 #    path = sys.argv[1] if len(sys.argv) > 1 else '.'
     
