@@ -25,17 +25,18 @@ from .redis_cache import redis_connection as r
 
 #from watcher import watch_dispatch2 as watch_dispatch
 
-MAXSIZE=5000000 #5MB max size
 
 try:
     IGNORELIST=config['Solr']['ignore_list'].split(',')
     DOCSTORE=config['Models']['collectionbasepath'] #get base path of the docstore
     TIMEOUT=float(config['Solr']['solrtimeout'])
+    MAXSIZE=float(config['Solr']['maxsize'])
     
 except Exception as e:
-    log.warning('Configuration warning: no ignore list found')
+    log.warning('Some missing configuration options; using defaults')
     IGNORELIST=[]
-    
+    TIMEOUT=120
+    MAXSIZE=5000000
 """
 EXTRACT CONTENTS OF A FILE FROM LOCAL MEDIA INTO SOLR INDEX
 
@@ -141,6 +142,8 @@ class Extractor():
                             if result:
                                 extractor.post_process()
                                 result=extractor.post_result
+                            else:
+                                file.error_message=extractor.error_message
                         except (s.SolrCoreNotFound,s.SolrConnectionError,requests.exceptions.RequestException) as e:
                             raise ExtractInterruption(self.interrupt_message())
          
@@ -152,7 +155,7 @@ class Extractor():
                     file.solrid=file.hash_contents  #extract uses hashcontents for an id , so add it
                 
                 file.indexedSuccess=True
-                
+                file.error_message=''
                 #now delete previous solr doc of moved file(if any): THIS IS ONLY NECESSARY IF ID CHANGES  
                 log.info('Old ID: '+oldsolrid+' New ID: '+file.solrid)
                 
@@ -228,13 +231,16 @@ class Extractor():
             #skip this file: it's already indexed
         elif file.indexedTry==True and self.forceretry==False:
             #skip this file, tried before and not forcing retry
-            log.info('Skipped on previous index failure; no retry: {}'.format(file.filepath))
+            file.error_message='Skipped on previous index failure; no retry'
+            log.info(f'{file.error_message} path: {file.filename}')
         elif ignorefile(file.filepath) is True:
             #skip this file because it is on ignore list
-            log.info('Ignoring: {}'.format(file.filepath))
+            file.error_message='Skipped on ignore list'
+            log.info(f'{file.error_message} path: {file.filename}')
         elif file.filesize>MAXSIZE:
             #skip the extract, it's too big
-            log.info('Skipping {} : too large {}b'.format(file.filepath,file.filesize))
+            file.error_message=f'Skipping: too large {file.filesize}b'
+            log.info(f'{file.error_message} path: {file.filename}')
         else:
             #don't skip
             return False
@@ -320,7 +326,7 @@ class ExtractFile():
         self.docstore=docstore
         self.hash_contents = hash_contents if hash_contents else file_utils.get_contents_hash(path)
         self.solrid=self.hash_contents
-        self.result=extract(self.path,self.hash_contents,self.mycore,timeout=TIMEOUT,docstore=docstore,test=self.test,sourcetext=self.sourcetext)
+        self.result,self.error_message=extract(self.path,self.hash_contents,self.mycore,timeout=TIMEOUT,docstore=docstore,test=self.test,sourcetext=self.sourcetext)
         log.debug(self.result)
         
         
@@ -432,12 +438,13 @@ def extract_test(test=True,timeout=TIMEOUT,mycore='',docstore=''):
     log.debug('Testing extract to {}'.format(mycore.name))
     mycore.ping()
     
-    result=extract(path,hash,mycore,test=test,timeout=TIMEOUT,docstore=docstore)
+    result,error_message=extract(path,hash,mycore,test=test,timeout=TIMEOUT,docstore=docstore)
     return result
 
 def extract(path,contentsHash,mycore,test=False,timeout=TIMEOUT,sourcetext='',docstore=''):
     """extract a path to solr index (mycore), storing hash of contents, optional testrun, timeout); throws exception if no connection to solr index, otherwise failures return False"""
     
+    message=''
     try:
         assert isinstance(mycore,s.SolrCore)
         assert os.path.exists(path) #check file exists
@@ -483,14 +490,28 @@ def extract(path,contentsHash,mycore,test=False,timeout=TIMEOUT,sourcetext='',do
         args +='&extractOnly=true' #does not index on test
         log.debug('Testing extract args: {}, path: {}, mycore {}'.format(args,path,mycore))
         
-    result,elapsed=postSolr(args,path,mycore,timeout=timeout) #POST TO THE INDEX (returns True on success)
+    try:
+        result,elapsed=postSolr(args,path,mycore,timeout=timeout) #POST TO THE INDEX (returns True on success)
+    except s.SolrTimeOut as e:
+        message='Solr post timeout '
+        log.warning(message)
+        result=False
+    except s.Solr404 as e:
+        message='Error in posting 404 error - URL not workking: {}'.format(e)
+        log.error(message)
+        result=False
+    except s.PostFailure as e:
+        message='Post Failure : {}'.format(e)
+        log.warning(message)
+        result=False
+    
     if result:
-        log.info('Extract SUCCEEDED in {:.2f} seconds'.format(elapsed))
+        log.info('Indexing succeeded in {:.2f} seconds'.format(elapsed))
         return True
     else:
-        log.info('Error in extract() posting file with args: {} and path: {}'.format(args,path))
-        log.info('Extract FAILED')
-        return False
+        log.warning('Error in indexing file using args: {} and path: {}'.format(args,path))
+        log.warning('Indexing FAILED')
+        return False,message
 
 
 def postSolr(args,path,mycore,timeout=1):
@@ -498,7 +519,7 @@ def postSolr(args,path,mycore,timeout=1):
     url=extracturl+args
     log.debug('POSTURL: {}  TIMEOUT: {}'.format(url,timeout))
     #log.debug('Types posturl: {} path: {}'.format(type(url),type(timeout)))
-    try:
+    if True:
         res=s.resPostfile(url,path,timeout=timeout) #timeout=
 #        log.debug('Returned json: {} type: {}'.format(res._content,type(res._content)))
         log.debug('Response header:{}'.format(res.json()['responseHeader']))
@@ -507,15 +528,6 @@ def postSolr(args,path,mycore,timeout=1):
         solrstatus=res.json()['responseHeader']['status']
         #log.debug(res.elapsed.total_seconds())
         solrelapsed=res.elapsed.total_seconds()
-    except s.SolrTimeOut as e:
-        log.error('Solr post timeout ')
-        return False,0
-    except s.Solr404 as e:
-        log.error('Error in posting 404 error - URL not workking: {}'.format(e))
-        return False,0
-    except s.PostFailure as e:
-        log.error('Post Failure : {}'.format(e))
-        return False,0
     log.debug('SOLR STATUS: {}  ELAPSED TIME: {:.2f} secs'.format(solrstatus,solrelapsed))
     if solrstatus==0:
         return True,solrelapsed 
