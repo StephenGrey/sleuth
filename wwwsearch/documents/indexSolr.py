@@ -73,8 +73,11 @@ class Extractor():
         self.filelist=File.objects.filter(collection=collection)
         self.target_count=len(self.filelist)
         self.update_extract_results()
+        self.update_working_file('')
         self.extract()
         self.update_extract_results()
+        self.update_working_file('')
+    
     
     def extract_file(self,file):
         
@@ -83,7 +86,8 @@ class Extractor():
             #log.debug('Skipping {}'.format(file))
         else:
             log.info('Attempting index of {}'.format(file.filepath))
-            
+            self.update_working_file(file.filepath)
+
             #if was previously indexed, store old solr ID and then delete if new index successful
             oldsolrid=file.solrid
             #get source
@@ -113,7 +117,9 @@ class Extractor():
                     file.save()
                     if self.useICIJ:
                         log.info('using ICIJ extract method..')
-                        result = solrICIJ.ICIJextract(file.filepath,self.mycore,ocr=self.ocr)
+                        ext = solrICIJ.ICIJExtractor(file.filepath,self.mycore,ocr=self.ocr)
+                        result=ext.result
+                        file.error_message=ext.error_message
                         if result is True:
                             try:
                                 new_id=s.hashlookup(file.hash_contents,self.mycore).results[0].id #id of the first result returned
@@ -122,6 +128,7 @@ class Extractor():
                                 log.info('(ICIJ extract) New solr ID: '+new_id)
                             except:
                                 log.warning('Extracted doc not found in index')
+                                file.error_message='Indexed, but not found in index'
                                 result=False
                         if result is True:
                         #post extract process -- add meta data field to solr doc, e.g. source field
@@ -167,7 +174,7 @@ class Extractor():
             else:
                 log.info('PATH : '+file.filepath+' indexing failed')
                 self.failed+=1
-                self.failedlist.append(file.filepath)
+                self.failedlist.append((file.filepath,file.error_message))
         if self.job and r:
             self.update_extract_results()
                 
@@ -207,7 +214,7 @@ class Extractor():
             log.debug(f'Date from path {date_from_path}')
             if existing_doc.date != date_from_path:
                 log.debug('Date from path altered; update in index')
-                if not clear_date(self.solrid,self.mycore):
+                if not clear_date(file.solrid,self.mycore):
                     log.error('Failed to clear previous date')
                 result=updatetags(file.solrid,self.mycore,value=date_from_path,field_to_update='datesourcefield',newfield=False,test=False)
                 if not result:
@@ -228,24 +235,27 @@ class Extractor():
     def skip_file(self,file):
         if file.indexedSuccess:
             pass
+            file.error_message='Already indexed'
             #skip this file: it's already indexed
-        elif file.indexedTry==True and self.forceretry==False:
+        elif file.indexedTry and not self.forceretry:
             #skip this file, tried before and not forcing retry
-            file.error_message='Skipped on previous index failure; no retry'
-            log.info(f'{file.error_message} path: {file.filename}')
-        elif ignorefile(file.filepath) is True:
+            file.error_message='Previous failure'
+            log.info(f'Skipped {file.error_message} path: {file.filename}')
+        elif ignorefile(file.filepath):
             #skip this file because it is on ignore list
-            file.error_message='Skipped on ignore list'
-            log.info(f'{file.error_message} path: {file.filename}')
+            file.error_message='On ignore list'
+            log.info(f'Skipped {file.error_message} path: {file.filename}')
         elif file.filesize>MAXSIZE:
             #skip the extract, it's too big
-            file.error_message=f'Skipping: too large {file.filesize}b'
-            log.info(f'{file.error_message} path: {file.filename}')
+            file.error_message=f'Too large {file.filesize}b'
+            log.info(f'Skipped {file.error_message} path: {file.filename}')
         else:
             #don't skip
             return False
         self.skipped+=1
-        self.skippedlist.append(file.filepath)
+        
+        relpath=os.path.relpath(file.filepath,self.collection.path)
+        self.skippedlist.append((relpath, file.error_message))
         return True
 
     def interrupt_message(self):
@@ -276,6 +286,11 @@ class Extractor():
         return result
     #REDIS UPDATES
     
+    def update_working_file(self,_filename):
+        if self.job:
+            r.hset(self.job,'working_file',_filename)
+            
+    
     def update_extract_results(self):
         if self.job:
             processed=self.counter+self.skipped+self.failed
@@ -285,8 +300,14 @@ class Extractor():
                 progress=f'100'
             progress_str=f"{processed} of {self.target_count} files" #0- replace 0 for decimal places
             log.debug(f'Progress: {progress_str}')
-            r.hmset(self.job,{'progress':progress,'progress_str':progress_str,'target_count':self.target_count,'counter':self.counter,'skipped':self.skipped,'failed':self.failed,'failed_list':self.failedlist})
-    
+            #log.debug(self.failedlist)
+            failed_json=json.dumps(self.failedlist)
+            #log.debug(failed_json)
+            r.hmset(self.job,{'progress':progress,'progress_str':progress_str,'target_count':self.target_count,'counter':self.counter,'skipped':self.skipped,'failed':self.failed,
+            	'path':self.collection.path,
+            	'failed_list': failed_json, 
+            	'skipped_list':json.dumps(self.skippedlist)
+            		})
 
 class UpdateMeta(Extractor):
     def __init__(self,mycore,file,existing_doc,docstore=DOCSTORE):
@@ -492,26 +513,23 @@ def extract(path,contentsHash,mycore,test=False,timeout=TIMEOUT,sourcetext='',do
         
     try:
         result,elapsed=postSolr(args,path,mycore,timeout=timeout) #POST TO THE INDEX (returns True on success)
+        if result:
+            log.info('Indexing succeeded in {:.2f} seconds'.format(elapsed))
+            return True,None
+        else:
+            log.warning('Error in indexing file using args: {} and path: {}'.format(args,path))
+            log.warning('Indexing FAILED')
+            message='Unknown failure'
     except s.SolrTimeOut as e:
-        message='Solr post timeout '
+        message='Solr post timeout'
         log.warning(message)
-        result=False
     except s.Solr404 as e:
-        message='Error in posting 404 error - URL not workking: {}'.format(e)
+        message='404 Error: solr URL not working: {}'.format(e)
         log.error(message)
-        result=False
     except s.PostFailure as e:
-        message='Post Failure : {}'.format(e)
+        message='Failed to post file: {}'.format(e)
         log.warning(message)
-        result=False
-    
-    if result:
-        log.info('Indexing succeeded in {:.2f} seconds'.format(elapsed))
-        return True
-    else:
-        log.warning('Error in indexing file using args: {} and path: {}'.format(args,path))
-        log.warning('Indexing FAILED')
-        return False,message
+    return False,message
 
 
 def postSolr(args,path,mycore,timeout=1):

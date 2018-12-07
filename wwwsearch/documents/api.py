@@ -129,12 +129,27 @@ def api_task_progress(request,job):
     """API to check progress of task"""
     jsonresponse={'error':True, 'results':None,'message':f'Unknown error checking task {job}'}    
     try:
-        results=watch_dispatch.r.hgetall(job)
-        log.debug(job,results)
+        if job.startswith('SB_TASK.CollectionScanAndExtract.'):
+            print(job)
+            print(watch_dispatch.r.hget(job,'sub_job_id'))
+            sub_job_id=watch_dispatch.r.hget(job,'sub_job_id')
+            if sub_job_id:
+                sub_job='SB_TASK.'+sub_job_id
+                results=watch_dispatch.r.hgetall(sub_job)
+                results.update({'master_job': job})
+            else:
+                results=watch_dispatch.r.hgetall(job)
+            results.update({'master_task':'scan_and_extract'})
+            results.update({'master_task_status':watch_dispatch.r.hget(job,'status')})
+        else:
+            results=watch_dispatch.r.hgetall(job)
+        log.debug(f'{job},{results}')
+        print(job,results)
         #{'counter':ext.counter,'skipped':ext.skipped,'failed':ext.failed,'failed_list':ext.failedlist})
         jsonresponse={'error':False, 'results':results,'message':'done'}
     except Exception as e:
         log.debug(e)
+        print(f'Error {e}')
     return JsonResponse(jsonresponse)
 
 @staff_member_required()

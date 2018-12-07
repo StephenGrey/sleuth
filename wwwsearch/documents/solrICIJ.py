@@ -19,76 +19,87 @@ class NotFound(Exception):
 
 #EXTRACT A FILE TO SOLR INDEX (defined in mycore (instance of solrSoup.SolrCore))
 #returns solrSoup.MissingConfigData error if path missing to extract.jar
-def ICIJextract(path,mycore,ocr=True):
-    try:
-        mycore.ping() #checks the connection is alive
-        if os.path.exists(path) == False:
-            raise IOError
-        result=tryextract(path,mycore,ocr=ocr)
-        return result #return True on success
-    except IOError as e:
-        log.error('File cannot be opened')
-    except s.SolrConnectionError as e:
-        log.error('Connection error')
-    return False  #if error return False
 
-def tryextract(path,mycore,ocr=True):
-    try:
-        extractpath=config['Extract']['extractpath'] #get location of Extract java JAR
-    except KeyError as e:
-        raise s.MissingConfigData
-    
-    
-    
-    solrurl=mycore.url
-    target=path
-    #extract via ICIJ extract
-    args=["java","-jar", MEM_MIN_ARG,MEM_MAX_ARG, extractpath, "spew","-o", "solr", "-s"]
-    args.append(solrurl)
-
-    if not ocr:
-       args.extend(["--ocr","no"])
-
-    _user,_pass=authenticate()
-    if _user and _pass:
-        args.extend(["-U",_user,"-P",_pass])
-
-    args.append(target)
-    log.debug('Extract args: {}'.format(args))
-    result=subprocess.Popen(args, stderr=subprocess.PIPE, stdout=subprocess.PIPE,shell=False)
-    output,success=parse_out(result)
-#    print(output) #DEBUG : LOG IT instead
-    for mtype,message in output:
-        if mtype=='SEVERE':  #PRINT OUT ONLY SEVERE MESSAGES
-            log.debug(f'Message type:{mtype},Message:{message}')
-            if "Expected mime type application/octet-stream but got text/html" in message:
-                log.debug('Unexpected response')
-                if "<title>Error 401 require authentication</title>" in message:
-                    log.debug('Authentication error')
-                    raise AuthenticationError
-    if success == True:
-        log.info('Successful extract')
-        #commit the results
-        log.debug ('Committing ..')
-        args=["java","-jar",extractpath,"commit","-s"]
-        args.append(solrurl) #tests - add deliberate error
-
-        if _user and _pass:
-            args.extend(["-U",_user,"-P",_pass])
+class ICIJExtractor():
+    def __init__(self,path,mycore,ocr=True):
+        self.path=path
+        self.mycore=mycore
+        self.ocr=ocr
+        self.error_message=''
         
         try:
-            result=subprocess.Popen(args, stderr=subprocess.PIPE, stdout=subprocess.PIPE,shell=False)
-#        print (result, vars(result)) #
-            commitout,ignore=parse_out(result)
-            log.debug('No errors from commit')
-            return True 
-        except AuthenticationError:
-            log.debug('Authentication error')
-        except NotFound:
-            log.debug('Error 404 : Not Found')
-        except Exception as e:
-            log.debug(e)
-    return False
+            self.mycore.ping() #checks the connection is alive
+            if os.path.exists(self.path) == False:
+                raise IOError
+            self.tryextract()
+            return #return True on success
+        except IOError as e:
+            log.error('File cannot be opened')
+            self.error_message='Error opening file'
+        except s.SolrConnectionError as e:
+            log.error('Connection error')
+            self.error_message='Connection error'
+        self.result= False  #if error return False
+
+    def tryextract(self):
+        try:
+            extractpath=config['Extract']['extractpath'] #get location of Extract java JAR
+        except KeyError as e:
+            raise s.MissingConfigData
+        
+        solrurl=self.mycore.url
+        target=self.path
+        #extract via ICIJ extract
+        args=["java","-jar", MEM_MIN_ARG,MEM_MAX_ARG, extractpath, "spew","-o", "solr", "-s"]
+        args.append(solrurl)
+    
+        if not self.ocr:
+           args.extend(["--ocr","no"])
+    
+        _user,_pass=authenticate()
+        if _user and _pass:
+            args.extend(["-U",_user,"-P",_pass])
+    
+        args.append(target)
+        log.debug('Extract args: {}'.format(args))
+        
+        process_result=subprocess.Popen(args, stderr=subprocess.PIPE, stdout=subprocess.PIPE,shell=False)
+        output,success,self.error_message=parse_out(process_result)
+        log.debug(output)
+        for mtype,message in output:
+            if mtype=='SEVERE':  #PRINT OUT ONLY SEVERE MESSAGES
+                log.debug(f'Message type:{mtype},Message:{message}')
+                if "Expected mime type application/octet-stream but got text/html" in message:
+                    log.debug('Unexpected response')
+                    if "<title>Error 401 require authentication</title>" in message:
+                        log.debug('Authentication error')
+                        raise AuthenticationError
+        if success == True:
+            log.info('Successful extract')
+            #commit the results
+            log.debug ('Committing ..')
+            args=["java","-jar",extractpath,"commit","-s"]
+            args.append(solrurl) #tests - add deliberate error
+    
+            if _user and _pass:
+                args.extend(["-U",_user,"-P",_pass])
+            
+            try:
+                result=subprocess.Popen(args, stderr=subprocess.PIPE, stdout=subprocess.PIPE,shell=False)
+    #        print (result, vars(result)) #
+                commitout,ignore=parse_out(result)
+                log.debug('No errors from commit')
+                self.result=True 
+            except AuthenticationError:
+                log.debug('Authentication error')
+                self.error_message='Authentication error'
+            except NotFound:
+                log.debug('Error 404 : Not Found')
+                self.error_message='Error 404'
+            except Exception as e:
+                log.debug(e)
+                self.error_message=f'Unknown error: {e}'
+        self.result=False
     
 def parse_out(result):
     #calling a java app produces no stdout -- but for debug, output it if any
@@ -99,6 +110,7 @@ def parse_out(result):
            print('STDOUT from Java process: {}'.format(sout))
     output=[]
     message=''
+    error_message=''
     ltype=''
     postsolr = False
     while True:
@@ -108,7 +120,7 @@ def parse_out(result):
             linestrip=line.rstrip()
             #print (linestrip)
             if 'Error 401' in message:
-                    raise AuthenticationError
+                raise AuthenticationError
             elif 'Error 404' in message:
                 raise NotFound
             if line[:5]=='INFO:':
@@ -136,6 +148,7 @@ def parse_out(result):
                 ltype='SEVERE'
                 message=line[7:]
                 log.error(message)
+                error_message=message
             else: #NOT A HEADER
                 message+=line
 #            print ("test:", line.rstrip())
@@ -144,7 +157,7 @@ def parse_out(result):
 #    print (vars(result))
 #    print (output)
 
-    return output, postsolr
+    return output, postsolr,error_message
 
 #def add_source(solrid,sourcetext,hashcontents, core):
 #    """ADD ADDITIONAL META NOT ADDED AUTOMATICALLY BY THE EXTRACT METHOD"""
@@ -183,5 +196,4 @@ def authenticate():
         return s.SOLR_USER, s.SOLR_PASSWORD
     except:
         return Null, Null
-        
         
