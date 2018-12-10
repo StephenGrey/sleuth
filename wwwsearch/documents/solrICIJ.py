@@ -52,7 +52,11 @@ class ICIJExtractor():
         #extract via ICIJ extract
         args=["java","-jar", MEM_MIN_ARG,MEM_MAX_ARG, extractpath, "spew","-o", "solr", "-s"]
         args.append(solrurl)
-    
+        
+        args.extend(["--metadataPrefix","\"\""])
+#        #try adding postfix to dates to fix error w old TIF files
+#        args.extend(["--metadataISODatePostfix","\"Z\""])
+#        
         if not self.ocr:
            args.extend(["--ocr","no"])
     
@@ -65,10 +69,10 @@ class ICIJExtractor():
         
         process_result=subprocess.Popen(args, stderr=subprocess.PIPE, stdout=subprocess.PIPE,shell=False)
         output,success,self.error_message=parse_out(process_result)
-        log.debug(output)
+        #log.debug(output)
         for mtype,message in output:
             if mtype=='SEVERE':  #PRINT OUT ONLY SEVERE MESSAGES
-                log.debug(f'Message type:{mtype},Message:{message}')
+                #log.debug(f'Message type:{mtype},Message:{message}')
                 if "Expected mime type application/octet-stream but got text/html" in message:
                     log.debug('Unexpected response')
                     if "<title>Error 401 require authentication</title>" in message:
@@ -87,9 +91,10 @@ class ICIJExtractor():
             try:
                 result=subprocess.Popen(args, stderr=subprocess.PIPE, stdout=subprocess.PIPE,shell=False)
     #        print (result, vars(result)) #
-                commitout,ignore=parse_out(result)
+                commitout,ignore,message=parse_out(result)
                 log.debug('No errors from commit')
-                self.result=True 
+                self.result=True
+                return
             except AuthenticationError:
                 log.debug('Authentication error')
                 self.error_message='Authentication error'
@@ -129,10 +134,9 @@ def parse_out(result):
                 if message:
                     output.append((ltype,message))
                 message=line[5:]
-                #log.info(f'\"{message}\"')
+                log.info(f'\"{message}\"')
                 if 'Document added to Solr' in message:
                     postsolr = True
-                
                 ltype='INFO'
             elif line[:8]=='WARNING:':
                 #dump previous message

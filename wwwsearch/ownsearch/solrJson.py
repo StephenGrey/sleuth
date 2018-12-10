@@ -168,6 +168,11 @@ class Solrdoc:
             #give the KEY ATTRIBS standard names
             self.id=self.data.get(core.unique_id,'') #leave copy in data
             self.docname=self.data.pop(core.docnamefield,'')
+            
+            self.content_type_raw=self.data.pop('content_type','')
+            
+            self.content_type='email' if self.content_type_raw=='application/vnd.ms-outlook' else self.content_type_raw
+            
             if self.docname.startswith('Folder:'):
                 self.folder=True
             else:

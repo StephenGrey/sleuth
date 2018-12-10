@@ -25,7 +25,7 @@ class IndexTester(TestCase):
     def makebase(self):
         """make framework for tests"""
         #CONTROL LOGGING IN TESTS
-        logging.disable(logging.CRITICAL)
+        #logging.disable(logging.CRITICAL)
         
         self.password=PASSWORD
         self.username='myuser'
@@ -576,6 +576,56 @@ class ExtractFileTest(ExtractTest):
         #print(_changes)
         if _changes:
             response,updatestatus=updateSolr.update(_id,_changes,self.mycore)
+        
+    def test_tif(self):
+        _relpath='tiff/sample.tiff'
+        _id='9bada33daa4e4ec0d8915d5123ac0b5964c3fc7dfee11456bb48287e8d22450a'
+        extractor=self.extract_document(_id,_relpath)
+#        print(extractor.__dict__)
+        self.assertTrue(extractor.result)
+                
+        doc=updateSolr.check_hash_in_solrdata(_id,self.mycore)
+        self.assertEquals(doc.date,'1998-07-29T10:30:30Z')    
+    
+        updateSolr.delete(_id,self.mycore)
+        
+        path=os.path.abspath(os.path.join(os.path.dirname(__file__), '../tests/testdocs', _relpath))
+        ext=indexSolr.solrICIJ.ICIJExtractor(path,self.mycore,ocr=False)
+        
+        #returns false on bad date metadata
+        self.assertFalse(ext.result)
+    
+    def test_email(self):
+        _relpath='msg/test_email.msg'
+        _id='5b6fcfc9fe87b050255bb695a4616e3c7abddf282e6397fd868e03c1b0018fb0'
+        updateSolr.delete(_id,self.mycore)
+        
+        
+        extractor=self.extract_document(_id,_relpath)
+        print(extractor.__dict__)
+        
+        
+        
+        doc=updateSolr.check_hash_in_solrdata(_id,self.mycore)
+        print(doc.__dict__)
+        self.assertEquals(doc.data['message_to'],["'Adele Fulton'","Paul J. Brown"])
+#        self.assertEquals(doc.data['message_from'],'Wood, Tracy')
+#        self.assertEquals(doc.date,'2015-07-29T17:58:40Z')
+        
+        updateSolr.delete(_id,self.mycore)
+        
+        path=os.path.abspath(os.path.join(os.path.dirname(__file__), '../tests/testdocs', _relpath))
+        ext=indexSolr.solrICIJ.ICIJExtractor(path,self.mycore,ocr=False)
+        print(ext.__dict__)
+        self.assertTrue(ext.result)
+
+        
+        doc=updateSolr.check_hash_in_solrdata(_id,self.mycore)
+        print(doc.__dict__)
+        self.assertEquals(doc.data['message_to'],"'Adele Fulton'; Paul J. Brown")
+        self.assertEquals(doc.data['message_from'],'Wood, Tracy')
+        self.assertEquals(doc.date,'2015-07-29T17:58:40Z')
+        
         
     
     def test_jpg(self):

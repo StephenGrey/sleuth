@@ -49,12 +49,19 @@ INDEXED FOLDERS:
 {% endfor %} 
 </ol>
 
+{{page.result.content_type}}
 
-	{% if page.result.data.message_from  %}
-		<h3>Email <b>From:</b> {{page.result.data.message_from}} <b><br>To:</b> {{page.result.data.message_to}}</h3>
-	{% endif %}
-	{% if page.result.data.title  %}
-		<b><h3>Subject:</b><span class="titlename">{{page.result.data.title}}</span></h3>
+{{page.result.data.content_type}}
+
+{% ifequal page.result.content_type "email" %}
+		<h3>Email<p>
+			<b>From:</b> {{page.result.data.message_from}} <b>
+			<br>To:</b> {{page.result.data.message_to}}</h3>
+{% endifequal %}
+
+	{% if page.result.data.title or page.result.data.subject %}
+		<b><h3>Subject:</b> <span class="titlename">{{page.result.data.title}}{% if not page.result.data.title %}{{page.result.data.subject}}{% endif %}
+			</span></h3>
 	<h4>{{page.datetext}}</h4>
 	<br>SIZE(bytes):{{page.docsize}}<br>
 	<!--DIRECT FROM APACHE--<a href="/docstore/{{docpath}}"><b>Download</b></a>	-->

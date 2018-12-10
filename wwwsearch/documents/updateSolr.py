@@ -31,15 +31,16 @@ class Updater:
         self.searchterm=searchterm
         self.update_errors=False
         self.args=''
-
+        self.maxcount=100000
     
     def modify(self,result):
         pass
         
-    def process(self,maxcount=100000):
+    def process(self):
         """iterate through the index, modifying as required"""
         counter=0
         res=False
+        maxcount=self.maxcount
         try:
             while True:
                 res = sc.cursor_next(self.mycore,self.searchterm,highlights=False,lastresult=res,rows=5)
@@ -48,12 +49,14 @@ class Updater:
                 #ESCAPE ROUTES ;
                 if not res.results:
                     break
-                counter+=1
-                if counter>maxcount:
-                    break
+
                 for doc in res.results:
                     #get all relevant fields
                     #print(doc.__dict__)
+                    counter+=1
+                    if counter>maxcount:
+                        break
+                    
                     searchterm=self.mycore.unique_id+r':"'+doc.id+r'"'
                     
                     jres=s.getJSolrResponse(searchterm,self.args,core=self.mycore)
@@ -64,6 +67,8 @@ class Updater:
                         self.modify(result)
                     else:
                         log.debug('Skipping missing record {}'.format(doc.id))
+                if counter>maxcount:
+                    break
         except s.SolrConnectionError:
             log.debug('Solr connection error: failed after {} records'.format(counter))        
 
@@ -106,18 +111,21 @@ class UpdateField(Updater):
             if self.test_run:
                 log.debug('Data source value: {}'.format(datasource_value))
             update_value=self.update_value(datasource_value)
-            if not self.test_run:
+            if not self.test_run and update_value:
                 #print('..updating .. ')
                 result=updatetags(result.id,self.mycore,value=update_value,field_to_update=self.field_to_update,newfield=self.newfield)
                 if result == False:
                     log.error('Update failed for solrID: {}'.format(result.id))
             else:
-                log.debug('Updating test')
-                log.debug('Update value: {}'.format(update_value))
+                if update_value:
+                    log.debug('Updating test')
+                    log.debug('Update value: {}'.format(update_value))
 
-                result=updatetags(result.id,self.mycore,value=update_value,field_to_update=self.field_to_update,newfield=self.newfield,test=True)
-                if result == False:
-                    log.error('Update failed for solrID: {}'.format(result.id))
+                    result=updatetags(result.id,self.mycore,value=update_value,field_to_update=self.field_to_update,newfield=self.newfield,test=True)
+                    if result == False:
+                        log.error('Update failed for solrID: {}'.format(result.id))
+                else:
+                    log.info('ignoring null update value')
                 
         except Exception as e:
             #print(self.__dict__)
@@ -140,6 +148,19 @@ class AddParentHash(UpdateField):
     def update_value(self,datasource_value):
         return parent_hashes(datasource_value)
                         
+class CopyField(UpdateField):
+    def update_value(self,value):
+        """update field with same value in all docs"""
+        return value
+
+"""
+examples:
+
+updateSolr.CopyField(mycore,field_datasource='message_from_name',field_to_update='message_from',test_run=False,searchterm="content_type:\"application/vnd.ms-outlook\"").process(maxcount=1000000)
+
+CopyField(mycore,field_datasource='message_to_display_name',field_to_update='message_to',test_run=False,searchterm="content_type:\"application/vnd.ms-outlook\" -message_to:*",maxcount=10000).process()
+
+"""
 
 class SequenceByDate(Updater):
     """go through index, put result of search into date order, using 'before' 'next' fields"""

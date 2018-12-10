@@ -153,12 +153,12 @@ class Index_Dispatch:
 
 def index_file(_file):
     extractor=indexSolr.ExtractSingleFile(_file)
-    print(extractor.__dict__)
+    #print(extractor.__dict__)
     """options: forceretry=False,useICIJ=False,ocr=True,docstore=DOCSTORE """
     if extractor.failed==0:
         return True
     else:
-        print('Extraction failed')
+        #print('Extraction failed')
         return False
 
 def index_file2(_file):
