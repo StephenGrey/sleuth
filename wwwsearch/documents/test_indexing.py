@@ -596,35 +596,35 @@ class ExtractFileTest(ExtractTest):
         self.assertFalse(ext.result)
     
     def test_email(self):
+        """test email both with direct extract and ICIJ extract tool"""
         _relpath='msg/test_email.msg'
         _id='5b6fcfc9fe87b050255bb695a4616e3c7abddf282e6397fd868e03c1b0018fb0'
         updateSolr.delete(_id,self.mycore)
         
-        
         extractor=self.extract_document(_id,_relpath)
-        print(extractor.__dict__)
-        
-        
-        
-        doc=updateSolr.check_hash_in_solrdata(_id,self.mycore)
-        print(doc.__dict__)
-        self.assertEquals(doc.data['message_to'],["'Adele Fulton'","Paul J. Brown"])
-#        self.assertEquals(doc.data['message_from'],'Wood, Tracy')
-#        self.assertEquals(doc.date,'2015-07-29T17:58:40Z')
-        
-        updateSolr.delete(_id,self.mycore)
-        
-        path=os.path.abspath(os.path.join(os.path.dirname(__file__), '../tests/testdocs', _relpath))
-        ext=indexSolr.solrICIJ.ICIJExtractor(path,self.mycore,ocr=False)
-        print(ext.__dict__)
-        self.assertTrue(ext.result)
-
+        #print(extractor.__dict__)
         
         doc=updateSolr.check_hash_in_solrdata(_id,self.mycore)
         print(doc.__dict__)
         self.assertEquals(doc.data['message_to'],"'Adele Fulton'; Paul J. Brown")
         self.assertEquals(doc.data['message_from'],'Wood, Tracy')
         self.assertEquals(doc.date,'2015-07-29T17:58:40Z')
+        self.assertEquals(doc.data['title'], 'Newport Adimistrative Order by Consent (AOC) Status')
+        
+        updateSolr.delete(_id,self.mycore)
+        
+        path=os.path.abspath(os.path.join(os.path.dirname(__file__), '../tests/testdocs', _relpath))
+        ext=indexSolr.solrICIJ.ICIJExtractor(path,self.mycore,ocr=False)
+        #print(ext.__dict__)
+        self.assertTrue(ext.result)
+
+        
+        doc=updateSolr.check_hash_in_solrdata(_id,self.mycore)
+        #print(doc.__dict__)
+        self.assertEquals(doc.data['message_to'],"'Adele Fulton'; Paul J. Brown")
+        self.assertEquals(doc.data['message_from'],'Wood, Tracy')
+        self.assertEquals(doc.date,'2015-07-29T17:58:40Z')
+        self.assertEquals(doc.data['title'], 'Newport Adimistrative Order by Consent (AOC) Status')
         
         
     

@@ -577,7 +577,7 @@ def metaupdate(collection,test_run=False):
     filelist=File.objects.filter(collection=collection)
         
     for _file in filelist: #loop through files in collection
-        log.debug(f'File: {_file} Updatemetaflag: \'{_file.indexUpdateMeta}\'  ID:\'{_file.solrid}\'')
+        #log.debug(f'File: {_file} Updatemetaflag: \'{_file.indexUpdateMeta}\'  ID:\'{_file.solrid}\'')
         if _file.solrid:
             #do action if indexUpdateMeta flag is true; and there is a stored solrID
             if _file.indexUpdateMeta:
@@ -730,80 +730,6 @@ def parsechanges(solrresult,_file,mycore):
 
     return changes
 
-#
-#COPIED TO OBJECT
-#def changes(collection):
-#
-#    unchanged,changedfiles,missingfiles,newfileshash,movedfiles,newfiles,deletedfiles=[],[],{},{},[],[],[]
-#
-#    files_on_disk=filetable(collection.path) #get dict of specs of files in disk folder(and subfolders)
-#    files_in_database=File.objects.filter(collection=collection)
-#
-#
-#    #loop through files in the database
-#
-#    for file in files_in_database:
-#        path=file.filepath
-#        lastm=file.last_modified
-#        hash=file.hash_contents
-#        size=file.filesize
-#
-#        #grab and remove the filepath from files_on_disk if already in database
-#        latest_file=files_on_disk.pop(path, None)
-#        if latest_file:  #if stored path exists in current folder
-#                latest_lastmodified=s.timestamp2aware(latest_file[4]) #gets last modified info as stamp, makes GMT time object
-#                latestfilesize=latest_file[1]
-#                if lastm==latest_lastmodified and latestfilesize==size:
-#                    #print(path+' hasnt changed')
-#                    unchanged.append(path)
-#                else:
-#                    #print(path+' still there but has changed')
-#                    changedfiles.append(path)
-#                    log.debug('Changed file: \nStored date: {} New date {}\n Stored filesize: {} New filesize: {}'.format(lastm,latest_lastmodified,size,latestfilesize))
-#                #print(path,lastm-latest_lastmodified)
-#        else: #file has been deleted or moved
-#            #print(path+' is missing')
-#            missingfiles[path]=hash
-#
-#    #make contents hash of files remaining of list on disk(found on disk, not in database)
-#    for newpath in files_on_disk:
-#        #print (newpath+' is new')
-#        newhash=hexfile(newpath)
-#        #print(newhash)
-#        if newhash in newfileshash:
-#            newfileshash[newhash].append(newpath)
-#        else:
-#            newfileshash[newhash]=[newpath]
-#
-#    #now work out which new files have been moved
-#    for missingfilepath in missingfiles:
-#        missinghash=missingfiles[missingfilepath]
-#        
-#        newpaths=newfileshash.get(missinghash)
-#        if newpaths:
-#            #take one of the new files from list (no particular logic on which is moved / new)
-#            newpath=newpaths.pop()
-#            #put back the reduced list
-#            newfileshash[missinghash]=newpaths
-#            #print(os.path.basename(missingfilepath)+' has moved to '+os.path.dirname(newpath))
-#            movedfiles.append([newpath,missingfilepath])
-#        else: #remaining files are deleted
-#            deletedfiles.append(missingfilepath)
-#  
-#  #remaining files in newfilehash are new 
-#    for newhash in newfileshash:
-#        newpaths=newfileshash[newhash]
-#        for newpath in newpaths:
-#            newfiles.append(newpath)
-#    
-#    log.info('NEWFILES>>>>>{}'.format(newfiles))
-#    log.info('DELETEDFILES>>>>>>>{}'.format(deletedfiles))
-#    log.info('MOVED>>>>:{}'.format(movedfiles))
-#    #print('NOCHANGE>>>',unchanged)
-#    log.info('CHANGEDFILES>>>>>>{}'.format(changedfiles))
-#    return {'newfiles':newfiles,'deletedfiles':deletedfiles,'movedfiles':movedfiles,'unchanged':unchanged,'changedfiles':changedfiles}
-#  
-
 #TESTING
 def listmeta(id=2):
     collection=Collection.objects.get(id=id)
@@ -844,14 +770,6 @@ def updatetags(solrid,mycore,value=['test','anothertest'],field_to_update='usert
     
     return status
 
-
-#def updatefield(mycore,newvalue,maxcount=30000):
-#    """add a field retrospectively"""
-#    counter=0
-#    res=False
-#    args='&fl=extract_id,database_originalID, sb_filename'
-#
-##move
 
 def metareplace(mycore,resultfield,find_ex,replace_ex,searchterm='*',sourcefield='',test=False):
     """Update a field with regular expression find and replace"""   

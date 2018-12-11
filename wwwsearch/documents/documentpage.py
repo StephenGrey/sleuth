@@ -6,6 +6,7 @@ log=logging.getLogger('ownsearch.documentpage')
 from ownsearch import authorise
 from .forms import IndexForm, get_corechoices
 from .models import Collection,Index
+from .file_utils import make_relpath
 
 class NoValidCore(Exception):
     pass
@@ -73,7 +74,8 @@ class CollectionPage(Page):
         self.myindex=Index.objects.get(id=self.coreID)
         log.debug('my Index: {}'.format(self.myindex))
         self.authorised_collections=Collection.objects.filter(core=self.myindex)
-        
+        self.authorised_collections_relpaths=[(make_relpath(c.path),c.id) for c in self.authorised_collections]
+
     
 class FilesPage(CollectionPage):
     pass

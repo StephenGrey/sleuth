@@ -35,11 +35,12 @@ class NoIndexSelected(Exception):
 def index(request):
     """ Display collections, options to scan,list,extract """
     try:
-        
-
         page=documentpage.CollectionPage()
-
         job_id=request.session.get('tasks')
+        try:
+            page.selected_collection=int(request.session.get('collection_selected'))
+        except:
+            page.selected_collection=None
         log.info(f'Stored jobs: {job_id}')                
         if job_id:
             job=f'SB_TASK.{job_id}'
@@ -56,10 +57,10 @@ def index(request):
         page.chooseindexes(request.method,request_postdata=request.POST)
         page.get_collections() #filter authorised collections
     #        log.debug('Core set in request: {}'.format(request.session['mycore']))
-        log.debug('CORE ID: {} COLLECTIONS: {}'.format(page.coreID,page.authorised_collections))    
-        
+        log.debug('CORE ID: {} COLLECTIONS: {}'.format(page.coreID,page.authorised_collections)) 
         request.session['mycore']=page.coreID
-        return render(request, 'documents/scancollection.html',{'form': page.form, 'latest_collection_list': page.authorised_collections,'results':page.results, 'job':page.job})
+
+        return render(request, 'documents/scancollection.html',{'page': page})
     except Exception as e:
         log.error('Error: {}'.format(e))
         return HttpResponse('Can\'t find core/collection - retry')
@@ -73,8 +74,6 @@ def getcores(page,request):
     mycore=page.cores.get(int(page.coreID)) # get the working core
     log.info('using index: {}'.format(getattr(mycore,'name','')))
     return mycore
- 
-
 
 @staff_member_required()
 def display_results(request,job_id=''):
@@ -122,6 +121,7 @@ def listfiles(request):
     try:
         if request.method == 'POST' and 'choice' in request.POST:
             selected_collection=int(request.POST[u'choice'])
+            request.session['collection_selected']=selected_collection
             thiscollection=Collection.objects.get(id=selected_collection)
             collectionpath=thiscollection.path
             
@@ -145,12 +145,7 @@ def listfiles(request):
 #                    return HttpResponse(f"Indexing task created: id \"{job_id}\"")
                 else:
                     return HttpResponse("Scannning of this collection already queued")
- 
-#                scanner=updateSolr.scandocs(thiscollection)
-#                if not scanner.scan_error:
-#                    return HttpResponse (" <p>Scanned {} docs<p>New: {} <p>Deleted: {}<p> Moved: {}<p>Unchanged: {}<p>Changed: {}".format(scanner.scanned_files,  scanner.new_files_count,scanner.deleted_files_count,scanner.moved_files_count,scanner.unchanged_files_count,scanner.changed_files_count))
-#                else:
-#                    return HttpResponse ("Scan Failed!")
+
     #INDEX DOCUMENTS IN COLLECTION IN SOLR
             elif 'index' in request.POST:
                 mycore.ping()

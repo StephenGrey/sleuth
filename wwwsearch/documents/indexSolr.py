@@ -393,7 +393,8 @@ class ExtractFile():
         for solrdoc in solr_result.results:
         #add source info to the extracted document
             log.debug(solrdoc.__dict__)
-            
+            _path=solrdoc.data.get('docpath')[0]
+
             if not solrdoc.docname: #no stored filename
                 filename=solrdoc.data[self.mycore.docnamesourcefield2]
                 if filename:
@@ -413,6 +414,21 @@ class ExtractFile():
                         return False
                 except Exception as e:
                     log.error(e)
+                    return False
+            
+                    #extract a relative path from the docstore root
+            changes=[]
+            _relpath=make_relpath(_path,docstore=self.docstore) if _path else None
+            log.debug(_relpath)
+            if _relpath:
+                changes.append((self.mycore.docpath,'docpath',_relpath))
+                if self.mycore.parenthashfield:
+                    parenthash=file_utils.parent_hash(_relpath)
+                    changes.append((self.mycore.parenthashfield,self.mycore.parenthashfield,parenthash))
+            if changes:
+                log.debug(changes)
+                response,updatestatus=update_meta(solrdoc.id,changes,self.mycore)
+                if not updatestatus:
                     return False
         return True
     
