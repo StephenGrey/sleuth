@@ -79,10 +79,10 @@ def index(request,path=''):
         if masterindex_path:
             page.inside_master=path.startswith(masterindex_path)
         try:
-            c = file_utils.index_maker(path,'',specs=page.specs,masterindex=page.masterspecs,rootpath=MEDIAROOT)
+            c = file_utils.Dups_Index_Maker(path,'',specs=page.specs,masterindex=page.masterspecs,rootpath=MEDIAROOT)._index
         except file_utils.EmptyDirectory as e:
             c= None
-        log.debug(c)
+        #log.debug(c)
         if path:
             rootpath=path
             tags=file_utils.directory_tags(path)

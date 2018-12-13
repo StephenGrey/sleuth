@@ -2,15 +2,6 @@
 
 	{% block sidebar %}
 	
-	{% if user.is_staff %}
-	<a href="/documents/" role="button" class="btn btn-warning btn-block" >Index Settings</a>
-	<p><p>
-	<a href="/dups/" role="button" class="btn btn-warning btn-block" >Inspect Media</a>	
-	<p><p>	
-	<a href="/admin/" role="button" class="btn btn-warning btn-block" >Admin</a>	
-	
-	
-	{% endif %}
 	<form action="/ownsearch/" method="post">
     {% csrf_token %}
 Index:{{form.CoreChoice}}<p>

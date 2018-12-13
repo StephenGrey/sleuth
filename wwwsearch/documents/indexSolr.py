@@ -29,14 +29,17 @@ from .redis_cache import redis_connection as r
 try:
     IGNORELIST=config['Solr']['ignore_list'].split(',')
     DOCSTORE=config['Models']['collectionbasepath'] #get base path of the docstore
-    TIMEOUT=float(config['Solr']['solrtimeout'])
-    MAXSIZE=float(config['Solr']['maxsize'])
+    TIMEOUT=int(config['Solr']['solrtimeout'])
+    MAXSIZE_MB=int(config['Solr']['maxsize'])
     
 except Exception as e:
     log.warning('Some missing configuration options; using defaults')
     IGNORELIST=[]
     TIMEOUT=120
-    MAXSIZE=5000000
+    MAXSIZE_MB=5 #MB
+
+MAXSIZE=MAXSIZE_MB*(1024**2)
+
 """
 EXTRACT CONTENTS OF A FILE FROM LOCAL MEDIA INTO SOLR INDEX
 

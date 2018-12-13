@@ -445,6 +445,113 @@ class HashIndex(PathIndex):
         self.ignore_pattern=ignore_pattern
         pass
 
+class Index_Maker():
+#index_maker
+    def __init__(self, path,index_collections,specs=None,masterindex=None, rootpath=DOCSTORE, hidden_files=False):
+        log.info(f'Indexmaker PATH: {path}, ROOTPATH: {rootpath}')
+        def _index(root,depth,index_collections,maxdepth=2):
+            #log.debug(f'Root :{root} Depth: {depth}')
+            try:
+                
+                files = os.listdir(root)
+                for mfile in files:
+                    t = os.path.join(root, mfile)
+                    relpath=os.path.relpath(t,rootpath)
+                    #print(f'FILE/DIR: {t}')
+                    if os.path.isdir(t):    
+                        if depth==maxdepth-1:
+                            yield self.folder_html_nosub(mfile,relpath,path)
+                        else:
+                            subfiles=_index(os.path.join(root, t),depth+1,index_collections)
+                            #log.debug(f'ROOT:{root},SUBFILES:{subfiles}')
+                            yield self.folder_html(mfile,relpath,subfiles,path)
+                        continue
+                    else:
+                        #files
+                        if MODELS:
+                            _stored,_indexed=model_index(t,index_collections)
+                        else:
+                            _stored,_indexed=None,None
+                        dupcheck=DupCheck(t,specs,masterindex)
+                        #log.debug(f'Local check: {t},indexed: {_indexed}, stored: {_stored}')
+                        yield self.file_html(mfile,_stored,_indexed,dupcheck,relpath,path)
+                        continue
+            except PermissionError:
+                log.debug(f'Permission error while reading: {root}')
+        basepath=os.path.join(rootpath,path)
+        try:
+            file_count=len([filename for filename in os.listdir(basepath)]) if hidden_files else len([filename for filename in os.listdir(basepath) if not is_hidden_file(filename)])
+        except PermissionError as e:
+            log.info(f'Permission error accessing {basepath}')
+            raise EmptyDirectory('Permission denied to display contents of folder')
+        if file_count==0:
+            raise EmptyDirectory('No files to display in folder')
+        
+        #log.debug('Basepath: {}'.format(basepath))
+        if os.path.isdir(basepath):
+            self._index=_index(basepath,0,index_collections)
+        else:
+            raise Not_A_Directory('not a valid path to a folder')
+
+
+    @staticmethod
+    def file_html(mfile,_stored,_indexed,dupcheck,relpath,path):	
+        return loader.render_to_string('documents/filedisplay/p_file.html',{
+                            'file': mfile, 
+                            'local_index':_stored,
+                            'indexed':_indexed,                    
+                            	})
+                            	
+    @staticmethod
+    def folder_html(mfile,relpath,subfiles,path):
+        return loader.render_to_string('documents/filedisplay/p_folder.html',
+        {'file': mfile,
+         'filepath':relpath,
+         'rootpath':path,
+         'subfiles': subfiles,
+         })
+         
+    @staticmethod
+    def folder_html_nosub(mfile,relpath,path):
+        return loader.render_to_string('documents/filedisplay/p_folder_nosub.html',
+            {'file': mfile,
+             'filepath':relpath,
+             'rootpath':path,
+            })
+#
+class Dups_Index_Maker(Index_Maker):
+    @staticmethod
+    def file_html(mfile,_stored,_indexed,dupcheck,relpath,path):
+        return loader.render_to_string('dups/p_file.html',{
+                            'file': mfile, 
+                            'local_index':_stored,
+                            'indexed':_indexed,
+                            'dupcheck':dupcheck,
+                            'filepath':relpath,
+                            'rootpath':path,
+                            	})
+    @staticmethod
+    def folder_html(mfile,relpath,subfiles,path):
+        return loader.render_to_string('dups/p_folder.html',
+        {'file': mfile,
+         'filepath':relpath,
+         'rootpath':path,
+         'subfiles': subfiles,
+         })
+         
+    @staticmethod
+    def folder_html_nosub(mfile,relpath,path):
+        return loader.render_to_string('dups/p_folder_nosub.html',
+            {'file': mfile,
+             'filepath':relpath,
+             'rootpath':path,
+            })
+#
+
+
+
+
+
 
 def changed_file(_file):
     newspecs=FileSpecs(_file.filepath,scan_contents=False)
@@ -564,66 +671,6 @@ def relpath_valid(relpath,root=DOCSTORE):
     """check relative path exists, is a sub of the docstore, and is not an absolute path"""
     return relpath_exists(relpath,root=root) and not is_absolute(relpath,root=root) and is_down(relpath,root=root)
     
-def index_maker(path,index_collections,specs=None,masterindex=None, rootpath=DOCSTORE, hidden_files=False):
-    log.info(f'Indexmaker PATH: {path}, ROOTPATH: {rootpath}')
-    def _index(root,depth,index_collections,maxdepth=2):
-        log.debug(f'Root :{root} Depth: {depth}')
-        try:
-            
-            files = os.listdir(root)
-            for mfile in files:
-                t = os.path.join(root, mfile)
-                relpath=os.path.relpath(t,rootpath)
-                #print(f'FILE/DIR: {t}')
-                if os.path.isdir(t):    
-                    if depth==maxdepth-1:
-                        yield loader.render_to_string('dups/p_folder_nosub.html',
-                                                   {'file': mfile,
-                                                   	'filepath':relpath,
-                                                   	'rootpath':path,
-                                                    	})
-                    else:
-                        subfiles=_index(os.path.join(root, t),depth+1,index_collections)
-                        #print(f'ROOT:{root},SUBFILES:{subfiles}')
-                        yield loader.render_to_string('dups/p_folder.html',
-                                                   {'file': mfile,
-                                                   	'filepath':relpath,
-                                                   	'rootpath':path,
-                                                    'subfiles': subfiles,
-                                                    	})
-                    continue
-                else:
-                    #files
-                    stored,indexed=model_index(t,index_collections) if MODELS else None,None
-                    dupcheck=DupCheck(t,specs,masterindex)
-                    #log.debug('Local check: {},indexed: {}, stored: {}'.format(t,indexed,stored))
-                    yield loader.render_to_string('dups/p_file.html',{
-                    'file': mfile, 
-                    'local_index':stored,
-                    'indexed':indexed,
-                    'dupcheck':dupcheck,
-                    'filepath':relpath,
-                    'rootpath':path,
-                    	})
-                    continue
-        except PermissionError:
-            log.debug(f'Permission error while reading: {root}')
-    basepath=os.path.join(rootpath,path)
-    try:
-        file_count=len([filename for filename in os.listdir(basepath)]) if hidden_files else len([filename for filename in os.listdir(basepath) if not is_hidden_file(filename)])
-    except PermissionError as e:
-        log.info(f'Permission error accessing {basepath}')
-        raise EmptyDirectory('Permission denied to display contents of folder')
-    if file_count==0:
-        raise EmptyDirectory('No files to display in folder')
-    log.debug(file_count)
-    
-    #log.debug('Basepath: {}'.format(basepath))
-    if os.path.isdir(basepath):
-        return _index(basepath,0,index_collections)
-    else:
-        raise Not_A_Directory('not a valid path to a folder')
-
 
 def is_hidden_file(filename):
     return filename.startswith('.')
@@ -687,8 +734,10 @@ def model_index(path,index_collections,hashcheck=False):
     """check if True/False file in collection is in database, return File object"""
     
     stored=File.objects.filter(filepath=path, collection__in=index_collections)
+    #log.debug(stored)
     if stored:
         indexed=stored.exclude(solrid='')
+        #log.debug(indexed)
         return True,indexed
     else:
         return None,None

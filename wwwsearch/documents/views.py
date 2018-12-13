@@ -22,10 +22,10 @@ import ownsearch.solrJson as solr
 from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.auth.decorators import login_required
 log = logging.getLogger('ownsearch.docs.views')
-from configs import config
+import configs
 from SearchBox.watcher import watch_dispatch
 
-BASEDIR=config['Models']['collectionbasepath'] #get base path of the docstore
+BASEDIR=configs.config['Models']['collectionbasepath'] #get base path of the docstore
 r=redis_cache.redis_connection
 
 class NoIndexSelected(Exception):
@@ -37,6 +37,7 @@ def index(request):
     try:
         page=documentpage.CollectionPage()
         job_id=request.session.get('tasks')
+        page.maxsize=indexSolr.MAXSIZE_MB
         try:
             page.selected_collection=int(request.session.get('collection_selected'))
         except:
@@ -112,7 +113,7 @@ def listfiles(request):
     job_id=request.session.get('tasks')
     log.info(f'Stored jobs: {job_id}')
     page=documentpage.CollectionPage()
-    
+    page.maxsize=indexSolr.MAXSIZE_MB
     try:
         mycore=getcores(page,request)
     except NoIndexSelected:
@@ -127,7 +128,16 @@ def listfiles(request):
             
             _OCR=True if 'ocr' in request.POST else False
             _FORCE_RETRY=True if 'force_retry' in request.POST else False
-                
+             
+            if 'maxsize' in request.POST:
+                _maxsizeMB=int(request.POST.get('maxsize'))
+                if _maxsizeMB != page.maxsize:
+                    page.maxsize=_maxsizeMB
+                    log.debug(f'New maxsize set to {page.maxsize}')
+                    _maxsize=_maxsizeMB*(1024**2) 
+                    configs.userconfig.update('Solr','maxsize',str(_maxsizeMB))
+                    indexSolr.MAXSIZE_MB=page.maxsize
+                    indexSolr.MAXSIZE=_maxsize
             
             if 'list' in request.POST:
             #get the files in selected collection
@@ -145,6 +155,7 @@ def listfiles(request):
 #                    return HttpResponse(f"Indexing task created: id \"{job_id}\"")
                 else:
                     return HttpResponse("Scannning of this collection already queued")
+
 
     #INDEX DOCUMENTS IN COLLECTION IN SOLR
             elif 'index' in request.POST:
@@ -246,7 +257,6 @@ def list_solrfiles(request,path=''):
 @staff_member_required()
 def file_display(request,path=''):
     """display files in a directory"""
-
     #get the core , or set the the default    
     page=documentpage.FilesPage()
     page.getcores(request.user,request.session.get('mycore')) #arguments: user, storedcore
@@ -255,7 +265,7 @@ def file_display(request,path=''):
 #        log.debug('Core set in request: {}'.format(request.session['mycore']))
     log.debug('CORE ID: {}'.format(page.coreID))    
         
-    c = file_utils.index_maker(path,page.authorised_collections)
+    c = file_utils.Index_Maker(path,page.authorised_collections)._index
     if path:
         rootpath=path
         tags=directory_tags(path)
@@ -263,7 +273,7 @@ def file_display(request,path=''):
         rootpath=""
         tags=None
     return render(request,'documents/filedisplay/listindex.html',
-                               {'subfiles': c, 'rootpath':rootpath, 'tags':tags, 'form':page.form, 'path':path})
+         {'subfiles': c, 'rootpath':rootpath, 'tags':tags, 'form':page.form, 'path':path})
 
 
 #checking for what files in existing solrindex

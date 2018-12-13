@@ -1,19 +1,8 @@
 
 
-{% extends "dups/base.html" %}
+{% extends "base.html" %}
 
 {% block sidebar %}
-	<ul class="sidebar-nav">
-	{% if user.is_staff %}
-	<a href="/documents/" role="button" class="btn btn-warning btn-block" >Index Settings</a>
-	<p><p>
-	<a href="/dups/" role="button" class="btn btn-warning btn-block" >Inspect Media</a>	
-	<p><p>	
-	<a href="/admin/" role="button" class="btn btn-warning btn-block" >Admin</a>	
-	
-	</ul>
-	
-	{% endif %}
 
 <p><p>
 	<div class="panel panel-default">

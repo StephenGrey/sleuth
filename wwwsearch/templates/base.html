@@ -7,23 +7,28 @@
 {% block title %}<title>SearchBox</title>{% endblock %}
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-<!--  <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
--->
   <link rel="stylesheet" type="text/css" href="{% static 'css/bootstrap1.min.css' %}" />
+  <link rel="stylesheet" type="text/css" href="{% static 'css/bootstrap-theme.min.css' %}" />
+  <link rel="stylesheet" type="text/css" href="{% static 'css/jquery-ui.css' %}" />
+  <link rel="stylesheet" type="text/css" href="{% static 'css/style1.css' %}" />
+  <link rel="stylesheet" type="text/css" href="{% static 'css/filelist.css' %}" />
+ 
   <script src="{% static 'js/jquery.min.js' %}"></script>
   <script src="{% static 'js/bootstrap.min.js' %}"></script>  
-  <link rel="stylesheet" type="text/css" href="{% static 'css/style1.css' %}" />
+  <script src="{% static 'js/jquery-ui.min.js' %}"></script>
 
+
+<!--  <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
+-->
 <!--<script src="https://ajax.googleapis.com/ajax/libs/jquery/1.12.4/jquery.min.js"></script>
 --> <!-- <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"></script>-->
-
-<link rel="stylesheet" href="{% static 'css/jquery-ui.css' %}">
 <!--<script src="http://code.jquery.com/jquery-1.9.1.js"></script>-->
-<script src="{% static 'js/jquery-ui.js' %}"></script>
 
+
+{% block stylesheet %}{% endblock %}
+</head>
 <div class="container">
 <div class="row" style="background: lightblue; padding: 5px">
-</head>
 <h2><a class='no-deco' style="color:white" href="/ownsearch/">SearchBox</a></h2>
 
 <!--<a href="{% static 'Squirrel.jpg' %}">test picture</a>
@@ -37,11 +42,21 @@
 
     <div class="row" style="padding: 10px">
 	      <div class="col-sm-3">
-					
+					{% block choices%}
+						{% if user.is_staff %}
+						<a href="/documents/" role="button" class="btn btn-warning btn-block" >Indexing</a>
+						<p><p>
+						<a href="/documents/files/" role="button" class="btn btn-warning btn-block" >Document Store</a>	
+						<p><p>	
+						<a href="/dups/" role="button" class="btn btn-warning btn-block" >Compare Media</a>	
+						<p><p>	
+						<a href="/admin/" role="button" class="btn btn-warning btn-block" >Admin</a>	
+						{% endif %}
+					{%endblock%}
+					<ul class="sidebar-nav">
 					{% block sidebar %}
-					      <ul class="sidebar-nav">
-					      </ul>
 					{% endblock %}
+					</ul>
 	      </div>
 	    {% block maincontent %}
 	      <div class="col-sm-9 ">
@@ -92,4 +107,3 @@ modified log-in code from: https://rayed.com/wordpress/?p=1350
 </script>
 
 </html>
-
