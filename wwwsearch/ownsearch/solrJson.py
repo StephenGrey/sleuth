@@ -89,7 +89,7 @@ class SolrCore:
                 if not fieldexists(self.tags1field,self): #check if the tag field is defined in index
                     self.tags1field=''
         except KeyError:
-            raise MissingConfigData
+            raise MissingConfigData('Missing configuration data')
 
     def __repr__(self):
         return "SolrCore object: \'{}\'".format(self.name)
