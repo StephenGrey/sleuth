@@ -11,7 +11,7 @@ from ownsearch.hashScan import pathHash
 import ownsearch.solrJson as s
 from . import solrcursor as curs
 from ownsearch.hashScan import FileSpecTable as filetable
-from documents import views as v
+#from documents import views as v
 from django.utils import timezone
 import pytz #support localising the timezone
 from configs import  config
@@ -184,9 +184,9 @@ def times(path):
     return os.path.getmtime(path)
             
 
-def ICIJindex(collection,mycore): #indexdocs(collection,mycore,forceretry=False,useICIJ=False)
-    counter,skipped,failed=v.indexdocs(collection,mycore,forceretry=True,useICIJ=True)
-    return counter,skipped,failed
+#def ICIJindex(collection,mycore): #indexdocs(collection,mycore,forceretry=False,useICIJ=False)
+#    counter,skipped,failed=v.indexdocs(collection,mycore,forceretry=True,useICIJ=True)
+#    return counter,skipped,failed
 
 
 def tps():  #test sub process

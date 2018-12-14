@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-import json
+import json,time
 from .models import File,Collection
 from documents import file_utils,time_utils
 #from ownsearch.hashScan import FileSpecTable as filetable
@@ -9,11 +9,14 @@ from ownsearch import solrJson
 import logging,os
 log = logging.getLogger('ownsearch.docs.changes')
 
+from .redis_cache import redis_connection as r
+
+
 class ChangesError(Exception):
     pass
 
 class Scanner:
-    def __init__(self,collection,test=False):
+    def __init__(self,collection,test=False,job=None):
         if not isinstance(collection, Collection):
             raise ChangesError('Not a valid collection')
         self.collection=collection
@@ -21,8 +24,17 @@ class Scanner:
         self.unchanged_files,self.changed_files,self.moved_files,self.new_files,self.deleted_files=[],[],[],[],[]
         self.missing_files,self.new_files_hash={},{}
         self.scan_error=False
+        self.job=job
+        
+        self.total_files()
+        self.update_results()
         self.process()
-
+        self.update_results()
+    
+    
+    def total_files(self):
+        self.total= sum([len(subdir)+len(files) for r, subdir, files in os.walk(self.collection.path)])
+        log.debug(self.total)
     
     def process(self):
         self.scan()
@@ -38,12 +50,14 @@ class Scanner:
           
     def scan(self):
         """1. scan all files in collection"""
-        
-        self.files_on_disk=file_utils.filespecs(self.collection.path) #get dict of specs of files in disk folder(and subfolders)
         self.files_in_database=File.objects.filter(collection=self.collection)
+        self.files_on_disk=file_utils.filespecs(self.collection.path,job=self.job) #get dict of specs of files in disk folder(and subfolders)
+        
+        self.total=len(self.files_on_disk)
         
     def find_on_disk(self):
         """2. loop through files in the database"""
+        self.update_progress('Comparing files on disk with database')
         for database_file in self.files_in_database:
             if database_file.filepath in self.files_on_disk:
                 self.find_unchanged(database_file)
@@ -71,6 +85,9 @@ class Scanner:
 
     def scan_new_files(self):
         """3. make index of remaining files found on disk, using contents hash)"""
+        self.update_progress('Adding new files to database')
+        log.debug('Adding new files to database')
+        #time.sleep(10)
         for newpath in self.files_on_disk:
             if not self.files_on_disk[newpath].folder:
                 newhash=file_utils.get_contents_hash(newpath)
@@ -84,6 +101,8 @@ class Scanner:
 
     def new_or_missing(self):        
         """4. now work out which new files have been moved """
+        self.update_progress('Identifying moved files')
+        log.debug('Identifying moved files')
         for missingfilepath in self.missing_files:
             missinghash=self.missing_files[missingfilepath]
             
@@ -131,6 +150,36 @@ class Scanner:
         self.unchanged_files_count=len(self.unchanged_files)
         self.changed_files_count=len(self.changed_files)
         self.scanned_files=self.new_files_count+self.deleted_files_count+self.moved_files_count+self.unchanged_files_count+self.changed_files_count
+        
+        
+    def update_progress(self,message):
+        if self.job:
+            progress_str=f"{message}"
+            r.hmset(self.job,{
+            'progress_str':progress_str,
+            'show_taskbar': False,
+            })
+
+        
+    def update_results(self):
+        if self.job:
+            self.count_changes()
+            log.debug(f'scanned files: {self.scanned_files}')
+            progress=f'{((self.scanned_files/self.total)*100):.0f}'
+            progress_str=f"{self.scanned_files} of {self.total} files" #0- replace 0 for decimal places
+            log.debug(f'Progress: {progress_str}')
+            r.hmset(self.job,{
+            'progress':progress,
+            'progress_str':progress_str,
+            'total':self.scanned_files,
+            'new':self.new_files_count,
+            'deleted':self.deleted_files_count,
+            'moved':self.moved_files_count,
+            'unchanged':self.unchanged_files_count,
+            'changed':self.changed_files_count
+            })
+        else:
+            log.debug('No redis job defined')
 
 
 def movefile(_file,newpath):

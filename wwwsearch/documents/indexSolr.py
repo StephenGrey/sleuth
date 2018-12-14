@@ -11,7 +11,7 @@ log = logging.getLogger('ownsearch.indexsolr')
 from configs import config
 from ownsearch.solrJson import SolrConnectionError
 from ownsearch.solrJson import SolrCoreNotFound
-from documents.updateSolr import delete,updatetags,check_hash_in_solrdata,check_file_in_solrdata,remove_filepath_or_delete_solrrecord,makejson,update as update_meta,get_source,get_collection_source,check_paths
+from documents.updateSolr import delete,updatetags,check_hash_in_solrdata,check_file_in_solrdata,remove_filepath_or_delete_solrrecord,makejson,update as update_meta,get_source,get_collection_source,check_paths,clear_date
 from ownsearch import solrJson as s
 from fnmatch import fnmatch
 from . import solrICIJ,file_utils,changes,time_utils
@@ -20,17 +20,23 @@ try:
     from urllib.parse import quote #python3
 except ImportError:
     from urllib import quote #python2
+import time
+from .redis_cache import redis_connection as r
+
+#from watcher import watch_dispatch2 as watch_dispatch
 
 
 try:
     IGNORELIST=config['Solr']['ignore_list'].split(',')
     DOCSTORE=config['Models']['collectionbasepath'] #get base path of the docstore
     TIMEOUT=float(config['Solr']['solrtimeout'])
+    MAXSIZE=float(config['Solr']['maxsize'])
     
 except Exception as e:
-    log.warning('Configuration warning: no ignore list found')
+    log.warning('Some missing configuration options; using defaults')
     IGNORELIST=[]
-    
+    TIMEOUT=120
+    MAXSIZE=5000000
 """
 EXTRACT CONTENTS OF A FILE FROM LOCAL MEDIA INTO SOLR INDEX
 
@@ -51,7 +57,7 @@ class DuplicateRecords(Exception):
 
 class Extractor():
     """extract a collection of docs into solr"""
-    def __init__(self,collection,mycore,forceretry=False,useICIJ=False,ocr=True,docstore=DOCSTORE):
+    def __init__(self,collection,mycore,forceretry=False,useICIJ=False,ocr=True,docstore=DOCSTORE,job=None):
         
         if not isinstance(mycore,s.SolrCore) or not isinstance(collection,Collection):
             raise BadParameters("Bad parameters for extraction")
@@ -61,22 +67,27 @@ class Extractor():
         self.useICIJ=useICIJ
         self.ocr=ocr
         self.docstore=docstore
+        self.job=job
         self.counter,self.skipped,self.failed=0,0,0
         self.skippedlist,self.failedlist=[],[]
-
         self.filelist=File.objects.filter(collection=collection)
-        
+        self.target_count=len(self.filelist)
+        self.update_extract_results()
+        self.update_working_file('')
         self.extract()
+        self.update_extract_results()
+        self.update_working_file('')
     
     
     def extract_file(self,file):
-        #log.debug(file.__dict__)
+        
         if self.skip_file(file):
             pass
             #log.debug('Skipping {}'.format(file))
         else:
             log.info('Attempting index of {}'.format(file.filepath))
-            
+            self.update_working_file(file.filepath)
+
             #if was previously indexed, store old solr ID and then delete if new index successful
             oldsolrid=file.solrid
             #get source
@@ -102,9 +113,13 @@ class Extractor():
 
                 else:
                 #now try the extract
+                    file.indexedTry=True  #set flag to say we've tried
+                    file.save()
                     if self.useICIJ:
                         log.info('using ICIJ extract method..')
-                        result = solrICIJ.ICIJextract(file.filepath,self.mycore,ocr=self.ocr)
+                        ext = solrICIJ.ICIJExtractor(file.filepath,self.mycore,ocr=self.ocr)
+                        result=ext.result
+                        file.error_message=ext.error_message
                         if result is True:
                             try:
                                 new_id=s.hashlookup(file.hash_contents,self.mycore).results[0].id #id of the first result returned
@@ -113,6 +128,7 @@ class Extractor():
                                 log.info('(ICIJ extract) New solr ID: '+new_id)
                             except:
                                 log.warning('Extracted doc not found in index')
+                                file.error_message='Indexed, but not found in index'
                                 result=False
                         if result is True:
                         #post extract process -- add meta data field to solr doc, e.g. source field
@@ -120,13 +136,12 @@ class Extractor():
                                 sourcetext=file.collection.source.sourceDisplayName
                             except:
                                 sourcetext=''
-                            if sourcetext:
-                                try:
-                                    result=solrICIJ.postprocess(new_id,sourcetext,file.hash_contents,self.mycore)
-                                    if result==True:
-                                        log.debug('Added source: \"{}\" to docid: {}'.format(sourcetext,new_id))
-                                except Exception as e:
-                                    log.error('Cannot add meta data to solrdoc: {}, error: {}'.format(new_id,e))
+
+                            try:
+                                ext=ICIJ_Post_Processor(file.filepath,self.mycore,hash_contents=file.solrid, sourcetext=sourcetext,docstore=self.docstore,test=False)
+                            except Exception as e:
+                                log.error(f'Cannot add meta data to solrdoc: {new_id}, error: {e}')
+                            
                     else:
                         try:
                             extractor=ExtractFile(file.filepath,self.mycore,hash_contents=file.hash_contents,sourcetext=sourcetext,docstore=self.docstore,test=False)
@@ -134,6 +149,8 @@ class Extractor():
                             if result:
                                 extractor.post_process()
                                 result=extractor.post_result
+                            else:
+                                file.error_message=extractor.error_message
                         except (s.SolrCoreNotFound,s.SolrConnectionError,requests.exceptions.RequestException) as e:
                             raise ExtractInterruption(self.interrupt_message())
          
@@ -145,7 +162,7 @@ class Extractor():
                     file.solrid=file.hash_contents  #extract uses hashcontents for an id , so add it
                 
                 file.indexedSuccess=True
-                
+                file.error_message=''
                 #now delete previous solr doc of moved file(if any): THIS IS ONLY NECESSARY IF ID CHANGES  
                 log.info('Old ID: '+oldsolrid+' New ID: '+file.solrid)
                 
@@ -157,18 +174,25 @@ class Extractor():
             else:
                 log.info('PATH : '+file.filepath+' indexing failed')
                 self.failed+=1
-                file.indexedTry=True  #set flag to say we've tried
-                log.debug('Saving updated file info in database')
-                file.save()
-                self.failedlist.append(file.filepath)
-
+                self.failedlist.append((file.filepath,file.error_message))
+        if self.job and r:
+            self.update_extract_results()
+                
+                
     def extract(self):
         #main loop
         for _file in self.filelist:
-            self.extract_file(_file)
+            try:
+                self.extract_file(_file)
+            except Exception as e:
+                log.info('PATH : '+_file.filepath+' indexing failed')
+                _file.indexedTry=True  #set flag to say we've tried
+                _file.save()
+                raise e
 
     def update_existing_meta(self,file,existing_doc):
         """update meta of existing solr doc"""
+        result=True
         file.solrid=existing_doc.id
         log.debug('Existing docpath: {}'.format(existing_doc.data.get('docpath')))
         log.debug('Existing parent path hashes: {}'.format(existing_doc.data.get(self.mycore.parenthashfield)))
@@ -190,6 +214,8 @@ class Extractor():
             log.debug(f'Date from path {date_from_path}')
             if existing_doc.date != date_from_path:
                 log.debug('Date from path altered; update in index')
+                if not clear_date(file.solrid,self.mycore):
+                    log.error('Failed to clear previous date')
                 result=updatetags(file.solrid,self.mycore,value=date_from_path,field_to_update='datesourcefield',newfield=False,test=False)
                 if not result:
                     log.error('Failed in updating date from path')
@@ -209,18 +235,27 @@ class Extractor():
     def skip_file(self,file):
         if file.indexedSuccess:
             pass
+            file.error_message='Already indexed'
             #skip this file: it's already indexed
-        elif file.indexedTry==True and self.forceretry==False:
+        elif file.indexedTry and not self.forceretry:
             #skip this file, tried before and not forcing retry
-            log.info('Skipped on previous index failure; no retry: {}'.format(file.filepath))
-        elif ignorefile(file.filepath) is True:
+            file.error_message='Previous failure'
+            log.info(f'Skipped {file.error_message} path: {file.filename}')
+        elif ignorefile(file.filepath):
             #skip this file because it is on ignore list
-            log.info('Ignoring: {}'.format(file.filepath))
+            file.error_message='On ignore list'
+            log.info(f'Skipped {file.error_message} path: {file.filename}')
+        elif file.filesize>MAXSIZE:
+            #skip the extract, it's too big
+            file.error_message=f'Too large {file.filesize}b'
+            log.info(f'Skipped {file.error_message} path: {file.filename}')
         else:
             #don't skip
             return False
         self.skipped+=1
-        self.skippedlist.append(file.filepath)
+        
+        relpath=os.path.relpath(file.filepath,self.collection.path)
+        self.skippedlist.append((relpath, file.error_message))
         return True
 
     def interrupt_message(self):
@@ -248,9 +283,31 @@ class Extractor():
             
             if result:
                 result=updatetags(solrid,self.mycore,field_to_update=self.mycore.docnamesourcefield,value='Folder: {}'.format(file.filename))
-                
-        
         return result
+    #REDIS UPDATES
+    
+    def update_working_file(self,_filename):
+        if self.job:
+            r.hset(self.job,'working_file',_filename)
+            
+    
+    def update_extract_results(self):
+        if self.job:
+            processed=self.counter+self.skipped+self.failed
+            try:
+                progress=f'{((processed/self.target_count)*100):.0f}'
+            except ZeroDivisionError:
+                progress=f'100'
+            progress_str=f"{processed} of {self.target_count} files" #0- replace 0 for decimal places
+            log.debug(f'Progress: {progress_str}')
+            #log.debug(self.failedlist)
+            failed_json=json.dumps(self.failedlist)
+            #log.debug(failed_json)
+            r.hmset(self.job,{'progress':progress,'progress_str':progress_str,'target_count':self.target_count,'counter':self.counter,'skipped':self.skipped,'failed':self.failed,
+            	'path':self.collection.path,
+            	'failed_list': failed_json, 
+            	'skipped_list':json.dumps(self.skippedlist)
+            		})
 
 class UpdateMeta(Extractor):
     def __init__(self,mycore,file,existing_doc,docstore=DOCSTORE):
@@ -290,7 +347,7 @@ class ExtractFile():
         self.docstore=docstore
         self.hash_contents = hash_contents if hash_contents else file_utils.get_contents_hash(path)
         self.solrid=self.hash_contents
-        self.result=extract(self.path,self.hash_contents,self.mycore,timeout=TIMEOUT,docstore=docstore,test=self.test,sourcetext=self.sourcetext)
+        self.result,self.error_message=extract(self.path,self.hash_contents,self.mycore,timeout=TIMEOUT,docstore=docstore,test=self.test,sourcetext=self.sourcetext)
         log.debug(self.result)
         
         
@@ -301,7 +358,19 @@ class ExtractFile():
         relpath=make_relpath(self.path,docstore=self.docstore)
         changes.append((self.mycore.docpath,'docpath',relpath))
         if self.date_from_path:
+            if not clear_date(self.solrid,self.mycore):
+                log.error('Failed to clear previous date')
             changes.append((self.mycore.datesourcefield,'date',time_utils.timestringGMT(self.date_from_path)))
+            
+    #if sourcefield is define and sourcetext is not empty string, add that to the arguments
+    #make the sourcetext args safe, for example inserting %20 for spaces 
+        if self.mycore.sourcefield and self.sourcetext:
+            changes.append((self.mycore.sourcefield,self.mycore.sourcefield,self.sourcetext))
+
+        #add hash of parent relative path
+        if self.mycore.parenthashfield:
+            parenthash=file_utils.parent_hash(relpath)
+            changes.append((self.mycore.parenthashfield,self.mycore.parenthashfield,parenthash))
 
         log.debug(f'CHANGES: {changes}')
         
@@ -315,8 +384,59 @@ class ExtractFile():
         #jsondata=makejson(self.solrid,changes,self.mycore)
         self.post_result=updatestatus
         #log.debug(jsondata)
+        self.process_children()
         
+
+    def process_children(self):
+        result=True
+        solr_result=s.hashlookup(self.hash_contents, self.mycore,children=True)
+        for solrdoc in solr_result.results:
+        #add source info to the extracted document
+            log.debug(solrdoc.__dict__)
+            
+            if not solrdoc.docname: #no stored filename
+                filename=solrdoc.data[self.mycore.docnamesourcefield2]
+                if filename:
+                    result=updatetags(solrdoc.id,self.mycore,value=filename,field_to_update='docnamefield',newfield=False)
+                    if result:
+                        log.debug(f'added filename \'{filename}\' to child doc')
+                    else:
+                        log.debug(f'failed to add filename \'{filename}\' to child doc')
+                        return False
+            if self.sourcetext:
+                try:
+                    result=updatetags(solrdoc.id,self.mycore,value=self.sourcetext,field_to_update='sourcefield',newfield=False)
+                    if result==True:
+                        log.info('Added source \"{}\" to child-document \"{}\", id {}'.format(self.sourcetext,solrdoc.docname,solrdoc.id))
+                    else:
+                        log.error('Failed to add source to child document id: {}'.format(solrdoc.id))
+                        return False
+                except Exception as e:
+                    log.error(e)
+                    return False
+        return True
+    
+        
+    	
         #newlastmodified=s.timestringGMT(file.last_modified)
+        
+     
+
+class ICIJ_Post_Processor(ExtractFile):
+    def __init__(self,path,mycore,hash_contents='',sourcetext='',docstore='',test=False):
+        self.path=path
+        specs=file_utils.FileSpecs(path,scan_contents=False)###
+        self.filename=specs.name
+        self.docstore=docstore
+        self.sourcetext=sourcetext
+        self.date_from_path,self.last_modified=changes.parse_date(specs)
+        self.mycore=mycore
+        self.test=test
+        self.hash_contents = hash_contents if hash_contents else file_utils.get_contents_hash(path)
+        self.solrid=self.hash_contents
+        self.post_process()
+
+
     
 #SOLR METHODS
 
@@ -339,12 +459,13 @@ def extract_test(test=True,timeout=TIMEOUT,mycore='',docstore=''):
     log.debug('Testing extract to {}'.format(mycore.name))
     mycore.ping()
     
-    result=extract(path,hash,mycore,test=test,timeout=TIMEOUT,docstore=docstore)
+    result,error_message=extract(path,hash,mycore,test=test,timeout=TIMEOUT,docstore=docstore)
     return result
 
 def extract(path,contentsHash,mycore,test=False,timeout=TIMEOUT,sourcetext='',docstore=''):
     """extract a path to solr index (mycore), storing hash of contents, optional testrun, timeout); throws exception if no connection to solr index, otherwise failures return False"""
     
+    message=''
     try:
         assert isinstance(mycore,s.SolrCore)
         assert os.path.exists(path) #check file exists
@@ -361,7 +482,7 @@ def extract(path,contentsHash,mycore,test=False,timeout=TIMEOUT,sourcetext='',do
         docnamesourcefield=mycore.docnamesourcefield
         hashcontentsfield=mycore.hashcontentsfield
         filepathfield=mycore.docpath
-        sourcefield=mycore.sourcefield
+
         id_field=mycore.unique_id
         pathhashfield=mycore.pathhashfield
         parenthashfield=mycore.parenthashfield
@@ -379,33 +500,36 @@ def extract(path,contentsHash,mycore,test=False,timeout=TIMEOUT,sourcetext='',do
 
     args+='&literal.{}={}'.format(pathhashfield,file_utils.pathHash(path))
 
-    #add hash of parent relative path
-    if parenthashfield:
-        parenthash=file_utils.parent_hash(relpath)
-        args+='&literal.{}={}'.format(parenthashfield,parenthash)
-
     #if a different field for hashcontents other than the unique ID (key) then store also in that field
     if id_field != hashcontentsfield:
         args+='&literal.{}={}'.format(hashcontentsfield,contentsHash)
-    #if sourcefield is define and sourcetext is not empty string, add that to the arguments
-    #make the sourcetext args safe, for example inserting %20 for spaces 
-    if sourcefield and sourcetext:
-        args+='&literal.{}={}'.format(sourcefield,quote(sourcetext))
-    
+
+
     log.debug('extract args: {}, path: {}, solr core: {}'.format(args,path,mycore))
         
     if test==True:
         args +='&extractOnly=true' #does not index on test
         log.debug('Testing extract args: {}, path: {}, mycore {}'.format(args,path,mycore))
         
-    result,elapsed=postSolr(args,path,mycore,timeout=timeout) #POST TO THE INDEX (returns True on success)
-    if result:
-        log.info('Extract SUCCEEDED in {:.2f} seconds'.format(elapsed))
-        return True
-    else:
-        log.info('Error in extract() posting file with args: {} and path: {}'.format(args,path))
-        log.info('Extract FAILED')
-        return False
+    try:
+        result,elapsed=postSolr(args,path,mycore,timeout=timeout) #POST TO THE INDEX (returns True on success)
+        if result:
+            log.info('Indexing succeeded in {:.2f} seconds'.format(elapsed))
+            return True,None
+        else:
+            log.warning('Error in indexing file using args: {} and path: {}'.format(args,path))
+            log.warning('Indexing FAILED')
+            message='Unknown failure'
+    except s.SolrTimeOut as e:
+        message='Solr post timeout'
+        log.warning(message)
+    except s.Solr404 as e:
+        message='404 Error: solr URL not working: {}'.format(e)
+        log.error(message)
+    except s.PostFailure as e:
+        message='Failed to post file: {}'.format(e)
+        log.warning(message)
+    return False,message
 
 
 def postSolr(args,path,mycore,timeout=1):
@@ -413,7 +537,7 @@ def postSolr(args,path,mycore,timeout=1):
     url=extracturl+args
     log.debug('POSTURL: {}  TIMEOUT: {}'.format(url,timeout))
     #log.debug('Types posturl: {} path: {}'.format(type(url),type(timeout)))
-    try:
+    if True:
         res=s.resPostfile(url,path,timeout=timeout) #timeout=
 #        log.debug('Returned json: {} type: {}'.format(res._content,type(res._content)))
         log.debug('Response header:{}'.format(res.json()['responseHeader']))
@@ -422,15 +546,6 @@ def postSolr(args,path,mycore,timeout=1):
         solrstatus=res.json()['responseHeader']['status']
         #log.debug(res.elapsed.total_seconds())
         solrelapsed=res.elapsed.total_seconds()
-    except s.SolrTimeOut as e:
-        log.error('Solr post timeout ')
-        return False,0
-    except s.Solr404 as e:
-        log.error('Error in posting 404 error - URL not workking: {}'.format(e))
-        return False,0
-    except s.PostFailure as e:
-        log.error('Post Failure : {}'.format(e))
-        return False,0
     log.debug('SOLR STATUS: {}  ELAPSED TIME: {:.2f} secs'.format(solrstatus,solrelapsed))
     if solrstatus==0:
         return True,solrelapsed 

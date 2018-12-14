@@ -1,4 +1,20 @@
 {% extends "base.html" %}
+
+
+	{% block sidebar %}
+	<ul class="sidebar-nav">
+					      
+	{% if user.is_staff %}
+	<a href="/documents/" role="button" class="btn btn-warning btn-block" >Index Settings</a>
+	<p><p>
+	<a href="/dups/" role="button" class="btn btn-warning btn-block" >Inspect Media</a>	
+	<p><p>	
+	<a href="/admin/" role="button" class="btn btn-warning btn-block" >Admin</a>	
+	
+	</ul>
+	
+	{% endif %}
+{% endblock %}
 {% block body_content %}
 
 <h3>Document Collections</h3>
@@ -16,6 +32,138 @@ Index:{{form.corechoice}}<p>
     <label for="choice{{ forloop.counter }}">{{ collection.path }}</label><br />
 {% endfor %}
 <p>
+
+{% if results %}
+
+<div id="results_panel" class="panel panel-default" > 
+	<div class="panel-heading">
+		<span id="summary_results">Indexing:&nbsp{{ results.progress_str }}</span>
+	</div>
+	<div class="panel-body" id='main-panel'>
+
+		<div class="progress" >
+  			<div id="task_bar" class="progress-bar {% ifnotequal results.progress '100' %}progress-bar-warning{%else%}progress-bar-success{%endifnotequal%}" role="progressbar" aria-valuenow="{{results.progress}}" aria-valuemin="0" aria-valuemax="100">
+    			{{ results.progress_str }} 
+  			</div>
+		</div>
+
+
+		<span id="results_list" {% ifnotequal results.progress '100' %}style="visibility:hidden"{%endifnotequal%}>
+		<b>Results:</b>&nbspTotal files: &nbsp&nbspIndexed: {{results.counter}} &nbsp&nbspFailed: {{results.failed}} &nbsp&nbspSkipped: {{results.skipped}}</span>
+		<a id="results_url" href='/documents/results/{{job}}'>Details</a><button id="progress_cancel" class="btn btn-default pull-right">Done</button>
+	</div>
+<p><p>
+</div>
+
+<!--<span  class="glyphicon glyphicon-remove"></span>
+--><script>
+
+function check_tasks() 
+{
+	var task_url = '/documents/api/tasks/'+'{{ job}}';
+	$.get( task_url, function(data) 
+		{
+    	if (data.error==true){
+    		console.log(data.message);
+    		}
+    	else
+    		{
+    		//alert(data.results.progress);
+    		console.log(data);
+//    		console.log(data.results.progress);
+//    		console.log(data.results.progress_str);
+    		var job=data.results.job;
+    		var task=data.results.task;
+    		var master_task=data.results.master_task
+    		var master_task_status=data.results.master_task_status
+    		var task_str="Indexing";
+    		var working_file =data.results.working_file;
+//    		console.log(task);
+    		$("#results_url").attr("href", "/documents/results/"+job)
+    		if (master_task_status=='completed')
+    			{
+        		clearInterval(timerID); //stop checking;
+    			};
+
+        		if (task=="extract_collection_force_retry")
+        			{ task_str="Indexing (force retry)"; 
+        			}
+        		else if (task=="scan_collection")
+        			{ task_str="Scanning";
+        			  working_file='' 
+        			};
+        		if (data.results.show_taskbar=='False'){
+        			$("#main-panel").css('display','none');
+        			//('visibility','hidden'); 
+        			}
+        			else{
+        			$("#main-panel").css('display','inline'); 
+        		    };
+    
+        		$("#task_bar").html(data.results.progress+"%");
+        		$("#task_bar").css("width", data.results.progress+"%");
+        		if (data.results.status=='error'){
+        			$("#task_bar").removeClass("progress-bar-warning").addClass("progress-bar-danger");
+        			$("#summary_results").html('Error: '+data.results.message);
+        			};
+        		
+        		if (data.results.status=='completed')
+        			{
+//        			console.log('done');
+        			if (master_task){
+//        				console.log('master task exists')
+        				}
+        			else {
+        				clearInterval(timerID); //stop checking; unless this is a subtask 
+        			};
+        			
+        			$("#task_bar").removeClass("progress-bar-warning").addClass("progress-bar-success");
+        			$("#main-panel").css('display','inline'); 
+        			$("#results_list").css("visibility","visible");
+        			//document.getElementById("task_bar").style.color="green"
+        			if (task=data.results.task=="scan_collection")
+        			{ 
+        			$("#results_list").html("<b>Results:</b>&nbspTotal files: "+data.results.total+"&nbsp&nbspMoved: "+data.results.moved+"&nbsp&nbspNew: "+data.results.new+" &nbsp&nbspUnchanged: "+data.results.unchanged+" &nbsp&nbspChanged: "+data.results.changed+"&nbsp&nbspDeleted: "+data.results.deleted+"<p><p>");    			
+        			}
+        			else {
+        				$("#results_list").html("<b>Results:</b>&nbspTotal files: "+data.results.target_count+"&nbsp&nbspIndexed: "+data.results.counter+" &nbsp&nbspFailed: "+data.results.failed+" &nbsp&nbspSkipped: "+data.results.skipped+"&nbsp;&nbsp;&nbsp;");
+        				};
+    				$("#summary_results").html(task_str+":&nbsp"+data.results.progress_str+"&nbsp&nbspCompleted");
+        			}
+        		else
+        			{
+        			$("#summary_results").html(task_str+":&nbsp"+data.results.progress_str+"&nbsp&nbsp&nbspcurrently processing:&nbsp&nbsp "+working_file);	
+        			};
+    		
+    	};
+     },
+     'json' // I expect a JSON response
+     );
+};
+check_tasks();
+var timerID = setInterval(check_tasks, 2*1000); //checking every 2 seconds
+
+$("#progress_cancel").click(function() {
+//  console.log('remove task bar');
+  clearInterval(timerID);
+//  $("#task_wrap").css('visibility','hidden');
+//  $("#results_list").css('visibility','hidden');
+  $("#results_panel").css('display','none'); 
+  $.get( "/documents/api/cleartasks", function(data) 
+		{if (data.error==true){console.log("task cancel failed");};
+		},
+     'json' // I expect a JSON response
+     );
+});
+
+</script>
+{% endif %}
+
+<p>
+
+<input type="submit" name="scan_extract" class="btn-lg btn-warning	" value="Scan & Index" /> Scan folder and index<p>
+<p>
+	
 <input type="submit" name="list" value="List Files" /> lists files stored in database<p>
 
 File database functions:<p>
@@ -24,10 +172,14 @@ File database functions:<p>
 <p>
 Extract data:
 <p>
-<input type="submit" name="index" value="Index Files" />  simple file extract into solr index<p>
-<input type="submit" name="index-retry" value="Index Retry"/> file extract with force retry<p>
-<input type="submit" name="indexICIJ" value="Index Files w ICIJ 'Extract' tool (force retry)" /><p>
-<input type="submit" name="indexICIJ_NO_OCR" value="Index Files w 'Extract' tool (no OCR / force retry)" />
+<div class="checkbox">
+  <label><input type="checkbox" name="ocr" checked="checked" value="yes">OCR</label>
+  <label><input type="checkbox" name="force_retry" value="yes">ForceRetry</label>
+
+</div>
+
+<input type="submit" name="index" value="Index Files" />  simple file extract into solr index<p><p>
+<input type="submit" name="indexICIJ" value="Index Files w ICIJ 'Extract' tool" /><p>
 <p><p><p>
 More Functions:<p>
 <p>

@@ -9,8 +9,9 @@ except ImportError:
 
 from threading import Thread, current_thread, Event
 import os,time,logging,random, shutil,redis
+from SearchBox.watcher import watch_dispatch
 
-r=redis.Redis()
+#r=redis.Redis()
 
 class PostFailure(Exception):
     pass
@@ -24,11 +25,13 @@ class StoppableThread(Thread):
         self.killswitch=Event()
         self.process_q=Q(maxsize=0) #no maxsize
         self.setDaemon(True)
+        self.pid=os.getpid()
+        print(f'Thread launched with process ID: \"{self.pid}\"')
 
 
     def stop(self):
         self.killswitch.set()
-        print('stopping')
+        print(f'stopping process ID: \"{self.pid}\"')
         
     def stopped(self):
         return self.killswitch.is_set()
@@ -39,8 +42,16 @@ class StoppableThread(Thread):
                 self.process_q.task_done()
             except ValueError:
                 break
-                
-                
+
+class TestWatch(StoppableThread):
+    
+    def run(self):
+        print('running something')
+        while True:
+            time.sleep(10)
+            print ('keeping going')
+            
+
 class Watcher(StoppableThread):
     def __init__(self):
         super(Watcher,self).__init__()
@@ -101,12 +112,35 @@ class Tasker(StoppableThread):
             pass            
         finally:
             print('{}: terminating'.format(self.name))
-                    
-def do_task():
-    print('doing some task')
-    time.sleep(10)
-    print('done')
-    return
+
+class DocProcessor(StoppableThread):
+#    """Threaded OCR processor"""
+#    #----------------------------------------------------------------------
+    def __init__(self,name):
+    	
+    	 #process_q,upload_q,results_q,name
+        super(DocProcessor,self).__init__()
+        self.setName(name)
+        self.name=self.getName()
+#
+    def run(self):
+        print('Launching {}'.format(self.name))
+        try:
+            while (not self.killswitch.is_set()):
+                #print('doing a background task then wait')
+                time.sleep(1)
+                watch_dispatch.task_check()
+                watch_dispatch.HBEAT.tick()   #heartbeat signal
+        except Terminate:
+            pass            
+        finally:
+            print('{}: terminating'.format(self.name))
     
-    
+def set_watcher():
+    t=DocProcessor('docprocess1')
+    t.start()
+    return t
+
+
+
     

@@ -418,7 +418,7 @@
   <field name="SBdata_ID"  type="text_general"/>
   <field name="_root_" type="string" docValues="false" indexed="true" stored="false"/>
   <field name="_text_" type="text_general" multiValued="true" indexed="true" stored="false"/>
-  <field name="_version_" type="plong" indexed="false" stored="false"/>
+  <field name="_version_" type="plong" indexed="true" stored="true"/>
   <field name="a" type="text_general"/>
   <field name="access_permission_assemble_document" type="booleans"/>
   <field name="access_permission_can_modify" type="booleans"/>
@@ -639,7 +639,7 @@
   <field name="revision_number" type="plongs"/>
   <field name="rows_per_strip" type="text_general"/>
   <field name="samples_per_pixel" type="text_general"/>
-  <field name="sb_filename" type="string" multiValued="false" stored="false"/>
+  <field name="sb_filename" type="string" multiValued="false" stored="true"/>
   <field name="sb_size" type="plongs" multiValued="false" stored="false"/>
   <field name="sb_before" type="string" multiValued="false" stored="true"/>
   <field name="sb_next" type="string" multiValued="false" stored="true"/>
@@ -928,7 +928,7 @@
   <field name="tika_metadata_resolution_info" type="text_general"/>
   <field name="tika_metadata_resolution_unit" type="text_general"/>
   <field name="tika_metadata_resolution_units" type="text_general"/>
-  <field name="tika_metadata_resourcename" type="text_general"/>
+  <field name="tika_metadata_resourcename"  type="text_general" multiValued="true" stored="true"/>
   <field name="tika_metadata_revision_number" type="plongs"/>
   <field name="tika_metadata_samples_per_pixel" type="text_general"/>
   <field name="tika_metadata_seed_number" type="plongs"/>
@@ -1072,11 +1072,18 @@
 <!--  <dynamicField name="*" type="text_general" multiValued="true" indexed="true" stored="true"/>
 -->
   <copyField source="last_modified" dest="sb_last_modified"/>
+  
+  <copyField source="tika_metadata_message_from" dest="message_from" maxChars="256"/>
+  <copyField source="tika_metadata_message_to" dest="message_to" maxChars="256"/>
+  <copyField source="tika_metadata_author" dest="author" maxChars="256"/>
+  <copyField source="tika_metadata_title" dest="title" maxChars="256"/>
+  
+  
 <!--  <copyField source="stream_size" dest="tika_metadata_content_length"/>-->
   <copyField source="stream_size" dest="sb_size"/>
   <copyField source="tika_metadata_content_length" dest="sb_size"/>  
   <copyField source="tika_metadata_last_modified" dest="sb_last_modified" multiValued="false" stored="false"/>
-  <copyField source="tika_metadata_resourcename" dest="sb_filename" maxChars="256"/>
+<!--  <copyField source="tika_metadata_resourcename" dest="sb_filename" maxChars="256"/>-->
   <copyField source="pdf_docinfo_creator_tool" dest="pdf_docinfo_creator_tool_str" maxChars="256"/>
   <copyField source="extract_paths" dest="extract_paths_str" maxChars="256"/>
   <copyField source="stream_source_info" dest="stream_source_info_str" maxChars="256"/>

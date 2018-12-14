@@ -1,15 +1,17 @@
-import sys,datetime,time, logging
+# -*- coding: utf-8 -*-
+import sys,datetime,time, logging, redis
 
 from SearchBox.tools import wwwsearch_connect #Connect to Django project
 from django.conf import settings
-from documents import file_utils,utils,changes,updateSolr,indexSolr
+from documents import file_utils,changes,updateSolr,indexSolr,redis_cache
 from documents.models import File,Collection
 logging.config.dictConfig(settings.LOGGING)
 log = logging.getLogger('ownsearch.watch_dispatch')
-if (log.hasHandlers()):
-    print('has handler')
+#if (log.hasHandlers()):
+#    print('has handler')
 
-log.info('This is test log entry')
+r=redis_cache.redis_connection
+#redis.Redis(charset="utf-8", decode_responses=True)
 
 
 """
@@ -28,6 +30,22 @@ worker thread: take action on fileevents
 """
 MODIFIED_FILES={}
 MODIFIED_TIMES={}
+
+
+class HeartBeat:
+    def tick(self):
+        r.set('SB_heartbeat','tick')
+    def tock(self):
+        r.set('SB_heartbeat','tock')
+
+    @property
+    def alive(self):
+        if r.get('SB_heartbeat') == 'tock':
+            return False
+        self.tock()
+        return True
+
+
 
 class Index_Dispatch:
     def __init__(self,event_type,sourcepath,destpath):
@@ -69,15 +87,19 @@ class Index_Dispatch:
     
     def modify(self):
         if self.source_in_database:
-            MODIFIED_TIMES[self.sourcepath]=time.time()
+            #MODIFIED_TIMES[self.sourcepath]=time.time()
             for _file in self.source_in_database:
                 #putting modified file in q
-                MODIFIED_FILES.setdefault(self.sourcepath,set()).add(_file.id)
-                #print(f'Added: \'{_file}\' to modification queue')
+                #MODIFIED_FILES.setdefault(self.sourcepath,set()).add(_file.id)
+                r.sadd('MODIFIED_FILES',_file.id)
+                r.set(f'MODIFIED_TIME.{_file.id}',time.time())
+                print(f'Added: \'{_file}\' with id {_file.id}to modification queue')
 #                if changes.changefile(_file):
 #                    print(f'Modified: \'{_file}\' in Index: \'{_file.collection.core}\'')
         else:
             self.create()
+
+
 
     def moved(self):
         if self.dest_in_database and self.source_in_database:
@@ -127,6 +149,8 @@ class Index_Dispatch:
                 log.debug(f'Now should update solr meta for {_file}')
                 updateSolr.metaupdate_rawfile(_file)
 
+
+
 def index_file(_file):
     extractor=indexSolr.ExtractSingleFile(_file)
     print(extractor.__dict__)
@@ -137,10 +161,238 @@ def index_file(_file):
         print('Extraction failed')
         return False
 
+def index_file2(_file):
+    pass
+
+
+def make_scan_and_index_job(collection_id,_test=False,force_retry=False,use_icij=False,ocr=True):
+    job_id=f'CollectionScanAndExtract.{collection_id}'
+    makejob=r.sadd('SEARCHBOX_JOBS',job_id)
+    if not makejob:
+        log.info('task exists already')
+        return job_id
+    else:
+        job=f'SB_TASK.{job_id}'
+        if use_icij:
+            r.hset(job,'task','scan_extract_collection_force_retry_icij') if force_retry else r.hset(job,'task','scan_extract_collection_icij')
+        else:
+            r.hset(job,'task','scan_extract_collection_force_retry') if force_retry else r.hset(job,'task','scan_extract_collection')
+        r.hset(job,'collection_id',collection_id)
+        r.hset(job,'status','queued')
+        r.hset(job,'ocr',ocr)
+        r.hset(job,'test',_test)
+        r.hset(job,'job',job)
+        return job_id
+
+
+def make_index_job(collection_id,_test=False,force_retry=False,use_icij=False,ocr=True):
+    job_id=f'CollectionExtract.{collection_id}'
+    makejob=r.sadd('SEARCHBOX_JOBS',job_id)
+    if not makejob:
+        log.info('task exists already')
+        return job_id
+    else:
+        job=f'SB_TASK.{job_id}'
+        if use_icij:
+            r.hset(job,'task','extract_collection_force_retry_icij') if force_retry else r.hset(job,'task','extract_collection_icij')
+        else:
+            r.hset(job,'task','extract_collection_force_retry') if force_retry else r.hset(job,'task','extract_collection')
+        r.hset(job,'collection_id',collection_id)
+        r.hset(job,'status','queued')
+        r.hset(job,'ocr',ocr)
+        r.hset(job,'test',_test)
+        r.hset(job,'job',job)
+        r.hmset(job,{'show_taskbar':True,'progress':0,'progress_str':"",'target_count':"",'counter':"",'skipped':"",'failed':"",'failed_list':""})
+        return job_id
+
+def make_scan_job(collection_id,_test=False):
+    job_id=f'CollectionScan.{collection_id}'
+    makejob=r.sadd('SEARCHBOX_JOBS',job_id)
+    if not makejob:
+        log.info('task exists already')
+        return False
+    else:
+        job=f'SB_TASK.{job_id}'
+        r.hset(job,'task','scan_collection')
+        r.hset(job,'collection_id',collection_id)
+        r.hset(job,'status','queued')
+        r.hset(job,'test',_test)
+        r.hset(job,'job',job)
+        r.hmset(job,{'show_taskbar':True,'progress':0,'progress_str':"",'target_count':"",'moved':"",'new':"",'deleted':"",'unchanged':""})
+        return job_id
+
+
+def get_extract_results(job):
+    return r.hgetall(job)
+    
+def task_check():
+    job_ids=r.smembers('SEARCHBOX_JOBS')
+    for job_id in job_ids:
+        job=f'SB_TASK.{job_id}'
+        if r.exists(job):
+            log.debug(f'Processing {job}')
+            task=r.hget(job,'task')
+            if task=='extract_collection' or task=='extract_collection_force_retry' or task=='extract_collection_icij' or task=='extract_collection_force_retry_icij':
+                try:
+                    index_job(job_id,job,task)
+                except:
+                    pass
+            elif task=='scan_collection':
+                scan_job(job_id,job,task)
+            elif task=='scan_extract_collection' or task=='scan_extract_collection_force_retry' or task=='scan_extract_collection_icij' or task=='scan_extract_collection_force_retry_icij':
+                #DEBUG
+                scan_extract_job(job_id,job,task)                    
+            else:
+                log.info(f'no task defined .. killing job')
+                r.delete(job)
+                r.srem('SEARCHBOX_JOBS',job_id)
+
+def scan_extract_job(job_id,job,task):
+    sub_job_id=r.hget(job,'sub_job_id')
+    sub_job='SB_TASK.'+sub_job_id if sub_job_id else None
+    status=r.hget(job,'status')
+    ocr=False if r.hget(job,'ocr')=='False' else True
+    collection_id=r.hget(job,'collection_id')
+    force_retry = True if 'force_retry' in task else False
+    use_icij = True if 'icij' in task else False
+    log.debug(f'ocr: {ocr}, force_retry: {force_retry}, icij {use_icij}, sub_id: {sub_job}')
+    if status=='queued':
+        log.info('making scan job')
+        sub_job_id=make_scan_job(collection_id,_test=False)
+        r.hset(job,'status','scanning')
+        r.hset(job,'sub_job_id',sub_job_id)
+    elif status=='scan_complete':
+        pass
+    elif status=='scanning':
+        sub_status=r.hget(sub_job,'status')
+        if sub_status =='completed':
+            log.debug('now index')   
+            sub_job_id=make_index_job(collection_id,_test=False,force_retry=False,use_icij=False,ocr=True)
+            r.hset(job,'status','indexing')
+            r.hset(job,'sub_job_id',sub_job_id)
+        else:
+            log.debug('still scanning')
+    elif status=='indexing':
+        sub_status=r.hget(sub_job,'status')
+        if sub_status =='completed':
+            r.hset(job,'status','completed')
+            r.srem('SEARCHBOX_JOBS',job_id)
+            r.sadd('SEARCHBOX_JOBS_DONE',job_id)
+            log.debug('scan and index complete')
+        else:
+            log.debug('still indexing')
+    else: 
+        pass   
+
+
+def scan_job(job_id,job,task):
+    collection_id=r.hget(job,'collection_id')
+    log.info(f'scanning collection {collection_id}')
+    scan_collection_id(job,collection_id)
+    r.srem('SEARCHBOX_JOBS',job_id)
+    r.sadd('SEARCHBOX_JOBS_DONE',job_id)
+    
+
+def index_job(job_id,job,task):
+    ocr_raw=r.hget(job,'ocr')
+    ocr=False if ocr_raw=='False' else True
+    useICIJ= True if task[-5:]=='_icij' else False
+    collection_id=r.hget(job,'collection_id')
+    r.hset(job,'status','started')
+    _test=True if r.hget(job,'test')=='True' else False
+    log.info('This is a test') if _test else None
+    log.info(f'indexing collection {collection_id}')
+
+    try:
+        index_collection_id(job,collection_id,_test,useICIJ=useICIJ,ocr=ocr) if task=='extract_collection' else index_collection_id(job,collection_id,_test,forceretry=True,useICIJ=useICIJ)
+    except updateSolr.s.SolrConnectionError as e:
+        log.error(f'Solr Connection Error: {e}')
+        r.hset(job,'status','error')
+        r.hset(job,'message','Solr connection error')
+        raise
+    except Exception as e:
+        log.error(f'Error: {e}')
+        r.hset(job,'status','error')
+        r.hset(job,'message','Unknown error')
+        raise
+#                results=r.hgetall(job)
+#                log.info(results)
+    r.srem('SEARCHBOX_JOBS',job_id)
+    r.sadd('SEARCHBOX_JOBS_DONE',job_id)
+
+    
+    
+    
+
+def scan_collection_id(job,collection_id,_test=False):
+    _collection,_mycore=collection_from_id(collection_id)
+    scanner=scan_collection(job,_collection,_test=_test)
+    r.hset(job,'status','completed')
+    if scanner:
+        r.hmset(job,{
+        'total':scanner.scanned_files,
+        'new':scanner.new_files_count,
+        'deleted':scanner.deleted_files_count,
+        'moved':scanner.moved_files_count,
+        'unchanged':scanner.unchanged_files_count,
+        'changed':scanner.changed_files_count
+        })
+
+def scan_collection(job,_collection,_test=False):
+    scanner=updateSolr.scandocs(_collection,job=job)
+    return scanner
+
+def collection_from_id(collection_id):
+    _collection=Collection.objects.get(id=int(collection_id))
+    _mycore=indexSolr.s.core_from_collection(_collection)
+    return _collection,_mycore
+
+def index_collection_id(job,collection_id,_test=False,forceretry=False,useICIJ=False,ocr=True):
+    try:
+        _collection,_mycore=collection_from_id(collection_id)
+        ext=index_collection(_collection,_mycore,_test=_test,job=job,forceretry=forceretry,useICIJ=useICIJ,ocr=ocr)
+        r.hset(job,'status','completed')
+        r.hset(job,'working_file','')
+        if ext:
+            r.hmset(job,{'counter':ext.counter,'skipped':ext.skipped,'failed':ext.failed,'failed_list':ext.failedlist})
+        r.srem('COLLECTIONS_TO_INDEX',collection_id)
+    except Collection.DoesNotExist:
+        log.info(f'Collection id {collection_id} not valid ... deleting')
+        r.hset(job,'status','error')
+        r.hset(job,'message','collection not valid')
+        r.srem('COLLECTIONS_TO_INDEX',collection_id)
+                
+def index_collection(thiscollection,mycore,_test=False,job=None,forceretry=False,useICIJ=False,ocr=True):
+    assert isinstance(thiscollection,Collection)
+    assert isinstance(mycore,indexSolr.s.SolrCore)
+    log.info(f'extracting {thiscollection} in {mycore}')
+    ext=indexSolr.Extractor(thiscollection,mycore,job=job,forceretry=forceretry,useICIJ=useICIJ,ocr=ocr) if not _test else None #GO INDEX THE DOCS IN SOLR
+    return ext
+
+def modify_check(time_before_check):
+    """ check and index modified file after waiting x seconds"""
+    for n in r.smembers('MODIFIED_FILES'):
+        _fileid=int(n)
+        try:
+            _file=file_from_id(_fileid)
+            _rawmod=r.get(f'MODIFIED_TIME.{_file.id}')
+            _modtime=float(_rawmod) if _rawmod else None
+            _now=time.time()
+            print(f'Checking: File:{_file} Modified: {int(_now-_modtime)} seconds ago')
+            if _now-_modtime>time_before_check:
+                print('needs update check')
+                result=update_file(_file)
+                log.info(f'{_file} updated: {result}')
+                #remove checked files:
+                r.srem('MODIFIED_FILES',_fileid)
+                r.delete(f'MODIFIED_TIME.{_file.id}')                
+        except File.DoesNotExist:
+            print(f'{_fileid} not found .. removing from MODIFIED_FILES')
+            r.srem('MODIFIED_FILES',_fileid)
 
 def update_file(_file):
     if file_utils.changed_file(_file):
-        #print('This file needs updating')
+        print('This file needs updating')
         _file.hash_contents=''
         _file.indexedSuccess=False
         _file.indexedTry=False
@@ -159,9 +411,17 @@ def update_filepath(filepath):
             result=False
     return result
 
+
+def file_from_id(_id):
+    return File.objects.get(id=_id)
+#
 def files_from_id(_ids):
     return [File.objects.get(id=_id) for _id in _ids]
 #
+
+HBEAT=HeartBeat()
+
+
 #if __name__ == "__main__":
 #    path = sys.argv[1] if len(sys.argv) > 1 else '.'
     

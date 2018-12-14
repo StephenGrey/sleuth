@@ -9,35 +9,49 @@ from django.urls import reverse
 from .forms import IndexForm
 from django.shortcuts import render, redirect
 from django.utils import timezone
-
+import ast
 import pytz #support localising the timezone
 from .models import Collection,File,Index,UserEdit
 from ownsearch.hashScan import HexFolderTable as hex
 from ownsearch.hashScan import hashfile256 as hexfile
 from ownsearch.hashScan import FileSpecTable as filetable
 from .file_utils import directory_tags
-import datetime, hashlib, os, logging, requests, json
-from . import indexSolr, updateSolr, solrDeDup, solrcursor,correct_paths,documentpage,file_utils
+import datetime, hashlib, os, logging, requests, json 
+from . import indexSolr, updateSolr, solrDeDup, solrcursor,correct_paths,documentpage,redis_cache,file_utils
 import ownsearch.solrJson as solr
-
 from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.auth.decorators import login_required
 log = logging.getLogger('ownsearch.docs.views')
 from configs import config
+from SearchBox.watcher import watch_dispatch
 
 BASEDIR=config['Models']['collectionbasepath'] #get base path of the docstore
-
+r=redis_cache.redis_connection
 
 class NoIndexSelected(Exception):
     pass
     
-
 @staff_member_required()
 def index(request):
     """ Display collections, options to scan,list,extract """
     try:
-        #get the core , or set the the default    
+        
+
         page=documentpage.CollectionPage()
+
+        job_id=request.session.get('tasks')
+        log.info(f'Stored jobs: {job_id}')                
+        if job_id:
+            job=f'SB_TASK.{job_id}'
+            log.debug(f'job: {job}')
+            page.results=watch_dispatch.get_extract_results(job)
+            #log.debug(f'task results: {page.results}')
+            page.job=job
+        else:
+            page.results=None
+            page.job=None
+        #get the core , or set the the default    
+
         page.getcores(request.user,request.session.get('mycore')) #arguments: user, storedcore
         page.chooseindexes(request.method,request_postdata=request.POST)
         page.get_collections() #filter authorised collections
@@ -45,7 +59,7 @@ def index(request):
         log.debug('CORE ID: {} COLLECTIONS: {}'.format(page.coreID,page.authorised_collections))    
         
         request.session['mycore']=page.coreID
-        return render(request, 'documents/scancollection.html',{'form': page.form, 'latest_collection_list': page.authorised_collections})
+        return render(request, 'documents/scancollection.html',{'form': page.form, 'latest_collection_list': page.authorised_collections,'results':page.results, 'job':page.job})
     except Exception as e:
         log.error('Error: {}'.format(e))
         return HttpResponse('Can\'t find core/collection - retry')
@@ -61,9 +75,43 @@ def getcores(page,request):
     return mycore
  
 
+
+@staff_member_required()
+def display_results(request,job_id=''):
+    
+    results=r.hgetall(job_id)
+    
+    if not results:
+        return HttpResponse('No results to display')
+    
+    try:
+        failed=results.get('failed_list')
+        log.debug(failed)
+        if failed:
+            failed=ast.literal_eval(failed)
+    except KeyError:
+        failed=None
+    results['failed_list']=failed
+    log.debug(failed)
+    
+    skipped=results.get('skipped_list')
+    if skipped:
+        results['skipped_list']=ast.literal_eval(skipped)
+    
+#    results['failed_list']=[('/Volumes/Crypt/ownCloud/testfolder/willerby.TIF', 'Solr post timeout')]
+    
+    return render(request,'documents/results.html',
+          {'job_id':job_id, 'results':results})
+    
+ 
+
+
+
 @staff_member_required()
 def listfiles(request):
 
+    job_id=request.session.get('tasks')
+    log.info(f'Stored jobs: {job_id}')
     page=documentpage.CollectionPage()
     
     try:
@@ -77,6 +125,10 @@ def listfiles(request):
             thiscollection=Collection.objects.get(id=selected_collection)
             collectionpath=thiscollection.path
             
+            _OCR=True if 'ocr' in request.POST else False
+            _FORCE_RETRY=True if 'force_retry' in request.POST else False
+                
+            
             if 'list' in request.POST:
             #get the files in selected collection
                 filelist=File.objects.filter(collection=thiscollection)
@@ -86,51 +138,68 @@ def listfiles(request):
             elif 'scan' in request.POST:
             #>> DO THE SCAN ON THIS COLLECTION
                 mycore.ping()
-                scanner=updateSolr.scandocs(thiscollection)
-                if not scanner.scan_error:
-                    return HttpResponse (" <p>Scanned {} docs<p>New: {} <p>Deleted: {}<p> Moved: {}<p>Unchanged: {}<p>Changed: {}".format(scanner.scanned_files,  scanner.new_files_count,scanner.deleted_files_count,scanner.moved_files_count,scanner.unchanged_files_count,scanner.changed_files_count))
+                job_id=watch_dispatch.make_scan_job(thiscollection.id,_test=False)
+                if job_id:
+                    request.session['tasks']=job_id
+                    return redirect('docs_index')
+#                    return HttpResponse(f"Indexing task created: id \"{job_id}\"")
                 else:
-                    return HttpResponse ("Scan Failed!")
+                    return HttpResponse("Scannning of this collection already queued")
+ 
+#                scanner=updateSolr.scandocs(thiscollection)
+#                if not scanner.scan_error:
+#                    return HttpResponse (" <p>Scanned {} docs<p>New: {} <p>Deleted: {}<p> Moved: {}<p>Unchanged: {}<p>Changed: {}".format(scanner.scanned_files,  scanner.new_files_count,scanner.deleted_files_count,scanner.moved_files_count,scanner.unchanged_files_count,scanner.changed_files_count))
+#                else:
+#                    return HttpResponse ("Scan Failed!")
     #INDEX DOCUMENTS IN COLLECTION IN SOLR
             elif 'index' in request.POST:
                 mycore.ping()
-                ext=indexSolr.Extractor(thiscollection,mycore) #GO INDEX THE DOCS IN SOLR
-                return HttpResponse ("Indexing.. <p>indexed: {} <p>skipped: {}<p>{}<p>failed: {}<p>{}".format(ext.counter,ext.skipped,ext.skippedlist,ext.failed,ext.failedlist))
                 
-    #INDEX DOCUMENTS WITH RETRY
-            elif 'index-retry' in request.POST:
-                mycore.ping()
-                ext=indexSolr.Extractor(thiscollection,mycore,forceretry=True) #GO INDEX THE DOCS IN SOLR
-                
-                return HttpResponse ("Indexing with retry.. <p>indexed: {} <p>skipped: {}<p>{}<p>failed: {}<p>{}".format(ext.counter,ext.skipped,ext.skippedlist,ext.failed,ext.failedlist))
+                job_id=watch_dispatch.make_index_job(thiscollection.id,_test=False,force_retry=_FORCE_RETRY)
+                #ext=indexSolr.Extractor(thiscollection,mycore) #GO INDEX THE DOCS IN SOLR
+                request.session['tasks']=job_id
+                return redirect('docs_index')
                                 
-                
-                
     #INDEX VIA ICIJ 'EXTRACT' DOCUMENTS IN COLLECTION IN SOLR
             elif 'indexICIJ' in request.POST:
-                #print('try to index in Solr')
                 mycore.ping()
-                ext=indexSolr.Extractor(thiscollection,mycore,forceretry=True,useICIJ=True) #GO INDEX THE DOCS IN SOLR
-                return HttpResponse ("Indexing with ICIJ tool.. <p>indexed: {} <p>skipped: {}<p>{}<p>failed: {}<p>{}".format(ext.counter,ext.skipped,ext.skippedlist,ext.failed,ext.failedlist))
-    
-    #INDEX VIA ICIJ 'EXTRACT' DOCUMENTS IN COLLECTION IN SOLR ::: NO OCR PROCES
-            elif 'indexICIJ_NO_OCR' in request.POST :
-                mycore.ping()                
-                ext=indexSolr.Extractor(thiscollection,mycore,forceretry=True,useICIJ=True,ocr=False) #GO INDEX THE DOCS IN SOLR
-                return HttpResponse ("Indexing with ICIJ tool (no OCR).. <p>indexed: {} <p>skipped: {}<p>{}<p>failed: {}<p>{}".format(ext.counter,ext.skipped,ext.skippedlist,ext.failed,ext.failedlist))    
-    
+                job_id=watch_dispatch.make_index_job(thiscollection.id,_test=False,force_retry=_FORCE_RETRY,use_icij=True,ocr=_OCR)
+                request.session['tasks']=job_id
+                return redirect('docs_index')                
+                
+            elif 'scan_extract' in request.POST:
+                mycore.ping()
+                job_id=watch_dispatch.make_scan_and_index_job(thiscollection.id,_test=False,force_retry=_FORCE_RETRY,use_icij=False,ocr=_OCR)
+                request.session['tasks']=job_id
+                return redirect('docs_index') 
     
     #CURSOR SEARCH OF SOLR INDEX
             elif 'solrcursor' in request.POST:
                 mycore.ping()
                 match,skipped,failed=indexcheck(thiscollection,mycore) #GO SCAN THE SOLR INDEX
-                return HttpResponse ("Checking solr index.. <p>files indexed: "+str(match)+"<p>files not found:"+str(skipped)+"<p>errors:"+str(failed))
-
+                
+                results={
+                'task':'check_index',
+                'indexed':match,
+                'not_found':skipped,
+                'errors':failed,
+                'path': collectionpath,
+                }
+                
+                return render(request,'documents/results.html',
+                {
+                'job_id':'', 
+                'results':results
+                })
      #CHECK PATHS
             elif 'path-check' in request.POST:
                 mycore.ping()
                 correct_paths.check_solrpaths(mycore,thiscollection)
                 return HttpResponse('checked paths')
+
+            else:
+                return redirect('docs_index')
+
 
     #REMOVE DUPLICATES FROM SOLR INDEX
         elif request.method == 'POST' and 'dupscan' in request.POST:

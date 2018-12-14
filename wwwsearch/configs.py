@@ -72,7 +72,6 @@ userconfig=Config()
 
 
 try:
-    print('importing defaults')
     defaultconfig=Config(path=DEFAULTPATH) #the example configs - 
     solrconfig=Config(path=SOLRDEFAULTS) #the basic solr configuration
     
