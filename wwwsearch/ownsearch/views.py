@@ -60,7 +60,7 @@ def do_search(request,page_number=0,**kwargs):
     #GET AUTHORISED CORES AND DEFAULT
         thisuser=request.user
         storedcoreID=request.session.get('mycore','')
-        #log.debug('Stored core: {}'.format(storedcoreID))
+        log.debug('Stored core: {}'.format(storedcoreID))
         
         try:
             authcores=authorise.AuthorisedCores(thisuser,storedcore=storedcoreID)

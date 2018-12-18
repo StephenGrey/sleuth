@@ -30,7 +30,7 @@ class AuthorisedCores:
            self.mycoreID=getcore(self.cores,storedcore,self.defaultcore)
            self.mycore=self.cores[self.mycoreID]
         except Exception as e:
-           log.debug('Error: {}'.format(e))
+           log.debug('Error: {}'.format(e.__dict__))
         log.debug('authcores: {}'.format(self.__dict__))
 
 ##set up solr indexes
