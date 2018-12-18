@@ -337,26 +337,29 @@ class ICIJExtractTest(ExtractorTest):
         updateSolr.delete(_id,self.mycore)
         
         path=os.path.abspath(os.path.join(os.path.dirname(__file__), '../tests/testdocs', _relpath))
-        result=indexSolr.solrICIJ.ICIJextract(path,self.mycore,ocr=False)
+        result=indexSolr.solrICIJ.ICIJExtractor(path,self.mycore,ocr=False).result
         self.assertTrue(result)
         
-        result=indexSolr.solrICIJ.add_source(_id,'some text',_id, self.mycore)
-        self.assertTrue(result)
-
+        ext=indexSolr.ICIJ_Post_Processor(path,self.mycore,hash_contents=_id, sourcetext='some text',docstore=os.path.join(os.path.dirname(__file__), '../tests/testdocs'),test=False)
+        
         doc=indexSolr.check_hash_in_solrdata(_id,self.mycore)
 
-        self.assertEquals(doc.data.get('docpath'), [path])
         self.assertEquals(doc.data.get(self.mycore.sourcefield),'some text')
-        
-        ext=indexSolr.ICIJ_Post_Processor(path,self.mycore,hash_contents=_id, sourcetext='',docstore=os.path.join(os.path.dirname(__file__), '../tests/testdocs'),test=False)
-        
-        doc=indexSolr.check_hash_in_solrdata(_id,self.mycore)
 
         self.assertEquals(doc.data.get('docpath'), [_relpath])
         self.assertEquals(doc.data.get(self.mycore.parenthashfield),'ca966a7642c7791b99ab661feae3ebb7')
         self.assertEquals(doc.docname,'C05769606.pdf')
 
-
+    def test_ICIJfail(self):
+        _id="fed766bc65fd9415917f0ded164a435011aab5247b2ee393929ec92bd96ffe74"
+        _relpath="fails/__init__.py"
+        
+        updateSolr.delete(_id,self.mycore)
+        
+        path=os.path.abspath(os.path.join(os.path.dirname(__file__), '../tests/testdocs', _relpath))
+        ext=indexSolr.solrICIJ.ICIJExtractor(path,self.mycore,ocr=False)
+        self.assertFalse(ext.result)
+        self.assertEquals(ext.error_message,'ICIJ extract: parse failure')
 
 class ExtractFileTest(ExtractTest):
     """extract tests without extractor object"""

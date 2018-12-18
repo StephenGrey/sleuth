@@ -5,11 +5,17 @@ from ownsearch import solrJson as s
 from documents import updateSolr as u
 from documents import file_utils
 from configs import config
-import subprocess, logging, os
+import subprocess, logging, os,shlex, time, re
 log = logging.getLogger('ownsearch.solrICIJ')
 
 MEM_MIN_ARG="-Xms512m"
 MEM_MAX_ARG="-Xmx2048m"
+
+try:
+    TIMEOUT=int(config['Solr']['solrtimeout'])
+except:
+    log.info('No timeout value stored in configs')
+    TIMEOUT=60 #seconds
 
 class AuthenticationError(Exception):
     pass
@@ -17,8 +23,73 @@ class AuthenticationError(Exception):
 class NotFound(Exception):
     pass
 
+class TimedOut(Exception):
+    pass
+
 #EXTRACT A FILE TO SOLR INDEX (defined in mycore (instance of solrSoup.SolrCore))
 #returns solrSoup.MissingConfigData error if path missing to extract.jar
+
+
+class OutParser():
+    def __init__(self):
+        self._message=''
+        self.log_message=''
+        self.success=False
+        self.error_message=''
+        
+    def process(self,_line):
+        #log.debug(_line)
+        if self.is_time(_line):
+            #log.debug('date registered')
+            self.output() #new log message, output previous
+            self._message=''
+            self.log_message=''
+        self.logger(_line)
+        self._message+=_line+'\t'
+        
+    def output(self):
+        if self._message:
+            #log.debug(self.log_message)
+            #log.debug(self._message)
+            self.parse()
+            self.log_out()
+                
+    def parse(self):
+        if 'Document added to Solr' in self._message:
+            self.success=True
+            self.log_message='WARNING'
+        elif 'Error 401' in self._message:
+            raise AuthenticationError
+        elif 'Error 404' in self._message:
+            raise NotFound
+        elif 'The tikaDocument could not be parsed' in self._message:
+            self.error_message='ICIJ ext: parse failure'
+        elif 'The extraction result could not be outputted' in self._message:
+            self.error_message='ICIJ ext: Solr output fail' 
+            
+    
+    def logger(self,_text):
+        try:
+            error=re.match('[A-Z]*:',_text[:10])[0][:-1]
+            if error in ('INFO', 'WARNING','ERROR','SEVERE','CRITICAL','WARNING','WARN','DEBUG','FATAL','TRACE'):
+                self.log_message=error
+        except:
+            pass
+    
+    def log_out(self):
+        if self.log_message:
+            if self.log_message=='ERROR' or self.log_message=='FATAL' or self.log_message=='SEVERE':
+               log.error(f'Extract log: {self._message}')
+            elif self.log_message=='DEBUG' or self.log_message=='INFO':
+               log.debug(f'Extract log: {self._message}')
+            else:
+               log.info(f'Extract log: {self._message}')
+               
+
+    @staticmethod
+    def is_time(_text):
+        return re.match(r'.*,*.\d:\d\d?:\d\d? (AM|PM)',_text[:25])
+
 
 class ICIJExtractor():
     def __init__(self,path,mycore,ocr=True):
@@ -32,6 +103,8 @@ class ICIJExtractor():
             if os.path.exists(self.path) == False:
                 raise IOError
             self.tryextract()
+            if not self.success and not self.error_message:
+                self.error_message='ICIJ extract fail'
             return #return True on success
         except IOError as e:
             log.error('File cannot be opened')
@@ -39,6 +112,9 @@ class ICIJExtractor():
         except s.SolrConnectionError as e:
             log.error('Connection error')
             self.error_message='Connection error'
+        except TimedOut:
+            log.error('Timed Out in ICIJ extractor')
+            self.error_message='Timed out in ICIJ extractor'
         self.result= False  #if error return False
 
     def tryextract(self):
@@ -65,20 +141,13 @@ class ICIJExtractor():
             args.extend(["-U",_user,"-P",_pass])
     
         args.append(target)
-        log.debug('Extract args: {}'.format(args))
+        #log.debug('Extract args: {}'.format(args))
+
+        self.run_command(args)
+        self.success=self.log_parser.success
+        self.error_message=self.log_parser.error_message
         
-        process_result=subprocess.Popen(args, stderr=subprocess.PIPE, stdout=subprocess.PIPE,shell=False)
-        output,success,self.error_message=parse_out(process_result)
-        #log.debug(output)
-        for mtype,message in output:
-            if mtype=='SEVERE':  #PRINT OUT ONLY SEVERE MESSAGES
-                #log.debug(f'Message type:{mtype},Message:{message}')
-                if "Expected mime type application/octet-stream but got text/html" in message:
-                    log.debug('Unexpected response')
-                    if "<title>Error 401 require authentication</title>" in message:
-                        log.debug('Authentication error')
-                        raise AuthenticationError
-        if success == True:
+        if self.success == True:
             log.info('Successful extract')
             #commit the results
             log.debug ('Committing ..')
@@ -89,9 +158,9 @@ class ICIJExtractor():
                 args.extend(["-U",_user,"-P",_pass])
             
             try:
-                result=subprocess.Popen(args, stderr=subprocess.PIPE, stdout=subprocess.PIPE,shell=False)
-    #        print (result, vars(result)) #
-                commitout,ignore,message=parse_out(result)
+                #result=subprocess.Popen(args, stderr=subprocess.PIPE, stdout=subprocess.PIPE,shell=False)
+                #commitout,ignore,message=parse_out(result)
+                self.run_command(args)
                 log.debug('No errors from commit')
                 self.result=True
                 return
@@ -105,6 +174,35 @@ class ICIJExtractor():
                 log.debug(e)
                 self.error_message=f'Unknown error: {e}'
         self.result=False
+        
+    def run_command(self,args):
+        process = subprocess.Popen(args,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+        #shlex.split(command) TODO
+        _timeout=time.time()+TIMEOUT
+        self.log_parser=OutParser()
+        while True:
+            output = process.stderr.readline()
+            _poll=process.poll()
+            #log.debug(output)
+#            log.debug(_poll)
+            if not _poll:
+                time.sleep(0.05) #if nothing going on, spare the CPU
+            if output == '' and _poll is not None:
+                break
+            elif output == b'' and _poll ==0:
+                break
+            if output:
+                line=output.decode().strip() #convert bytes to string; strip white space
+                #log.debug(line)
+                self.log_parser.process(line)
+            if time.time()>_timeout:
+                process.kill()
+                raise TimedOut('Extract process killed after TimeOut')
+        self.log_parser.output()
+        rc = process.poll()
+        self.rc=rc
+
+
     
 def parse_out(result):
     #calling a java app produces no stdout -- but for debug, output it if any

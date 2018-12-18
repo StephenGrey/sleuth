@@ -90,6 +90,7 @@ class Scanner:
         #time.sleep(10)
         for newpath in self.files_on_disk:
             if not self.files_on_disk[newpath].folder:
+                self.update_working_file(newpath)
                 newhash=file_utils.get_contents_hash(newpath)
                 if newhash in self.new_files_hash:
                     self.new_files_hash[newhash].append(newpath)
@@ -98,6 +99,7 @@ class Scanner:
             else:
                 #print('New folder found: {}'.format(newpath))
                 self.new_files.append(newpath)
+        self.update_working_file('')
 
     def new_or_missing(self):        
         """4. now work out which new files have been moved """
@@ -159,7 +161,10 @@ class Scanner:
             'progress_str':progress_str,
             'show_taskbar': False,
             })
-
+    
+    def update_working_file(self,_filename):
+        if self.job:
+            r.hset(self.job,'working_file',_filename)
         
     def update_results(self):
         if self.job:

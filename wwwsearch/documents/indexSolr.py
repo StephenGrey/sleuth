@@ -175,7 +175,7 @@ class Extractor():
                     remove_filepath_or_delete_solrrecord(oldsolrid,relpath,self.mycore)
                 file.save()
             else:
-                log.info('PATH : '+file.filepath+' indexing failed')
+                log.info(f'Indexing fail: PATH \'{file.filepath}\]\' with ERROR:{file.error_message}')
                 self.failed+=1
                 self.failedlist.append((file.filepath,file.error_message))
         if self.job and r:
@@ -251,6 +251,10 @@ class Extractor():
         elif file.filesize>MAXSIZE:
             #skip the extract, it's too big
             file.error_message=f'Too large {file.filesize}b'
+            log.info(f'Skipped {file.error_message} path: {file.filename}')
+        elif file.filesize<3:
+            #skip , it's empty
+            file.error_message=f'Skipped. Empty file: {file.filesize}b'
             log.info(f'Skipped {file.error_message} path: {file.filename}')
         else:
             #don't skip

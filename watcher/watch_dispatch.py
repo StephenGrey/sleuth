@@ -232,7 +232,8 @@ def task_check():
         if r.exists(job):
             log.debug(f'Processing {job}')
             task=r.hget(job,'task')
-            if task=='extract_collection' or task=='extract_collection_force_retry' or task=='extract_collection_icij' or task=='extract_collection_force_retry_icij':
+            if task[:18]=='extract_collection':
+                #expecting: 'extract_collection' or 'extract_collection_force_retry' or 'extract_collection_icij' or 'extract_collection_force_retry_icij'
                 try:
                     index_job(job_id,job,task)
                 except:
@@ -297,6 +298,7 @@ def index_job(job_id,job,task):
     ocr_raw=r.hget(job,'ocr')
     ocr=False if ocr_raw=='False' else True
     useICIJ= True if task[-5:]=='_icij' else False
+    forceretry=True if 'force_retry' in task else False
     collection_id=r.hget(job,'collection_id')
     r.hset(job,'status','started')
     _test=True if r.hget(job,'test')=='True' else False
@@ -304,7 +306,7 @@ def index_job(job_id,job,task):
     log.info(f'indexing collection {collection_id}')
 
     try:
-        index_collection_id(job,collection_id,_test,useICIJ=useICIJ,ocr=ocr) if task=='extract_collection' else index_collection_id(job,collection_id,_test,forceretry=True,useICIJ=useICIJ)
+        index_collection_id(job,collection_id,_test,useICIJ=useICIJ,ocr=ocr,forceretry=forceretry)
     except updateSolr.s.SolrConnectionError as e:
         log.error(f'Solr Connection Error: {e}')
         r.hset(job,'status','error')

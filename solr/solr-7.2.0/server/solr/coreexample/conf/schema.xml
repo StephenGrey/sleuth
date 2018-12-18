@@ -457,13 +457,13 @@
   <field name="message_from" type="text_general" multiValued="false" stored="true"/>
   <field name="message_from_email" type="text_general" multiValued="false"/>
   <field name="message_from_display_name" type="text_general" multiValued="false" stored="true"/>
-  <field name="message_to" type="text_general" stored="true" />
-  <field name="message_to_display_name" type="text_general" stored="true" />
-  <field name="message_to_email" type="text_general" stored="true" />  
-  <field name="message_cc" type="text_general" multiValued="false"/>
-  <field name="message_cc_email" type="text_general" multiValued="false"/>
-  <field name="message_bcc" type="text_general" multiValued="false"/>
-  <field name="message_bcc_email" type="text_general" multiValued="false"/>
+  <field name="message_to" type="text_general" multiValued="true"  stored="true" />
+  <field name="message_to_display_name" type="text_general" multiValued="true"  stored="true" />
+  <field name="message_to_email" type="text_general" multiValued="true"  stored="true" />  
+  <field name="message_cc" type="text_general" multiValued="true"/>
+  <field name="message_cc_email" type="text_general" multiValued="true"/>
+  <field name="message_bcc" type="text_general" multiValued="true"/>
+  <field name="message_bcc_email" type="text_general" multiValued="true"/>
   <field name="title" type="text_general"/>
   <field name="subject" type="text_general"/>
   
