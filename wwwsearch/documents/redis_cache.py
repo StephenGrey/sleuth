@@ -1,4 +1,7 @@
 # -*- coding: utf-8 -*-
+#in windows  = downloaded redis https://github.com/MicrosoftArchive/redis/releases
+#launch service with C:\Program Files\Redis  - execute redis-server.exe
+
 import redis,logging
 log = logging.getLogger('ownsearch.docs.redis')
 try:

@@ -23,7 +23,7 @@ from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.auth.decorators import login_required
 log = logging.getLogger('ownsearch.docs.views')
 import configs
-from SearchBox.watcher import watch_dispatch
+from watcher import watch_dispatch
 
 BASEDIR=configs.config['Models']['collectionbasepath'] #get base path of the docstore
 r=redis_cache.redis_connection

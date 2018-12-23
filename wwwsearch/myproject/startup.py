@@ -2,7 +2,7 @@ import os
 from django.conf import settings
 
 TASKS=[]
-from SearchBox.watcher import tasks
+from watcher import tasks
 
 def run():
 #    autoload(["receivers"])

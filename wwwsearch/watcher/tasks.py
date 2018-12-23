@@ -9,7 +9,7 @@ except ImportError:
 
 from threading import Thread, current_thread, Event
 import os,time,logging,random, shutil,redis
-from SearchBox.watcher import watch_dispatch
+from watcher import watch_dispatch
 
 #r=redis.Redis()
 

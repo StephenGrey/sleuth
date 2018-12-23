@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import sys,datetime,time, logging, redis
 
-from SearchBox.tools import wwwsearch_connect #Connect to Django project
+from tools import wwwsearch_connect #Connect to Django project
 from django.conf import settings
 from documents import file_utils,changes,updateSolr,indexSolr,redis_cache
 from documents.models import File,Collection

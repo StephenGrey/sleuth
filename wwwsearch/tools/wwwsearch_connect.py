@@ -1,7 +1,8 @@
 """connect to Django"""
 import sys,os
 #get path to Django application - go up to project root, then down to the application 
-projpath=os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),'wwwsearch')
+projpath= os.path.dirname(os.path.dirname(os.path.abspath(__file__))) #os.path.join(,'wwwsearch')
+
 sys.path.append(projpath)
 
 # This is so Django knows where to find stuff.

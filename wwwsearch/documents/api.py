@@ -14,7 +14,7 @@ LOGIN_URL="/admin/login/"
 API_URL="/documents/api/changes/"
 
 log.info('launching API')
-from SearchBox.watcher import watch_dispatch
+from watcher import watch_dispatch
 
 try:
     REMOTE_URL=userconfig['Remote']['remote_url']
