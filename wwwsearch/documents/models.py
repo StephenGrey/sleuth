@@ -48,7 +48,7 @@ class File(models.Model):
     is_folder=models.BooleanField('IsFolder',default=False)
     hash_contents = models.CharField('Hash contents',max_length=200,default='')
     hash_filename = models.CharField('Hash doc name',max_length=200,default='')
-    error_messsage = models.TextField('Error Message',blank=True,null=True)
+    error_message = models.TextField('Error Message',blank=True,null=True)
     filename=models.CharField('Filename',max_length=100,default='')
     fileext=models.CharField('File Extension',max_length=10,default='')
     filesize = models.IntegerField('Filesize',default=0)

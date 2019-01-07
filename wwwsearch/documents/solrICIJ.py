@@ -62,6 +62,9 @@ class OutParser():
             raise AuthenticationError
         elif 'Error 404' in self._message:
             raise NotFound
+        elif "not a valid OOXML (Office Open XML) file" in self._message:
+            self.error_message='ICIJ ext: not valid OOXML file'
+        
         elif 'The tikaDocument could not be parsed' in self._message:
             self.error_message='ICIJ ext: parse failure'
         elif 'The extraction result could not be outputted' in self._message:

@@ -173,11 +173,11 @@ class Extractor():
                     log.info('now delete or update old solr doc'+str(oldsolrid))
                     relpath=make_relpath(file.filepath,docstore=self.docstore)
                     remove_filepath_or_delete_solrrecord(oldsolrid,relpath,self.mycore)
-                file.save()
             else:
                 log.info(f'Indexing fail: PATH \'{file.filepath}\]\' with ERROR:{file.error_message}')
                 self.failed+=1
                 self.failedlist.append((file.filepath,file.error_message))
+            file.save()
         if self.job and r:
             self.update_extract_results()
                 
@@ -306,7 +306,7 @@ class Extractor():
             except ZeroDivisionError:
                 progress=f'100'
             progress_str=f"{processed} of {self.target_count} files" #0- replace 0 for decimal places
-            log.debug(f'Progress: {progress_str}')
+            #log.debug(f'Progress: {progress_str}')
             #log.debug(self.failedlist)
             failed_json=json.dumps(self.failedlist)
             #log.debug(failed_json)
@@ -559,7 +559,7 @@ def postSolr(args,path,mycore,timeout=1):
     extracturl=mycore.url+'/update/extract?'
     url=extracturl+args
     log.debug('POSTURL: {}  TIMEOUT: {}'.format(url,timeout))
-    #log.debug('Types posturl: {} path: {}'.format(type(url),type(timeout)))
+    log.debug('Types posturl: {} path: {}'.format(type(url),type(timeout)))
     if True:
         res=s.resPostfile(url,path,timeout=timeout) #timeout=
 #        log.debug('Returned json: {} type: {}'.format(res._content,type(res._content)))
@@ -577,8 +577,6 @@ def postSolr(args,path,mycore,timeout=1):
 
 
 """UTILITIES:"""
-
-
 
 def ignorefile(path):
     """check if filepath fits an ignore pattern (no check to see if file exists)"""

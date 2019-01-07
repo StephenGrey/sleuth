@@ -766,7 +766,7 @@ def updatetags(solrid,mycore,value=['test','anothertest'],field_to_update='usert
     result,status=post_jsonupdate(jsondoc,mycore,timeout=10,test=test)
     
     #check the result
-    log.info('Solr doc update: result: {}, status: {}'.format(result,status))
+    log.debug('Solr doc update: result: {}, status: {}'.format(result,status))
     
     return status
 

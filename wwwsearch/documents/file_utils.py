@@ -175,7 +175,8 @@ class PathIndex:
                         self.save()
                     elif self.counter%200==0:
                         log.info(f'Scanned {self.counter} files)')
-
+            
+            
             for subfolder in subdirs:
                 self.counter+=1
                 if self.ignore_pattern and subfolder.startswith(self.ignore_pattern):
@@ -183,6 +184,7 @@ class PathIndex:
                 else:
                     path= os.path.join(dirName,subfolder)
                     self.update_folder(path)
+            self.save()
 
     def update_results(self):
         log.debug(f'scanned files: {self.counter}')
@@ -301,27 +303,30 @@ class PathIndex:
         
     def rescan(self):
         """rescan changed files in dictionary of filespecs"""
-        print('rescanning ... ',self.folder_path)
+        log.info(f'rescanning ... {self.folder_path}')
         self.list_directory() #rescan original disk
         deletedfiles=[]
         
+
         #update changed files
         for docpath in self.files:
             oldfile=self.files.get(docpath)
             try:
-                self.filelist.remove(docpath)
+                self.filelist.remove(docpath)  #self.filelist - disk files - leaving list of new files
             except ValueError:
                 if not oldfile.get('folder'):
                     log.debug(f'Filepath {docpath} no longer exists - delete from index')
                     deletedfiles.append(docpath)
                     continue                    
             if changed(oldfile):
-                log.info(f'Path: \'{docpath}\' modified; updating hash of contents')
+                log.info(f'File \'{docpath}\' is modified; updating hash of contents')
                 self.update_record(docpath)
         
+        #log.debug(f'stored files: {self.files}')
+        
         #add new files    
-        log.info('Checking unscanned files')
-        counter=0
+        log.info(f'Checking {len(self.filelist)} unscanned files')
+        self.counter=0
         for docpath in self.filelist:
             try:            
                 if os.path.isdir(docpath):
@@ -331,18 +336,41 @@ class PathIndex:
             except Exception as e:
                 log.info(f'Update failed for {docpath}: {e}')
             #log.debug(f'Added {docpath} to index')
-            counter+=1
-            if counter%200==0:
-                log.info(f'{counter} files updated')
+            self.counter+=1
+            if self.counter%200==0:
+                log.info(f'{self.counter} files updated')
                 try:
                     self.save()
                 except Exception as e:
                     log.info(f'Save failure: {e}')
-                	
-        #delete deleted files
+        try:
+            self.save()
+        except Exception as e:
+            log.info(f'Save failure: {e}')
+
+
+        self.reload_index()
         for docpath in deletedfiles:
-            self.files.pop(docpath)
-   
+            log.debug(f'deleting {docpath} from scan index')
+            try:
+                self.delete_record(docpath)
+            except Exception as e:
+                log.debug(e)
+                log.debug(self.files)
+                log.debug(deletedfiles)
+                raise
+        if deletedfiles:
+            try:
+                self.save()
+            except Exception as e:
+                log.info(f'Save failure: {e}')
+
+    
+    def reload_index(self):
+        pass
+        
+    def delete_record(self,docpath):
+        del(self.files[docpath])
     
     def update_record(self,path, scan_contents=True):
         spec=FileSpecs(path)
@@ -352,7 +380,7 @@ class PathIndex:
             docspec.update({'length':spec.length})
             if scan_contents:
                 docspec.update({'contents_hash':spec.contents_hash})
-                self.files[path]=docspec
+            self.files[path]=docspec
         else:
             self.files[path]=FileSpecs(path)
                 
@@ -369,7 +397,7 @@ class PathIndex:
                     filelist.append(path)
                 counter+=1
                 if counter%500==0:
-                    log.info(f'Collecting filespecs of {counter} files')
+                    log.info(f'Collecting paths to {counter} files')
             for subfolder in subdirs:
                 if self.ignore_pattern and subfolder.startswith(self.ignore_pattern):
                     subdirs.remove(subfolder)
@@ -392,20 +420,30 @@ class PathFileIndex(PathIndex):
 
 class BigFileIndex(PathIndex):
     """index of Filespec objects using Klepto"""
-    def __init__(self,folder,specs_dict=True,scan_contents=True,ignore_pattern='X-'):
+    def __init__(self,folder,specs_dict=True,scan_contents=True,ignore_pattern='X-',job=None):
+        
         self.folder_path=folder
         self.ignore_pattern=ignore_pattern
         self.specs_dict=specs_dict
+        self.job=job
+        
         self.files=file_archive(os.path.join(self.folder_path,ARCH_FILENAME),cache=False)
         self.files.load()
-        print('loaded files ..',len(self.files))
+        log.debug(f'loaded files ..{len(self.files)}')
         self.scan_or_rescan()
         self.files.load() #after scanning - load back entire folder scan into memory.
-        
+
     def save(self):
-        print('saving',len(self.files))
+        #print('saving',len(self.files))
         self.files.dump() #save from cache to filestore
         self.files.clear() #clear memory cache
+
+    def delete_record(self,docpath):
+        del(self.files[docpath]) #delete from the disk cache
+
+    def reload_index(self):
+        self.files.load()
+
 
     def check_pickle(self):
         if self.files:
@@ -432,7 +470,7 @@ class StoredBigFileIndex(BigFileIndex):
         self.specs_dict=specs_dict
         self.files=file_archive(os.path.join(self.folder_path,ARCH_FILENAME),cache=False)
         self.files.load()
-        print('loaded files ..',len(self.files))
+        #print('loaded files ..',len(self.files))
         if not self.check_pickle():
             raise DoesNotExist('No stored filespecs')
         self.hash_scan()
@@ -699,7 +737,7 @@ def directory_tags(path,isfile=False):
         path=a
         
     tags=tags[::-1]
-    log.debug(f'Tags: {tags}')
+    #log.debug(f'Tags: {tags}')
     return tags
 
 def slugify(value):
