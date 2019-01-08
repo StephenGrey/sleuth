@@ -491,7 +491,7 @@ class Index_Maker():
             #log.debug(f'Root :{root} Depth: {depth}')
             try:
                 
-                files = os.listdir(root)
+                files = self.dir_list(root)
                 for mfile in files:
                     t = os.path.join(root, mfile)
                     relpath=os.path.relpath(t,rootpath)
@@ -530,8 +530,14 @@ class Index_Maker():
             self._index=_index(basepath,0,index_collections)
         else:
             raise Not_A_Directory('not a valid path to a folder')
-
-
+    
+    @staticmethod
+    def dir_list(root):
+        if root=='/' and os.name=='nt':
+            return ['C','D'] #TODO replace with Windows volume list
+        else:
+            return os.listdir(root)
+        
     @staticmethod
     def file_html(mfile,_stored,_indexed,dupcheck,relpath,path):	
         return loader.render_to_string('documents/filedisplay/p_file.html',{

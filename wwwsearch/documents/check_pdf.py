@@ -30,8 +30,11 @@ def crawl(path):
         for root, dirs, files in os.walk(path):
             for name in files:
                 try:
+                    filepath=os.path.join(root, name)
+                    log.info(filepath)
+                    checked=main(filepath)
                     
-                    main(os.path.join(root, name))
+                    log.info(f'{name} OCRd: {checked}')
                     
                 except PdfReadError:
                     log.info(f'Pdf read error for filepath: {path}')
