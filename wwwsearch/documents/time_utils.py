@@ -36,3 +36,8 @@ def easydate(timeobject):
 def parseISO(timestring):
     return iso8601.parse_date(timestring)
     
+def cleaned_ISOtimestring(rawstring):
+    try:
+        return ISOtimestring(parseISO(rawstring))
+    except iso8601.ParseError as e:
+        return None

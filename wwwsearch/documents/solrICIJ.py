@@ -15,7 +15,7 @@ try:
     TIMEOUT=int(config['Solr']['solrtimeout'])
 except:
     log.info('No timeout value stored in configs')
-    TIMEOUT=60 #seconds
+    TIMEOUT=600 #seconds
 
 class AuthenticationError(Exception):
     pass
@@ -144,7 +144,7 @@ class ICIJExtractor():
             args.extend(["-U",_user,"-P",_pass])
     
         args.append(target)
-        #log.debug('Extract args: {}'.format(args))
+        log.debug('Extract args: {}'.format(args))
 
         self.run_command(args)
         self.success=self.log_parser.success

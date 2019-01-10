@@ -443,19 +443,20 @@ def clear_date(solrid,mycore):
         data=make_remove_json(mycore,solrid,mycore.datesourcefield,doc.date)
         response,poststatus=post_jsonupdate(data,mycore)
         doc=s.getmeta(solrid,mycore)[0]
-        if doc.date and mycore.datesourcefield2:
-            data=make_remove_json(mycore,solrid,mycore.datesourcefield2,doc.date)
-            response,poststatus=post_jsonupdate(data,mycore)
-            doc=s.getmeta(solrid,mycore)[0]
-            if not doc.date:
-                return True
-            else:
-                return False
+#        
+#        if doc.date and mycore.datesourcefield2:
+#            data=make_remove_json(mycore,solrid,mycore.datesourcefield2,doc.date)
+#            response,poststatus=post_jsonupdate(data,mycore)
+#            doc=s.getmeta(solrid,mycore)[0]
+#            if not doc.date:
+#                return True
+#            else:
+#                return False
+#        else:
+        if doc.date:
+            return False
         else:
-            if doc.date:
-                return False
-            else:
-                return True
+            return True
     else:
         return True
 

@@ -211,7 +211,7 @@ class Extractor():
                 if not result:
                     log.error('Failed to add source field')
         
-        if file.content_date:
+        if file.content_date: #only modify date if date from path changes
             date_from_path=time_utils.timestringGMT(file.content_date)
             log.debug(f'Existing date: {existing_doc.date}')
             log.debug(f'Date from path {date_from_path}')
@@ -364,11 +364,13 @@ class ExtractFile():
         #extract a relative path from the docstore root
         relpath=make_relpath(self.path,docstore=self.docstore)
         changes.append((self.mycore.docpath,'docpath',relpath))
-        if self.date_from_path:
-            if not clear_date(self.solrid,self.mycore):
-                log.error('Failed to clear previous date')
-            changes.append((self.mycore.datesourcefield,'date',time_utils.timestringGMT(self.date_from_path)))
-            
+        
+
+        
+        parsed_date=self.parse_date()
+        log.debug(f'parsed date: {parsed_date}')
+        changes.append((self.mycore.datesourcefield,'date',parsed_date)) if parsed_date else None
+        
     #if sourcefield is define and sourcetext is not empty string, add that to the arguments
     #make the sourcetext args safe, for example inserting %20 for spaces 
         if self.mycore.sourcefield and self.sourcetext:
@@ -384,6 +386,7 @@ class ExtractFile():
         response,updatestatus=update_meta(self.solrid,changes,self.mycore)
         log.debug(response)
         
+
 #        changes=[]
 #        log.debug(f'CHANGES: {changes}')
 #        dateresponse,dateupdatestatus=update_meta(self.solrid,changes,self.mycore)
@@ -393,7 +396,30 @@ class ExtractFile():
         #log.debug(jsondata)
         self.process_children()
         
+    def parse_date(self):
+        """evaluate the best display date from alternative sources"""
+        #in order of priority: 
+        #1. take the date from the filename
+        if self.date_from_path:
+            if not clear_date(self.solrid,self.mycore):
+                log.error('Failed to clear previous date')
+                return None
+            return time_utils.timestringGMT(self.date_from_path)
+        #2. or date from first sourcefield (clean)
+        elif not s.getfield(self.solrid,self.mycore.datesourcefield,self.mycore):
 
+            #3. or date from cleaned-up second source field
+            altdate=time_utils.cleaned_ISOtimestring(s.getfield(self.solrid,self.mycore.datesourcefield2,self.mycore))
+            if altdate:
+                return altdate
+            
+            #4. or date from file's last-modified stamp
+            else:
+                return time_utils.ISOtimestring(self.last_modified)
+        else:
+            return None
+        
+    
     def process_children(self):
         result=True
         solr_result=s.hashlookup(self.hash_contents, self.mycore,children=True)

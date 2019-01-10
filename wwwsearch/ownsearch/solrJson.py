@@ -675,7 +675,6 @@ def getfield(docid,field,core):
             if field in result.data:
                 return result.data[field]
             else:
-                print('no')
                 field_text=getattr(result,field,None)
                 if field_text:
                     return field_text
