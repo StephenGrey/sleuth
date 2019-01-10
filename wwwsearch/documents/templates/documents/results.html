@@ -41,7 +41,7 @@ Total: {{results.total}}
 </h4>
 {% endifequal%} 
 
-{% if results.task == 'extract_collection' or results.task == 'extract_collection_force_retry_icij'%}
+{% if results.task == 'extract_collection' or results.task == 'extract_collection_force_retry' or results.task == 'extract_collection_force_retry_icij' or results.task == 'extract_collection_icij' %}
 
 <!--or if results.task =='extract_collection_force_retry_icij'-->
 <h3><b>Indexing collection: {{results.path}}</b></h3>
