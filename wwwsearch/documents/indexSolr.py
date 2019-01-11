@@ -3,7 +3,7 @@ from __future__ import unicode_literals
 from __future__ import print_function
 #from bs4 import BeautifulSoup as BS
 from django.conf import settings
-import requests, os, logging, json, urllib
+import requests, os, logging, json, urllib, re
 import ownsearch.hashScan as dup
 import hashlib  #routines for calculating hash
 from .models import Collection,File,Index
