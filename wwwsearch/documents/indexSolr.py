@@ -128,7 +128,7 @@ class Extractor():
                                 new_id=s.hashlookup(file.hash_contents,self.mycore).results[0].id #id of the first result returned
                                 file.solrid=new_id
                                 file.save()
-                                log.info('(ICIJ extract) New solr ID: '+new_id)
+                                log.info(f'(ICIJ extract) New solr ID: {new_id}')
                             except:
                                 log.warning('Extracted doc not found in index')
                                 file.error_message='Indexed, but not found in index'
@@ -347,6 +347,7 @@ class ExtractFile():
         self.path=path
         specs=file_utils.FileSpecs(path,scan_contents=False)###
         self.filename=specs.name
+        self.size=specs.length
         self.date_from_path,self.last_modified=changes.parse_date(specs)
         self.mycore=mycore
         self.test=test
@@ -371,6 +372,12 @@ class ExtractFile():
         log.debug(f'parsed date: {parsed_date}')
         changes.append((self.mycore.datesourcefield,'date',parsed_date)) if parsed_date else None
         
+        
+        #pick up alternate filesize, else use docsize
+        parsed_filesize=self.parse_filesize()
+        changes.append((self.mycore.docsizesourcefield1,'solrdocsize',parsed_filesize)) if parsed_filesize else None
+
+        
     #if sourcefield is define and sourcetext is not empty string, add that to the arguments
     #make the sourcetext args safe, for example inserting %20 for spaces 
         if self.mycore.sourcefield and self.sourcetext:
@@ -389,7 +396,13 @@ class ExtractFile():
         self.post_result=updatestatus
         #log.debug(jsondata)
         self.process_children()
+    
+    def parse_filesize(self):
+        #filesize picked up automatically into 'stream_size' field in standard extract handler
+        return None
         
+
+    
     def parse_date(self,solrid,last_modified,date_from_path):
         """evaluate the best display date from alternative sources"""
         #in order of priority: 
@@ -459,7 +472,7 @@ class ExtractFile():
             if file_size:
                 size=re.match(r"\d+",file_size)[0]
                 log.debug(f'Size parsed: {size}')
-            
+                changes.append((self.mycore.docsizesourcefield1,'solrdocsize',size)) if size else None
             
             #extract a relative path from the docstore root
             _relpath=make_relpath(_path,docstore=self.docstore) if _path else None
@@ -496,6 +509,10 @@ class ICIJ_Post_Processor(ExtractFile):
         self.solrid=self.hash_contents
         self.post_process()
 
+    def parse_filesize(self):
+        file_size=s.getfield(self.solrid,self.mycore.docsizesourcefield2,self.mycore)
+        return file_size if file_size else self.length
+        
 
     
 #SOLR METHODS

@@ -427,7 +427,7 @@
   <field name="sb_filename" type="string" multiValued="false" stored="true"/>
   <field name="sb_size" type="plongs" multiValued="false" stored="false"/>
   <field name="stream_size" type="plongs" stored="true"/>
-  <field name="content_length" type="plongs" stored="true"/>
+  <field name="content_length" type="plongs" stored="false"/>
   <field name="sb_before" type="string" multiValued="false" stored="true"/>
   <field name="sb_next" type="string" multiValued="false" stored="true"/>
   <field name="sb_parentpath_hash" type="string" multiValued="true" indexed="true" stored="true"/>
@@ -443,10 +443,7 @@
   <field name="extract_paths" type="text_general"/>
   <field name="resourcename"  type="text_general" multiValued="true" stored="true"/>
 
-  <field name="last_modified" type="text_general" multiValued="true" stored="true"/>
-  <field name="last_modified_iso8601" type="pdates" multiValued="true" stored="true"/>
-
-
+  <field name="last_modified" type="pdates" multiValued="true" stored="true"/>
   <field name="content_type" type="text_general"/>
   
   <field name="extract_level" type="string" multiValued="true" indexed="true" stored="true"/>
@@ -454,17 +451,15 @@
   <field name="extract_parent_paths" type="text_general"/>
   <field name="extract_base_type" type="text_general"/>
   <field name="extract_root" type="string" multiValued="true" indexed="true" stored="true"/>
-  <field name="file_size" type="text_general"/>
-
 
 <!--email fields -->  
   <field name="author" type="text_general"/>
   <field name="message_from" type="text_general" multiValued="false" stored="true"/>
   <field name="message_from_email" type="text_general" multiValued="false"/>
   <field name="message_from_display_name" type="text_general" multiValued="false" stored="true"/>
-  <field name="message_to" type="text_general" multiValued="true" stored="true" />
-  <field name="message_to_display_name" type="text_general" multiValued="true" stored="true" />
-  <field name="message_to_email" type="text_general" multiValued="true" stored="true" />  
+  <field name="message_to" type="text_general" multiValued="true"  stored="true" />
+  <field name="message_to_display_name" type="text_general" multiValued="true"  stored="true" />
+  <field name="message_to_email" type="text_general" multiValued="true"  stored="true" />  
   <field name="message_cc" type="text_general" multiValued="true"/>
   <field name="message_cc_email" type="text_general" multiValued="true"/>
   <field name="message_bcc" type="text_general" multiValued="true"/>
@@ -484,6 +479,7 @@
   <field name="exif_datetimeoriginal" type="pdates"/>
    <field name="file_modified_date" type="text_general"/>
   <field name="file_name" type="text_general"/>
+  <field name="file_size" type="text_general"/>
   <field name="last_author" type="text_general"/>
 
   <field name="last_save_date" type="pdates"/>
@@ -514,11 +510,10 @@
   <copyField source="tika_metadata_title" dest="title" maxChars="256"/>
   <copyField source="tika_metadata_message_from" dest="message_from" maxChars="256"/>
 -->  
-  <copyField source="last_modified_iso8601" dest="sb_last_modified"/>
-  
+  <copyField source="last_modified" dest="sb_last_modified"/>
   <copyField source="stream_size" dest="sb_size" />
-<!--  <copyField source="content_length" dest="stream_size"/> 
--->  
+  <copyField source="tika_metadata_content_length" dest="stream_size"/> 
+  
 
   
 <!--  <copyField source="stream_size" dest="tika_metadata_content_length"/>-->
