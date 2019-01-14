@@ -80,31 +80,27 @@ def getcores(page,request):
 def display_results(request,job_id=''):
     
     results=r.hgetall(job_id)
-    
+    log.debug(results)
     if not results:
         return HttpResponse('No results to display')
     
     try:
         failed=results.get('failed_list')
-        log.debug(failed)
         if failed:
             failed=ast.literal_eval(failed)
     except KeyError:
         failed=None
-    results['failed_list']=failed
-    log.debug(failed)
+    #results['failed_list']=failed
+    log.debug(f'Failed list {failed}')
     
     skipped=results.get('skipped_list')
     if skipped:
         results['skipped_list']=ast.literal_eval(skipped)
-    
+    #log.debug(f'Skipped list: {skipped}')
 #    results['failed_list']=[('/Volumes/Crypt/ownCloud/testfolder/willerby.TIF', 'Solr post timeout')]
-    
+    #log.debug(results)
     return render(request,'documents/results.html',
           {'job_id':job_id, 'results':results})
-    
- 
-
 
 
 @staff_member_required()
@@ -343,6 +339,7 @@ def indexcheck(collection,thiscore):
 
             log.info(file.filepath+'.. not found in Solr index')
             file.indexedSuccess=False
+            file.indexedTry=False #reset indexing try flag
             file.solrid='' #wipe any stored solr id; DEBUG: this wipes also oldsolr ids scheduled for delete
             file.save()
             skipped+=1

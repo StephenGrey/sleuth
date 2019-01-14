@@ -3,7 +3,7 @@ from __future__ import unicode_literals
 from __future__ import print_function
 #from bs4 import BeautifulSoup as BS
 from django.conf import settings
-import requests, os, logging, json, urllib
+import requests, os, logging, json, urllib, re
 import ownsearch.hashScan as dup
 import hashlib  #routines for calculating hash
 from .models import Collection,File,Index
@@ -128,7 +128,7 @@ class Extractor():
                                 new_id=s.hashlookup(file.hash_contents,self.mycore).results[0].id #id of the first result returned
                                 file.solrid=new_id
                                 file.save()
-                                log.info('(ICIJ extract) New solr ID: '+new_id)
+                                log.info(f'(ICIJ extract) New solr ID: {new_id}')
                             except:
                                 log.warning('Extracted doc not found in index')
                                 file.error_message='Indexed, but not found in index'
@@ -347,6 +347,7 @@ class ExtractFile():
         self.path=path
         specs=file_utils.FileSpecs(path,scan_contents=False)###
         self.filename=specs.name
+        self.size=specs.length
         self.date_from_path,self.last_modified=changes.parse_date(specs)
         self.mycore=mycore
         self.test=test
@@ -367,9 +368,15 @@ class ExtractFile():
         
 
         
-        parsed_date=self.parse_date()
+        parsed_date=self.parse_date(self.solrid,self.last_modified,self.date_from_path)
         log.debug(f'parsed date: {parsed_date}')
         changes.append((self.mycore.datesourcefield,'date',parsed_date)) if parsed_date else None
+        
+        
+        #pick up alternate filesize, else use docsize
+        parsed_filesize=self.parse_filesize()
+        changes.append((self.mycore.docsizesourcefield1,'solrdocsize',parsed_filesize)) if parsed_filesize else None
+
         
     #if sourcefield is define and sourcetext is not empty string, add that to the arguments
     #make the sourcetext args safe, for example inserting %20 for spaces 
@@ -386,51 +393,57 @@ class ExtractFile():
         response,updatestatus=update_meta(self.solrid,changes,self.mycore)
         log.debug(response)
         
-
-#        changes=[]
-#        log.debug(f'CHANGES: {changes}')
-#        dateresponse,dateupdatestatus=update_meta(self.solrid,changes,self.mycore)
-#        log.debug(dateresponse)
-        #jsondata=makejson(self.solrid,changes,self.mycore)
         self.post_result=updatestatus
         #log.debug(jsondata)
         self.process_children()
+    
+    def parse_filesize(self):
+        #filesize picked up automatically into 'stream_size' field in standard extract handler
+        return None
         
-    def parse_date(self):
+
+    
+    def parse_date(self,solrid,last_modified,date_from_path):
         """evaluate the best display date from alternative sources"""
         #in order of priority: 
         #1. take the date from the filename
-        if self.date_from_path:
-            if not clear_date(self.solrid,self.mycore):
+        if date_from_path:
+            if not clear_date(solrid,self.mycore):
                 log.error('Failed to clear previous date')
                 return None
-            return time_utils.timestringGMT(self.date_from_path)
+            return time_utils.timestringGMT(date_from_path)
         #2. or date from first sourcefield (clean)
-        elif not s.getfield(self.solrid,self.mycore.datesourcefield,self.mycore):
+        elif not s.getfield(solrid,self.mycore.datesourcefield,self.mycore):
 
             #3. or date from cleaned-up second source field
-            altdate=time_utils.cleaned_ISOtimestring(s.getfield(self.solrid,self.mycore.datesourcefield2,self.mycore))
+            altdate=time_utils.cleaned_ISOtimestring(s.getfield(solrid,self.mycore.datesourcefield2,self.mycore))
             if altdate:
                 return altdate
             
             #4. or date from file's last-modified stamp
+            elif last_modified:
+                return time_utils.ISOtimestring(last_modified)
             else:
-                return time_utils.ISOtimestring(self.last_modified)
+                return None
         else:
             return None
         
     
     def process_children(self):
+        
         result=True
         solr_result=s.hashlookup(self.hash_contents, self.mycore,children=True)
         for solrdoc in solr_result.results:
         #add source info to the extracted document
             log.debug(solrdoc.__dict__)
             _path=solrdoc.data.get('docpath')[0]
+            date_from_path=None
+            
 
             if not solrdoc.docname: #no stored filename
                 filename=solrdoc.data[self.mycore.docnamesourcefield2]
                 if filename:
+                    date_from_path=file_utils.FileSpecs(filename,scan_contents=False).date_from_path
                     result=updatetags(solrdoc.id,self.mycore,value=filename,field_to_update='docnamefield',newfield=False)
                     if result:
                         log.debug(f'added filename \'{filename}\' to child doc')
@@ -449,8 +462,19 @@ class ExtractFile():
                     log.error(e)
                     return False
             
-                    #extract a relative path from the docstore root
+                    
             changes=[]
+            #check_the_date
+            parsed_date=self.parse_date(solrdoc.id,None,date_from_path)
+            changes.append((self.mycore.datesourcefield,'date',parsed_date)) if parsed_date else None
+            
+            file_size=s.getfield(solrdoc.id,'file_size',self.mycore)
+            if file_size:
+                size=re.match(r"\d+",file_size)[0]
+                log.debug(f'Size parsed: {size}')
+                changes.append((self.mycore.docsizesourcefield1,'solrdocsize',size)) if size else None
+            
+            #extract a relative path from the docstore root
             _relpath=make_relpath(_path,docstore=self.docstore) if _path else None
             log.debug(_relpath)
             if _relpath:
@@ -485,6 +509,10 @@ class ICIJ_Post_Processor(ExtractFile):
         self.solrid=self.hash_contents
         self.post_process()
 
+    def parse_filesize(self):
+        file_size=s.getfield(self.solrid,self.mycore.docsizesourcefield2,self.mycore)
+        return file_size if file_size else self.length
+        
 
     
 #SOLR METHODS
