@@ -23,7 +23,7 @@ from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.auth.decorators import login_required
 log = logging.getLogger('ownsearch.docs.views')
 import configs
-from SearchBox.watcher import watch_dispatch
+from watcher import watch_dispatch
 
 BASEDIR=configs.config['Models']['collectionbasepath'] #get base path of the docstore
 r=redis_cache.redis_connection
@@ -80,31 +80,29 @@ def getcores(page,request):
 def display_results(request,job_id=''):
     
     results=r.hgetall(job_id)
-    
+    #log.debug(results)
     if not results:
         return HttpResponse('No results to display')
     
     try:
         failed=results.get('failed_list')
-        log.debug(failed)
         if failed:
-            failed=ast.literal_eval(failed)
+            failed=json.loads(failed)
+            #failed=ast.literal_eval(json.loads(failed))
     except KeyError:
         failed=None
-    results['failed_list']=failed
-    log.debug(failed)
+    #results['failed_list']=failed
+    log.debug(f'Failed list {failed}')
     
     skipped=results.get('skipped_list')
     if skipped:
-        results['skipped_list']=ast.literal_eval(skipped)
-    
+        results['skipped_list']=json.loads(skipped)
+        #ast.literal_eval()
+    #log.debug(f'Skipped list: {skipped}')
 #    results['failed_list']=[('/Volumes/Crypt/ownCloud/testfolder/willerby.TIF', 'Solr post timeout')]
-    
+    #log.debug(results)
     return render(request,'documents/results.html',
           {'job_id':job_id, 'results':results})
-    
- 
-
 
 
 @staff_member_required()
@@ -148,7 +146,7 @@ def listfiles(request):
             elif 'scan' in request.POST:
             #>> DO THE SCAN ON THIS COLLECTION
                 mycore.ping()
-                job_id=watch_dispatch.make_scan_job(thiscollection.id,_test=False)
+                job_id=watch_dispatch.make_scan_job(thiscollection.id,_test=0)
                 if job_id:
                     request.session['tasks']=job_id
                     return redirect('docs_index')
@@ -161,7 +159,7 @@ def listfiles(request):
             elif 'index' in request.POST:
                 mycore.ping()
                 
-                job_id=watch_dispatch.make_index_job(thiscollection.id,_test=False,force_retry=_FORCE_RETRY)
+                job_id=watch_dispatch.make_index_job(thiscollection.id,_test=0,force_retry=_FORCE_RETRY)
                 #ext=indexSolr.Extractor(thiscollection,mycore) #GO INDEX THE DOCS IN SOLR
                 request.session['tasks']=job_id
                 return redirect('docs_index')
@@ -169,13 +167,13 @@ def listfiles(request):
     #INDEX VIA ICIJ 'EXTRACT' DOCUMENTS IN COLLECTION IN SOLR
             elif 'indexICIJ' in request.POST:
                 mycore.ping()
-                job_id=watch_dispatch.make_index_job(thiscollection.id,_test=False,force_retry=_FORCE_RETRY,use_icij=True,ocr=_OCR)
+                job_id=watch_dispatch.make_index_job(thiscollection.id,_test=0,force_retry=_FORCE_RETRY,use_icij=True,ocr=_OCR)
                 request.session['tasks']=job_id
                 return redirect('docs_index')                
                 
             elif 'scan_extract' in request.POST:
                 mycore.ping()
-                job_id=watch_dispatch.make_scan_and_index_job(thiscollection.id,_test=False,force_retry=_FORCE_RETRY,use_icij=False,ocr=_OCR)
+                job_id=watch_dispatch.make_scan_and_index_job(thiscollection.id,_test=0,force_retry=_FORCE_RETRY,use_icij=False,ocr=_OCR)
                 request.session['tasks']=job_id
                 return redirect('docs_index') 
     
@@ -343,6 +341,7 @@ def indexcheck(collection,thiscore):
 
             log.info(file.filepath+'.. not found in Solr index')
             file.indexedSuccess=False
+            file.indexedTry=False #reset indexing try flag
             file.solrid='' #wipe any stored solr id; DEBUG: this wipes also oldsolr ids scheduled for delete
             file.save()
             skipped+=1

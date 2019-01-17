@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-import sys,datetime,time, logging, redis
+import sys,datetime,time, logging, redis, sys,traceback
 
 from tools import wwwsearch_connect #Connect to Django project
 from django.conf import settings
@@ -179,7 +179,7 @@ def make_scan_and_index_job(collection_id,_test=0,force_retry=False,use_icij=Fal
             r.hset(job,'task','scan_extract_collection_force_retry') if force_retry else r.hset(job,'task','scan_extract_collection')
         r.hset(job,'collection_id',collection_id)
         r.hset(job,'status','queued')
-        r.hset(job,'ocr',ocr)
+        r.hset(job,'ocr',1) if ocr else r.hset(job,'ocr',0)
         r.hset(job,'test',_test)
         r.hset(job,'job',job)
         return job_id
@@ -316,16 +316,26 @@ def index_job(job_id,job,task):
         r.hset(job,'status','error')
         r.hset(job,'message','Solr connection error')
         raise
-    except Exception as e:
-        log.error(f'Error: {e}')
+    except updateSolr.s.MissingConfigData as e:
+        log.error(f'Missing Config Data: {e}')
         r.hset(job,'status','error')
-        r.hset(job,'message','Unknown error')
-        raise
+        r.hset(job,'message','Missing config data')
+#    except Exception as e:
+#        log.error(f'Error: {e}')
+#        r.hset(job,'status','error')
+#        r.hset(job,'message','Unknown error')
+#        raise
 #                results=r.hgetall(job)
 #                log.info(results)
-    r.srem('SEARCHBOX_JOBS',job_id)
-    r.sadd('SEARCHBOX_JOBS_DONE',job_id)
-
+    except Exception as e:
+        log.error(e)
+        exc_type, exc_value, exc_traceback = sys.exc_info()
+        traceback.print_exc(limit=2, file=sys.stdout)
+        raise
+    finally:
+        r.srem('SEARCHBOX_JOBS',job_id)
+        log.info(f'Removed job {job_id}')
+        r.sadd('SEARCHBOX_JOBS_DONE',job_id)
    
     
 
@@ -358,8 +368,8 @@ def index_collection_id(job,collection_id,_test=False,forceretry=False,useICIJ=F
         ext=index_collection(_collection,_mycore,_test=_test,job=job,forceretry=forceretry,useICIJ=useICIJ,ocr=ocr)
         r.hset(job,'status','completed')
         r.hset(job,'working_file','')
-        if ext:
-            r.hmset(job,{'counter':ext.counter,'skipped':ext.skipped,'failed':ext.failed,'failed_list':ext.failedlist})
+        #if ext:
+        #    r.hmset(job,{'counter':ext.counter,'skipped':ext.skipped,'failed':ext.failed,'failed_list':ext.failedlist})
         r.srem('COLLECTIONS_TO_INDEX',collection_id)
     except Collection.DoesNotExist:
         log.info(f'Collection id {collection_id} not valid ... deleting')

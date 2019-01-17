@@ -6,7 +6,7 @@ from documents import updateSolr as u
 from documents import file_utils
 from configs import config
 import subprocess, logging, os,shlex, time, re
-log = logging.getLogger('ownsearch.solrICIJ')
+log = logging.getLogger('watcher.solrICIJ')
 
 MEM_MIN_ARG="-Xms512m"
 MEM_MAX_ARG="-Xmx2048m"
@@ -123,7 +123,10 @@ class ICIJExtractor():
     def tryextract(self):
         try:
             extractpath=config['Extract']['extractpath'] #get location of Extract java JAR
+            assert os.path.exists(extractpath)
         except KeyError as e:
+            raise s.MissingConfigData
+        except AssertionError as e:
             raise s.MissingConfigData
         
         solrurl=self.mycore.url

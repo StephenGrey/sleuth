@@ -77,9 +77,11 @@ class Extractor():
         self.target_count=len(self.filelist)
         self.update_extract_results()
         self.update_working_file('')
-        self.extract()
-        self.update_extract_results()
-        self.update_working_file('')
+        try:
+            self.extract()
+        finally:
+            self.update_extract_results()
+            self.update_working_file('')
     
     
     def extract_file(self,file):
@@ -188,7 +190,7 @@ class Extractor():
             try:
                 self.extract_file(_file)
             except Exception as e:
-                log.info('PATH : '+_file.filepath+' indexing failed')
+                log.info(f'PATH : {_file.filepath} indexing failed, with exception {e}')
                 _file.indexedTry=True  #set flag to say we've tried
                 _file.save()
                 raise e

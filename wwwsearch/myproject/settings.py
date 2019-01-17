@@ -139,7 +139,7 @@ try:
     logfile_loglevel=config['Django']['logfile_loglevel']
 except:
     console_loglevel='INFO'
-    logfile_loglevel='DEBUG'
+    logfile_loglevel='WARN'
 
 LOGGING = {
     'version': 1,
@@ -159,6 +159,14 @@ LOGGING = {
             'level': logfile_loglevel,
             'class':'logging.handlers.RotatingFileHandler',
             'filename': os.path.join(BASE_DIR, 'logfile'),
+            'maxBytes': 500000,
+            'backupCount': 9, #number of backup files of old logs
+            'formatter': 'standard',
+        },
+        'logfile_watch': {
+            'level': logfile_loglevel,
+            'class':'logging.handlers.RotatingFileHandler',
+            'filename': os.path.join(BASE_DIR, 'logfile_watch'),
             'maxBytes': 500000,
             'backupCount': 9, #number of backup files of old logs
             'formatter': 'standard',
@@ -184,5 +192,10 @@ LOGGING = {
             'handlers': ['console', 'logfile'],
             'level': 'DEBUG', #ROOT LOG LEVEL -  CAN"T GO LOWER - 
         },
+        'watcher': {
+            'handlers': ['console', 'logfile_watch'],
+            'level': 'DEBUG', #ROOT LOG LEVEL -  CAN"T GO LOWER - 
+        },
+
     }
 }

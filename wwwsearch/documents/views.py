@@ -81,22 +81,24 @@ def getcores(page,request):
 def display_results(request,job_id=''):
     
     results=r.hgetall(job_id)
-    log.debug(results)
+    #log.debug(results)
     if not results:
         return HttpResponse('No results to display')
     
     try:
         failed=results.get('failed_list')
         if failed:
-            failed=ast.literal_eval(failed)
+            failed=json.loads(failed)
+            #failed=ast.literal_eval(json.loads(failed))
     except KeyError:
         failed=None
-    #results['failed_list']=failed
+    results['failed_list']=failed
     log.debug(f'Failed list {failed}')
     
     skipped=results.get('skipped_list')
     if skipped:
-        results['skipped_list']=ast.literal_eval(skipped)
+        results['skipped_list']=json.loads(skipped)
+        #ast.literal_eval()
     #log.debug(f'Skipped list: {skipped}')
 #    results['failed_list']=[('/Volumes/Crypt/ownCloud/testfolder/willerby.TIF', 'Solr post timeout')]
     #log.debug(results)
