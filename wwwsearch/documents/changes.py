@@ -159,7 +159,7 @@ class Scanner:
             progress_str=f"{message}"
             r.hmset(self.job,{
             'progress_str':progress_str,
-            'show_taskbar': False,
+            'show_taskbar': 0,
             })
     
     def update_working_file(self,_filename):

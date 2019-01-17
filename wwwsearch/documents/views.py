@@ -153,7 +153,7 @@ def listfiles(request):
             elif 'scan' in request.POST:
             #>> DO THE SCAN ON THIS COLLECTION
                 mycore.ping()
-                job_id=watch_dispatch.make_scan_job(thiscollection.id,_test=False)
+                job_id=watch_dispatch.make_scan_job(thiscollection.id,_test=0)
                 if job_id:
                     request.session['tasks']=job_id
                     return redirect('docs_index')
@@ -166,7 +166,7 @@ def listfiles(request):
             elif 'index' in request.POST:
                 mycore.ping()
                 
-                job_id=watch_dispatch.make_index_job(thiscollection.id,_test=False,force_retry=_FORCE_RETRY)
+                job_id=watch_dispatch.make_index_job(thiscollection.id,_test=0,force_retry=_FORCE_RETRY)
                 #ext=indexSolr.Extractor(thiscollection,mycore) #GO INDEX THE DOCS IN SOLR
                 request.session['tasks']=job_id
                 return redirect('docs_index')
@@ -174,13 +174,13 @@ def listfiles(request):
     #INDEX VIA ICIJ 'EXTRACT' DOCUMENTS IN COLLECTION IN SOLR
             elif 'indexICIJ' in request.POST:
                 mycore.ping()
-                job_id=watch_dispatch.make_index_job(thiscollection.id,_test=False,force_retry=_FORCE_RETRY,use_icij=True,ocr=_OCR)
+                job_id=watch_dispatch.make_index_job(thiscollection.id,_test=0,force_retry=_FORCE_RETRY,use_icij=True,ocr=_OCR)
                 request.session['tasks']=job_id
                 return redirect('docs_index')                
                 
             elif 'scan_extract' in request.POST:
                 mycore.ping()
-                job_id=watch_dispatch.make_scan_and_index_job(thiscollection.id,_test=False,force_retry=_FORCE_RETRY,use_icij=False,ocr=_OCR)
+                job_id=watch_dispatch.make_scan_and_index_job(thiscollection.id,_test=0,force_retry=_FORCE_RETRY,use_icij=False,ocr=_OCR)
                 request.session['tasks']=job_id
                 return redirect('docs_index') 
     

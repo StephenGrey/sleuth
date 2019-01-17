@@ -165,7 +165,7 @@ def index_file2(_file):
     pass
 
 
-def make_scan_and_index_job(collection_id,_test=False,force_retry=False,use_icij=False,ocr=True):
+def make_scan_and_index_job(collection_id,_test=0,force_retry=False,use_icij=False,ocr=True):
     job_id=f'CollectionScanAndExtract.{collection_id}'
     makejob=r.sadd('SEARCHBOX_JOBS',job_id)
     if not makejob:
@@ -185,7 +185,7 @@ def make_scan_and_index_job(collection_id,_test=False,force_retry=False,use_icij
         return job_id
 
 
-def make_index_job(collection_id,_test=False,force_retry=False,use_icij=False,ocr=True):
+def make_index_job(collection_id,_test=0,force_retry=False,use_icij=False,ocr=True):
     job_id=f'CollectionExtract.{collection_id}'
     makejob=r.sadd('SEARCHBOX_JOBS',job_id)
     if not makejob:
@@ -199,13 +199,13 @@ def make_index_job(collection_id,_test=False,force_retry=False,use_icij=False,oc
             r.hset(job,'task','extract_collection_force_retry') if force_retry else r.hset(job,'task','extract_collection')
         r.hset(job,'collection_id',collection_id)
         r.hset(job,'status','queued')
-        r.hset(job,'ocr',ocr)
+        r.hset(job,'ocr',1) if ocr else r.hset(job,'ocr',0)
         r.hset(job,'test',_test)
         r.hset(job,'job',job)
-        r.hmset(job,{'show_taskbar':True,'progress':0,'progress_str':"",'target_count':"",'counter':"",'skipped':"",'failed':"",'failed_list':""})
+        r.hmset(job,{'show_taskbar':1,'progress':0,'progress_str':"",'target_count':"",'counter':"",'skipped':"",'failed':"",'failed_list':""})
         return job_id
 
-def make_scan_job(collection_id,_test=False):
+def make_scan_job(collection_id,_test=0):
     job_id=f'CollectionScan.{collection_id}'
     makejob=r.sadd('SEARCHBOX_JOBS',job_id)
     if not makejob:
@@ -218,7 +218,7 @@ def make_scan_job(collection_id,_test=False):
         r.hset(job,'status','queued')
         r.hset(job,'test',_test)
         r.hset(job,'job',job)
-        r.hmset(job,{'show_taskbar':True,'progress':0,'progress_str':"",'target_count':"",'moved':"",'new':"",'deleted':"",'unchanged':""})
+        r.hmset(job,{'show_taskbar':1,'progress':0,'progress_str':"",'target_count':"",'moved':"",'new':"",'deleted':"",'unchanged':""})
         return job_id
 
 
@@ -252,23 +252,27 @@ def scan_extract_job(job_id,job,task):
     sub_job_id=r.hget(job,'sub_job_id')
     sub_job='SB_TASK.'+sub_job_id if sub_job_id else None
     status=r.hget(job,'status')
-    ocr=False if r.hget(job,'ocr')=='False' else True
+    ocr=0 if r.hget(job,'ocr')==0 else 1
     collection_id=r.hget(job,'collection_id')
     force_retry = True if 'force_retry' in task else False
     use_icij = True if 'icij' in task else False
     log.debug(f'ocr: {ocr}, force_retry: {force_retry}, icij {use_icij}, sub_id: {sub_job}')
     if status=='queued':
         log.info('making scan job')
-        sub_job_id=make_scan_job(collection_id,_test=False)
+        sub_job_id=make_scan_job(collection_id,_test=0)
         r.hset(job,'status','scanning')
-        r.hset(job,'sub_job_id',sub_job_id)
+        if sub_job_id:
+            r.hset(job,'sub_job_id',sub_job_id)
     elif status=='scan_complete':
         pass
+    elif status =='scanning' and not sub_job:
+         log.info('no active sub-job put back in queue')
+         r.hset(job,'status','queued')
     elif status=='scanning':
         sub_status=r.hget(sub_job,'status')
         if sub_status =='completed':
             log.debug('now index')   
-            sub_job_id=make_index_job(collection_id,_test=False,force_retry=False,use_icij=False,ocr=True)
+            sub_job_id=make_index_job(collection_id,_test=False,force_retry=False,use_icij=False,ocr=1)
             r.hset(job,'status','indexing')
             r.hset(job,'sub_job_id',sub_job_id)
         else:
@@ -296,7 +300,7 @@ def scan_job(job_id,job,task):
 
 def index_job(job_id,job,task):
     ocr_raw=r.hget(job,'ocr')
-    ocr=False if ocr_raw=='False' else True
+    ocr=False if ocr_raw==0 else True
     useICIJ= True if task[-5:]=='_icij' else False
     forceretry=True if 'force_retry' in task else False
     collection_id=r.hget(job,'collection_id')
@@ -322,8 +326,7 @@ def index_job(job_id,job,task):
     r.srem('SEARCHBOX_JOBS',job_id)
     r.sadd('SEARCHBOX_JOBS_DONE',job_id)
 
-    
-    
+   
     
 
 def scan_collection_id(job,collection_id,_test=False):
