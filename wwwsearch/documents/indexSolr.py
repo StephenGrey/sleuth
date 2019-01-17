@@ -147,7 +147,7 @@ class Extractor():
                             
                     else:
                         try:
-                            extractor=ExtractFile(file.filepath,self.mycore,hash_contents=file.hash_contents,sourcetext=sourcetext,docstore=self.docstore,test=False)
+                            extractor=ExtractFile(file.filepath,self.mycore,hash_contents=file.hash_contents,sourcetext=sourcetext,docstore=self.docstore,test=False,ocr=self.ocr)
                             result=extractor.result
                             if result:
                                 extractor.post_process()
@@ -343,8 +343,9 @@ class ExtractSingleFile(Extractor):
         self.extract()
 
 class ExtractFile():
-    def __init__(self,path,mycore,hash_contents='',sourcetext='',docstore='',test=False):
+    def __init__(self,path,mycore,hash_contents='',sourcetext='',docstore='',test=False,ocr=True):
         self.path=path
+        self.ocr=ocr
         specs=file_utils.FileSpecs(path,scan_contents=False)###
         self.filename=specs.name
         self.size=specs.length
@@ -355,7 +356,7 @@ class ExtractFile():
         self.docstore=docstore
         self.hash_contents = hash_contents if hash_contents else file_utils.get_contents_hash(path)
         self.solrid=self.hash_contents
-        self.result,self.error_message=extract(self.path,self.hash_contents,self.mycore,timeout=TIMEOUT,docstore=docstore,test=self.test,sourcetext=self.sourcetext)
+        self.result,self.error_message=extract(self.path,self.hash_contents,self.mycore,timeout=TIMEOUT,docstore=docstore,test=self.test,sourcetext=self.sourcetext,ocr=self.ocr)
         log.debug(self.result)
         
         
@@ -517,9 +518,10 @@ class ICIJ_Post_Processor(ExtractFile):
     
 #SOLR METHODS
 
-def extract_test(test=True,timeout=TIMEOUT,mycore='',docstore=''):
+def extract_test(test=True,timeout=TIMEOUT,mycore='',docstore='',ocr=True,path=''):
     #get path to test file
-    path=settings.BASE_DIR+'/tests/testdocs/testfile/TESTFILE_BBCNews1.pdf'
+    if not path:
+        path=settings.BASE_DIR+'/tests/testdocs/testfile/TESTFILE_BBCNews1.pdf'
     assert os.path.exists(path)
     
     #get hash
@@ -528,18 +530,16 @@ def extract_test(test=True,timeout=TIMEOUT,mycore='',docstore=''):
     
     if not mycore:
         #get default index
-        defaultID=config['Solr']['defaultcoreid']
-        cores=s.getcores()
-        mycore=cores[defaultID]
-
+        mycore=s.SolrCore('tests_only')
+        
     #checks solr index is alive
     log.debug('Testing extract to {}'.format(mycore.name))
     mycore.ping()
     
-    result,error_message=extract(path,hash,mycore,test=test,timeout=TIMEOUT,docstore=docstore)
+    result,error_message=extract(path,hash,mycore,test=test,timeout=TIMEOUT,docstore=docstore,ocr=ocr)
     return result
 
-def extract(path,contentsHash,mycore,test=False,timeout=TIMEOUT,sourcetext='',docstore=''):
+def extract(path,contentsHash,mycore,test=False,timeout=TIMEOUT,sourcetext='',docstore='',ocr=True):
     """extract a path to solr index (mycore), storing hash of contents, optional testrun, timeout); throws exception if no connection to solr index, otherwise failures return False"""
     
     message=''
@@ -589,9 +589,9 @@ def extract(path,contentsHash,mycore,test=False,timeout=TIMEOUT,sourcetext='',do
         log.debug('Testing extract args: {}, path: {}, mycore {}'.format(args,path,mycore))
         
     try:
-        result,elapsed=postSolr(args,path,mycore,timeout=timeout) #POST TO THE INDEX (returns True on success)
+        result,elapsed=postSolr(args,path,mycore,timeout=timeout,ocr=ocr) #POST TO THE INDEX (returns True on success)
         if result:
-            log.info('Indexing succeeded in {:.2f} seconds'.format(elapsed))
+            log.info(f'Indexing succeeded in {elapsed:.2f} seconds with OCR={ocr}')
             return True,None
         else:
             log.warning('Error in indexing file using args: {} and path: {}'.format(args,path))
@@ -609,8 +609,12 @@ def extract(path,contentsHash,mycore,test=False,timeout=TIMEOUT,sourcetext='',do
     return False,message
 
 
-def postSolr(args,path,mycore,timeout=1):
-    extracturl=mycore.url+'/update/extract?'
+def postSolr(args,path,mycore,timeout=1,ocr=True):
+    if ocr:
+        extracturl=mycore.url+'/update/extract?'
+    else:
+        extracturl=mycore.url+'/update/extract_no_ocr?'
+    
     url=extracturl+args
     log.debug('POSTURL: {}  TIMEOUT: {}'.format(url,timeout))
     log.debug('Types posturl: {} path: {}'.format(type(url),type(timeout)))

@@ -184,12 +184,22 @@ Extract data:
 <script>
 maxsize= document.getElementById("maxsize");
 maxsize.setAttribute("disabled","disabled");
-$("#maxsize_edit").click(function() {
-$('#maxsize_edit').removeClass("glyphicon-cog");
-$('#maxsize_label').removeClass("text-muted");
-$('#maxsize').prop('disabled', false);
+$("#maxsize_edit").click(function() 
+	{
+	$('#maxsize_edit').removeClass("glyphicon-cog");
+	$('#maxsize_label').removeClass("text-muted");
+	$('#maxsize').prop('disabled', false);
+	});
+	
+timeout= document.getElementById("timeout");
+timeout.setAttribute("disabled","disabled");
+$("#timeout_edit").click(function() 
+	{
+	$('#timeout_edit').removeClass("glyphicon-cog");
+	$('#timeout_label').removeClass("text-muted");
+	$('#timeout').prop('disabled', false);
+	});
 
-});
 
 </script>
 

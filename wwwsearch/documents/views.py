@@ -38,6 +38,7 @@ def index(request):
         page=documentpage.CollectionPage()
         job_id=request.session.get('tasks')
         page.maxsize=indexSolr.MAXSIZE_MB
+        page.timeout=indexSolr.TIMEOUT
         try:
             page.selected_collection=int(request.session.get('collection_selected'))
         except:
@@ -105,11 +106,11 @@ def display_results(request,job_id=''):
 
 @staff_member_required()
 def listfiles(request):
-
     job_id=request.session.get('tasks')
     log.info(f'Stored jobs: {job_id}')
     page=documentpage.CollectionPage()
     page.maxsize=indexSolr.MAXSIZE_MB
+    page.timeout=indexSolr.TIMEOUT
     try:
         mycore=getcores(page,request)
     except NoIndexSelected:
@@ -135,6 +136,14 @@ def listfiles(request):
                     indexSolr.MAXSIZE_MB=page.maxsize
                     indexSolr.MAXSIZE=_maxsize
             
+            if 'timeout' in request.POST:
+                timeout=int(request.POST.get('timeout'))
+                if timeout != page.timeout:
+                    page.timeout=timeout
+                    log.debug(f'New maxsize set to {timeout}')
+                    configs.userconfig.update('Solr','solrtimeout',str(timeout))
+                    indexSolr.TIMEOUT=page.timeout
+                                
             if 'list' in request.POST:
             #get the files in selected collection
                 filelist=File.objects.filter(collection=thiscollection)

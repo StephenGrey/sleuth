@@ -350,6 +350,8 @@ class ICIJExtractTest(ExtractorTest):
         self.assertEquals(doc.data.get(self.mycore.parenthashfield),'ca966a7642c7791b99ab661feae3ebb7')
         self.assertEquals(doc.docname,'C05769606.pdf')
 
+    
+
     def test_ICIJfail(self):
         _id="fed766bc65fd9415917f0ded164a435011aab5247b2ee393929ec92bd96ffe74"
         _relpath="fails/__init__.py"
@@ -381,6 +383,16 @@ class ExtractFileTest(ExtractTest):
         extractor=self.extract_document(_id,_path)
         
         updateSolr.delete(_id,self.mycore)
+    
+    def test_extractfile_no_ocr(self):
+        """index a single file with no OCR"""
+        
+        _id="fed766bc65fd9415917f0ded164a435011aab5247b2ee393929ec92bd96ffe74"
+        _path="pdfs/ocr_d/C05769606.pdf"
+        extractor=self.extract_document(_id,_path)
+        
+        updateSolr.delete(_id,self.mycore)
+    
     
     def test_morefilenames(self):
         """ test with % character """

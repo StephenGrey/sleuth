@@ -807,6 +807,21 @@
     </lst>
   </requestHandler>
 
+  <requestHandler name="/update/extract_no_ocr"
+                  startup="lazy"
+                  class="solr.extraction.ExtractingRequestHandler" >
+    <lst name="defaults">
+      <str name="lowernames">true</str>
+      <str name="fmap.meta">ignored_</str>
+      <str name="fmap.content">tika_content</str>
+      <str name="captureAttr">true</str>
+      <str name="uprefix">ignored_</str>
+    </lst>
+      <!--Optional.  Specify a path to a tika configuration file. See the Tika docs for details.-->
+  <str name="tika.config">tika.xml</str>
+    
+  </requestHandler>
+
   <!-- Search Components
 
        Search components are registered to SolrCore and used by
