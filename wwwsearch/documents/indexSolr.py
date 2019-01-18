@@ -381,8 +381,8 @@ class ExtractFile():
         changes.append((self.mycore.docsizesourcefield1,'solrdocsize',parsed_filesize)) if parsed_filesize else None
 
         
-    #if sourcefield is define and sourcetext is not empty string, add that to the arguments
-    #make the sourcetext args safe, for example inserting %20 for spaces 
+        #if sourcefield is defined and sourcetext is not empty string, add that to the arguments
+        #make the sourcetext args safe, for example inserting %20 for spaces 
         if self.mycore.sourcefield and self.sourcetext:
             changes.append((self.mycore.sourcefield,self.mycore.sourcefield,self.sourcetext))
 

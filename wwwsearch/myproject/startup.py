@@ -4,14 +4,17 @@ from django.conf import settings
 TASKS=[]
 from watcher import tasks
 
+
 def run():
 #    autoload(["receivers"])
     if os.environ.get('RUN_MAIN') != 'true':
-        print('Initialising Search Box background processes.. ')
-        print(f'Main thread has id: {os.getpid()}')
-        t=tasks.set_watcher()
-        TASKS.append(t)
-                
+        if not tasks.THREADS:
+            print('Initialising Search Box background processes.. ')
+            print(f'Main thread has id: {os.getpid()}')
+            t=tasks.set_watcher()
+            TASKS.append(t)
+        print(tasks.THREADS)
+        
     else:
         print(f'Other thread running has id: {os.getpid()}')
   # myVar exists.

@@ -1,4 +1,6 @@
-
+import os,time,logging,random, shutil,redis
+from watcher import watch_dispatch
+THREADS=[]
 from threading import Thread, current_thread, Event
 try:
     from queue import Full,Empty #pip3 install queuelib
@@ -7,10 +9,7 @@ except ImportError:
     from Queue import Full,Empty #pip install queuelib
     from Queue import Queue as Q
 
-from threading import Thread, current_thread, Event
-import os,time,logging,random, shutil,redis
-from watcher import watch_dispatch
-
+log = logging.getLogger('ownsearch.tasks')
 #r=redis.Redis()
 
 class PostFailure(Exception):
@@ -25,13 +24,15 @@ class StoppableThread(Thread):
         self.killswitch=Event()
         self.process_q=Q(maxsize=0) #no maxsize
         self.setDaemon(True)
-        self.pid=os.getpid()
-        print(f'Thread launched with process ID: \"{self.pid}\"')
+        self.pid=f"{os.getpid()} - {random.randint(1,4096)}"
+        THREADS.append(self.pid)
+        print(f'Watcher thread launched with process ID: \"{self.pid}\""')
+        log.info(f'Watcher thread launched with process ID: \"{self.pid}')
 
 
     def stop(self):
         self.killswitch.set()
-        print(f'stopping process ID: \"{self.pid}\"')
+        print(f'stopping watcher process ID: \"{self.pid}\"')
         
     def stopped(self):
         return self.killswitch.is_set()

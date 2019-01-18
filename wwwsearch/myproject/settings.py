@@ -159,18 +159,18 @@ LOGGING = {
             'level': logfile_loglevel,
             'class':'logging.handlers.RotatingFileHandler',
             'filename': os.path.join(BASE_DIR, 'logfile'),
-            'maxBytes': 500000,
+            'maxBytes': 5000000,
             'backupCount': 9, #number of backup files of old logs
             'formatter': 'standard',
         },
-        'logfile_watch': {
-            'level': logfile_loglevel,
-            'class':'logging.handlers.RotatingFileHandler',
-            'filename': os.path.join(BASE_DIR, 'logfile_watch'),
-            'maxBytes': 500000,
-            'backupCount': 9, #number of backup files of old logs
-            'formatter': 'standard',
-        },
+#        'logfile_watch': {
+#            'level': logfile_loglevel,
+#            'class':'logging.handlers.RotatingFileHandler',
+#            'filename': os.path.join(BASE_DIR, 'logfile_watch'),
+#            'maxBytes': 500000,
+#            'backupCount': 9, #number of backup files of old logs
+#            'formatter': 'standard',
+#        },
         'console':{
             'level': console_loglevel,
             'class':'logging.StreamHandler',
@@ -192,10 +192,10 @@ LOGGING = {
             'handlers': ['console', 'logfile'],
             'level': 'DEBUG', #ROOT LOG LEVEL -  CAN"T GO LOWER - 
         },
-        'watcher': {
-            'handlers': ['console', 'logfile_watch'],
-            'level': 'DEBUG', #ROOT LOG LEVEL -  CAN"T GO LOWER - 
-        },
+#        'watcher': {
+#            'handlers': ['console', 'logfile_watch'],
+#            'level': 'DEBUG', #ROOT LOG LEVEL -  CAN"T GO LOWER - 
+#        },
 
     }
 }

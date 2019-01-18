@@ -99,7 +99,7 @@ class UpdateField(Updater):
         self.args='&fl={},{},database_originalID, sb_filename'.format(self.mycore.unique_id,self.field_datasource_decoded)
         self.test_run=test_run
         self.maxcount=maxcount
-        
+
 
     def update_value(self,value):
         """update field with same value in all docs"""

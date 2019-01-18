@@ -6,16 +6,25 @@ from documents import updateSolr as u
 from documents import file_utils
 from configs import config
 import subprocess, logging, os,shlex, time, re
-log = logging.getLogger('watcher.solrICIJ')
+log = logging.getLogger('ownsearch.solrICIJ')
 
-MEM_MIN_ARG="-Xms512m"
-MEM_MAX_ARG="-Xmx2048m"
 
 try:
     TIMEOUT=int(config['Solr']['solrtimeout'])
 except:
     log.info('No timeout value stored in configs')
     TIMEOUT=600 #seconds
+
+try:
+    MEM_MIN=int(config['Extract']['memory_min'])
+    MEM_MAX=int(config['Extract']['memory_max'])
+except:
+    log.info('No memory max-min values stored in configs')
+    MEM_MIN=512
+    MEM_MAX=1024
+
+MEM_MIN_ARG=f"-Xms{MEM_MIN}m"
+MEM_MAX_ARG=f"-Xmx{MEM_MAX}m"
 
 class AuthenticationError(Exception):
     pass

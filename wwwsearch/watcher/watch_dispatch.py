@@ -12,7 +12,7 @@ log = logging.getLogger('ownsearch.watch_dispatch')
 
 r=redis_cache.redis_connection
 #redis.Redis(charset="utf-8", decode_responses=True)
-
+log.info('initialising watcher')
 
 """
 
