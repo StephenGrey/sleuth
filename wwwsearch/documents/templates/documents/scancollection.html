@@ -139,7 +139,7 @@ $("#progress_cancel").click(function() {
 //  $("#task_wrap").css('visibility','hidden');
 //  $("#results_list").css('visibility','hidden');
   $("#results_panel").css('display','none'); 
-  $.get( "/documents/api/cleartasks", function(data) 
+  $.post( "/documents/api/cleartasks", function(data) 
 		{if (data.error==true){console.log("task cancel failed");};
 		},
      'json' // I expect a JSON response

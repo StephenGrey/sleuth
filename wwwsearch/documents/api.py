@@ -155,6 +155,7 @@ def api_task_progress(request,job):
 @staff_member_required()
 def api_clear_tasks(request):
     """clear task from session"""
+    log.debug('clearing tasks')
     request.session['tasks']=''
     return JsonResponse({'error':False})
 
