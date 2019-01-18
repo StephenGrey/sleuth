@@ -14,14 +14,11 @@ Index:{{page.form.corechoice}}<p>
 
 <form action="{% url 'listfiles'%}" method ="post">
 {% csrf_token %}
-
-
 {% for collection_path,collection_id in page.authorised_collections_relpaths %}
     <input type="radio" name="choice" id="choice{{collection_id}}" value="{{ collection_id }}" />
     <label for="choice{{collection_id}}">{{collection_path }}</label><br />
 {% endfor %}
 <p>
-
 
 {% if page.results %}
 
@@ -134,16 +131,17 @@ check_tasks();
 var timerID = setInterval(check_tasks, 2*1000); //checking every 2 seconds
 
 $("#progress_cancel").click(function() {
+  event.preventDefault();
   console.log('remove task bar');
   clearInterval(timerID);
 //  $("#task_wrap").css('visibility','hidden');
 //  $("#results_list").css('visibility','hidden');
   $("#results_panel").css('display','none'); 
-  $.post( "/documents/api/cleartasks", function(data) 
-		{if (data.error==true){console.log("task cancel failed");};
-		},
-     'json' // I expect a JSON response
-     );
+  $.get( "/documents/api/cleartasks", function(data)
+  	{
+  	},"json")
+  .fail(function(){ alert('Failed to clear task')});
+//	{if (data.error==true){console.log("task cancel failed");};
 });
 
 </script>
