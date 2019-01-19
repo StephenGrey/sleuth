@@ -34,7 +34,7 @@ class Scanner:
     
     def total_files(self):
         self.total= sum([len(subdir)+len(files) for r, subdir, files in os.walk(self.collection.path)])
-        log.debug(self.total)
+        log.debug(f'Total files counted: {self.total}')
     
     def process(self):
         self.scan()
@@ -68,6 +68,7 @@ class Scanner:
         """2a. For a database file found on disk - add to changed or unchanged list/dict"""
         file_meta=self.files_on_disk.pop(database_file.filepath)
         
+        log.debug(file_meta)
 #        path_date=time_utils.timeaware(file_meta.date_from_path)
 #        if database_file.content_date != path_date:
 #            log.debug(f'Path date modified: database: {database_file.content_date} local: {path_date}')
@@ -135,15 +136,17 @@ class Scanner:
             #print((len(self.moved_files),' to move'))
             for newpath,oldpath in self.moved_files:
                 #print(newpath,oldpath)
-                _file=filelist.get(filepath=oldpath)
-                movefile(_file,newpath)
+                _files=filelist.filter(filepath=oldpath)
+                for _file in _files:
+                    movefile(_file,newpath)
                 
         if self.changed_files:
             log.debug('{} changed file(s) '.format(len(self.changed_files)))
             for filepath in self.changed_files:
                 log.debug('Changed file: {}'.format(filepath))
-                file=filelist.get(filepath=filepath)
-                changefile(file)
+                _files=filelist.filter(filepath=filepath)
+                for _file in _files:
+                    changefile(_file)
 
     def count_changes(self):
         self.new_files_count=len(self.new_files)
