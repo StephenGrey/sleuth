@@ -142,7 +142,7 @@ class AddParentHash(UpdateField):
         self.searchterm="-{}:[* TO *]".format(self.mycore.parenthashfield)
         log.debug(f"Searchterm: {self.searchterm}")
         #run update
-        self.process(maxcount=self.maxcount)
+        self.process()
 
     
     def update_value(self,datasource_value):

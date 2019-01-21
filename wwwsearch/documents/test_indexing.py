@@ -66,6 +66,10 @@ class IndexTester(TestCase):
 
         self.docstore=os.path.abspath(os.path.join(os.path.dirname(__file__), '..','tests','testdocs'))
         self.mycore=solrcursor.solrJson.SolrCore('tests_only')
+        
+        #OVERRIDE MAXISZE FROM USER CONFIGS
+        indexSolr.MAXSIZE=10*(1024**2)
+        
 
 #        self.testdups_path=os.path.abspath(os.path.join(os.path.dirname(__file__), '../tests/testdocs/dups'))
 
@@ -121,14 +125,17 @@ class ExtractorTest(ExtractTest):
         #NOW SCAN THE COLLECTION
         scanner=updateSolr.scandocs(collectiondups)        
         self.assertEquals([scanner.new_files_count,scanner.deleted_files_count,scanner.moved_files_count,scanner.unchanged_files_count,scanner.changed_files_count],[5, 0, 0, 0, 0])
-
+        
         #print(File.objects.filter(collection=collectiondups))
         
         ext=indexSolr.Extractor(collectiondups,mycore,docstore=self.docstore,useICIJ=self.icij_extract)
-        self.assertEquals((5,0,0),(ext.counter,ext.skipped,ext.failed))
+        self.assertEquals((4,1,0),(ext.counter,ext.skipped,ext.failed))
        
         storedpaths=indexSolr.check_hash_in_solrdata("6d50ecaf0fb1fc3d59fd83f8e9ef962cf91eb14e547b2231e18abb12f6cfa809",mycore).data['docpath']
         calcpaths=[os.path.join('dups','HilaryEmailC05793347.pdf'), os.path.join('dups','HilaryEmailC05793347 copy.pdf'),os.path.join( 'dups','dup_in_folder','HilaryEmailC05793347 copy.pdf')]
+        
+        print(storedpaths)
+        print(calcpaths)
         
         for path in calcpaths:
             storedpaths.remove(path)
@@ -177,7 +184,7 @@ class ExtractorTest(ExtractTest):
         os.rename(os.path.join(origindir,filename),os.path.join(tempdir,filename))
         
         scanner=updateSolr.scandocs(collectiondups,docstore=self.docstore)
-        self.assertEquals([scanner.new_files_count,scanner.deleted_files_count,scanner.moved_files_count,scanner.unchanged_files_count,scanner.changed_files_count],[0, 1, 0, 4, 0])      
+        self.assertEquals([scanner.new_files_count,scanner.deleted_files_count,scanner.moved_files_count,scanner.unchanged_files_count,scanner.changed_files_count],[0, 1, 0, 3, 1])      
         ext=indexSolr.Extractor(collectiondups,mycore,docstore=self.docstore,useICIJ=self.icij_extract)
         
         updated_doc=indexSolr.check_hash_in_solrdata("6d50ecaf0fb1fc3d59fd83f8e9ef962cf91eb14e547b2231e18abb12f6cfa809",mycore)
@@ -249,11 +256,13 @@ class ExtractorTest(ExtractTest):
         self.assertEquals(indexSolr.check_hash_in_solrdata("d5cf9b334b0e479d2a070f9c239b154bf1a894d14f2547b3c894f95e6b0dad67",mycore),None) #second hash
         
         change_file()
+        
         #NOW SCAN THE COLLECTION
         scanfiles=updateSolr.scandocs(collection,docstore=self.docstore) 
-        ext=indexSolr.Extractor(collection,mycore,docstore=self.docstore,useICIJ=self.icij_extract)
-
-        change_file()
+        
+        ext=indexSolr.Extractor(collection,mycore,docstore=self.docstore,useICIJ=self.icij_extract,forceretry=True)
+#
+#        #change_file()
         self.assertEquals(indexSolr.check_hash_in_solrdata("d5cf9b334b0e479d2a070f9c239b154bf1a894d14f2547b3c894f95e6b0dad67",mycore).data['docpath'],[os.path.join('changes','changingfile.txt')])
 
 
@@ -280,7 +289,7 @@ class ExtractorTest(ExtractTest):
 
         docs=solrJson.getmeta(solrid,mycore)
         self.assertTrue(docs[0].docname == 'changingfile.txt' or '1changingfile.txt')
-        self.assertEquals(docs[0].date,'')
+        #self.assertEquals(docs[0].date,'')
         
         updateSolr.updatetags(solrid,mycore,value='newfilename',field_to_update='docnamesourcefield',newfield=False,test=False)
         
@@ -361,7 +370,7 @@ class ICIJExtractTest(ExtractorTest):
         path=os.path.abspath(os.path.join(os.path.dirname(__file__), '../tests/testdocs', _relpath))
         ext=indexSolr.solrICIJ.ICIJExtractor(path,self.mycore,ocr=False)
         self.assertFalse(ext.result)
-        self.assertEquals(ext.error_message,'ICIJ extract: parse failure')
+        self.assertEquals(ext.error_message,'ICIJ ext: parse failure')
 
 class ExtractFileTest(ExtractTest):
     """extract tests without extractor object"""
@@ -425,7 +434,7 @@ class ExtractFileTest(ExtractTest):
         filename="emdashfilename–.pdf"
         path=os.path.abspath(os.path.join(os.path.dirname(__file__), folder,filename))
         
-        extractor=indexSolr.ExtractFile(path,self.mycore,hash_contents='',sourcetext='',docstore=self.docstore,test=True)
+        extractor=indexSolr.ExtractFile(path,self.mycore,hash_contents='',sourcetext='',docstore=self.docstore,test=False)
         extractor.post_process()
         self.assertTrue(extractor.result)
         self.assertTrue(extractor.post_result)
@@ -433,7 +442,7 @@ class ExtractFileTest(ExtractTest):
         filename="chinese漢字filename.pdf"
         path=os.path.abspath(os.path.join(os.path.dirname(__file__), folder,filename))
         
-        extractor=indexSolr.ExtractFile(path,self.mycore,hash_contents='',sourcetext='',docstore=self.docstore,test=True)
+        extractor=indexSolr.ExtractFile(path,self.mycore,hash_contents='',sourcetext='',docstore=self.docstore,test=False)
         extractor.post_process()
         self.assertTrue(extractor.result)
         self.assertTrue(extractor.post_result)
@@ -453,12 +462,12 @@ class ExtractFileTest(ExtractTest):
 #        
         path=os.path.abspath(os.path.join(os.path.dirname(__file__), folder,filename))
 #        
-        extractor=indexSolr.ExtractFile(path,self.mycore,hash_contents='',sourcetext='',docstore=self.docstore,test=True)
+        extractor=indexSolr.ExtractFile(path,self.mycore,hash_contents='',sourcetext='',docstore=self.docstore,test=False)
         extractor.post_process()
 
         self.assertTrue(extractor.result)
         self.assertTrue(extractor.post_result)
-#        
+        
 
     def test_slugify(self):
         """check slugifying non-ascii filenames"""
@@ -529,7 +538,7 @@ class ExtractFileTest(ExtractTest):
         _relpath='docx/2013-03-10 Labour claims largest majority ever in post.docx'
         extractor=self.extract_document(_id,_relpath)
         
-        upd={"extract_id": _id, "last_modified": {"set": "2009-04-10T00:00:00Z"}}
+        upd={"extract_id": _id, self.mycore.datesourcefield: {"set": "2009-04-10T00:00:00Z"}}
         data=json.dumps([upd])
         response,updatestatus=updateSolr.post_jsonupdate(data,self.mycore)
         #print(f'Response: {response}; Status: {updatestatus}')   
@@ -607,8 +616,12 @@ class ExtractFileTest(ExtractTest):
         path=os.path.abspath(os.path.join(os.path.dirname(__file__), '../tests/testdocs', _relpath))
         ext=indexSolr.solrICIJ.ICIJExtractor(path,self.mycore,ocr=False)
         
-        #returns false on bad date metadata
-        self.assertFalse(ext.result)
+        #returns True in ICIJ extract despite bad date metadata
+        self.assertTrue(ext.result)
+        doc=updateSolr.check_hash_in_solrdata(_id,self.mycore)
+        self.assertEquals(doc.date,'1998-07-29T10:30:30Z')
+
+
     
     def test_email(self):
         """test email both with direct extract and ICIJ extract tool"""
@@ -786,8 +799,8 @@ class UpdatingTests(IndexTester):
        self.assertIsInstance(o,updateSolr.Updater)
 
        o=updateSolr.UpdateField(mycore)
-       
-       o.process(maxcount=1)
+       o.maxcount=1
+       o.process()
        self.assertIsInstance(o,updateSolr.UpdateField)
 
     
@@ -973,10 +986,13 @@ def change_file(docstore=os.path.abspath(os.path.join(os.path.dirname(__file__),
         data = f.read()
         f.seek(0)
         if data==text1:
+            #print('setting second version of changed files')
             f.write(text2)
             f.truncate()
         else:
+            #print('setting first version of changed filed')
             f.write(text1)
+            
             f.truncate()
 
 
