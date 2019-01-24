@@ -11,7 +11,7 @@ log = logging.getLogger('ownsearch.indexsolr')
 from configs import config
 from ownsearch.solrJson import SolrConnectionError
 from ownsearch.solrJson import SolrCoreNotFound
-from documents.updateSolr import delete,updatetags,check_hash_in_solrdata,check_file_in_solrdata,remove_filepath_or_delete_solrrecord,makejson,update as update_meta,get_source,get_collection_source,check_paths,clear_date
+from documents.updateSolr import scandocs,delete,updatetags,check_hash_in_solrdata,check_file_in_solrdata,remove_filepath_or_delete_solrrecord,makejson,update as update_meta,get_source,get_collection_source,check_paths,clear_date
 from ownsearch import solrJson as s
 from fnmatch import fnmatch
 from . import solrICIJ,file_utils,changes,time_utils
@@ -57,6 +57,65 @@ class PostFailure(Exception):
     
 class DuplicateRecords(Exception):
     pass
+
+
+class ExtractFolder():
+    def __init__(self,corename,path='',collection='',collectionID='',job=None,ocr=False,docstore=DOCSTORE):
+        
+        self.job=job
+        self.ocr=ocr
+        self.docstore=docstore
+        try:
+            self._index=Index.objects.get(corename=corename)
+            self.mycore=s.SolrCore(corename)
+        except Exception as e:
+            log.error(e)
+            raise BadParameters("Bad specs for Collection")
+        
+        if collection:
+             if not isinstance(collection,Collection):
+                 raise BadParameters("Bad specs for Collection")
+             else:
+                 self.collection=collection
+        elif collectionID:
+            try:
+                self.collection=Collection.objects.get(id=collectionID)
+                assert isinstance(self.collection,Collection)
+            except Exception as e:
+                log.error(e)
+                raise BadParameters("Bad specs for Collection")
+        elif path:
+            try:
+                self.collection=Collection.objects.filter(path=path,core_id=self._index.id)[0]
+                assert isinstance(self.collection,Collection)
+            except Exception as e:
+                log.error(e)
+                raise BadParameters("Bad specs for Collection")
+        else:
+            raise BadParameters("No Collection defined")
+        
+        try:
+            self._path=self.collection.path
+            assert os.path.exists(self._path)
+        except Exception as e:
+            raise BadParameters("Collection filepath does not exist")
+        
+        self.process()
+        
+
+    def process(self):
+        #scan the collection
+        log.info(f"Scanning collection {self.collection}")
+        scanner=scandocs(self.collection,job=self.job)
+        
+        #extract the files to the index
+        ext=solrICIJ.ICIJExtractor(self._path,self.mycore,ocr=self.ocr)
+        log.info(f'Extracted folder success: {ext.result}')
+        
+        #now fix meta
+        Collection_Post_Processor(self.collection,self.mycore,docstore=self.docstore,_test=False,job=self.job)
+
+        
 
 class Extractor():
     """extract a collection of docs into solr"""
@@ -203,6 +262,8 @@ class Extractor():
         log.debug('Existing parent path hashes: {}'.format(existing_doc.data.get(self.mycore.parenthashfield)))
         log.debug(f'Existing source: {existing_doc.data.get(self.mycore.sourcefield)}')
         
+        
+        
         #add a source if no source
         solr_source=existing_doc.data.get(self.mycore.sourcefield)
         if not solr_source:
@@ -234,7 +295,19 @@ class Extractor():
             result=updatetags(file.solrid,self.mycore,field_to_update='docpath',value=paths)
             if result:
                 result=updatetags(file.solrid,self.mycore,field_to_update=self.mycore.parenthashfield,value=parent_hashes)
+        
+        if existing_doc.docname != file.filename:
+            log.debug(f'Existing filename {existing_doc.docname} to replace with {file.filename}')
+            result=updatetags(file.solrid,self.mycore,field_to_update=self.mycore.docnamesourcefield,value=file.filename)
+        
         file.save()
+        
+#        changes.append((self.mycore.docnamesourcefield,'docname',self.filename))
+#        #extract a relative path from the docstore root
+#        
+        
+        
+        
         return result
        
     def skip_file(self,file):
@@ -344,7 +417,103 @@ class ExtractSingleFile(Extractor):
         self.filelist=[_file]
         self.extract()
 
-class ExtractFile():
+
+class ChildProcessor():
+    def __init__(self,path,mycore,hash_contents='',sourcetext='',docstore=''):
+        self.path=path
+        self.mycore=mycore
+        self.sourcetext=sourcetext
+        self.hash_contents = hash_contents if hash_contents else file_utils.get_contents_hash(self.path)
+        specs=file_utils.FileSpecs(path,scan_contents=False)###
+        self.docstore=docstore
+
+    def process_children(self):
+        
+        result=True
+        solr_result=s.hashlookup(self.hash_contents, self.mycore,children=True)
+        for solrdoc in solr_result.results:
+        #add source info to the extracted document
+            log.debug(solrdoc.__dict__)
+            _path=solrdoc.data.get('docpath')[0]
+            date_from_path=None
+            
+
+            if not solrdoc.docname: #no stored filename
+                filename=solrdoc.data[self.mycore.docnamesourcefield2]
+                if filename:
+                    date_from_path=file_utils.FileSpecs(filename,scan_contents=False).date_from_path
+                    result=updatetags(solrdoc.id,self.mycore,value=filename,field_to_update='docnamefield',newfield=False)
+                    if result:
+                        log.debug(f'added filename \'{filename}\' to child doc')
+                    else:
+                        log.debug(f'failed to add filename \'{filename}\' to child doc')
+                        return False
+            if self.sourcetext:
+                try:
+                    result=updatetags(solrdoc.id,self.mycore,value=self.sourcetext,field_to_update='sourcefield',newfield=False)
+                    if result==True:
+                        log.info('Added source \"{}\" to child-document \"{}\", id {}'.format(self.sourcetext,solrdoc.docname,solrdoc.id))
+                    else:
+                        log.error('Failed to add source to child document id: {}'.format(solrdoc.id))
+                        return False
+                except Exception as e:
+                    log.error(e)
+                    return False
+            
+                    
+            changes=[]
+            #check_the_date
+            parsed_date=self.parse_date(solrdoc.id,None,date_from_path)
+            changes.append((self.mycore.datesourcefield,'date',parsed_date)) if parsed_date else None
+            
+            file_size=s.getfield(solrdoc.id,'file_size',self.mycore)
+            if file_size:
+                size=re.match(r"\d+",file_size)[0]
+                log.debug(f'Size parsed: {size}')
+                changes.append((self.mycore.docsizesourcefield1,'solrdocsize',size)) if size else None
+            
+            #extract a relative path from the docstore root
+            _relpath=make_relpath(_path,docstore=self.docstore) if _path else None
+            log.debug(_relpath)
+            if _relpath:
+                changes.append((self.mycore.docpath,'docpath',_relpath))
+                if self.mycore.parenthashfield:
+                    parenthash=file_utils.parent_hash(_relpath)
+                    changes.append((self.mycore.parenthashfield,self.mycore.parenthashfield,parenthash))
+            if changes:
+                log.debug(changes)
+                response,updatestatus=update_meta(solrdoc.id,changes,self.mycore)
+                if not updatestatus:
+                    return False
+        return True
+    def parse_date(self,solrid,last_modified,date_from_path):
+        """evaluate the best display date from alternative sources"""
+        #in order of priority: 
+        #1. take the date from the filename
+        if date_from_path:
+            if not clear_date(solrid,self.mycore):
+                log.error('Failed to clear previous date')
+                return None
+            return time_utils.timestringGMT(date_from_path)
+        #2. or date from first sourcefield (clean)
+        elif not s.getfield(solrid,self.mycore.datesourcefield,self.mycore):
+
+            #3. or date from cleaned-up second source field
+            altdate=time_utils.cleaned_ISOtimestring(s.getfield(solrid,self.mycore.datesourcefield2,self.mycore))
+            if altdate:
+                return altdate
+            
+            #4. or date from file's last-modified stamp
+            elif last_modified:
+                return time_utils.ISOtimestring(last_modified)
+            else:
+                return None
+        else:
+            return None
+  
+
+
+class ExtractFile(ChildProcessor):
     def __init__(self,path,mycore,hash_contents='',sourcetext='',docstore='',test=False,ocr=True):
         self.path=path
         self.ocr=ocr
@@ -406,97 +575,9 @@ class ExtractFile():
         
 
     
-    def parse_date(self,solrid,last_modified,date_from_path):
-        """evaluate the best display date from alternative sources"""
-        #in order of priority: 
-        #1. take the date from the filename
-        if date_from_path:
-            if not clear_date(solrid,self.mycore):
-                log.error('Failed to clear previous date')
-                return None
-            return time_utils.timestringGMT(date_from_path)
-        #2. or date from first sourcefield (clean)
-        elif not s.getfield(solrid,self.mycore.datesourcefield,self.mycore):
+  
 
-            #3. or date from cleaned-up second source field
-            altdate=time_utils.cleaned_ISOtimestring(s.getfield(solrid,self.mycore.datesourcefield2,self.mycore))
-            if altdate:
-                return altdate
-            
-            #4. or date from file's last-modified stamp
-            elif last_modified:
-                return time_utils.ISOtimestring(last_modified)
-            else:
-                return None
-        else:
-            return None
-        
-    
-    def process_children(self):
-        
-        result=True
-        solr_result=s.hashlookup(self.hash_contents, self.mycore,children=True)
-        for solrdoc in solr_result.results:
-        #add source info to the extracted document
-            log.debug(solrdoc.__dict__)
-            _path=solrdoc.data.get('docpath')[0]
-            date_from_path=None
-            
 
-            if not solrdoc.docname: #no stored filename
-                filename=solrdoc.data[self.mycore.docnamesourcefield2]
-                if filename:
-                    date_from_path=file_utils.FileSpecs(filename,scan_contents=False).date_from_path
-                    result=updatetags(solrdoc.id,self.mycore,value=filename,field_to_update='docnamefield',newfield=False)
-                    if result:
-                        log.debug(f'added filename \'{filename}\' to child doc')
-                    else:
-                        log.debug(f'failed to add filename \'{filename}\' to child doc')
-                        return False
-            if self.sourcetext:
-                try:
-                    result=updatetags(solrdoc.id,self.mycore,value=self.sourcetext,field_to_update='sourcefield',newfield=False)
-                    if result==True:
-                        log.info('Added source \"{}\" to child-document \"{}\", id {}'.format(self.sourcetext,solrdoc.docname,solrdoc.id))
-                    else:
-                        log.error('Failed to add source to child document id: {}'.format(solrdoc.id))
-                        return False
-                except Exception as e:
-                    log.error(e)
-                    return False
-            
-                    
-            changes=[]
-            #check_the_date
-            parsed_date=self.parse_date(solrdoc.id,None,date_from_path)
-            changes.append((self.mycore.datesourcefield,'date',parsed_date)) if parsed_date else None
-            
-            file_size=s.getfield(solrdoc.id,'file_size',self.mycore)
-            if file_size:
-                size=re.match(r"\d+",file_size)[0]
-                log.debug(f'Size parsed: {size}')
-                changes.append((self.mycore.docsizesourcefield1,'solrdocsize',size)) if size else None
-            
-            #extract a relative path from the docstore root
-            _relpath=make_relpath(_path,docstore=self.docstore) if _path else None
-            log.debug(_relpath)
-            if _relpath:
-                changes.append((self.mycore.docpath,'docpath',_relpath))
-                if self.mycore.parenthashfield:
-                    parenthash=file_utils.parent_hash(_relpath)
-                    changes.append((self.mycore.parenthashfield,self.mycore.parenthashfield,parenthash))
-            if changes:
-                log.debug(changes)
-                response,updatestatus=update_meta(solrdoc.id,changes,self.mycore)
-                if not updatestatus:
-                    return False
-        return True
-    
-        
-    	
-        #newlastmodified=s.timestringGMT(file.last_modified)
-        
-     
 
 class ICIJ_Post_Processor(ExtractFile):
     def __init__(self,path,mycore,hash_contents='',sourcetext='',docstore='',test=False):
@@ -517,6 +598,61 @@ class ICIJ_Post_Processor(ExtractFile):
         return file_size if file_size else self.length
         
 
+class Collection_Post_Processor(Extractor):
+    def __init__(self,collection,mycore,docstore=DOCSTORE,_test=False,job=None):
+        """check meta in solr index for collection"""
+        #forceretry=False,useICIJ=False,ocr=True,docstore=DOCSTORE,job=None):        
+        if not isinstance(mycore,s.SolrCore) or not isinstance(collection,Collection):
+            raise BadParameters("Bad parameters for extraction")
+        self.collection=collection
+        self.mycore=mycore
+        self.docstore=docstore
+        self.job=job
+        self._test=_test
+        self.sourcetext=get_collection_source(self.collection)
+#        self.counter,self.skipped,self.failed=0,0,0
+#        self.skippedlist,self.failedlist=[],[]
+        self.filelist=File.objects.filter(collection=collection)
+        try:
+            self.loop()
+        finally:
+            pass
+    
+    def loop(self):
+        for _file in self.filelist:
+            _file.indexedTry=True
+            if _file.is_folder:
+                #add folder to the index:
+                log.debug('Adding folder to index')
+                _file.indexedSuccess=True if self.extract_folder(_file) else False
+                _file.save()
+            else:
+                if self.skip_file(_file):
+                    existing_doc=check_file_in_solrdata(_file,self.mycore) #searches by hashcontents, not solrid
+                    if existing_doc:
+                        log.info(f'deleting file {_file} on skip list')
+                        delete(existing_doc.id,self.mycore)
+                else:
+                    existing_doc=check_file_in_solrdata(_file,self.mycore) #searches by hashcontents, not solrid
+                    if existing_doc:
+                    #FIX META ONLY
+                        result=self.update_existing_meta(_file,existing_doc)
+                        c=ChildProcessor(_file.filepath,self.mycore,hash_contents=_file.hash_contents,sourcetext=self.sourcetext,docstore=self.docstore)
+                        c.process_children()
+                        _file.solrid=_file.hash_contents
+                        _file.indexedSuccess=True
+                        _file.save()
+                    else:
+                        log.debug(f'File not found in solr index: {_file}')
+                        _file.indexedSuccess=False
+                        _file.save()
+
+    def skip_file(self,_file):
+        if ignorefile(_file.filepath):
+            #skip this file because it is on ignore list
+            return True
+        else:
+            return False
     
 #SOLR METHODS
 

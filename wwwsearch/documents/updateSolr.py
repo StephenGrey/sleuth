@@ -228,9 +228,6 @@ class SequenceByDate(Updater):
             else:
                 log.info('Nothing to update!')
 #    
-  
-
-        
 
 #            #EXAMPLE FILTER = TEST IF ANY DATA IN FIELD - DATABASE_ORIGINALID _ AND UPDATE OTHERS
 
@@ -486,7 +483,11 @@ def checkupdate(id,changes,mycore):
                 solrfield=mycore.__dict__.get(resultfield,resultfield)
                 newvalue=doc.__dict__.get(solrfield,doc.data.get(solrfield,''))
             #log.debug(f'Solrdoc.data {doc.data} solrfield: {solrfield} newvalue={newvalue} targetvalue={value}')
-            #log.debug(doc.__dict__)
+#            log.debug(doc.__dict__)
+#            log.debug(type(newvalue))
+#            log.debug(newvalue)
+            
+            
             if newvalue:
                 #print(newvalue,type(newvalue))
                 if isinstance(newvalue,int):
@@ -502,7 +503,7 @@ def checkupdate(id,changes,mycore):
                         if newvalue==value: 
                             log.debug('{} successfully updated to {}'.format(resultfield,value))
                 else:
-                    if newvalue==value: 
+                    if newvalue==value or [newvalue]==value: 
                         log.debug('{} successfully updated to {}'.format(resultfield,value))
                     else:
                         log.debug('{} NOT updated; current value {}'.format(resultfield,value))
@@ -646,19 +647,23 @@ def remove_oldpaths(_file,mycore):
 
 def check_paths(solr_result,_file,mycore,docstore=DOCSTORE):
     """check if path needs updated, return new paths and parent_hashes"""
-    paths=solr_result.data.get('docpath')        
+    paths=solr_result.data.get('docpath')
     if not paths:
-        log.error('Filepath not found in existing doc')
-        return False,None,None
-    relpath=make_relpath(_file.filepath,docstore=docstore)
-    if relpath in paths:
-        log.debug('Filepath already stored in doc')
+        log.error('No stored filepath found in existing doc')
         return False,None,None
     else:
-        paths.append(relpath)
-        p_hashes=parent_hashes(paths)
-        return True,paths,p_hashes
+        return path_changes(_file.filepath,paths,docstore=docstore)
 
+def path_changes(filepath,existing_paths,docstore=DOCSTORE):
+    relpath=make_relpath(filepath,docstore=docstore)       
+    if relpath in existing_paths:
+        log.debug('Correct relative filepath already stored in doc')
+        return False,None,None
+    elif filepath in existing_paths:#replace full path with relative path
+        existing_paths.remove(filepath)
+    existing_paths.append(relpath)
+    p_hashes=parent_hashes(existing_paths)
+    return True,existing_paths,p_hashes
 
 
 def parsechanges(solrresult,_file,mycore): 

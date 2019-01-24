@@ -2,10 +2,11 @@
 from django.test import TestCase
 from django.contrib.auth.models import User, Group, Permission
 from django.core.management.base import BaseCommand, CommandError
+from django.core.management import call_command
 from django.db.models.query import QuerySet
 from django.urls import reverse
-from documents import documentpage,solrcursor,updateSolr,api,indexSolr,file_utils,changes,check_pdf,time_utils
-
+from documents import documentpage,solrcursor,updateSolr,api,indexSolr,file_utils,changes,check_pdf,time_utils, views as views_docs, index_check, correct_paths
+from documents.indexSolr import BadParameters
 from documents.management.commands import setup
 from documents.management.commands.setup import make_admin_or_login
 from documents.models import  Index, Collection, Source, UserEdit,File
@@ -330,8 +331,87 @@ class ExtractorTest(ExtractTest):
         self.assertEquals(updated_doc.data['docpath'],[os.path.join('emptyfolders','folder1')])
         self.assertEquals(updated_doc.data['sb_parentpath_hash'], '50b1c5e4bb7678653bf119e2da8a7a30')
 
+class ICIJFolderTest(IndexTester):
+    def setUp(self):
+        self.makebase()
+        _relpath="mixed_folder"
+        self._path=os.path.abspath(os.path.join(os.path.dirname(__file__), '../tests/testdocs', _relpath))
+        self.collection,created=Collection.objects.get_or_create(path=self._path,core=self.sampleindex,indexedFlag=False,source=self.testsource)
+        self.assertTrue(created)
+        
+    def test_folder(self):
+        """extract an entire folder with ICIJ extract tool"""
+        
+        #ERASE EVERYTHING FROM TESTS_ONLY 
+        res,status=updateSolr.delete_all(self.mycore)
+        self.assertTrue(status)
+        
+        #make a collection
+        scanner=updateSolr.scandocs(self.collection,job="jobid")
+        
+        #check if files already indexed
+        counter,skipped,failed=index_check.index_check(self.collection,self.mycore)
+        #print(f'counter:{counter},skipped: {skipped}, failed: {failed}')
+        self.assertEquals(skipped,10)  #nothing found in initial scan
+        
+        #EXTRACT A FOLDER
 
+        self.assertTrue(os.path.exists(self._path))
+        
+        result=indexSolr.solrICIJ.ICIJExtractor(self._path,self.mycore,ocr=False).result
+        self.assertTrue(result)
 
+        #now fix meta
+        pp=indexSolr.Collection_Post_Processor(self.collection,self.mycore,docstore=self.docstore,_test=False,job=None)
+        
+        doc=solrJson.getmeta('6d50ecaf0fb1fc3d59fd83f8e9ef962cf91eb14e547b2231e18abb12f6cfa809',self.mycore)[0]
+        self.assertEquals(doc.data.get('docpath'),["mixed_folder/HilaryEmailC05793347.pdf",
+          "mixed_folder/HilaryEmailC05793347 copy.pdf"])
+        self.assertEquals(doc.docname,'HilaryEmailC05793347 copy.pdf')
+        
+#        #NOW RECOGNISE FOLDER IN THE DATA - NOT NECESSARY
+#        counter,skipped,failed=index_check.index_check(self.collection,self.mycore)
+#        print(f'counter:{counter},skipped: {skipped}, failed: {failed}')
+#        self.assertEquals(counter,10)
+#        
+#        #change absolute paths to relative paths - WORKING NOT NECESSARY
+#        self.assertTrue(correct_paths.check_solrpaths(self.mycore,self.collection,docstore=self.docstore))
+        
+        childdoc=solrJson.getmeta('c032fe1fbef76624f1ad09e46feb4c04ec4e37a27a6a3487abc3ef73c702d3f9',self.mycore)[0]
+        self.assertEquals(childdoc.docname,"image1.jpg")
+        
+        
+    def test_indexcheck(self):
+        scanner=updateSolr.scandocs(self.collection,job="jobid")
+        counter,skipped,failed=index_check.index_check(self.collection,self.mycore)
+        #print(f'counter:{counter},skipped: {skipped}, failed: {failed}')
+        self.assertEquals(counter,7)
+        self.assertEquals(skipped,3)
+        
+    def test_folder_command(self):
+        #ERASE EVERYTHING FROM TESTS_ONLY 
+        res,status=updateSolr.delete_all(self.mycore)
+        self.assertTrue(status)
+        
+        self.assertRaises(BadParameters, indexSolr.ExtractFolder,'wrongname',self._path)
+        self.assertRaises(BadParameters,indexSolr.ExtractFolder,'tests_only','randompath')
+        
+        args = ['tests_only']
+        opts = {'docstore':self.docstore,'collectionID':self.collection.id}
+        call_command('extract_folder', *args, **opts)
+        
+        
+        doc=solrJson.getmeta('6d50ecaf0fb1fc3d59fd83f8e9ef962cf91eb14e547b2231e18abb12f6cfa809',self.mycore)[0]
+        self.assertEquals(doc.data.get('docpath'),["mixed_folder/HilaryEmailC05793347.pdf",
+          "mixed_folder/HilaryEmailC05793347 copy.pdf"])
+        self.assertEquals(doc.docname,'HilaryEmailC05793347 copy.pdf')
+        
+        childdoc=solrJson.getmeta('c032fe1fbef76624f1ad09e46feb4c04ec4e37a27a6a3487abc3ef73c702d3f9',self.mycore)[0]
+        self.assertEquals(childdoc.docname,"image1.jpg")
+        
+        
+        
+        
 class ICIJExtractTest(ExtractorTest):
     """ run same extractor object tests through ICIJ extract tool"""
     def use_icij_extract(self):
@@ -496,7 +576,25 @@ class ExtractFileTest(ExtractTest):
 
         new_parenthash=solrJson.getfield(_id,mycore.parenthashfield,mycore)
         self.assertEquals(new_parenthash,['8bc944dbd052ef51652e70a5104492e3', 'somerandomhash'])
-    
+        
+        
+        value=['8bc944dbd052ef51652e70a5104492e3']
+        result=updateSolr.updatetags(_id,mycore,field_to_update=mycore.parenthashfield,value=value)
+
+        new_parenthash=solrJson.getfield(_id,mycore.parenthashfield,mycore)
+        self.assertEquals(new_parenthash,'8bc944dbd052ef51652e70a5104492e3')
+        
+        #make changes to the solr index
+        changes=[(mycore.parenthashfield,mycore.parenthashfield,value)]
+        print(changes)
+        json2post=updateSolr.makejson(_id,changes,mycore)
+        response,updatestatus=updateSolr.post_jsonupdate(json2post,mycore)
+        print(response,updatestatus)
+        self.assertTrue(updatestatus)
+        result= updateSolr.checkupdate(_id,changes,mycore)
+        self.assertTrue(result)
+        
+        
     
     def test_specs(self):
         pp=os.path.abspath(os.path.join(os.path.dirname(__file__), '../tests/testdocs/docx/2018-01-23 Sale of Maltese passports nets Malta over €277m in one year.docx'))
@@ -842,6 +940,10 @@ class FileUtilsTest(IndexTester):
         self.assertEquals(spec.name,'HilaryEmailC05793347 copy.pdf')
         self.assertEquals(spec.ext,'.pdf')
  
+
+
+
+
 
 class ChangeApiTests(TestCase):
     """test Api for returning user changes"""

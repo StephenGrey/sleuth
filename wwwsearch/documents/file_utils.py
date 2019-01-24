@@ -590,11 +590,6 @@ class Dups_Index_Maker(Index_Maker):
              'filepath':relpath,
              'rootpath':path,
             })
-#
-
-
-
-
 
 
 def changed_file(_file):

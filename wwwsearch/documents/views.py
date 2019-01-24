@@ -17,7 +17,7 @@ from ownsearch.hashScan import hashfile256 as hexfile
 from ownsearch.hashScan import FileSpecTable as filetable
 from .file_utils import directory_tags
 import datetime, hashlib, os, logging, requests, json 
-from . import indexSolr, updateSolr, solrDeDup, solrcursor,correct_paths,documentpage,redis_cache,file_utils
+from . import indexSolr, updateSolr, index_check, solrDeDup, solrcursor,correct_paths,documentpage,redis_cache,file_utils
 import ownsearch.solrJson as solr
 from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.auth.decorators import login_required
@@ -189,7 +189,7 @@ def listfiles(request):
     #CURSOR SEARCH OF SOLR INDEX
             elif 'solrcursor' in request.POST:
                 mycore.ping()
-                match,skipped,failed=indexcheck(thiscollection,mycore) #GO SCAN THE SOLR INDEX
+                match,skipped,failed=index_check.index_check(thiscollection,mycore) #GO SCAN THE SOLR INDEX
                 
                 results={
                 'task':'check_index',
@@ -281,80 +281,4 @@ def file_display(request,path=''):
         tags=None
     return render(request,'documents/filedisplay/listindex.html',
          {'subfiles': c, 'rootpath':rootpath, 'tags':tags, 'form':page.form, 'path':path})
-
-
-#checking for what files in existing solrindex
-def indexcheck(collection,thiscore):
-
-    #first get solrindex ids and key fields
-    try:#make a dictionary of filepaths from solr index
-        indexpaths=solrcursor.cursor(thiscore)
-    except Exception as e:
-        log.warning('Failed to retrieve solr index')
-        log.warning(str(e))
-        return 0,0,0
-
-    #now compare file list with solrindex
-    if True:
-        counter=0
-        skipped=0
-        failed=0
-        #print(collection)
-        filelist=File.objects.filter(collection=collection)
-
-        #main loop - go through files in the collection
-        for file in filelist:
-            relpath=os.path.relpath(file.filepath,start=BASEDIR) #extract the relative path from the docstore
-            hash=file.hash_contents #get the stored hash of the file contents
-            #print (file.filepath,relpath,file.id,hash)
-
-	#INDEX CHECK: METHOD ONE : IF RELATIVE PATHS STORED MATCH
-            if relpath in indexpaths:  #if the path in database in the solr index
-                solrdata=indexpaths[relpath][0] #take the first of list of docs with this path
-                #print ('PATH :'+file.filepath+' found in Solr index', 'Solr \'id\': '+solrdata['id'])
-                file.indexedSuccess=True
-                file.solrid=solrdata.id
-                file.save()
-                counter+=1
-                continue
-        #INDEX CHECK: METHOD TWO: CHECK IF FILE STORED IN SOLR INDEX UNDER CONTENTS HASH
-            elif not file.is_folder:
-                try:
-                    log.debug('trying hash method')
-                    #is there a stored hash, if not get one
-                    if not hash:
-                        hash=hexfile(file.filepath)
-                        file.hash_contents=hash
-                        file.save()
-                    #now lookup hash in solr index
-                    log.debug('looking up hash : '+hash)
-                    solrresult=solr.hashlookup(hash,thiscore).results
-                    log.debug(solrresult)
-                except Exception as e:
-                    log.error(e)
-                    solrresult=''
-                
-                if len(solrresult)>0:
-                    #if some files, take the first one
-                    solrdata=solrresult[0]
-                    log.debug('solrdata: {}'.format(vars(solrdata)))
-                    file.indexedSuccess=True
-                    file.solrid=solrdata.id
-                    file.save()
-                    counter+=1
-                    log.debug(f'PATH : {file.filepath} indexed successfully (HASHMATCH) Solr \'id\': {solrdata.id}')
-                    
-                    continue
-                    
-            #NO MATCHES< RETURN FAILURE
-
-            log.info(file.filepath+'.. not found in Solr index')
-            file.indexedSuccess=False
-            file.indexedTry=False #reset indexing try flag
-            file.solrid='' #wipe any stored solr id; DEBUG: this wipes also oldsolr ids scheduled for delete
-            file.save()
-            skipped+=1
-                
-                    
-        return counter,skipped,failed
 
