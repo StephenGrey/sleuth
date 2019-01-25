@@ -127,8 +127,9 @@ $(".master-folder").click(
   var folder = $(this).closest("div[data-id]").attr('data-id');
   $(".master-url").html("<a href='/dups/folder/"+folder+"'>"+folder+"</a>");
   var dataform=$('#master-folder-form').serialize();
-  dataform=dataform+"&folder_type=master&folder_path="+folder
-  //alert(dataform)
+//  var folder_mod="this+that space"//JSON.stringify(folder)
+  var folder_clean = encodeURIComponent(folder); //deals with special characters in filepaths e.g + sign
+  dataform=dataform+"&folder_type=master&folder_path="+folder_clean
   $.post( '/dups/ajax',dataform, function(data)
   	{
   	if (data.saved==false)
@@ -138,7 +139,7 @@ $(".master-folder").click(
   		}
   	else
   		{
-  		document.getElementById("form-errors-{{filter}}").innerHTML='';
+  		//document.getElementById("form-errors-{{filter}}").innerHTML=' ';
   		};
   	},'json' // I expect a JSON response
   	);
@@ -149,8 +150,10 @@ $(".scan-folder").click(
   var folder = $(this).closest("div[data-id]").attr('data-id');
   $(".local-url").html("<a href='/dups/folder/"+folder+"'>"+folder+"</a>");
   var dataform=$('#scan-folder-form').serialize();
-  dataform=dataform+"&folder_type=local&folder_path="+folder
-  //alert(dataform)
+  var folder_clean = encodeURIComponent(folder); //deals with special characters in filepaths e.g + sign
+  dataform=dataform+"&folder_type=local&folder_path="+folder_clean
+  alert(dataform)
+  
   $.post( '/dups/ajax',dataform, function(data)
   	{
   	if (data.saved==false)

@@ -1,16 +1,13 @@
 # -*- coding: utf-8 -*-
 from __future__ import unicode_literals
-import os
 from django.http import HttpResponse, HttpResponseRedirect, JsonResponse
 from django.shortcuts import render, redirect
-from . import pages
-from documents import file_utils
 from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.auth.decorators import login_required
+from . import pages
+from documents import file_utils
 from dups import forms
-import configs
-
-import logging,json
+import os, configs, logging,json
 log = logging.getLogger('ownsearch.dups.views')
 
 dupsconfig=configs.config.get('Dups')
@@ -104,15 +101,15 @@ def dups_api(request):
             return HttpResponse('API call: Not Ajax')
         else:
             if request.method == 'POST':
-                log.debug('Raw Data: {}'.format(request.body))
-                response_json = json.dumps(request.POST)
-                data = json.loads(response_json)
-                log.debug ("Json data: {}.".format(data))
-                if data.get('folder_type')=='local':
-                    request.session['scanfolder']=data.get('folder_path')
+                folder_type=request.POST.get('folder_type')
+                folder_path=request.POST.get('folder_path')
+#                log.debug(folder_type)
+#                log.debug(folder_path)
+                if folder_type=='local':
+                    request.session['scanfolder']=folder_path
                     jsonresponse={'saved':True}
-                if data.get('folder_type')=='master':
-                    new_masterindex_path=data.get('folder_path')
+                if folder_type=='master':
+                    new_masterindex_path=folder_path
                     request.session['masterfolder']=new_masterindex_path
                     jsonresponse={'saved':True}
                     if new_masterindex_path != DEFAULT_MASTERINDEX_PATH:
