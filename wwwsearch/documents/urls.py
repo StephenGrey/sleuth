@@ -6,6 +6,9 @@ from . import api
 urlpatterns = [
     url(r'^$', views.index, name='docs_index'),
     url(r'list/$', views.listfiles, name='listfiles'),
+    url(r'makecollection/(?P<path>.*)&confirm$',views.make_collection,{'confirm':True},name='make_collection_confirm',),    
+    url(r'makecollection/(?P<path>.*)$',views.make_collection,name='make_collection'),
+    url(r'cancelcollection/(?P<path>.*)$',views.cancel_collection,name='cancel_collection'),
     url(r'results/(?P<job_id>.*)$', views.display_results, name='display_results'),
     url(r'^files/(?P<path>.*)$',views.file_display,name='listfiles'),
     url(r'^files',views.file_display,name='listfiles_base'),

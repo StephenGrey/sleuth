@@ -497,12 +497,15 @@ class Index_Maker():
                     relpath=os.path.relpath(t,rootpath)
                     #print(f'FILE/DIR: {t}')
                     if os.path.isdir(t):    
+                        #log.debug(f"{t},{index_collections}")
+                        is_collection_root,is_inside_collection=inside_collection(t,index_collections)
+                        #log.debug(is_inside_collection)
                         if depth==maxdepth-1:
-                            yield self.folder_html_nosub(mfile,relpath,path)
+                            yield self.folder_html_nosub(mfile,relpath,path,is_collection_root,is_inside_collection)
                         else:
                             subfiles=_index(os.path.join(root, t),depth+1,index_collections)
                             #log.debug(f'ROOT:{root},SUBFILES:{subfiles}')
-                            yield self.folder_html(mfile,relpath,subfiles,path)
+                            yield self.folder_html(mfile,relpath,subfiles,path,is_collection_root,is_inside_collection)
                         continue
                     else:
                         #files
@@ -547,20 +550,24 @@ class Index_Maker():
                             	})
                             	
     @staticmethod
-    def folder_html(mfile,relpath,subfiles,path):
+    def folder_html(mfile,relpath,subfiles,path,is_collection_root,is_inside_collection):
         return loader.render_to_string('documents/filedisplay/p_folder.html',
         {'file': mfile,
          'filepath':relpath,
          'rootpath':path,
          'subfiles': subfiles,
+         'is_collection_root':is_collection_root,
+         'is_inside_collection':is_inside_collection,
          })
          
     @staticmethod
-    def folder_html_nosub(mfile,relpath,path):
+    def folder_html_nosub(mfile,relpath,path,is_collection_root,is_inside_collection):
         return loader.render_to_string('documents/filedisplay/p_folder_nosub.html',
             {'file': mfile,
              'filepath':relpath,
              'rootpath':path,
+             'is_collection_root':is_collection_root,
+             'is_inside_collection':is_inside_collection,
             })
 #
 class Dups_Index_Maker(Index_Maker):
@@ -575,20 +582,24 @@ class Dups_Index_Maker(Index_Maker):
                             'rootpath':path,
                             	})
     @staticmethod
-    def folder_html(mfile,relpath,subfiles,path):
+    def folder_html(mfile,relpath,subfiles,path,is_collection_root,is_inside_collection):
         return loader.render_to_string('dups/p_folder.html',
         {'file': mfile,
          'filepath':relpath,
          'rootpath':path,
          'subfiles': subfiles,
+         'is_collection_root':is_collection_root,
+         'is_inside_collection':is_inside_collection,
          })
          
     @staticmethod
-    def folder_html_nosub(mfile,relpath,path):
+    def folder_html_nosub(mfile,relpath,path,is_collection_root,is_inside_collection):
         return loader.render_to_string('dups/p_folder_nosub.html',
             {'file': mfile,
              'filepath':relpath,
              'rootpath':path,
+             'is_collection_root':is_collection_root,
+             'is_inside_collection':is_inside_collection,
             })
 
 
@@ -685,6 +696,16 @@ def is_inside(filepath, folder):
     """filepath inside a folder"""
     path=os.path.realpath(filepath)
     return path.startswith(folder)
+
+def new_is_inside(filepath,folder):
+    """filepath inside a folder"""
+    if filepath.startswith(folder):
+        if os.path.commonpath([filepath,folder])==folder:
+            return True
+        else:
+            return False
+    else:
+        return False
 
 def is_down(relpath, root=DOCSTORE):
     """is down folder tree"""
@@ -788,7 +809,17 @@ def find_collections(path):
             match_collections.append(collection)
     return match_collections
 
-
+def inside_collection(path,_collections):
+    """return is collection path or inside collection"""
+    for collection in _collections:
+#        log.debug(path)
+#        log.debug(collection.path)
+        if new_is_inside(path, collection.path):
+            if path==collection.path:
+                return True,False
+            else:
+                return False,True
+    return False,False
 
     
 #DUP CHECKS

@@ -87,7 +87,7 @@ def index(request,path=''):
             rootpath=""
             tags=None
         return render(request,'dups/listindex.html',
-                                   {'page': page, 'subfiles': c, 'rootpath':rootpath, 'tags':tags,  'path':path})
+                                   {'page': page, 'subfiles': c, 'rootpath':rootpath, 'tags':tags,  'path':path,})
     else:
         return redirect('dups_index',path='')
 

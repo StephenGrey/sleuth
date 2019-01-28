@@ -270,8 +270,12 @@ def file_display(request,path=''):
     page.chooseindexes(request.method,request_postdata=request.POST)
     page.get_collections() #filter authorised collections
 #        log.debug('Core set in request: {}'.format(request.session['mycore']))
-    log.debug('CORE ID: {}'.format(page.coreID))    
-        
+    log.debug('CORE ID: {}'.format(page.coreID))
+    path_info=request.META.get('PATH_INFO')
+    request.session["back_url"]=path_info  
+    
+#    is_collection_root=None
+#    is_inside_collection=None
     c = file_utils.Index_Maker(path,page.authorised_collections)._index
     if path:
         rootpath=path
@@ -282,3 +286,36 @@ def file_display(request,path=''):
     return render(request,'documents/filedisplay/listindex.html',
          {'subfiles': c, 'rootpath':rootpath, 'tags':tags, 'form':page.form, 'path':path})
 
+
+@staff_member_required()
+def make_collection(request,path='',confirm=False):
+        #get the core , or set the the default    
+    log.debug(f'Attempting to add collection with path {path}, confirmed: {confirm}, with rootpath {BASEDIR}')
+    page=documentpage.MakeCollectionPage(relpath=path,rootpath=BASEDIR)
+    path_info=request.session.get("back_url")
+    page.back_url=path_info
+    log.debug(request.POST)
+    page.getcores(request.user,request.session.get('mycore')) #arguments: user, storedcore
+    page.chooseindexes(request.method,request_postdata=request.POST)
+    page.get_collections() #filter authorised collections
+    page.make_sources(request.method,request_postdata=request.POST,source_initial=request.session.get('mysource'))
+    
+    #log.debug(f'{page.authorised_collections_relpaths}')
+    try:
+        page.check_path()
+        if confirm:
+            page.make_collection()
+    
+    except documentpage.NoValidCollection as e:
+        page.error=f"{e}"
+    if page.error:
+        log.debug(page.error)
+    request.session['mycore']=page.coreID
+    request.session['mysource']=page.sourceID 
+    return render(request,'documents/makecollection.html',
+         {'path':path,'source_form':page.source_form,'form':page.form, 'index':page.mycore.name, 'error':page.error, 'back_url':page.back_url,'success':page.success})
+
+@staff_member_required()
+def cancel_collection(request,path=''):
+    return render(request,'documents/cancelcollection.html',
+         {'path':path})

@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+
+ {% block sidebar %}
+	<ul class="sidebar-nav">
+		<form action="{% url 'make_collection' path=path %}" method ="post">
+		{% csrf_token %}
+		Index:{{form.corechoice}}
+		</form>
+	</ul>
+{% endblock %}
+
+{% block body_content %}
+
+<a href="{{back_url}}" class="btn btn-primary btn-sm " role="button">Back</a>
+<H2>Add a collection to index</H2>		
+<p>
+<H5 style="color:blue">Path: {{path}}</H5>
+<H5 style="color:blue">Index: {{index}}</H5>
+
+		<form action="{% url 'make_collection' path=path %}" method ="post">
+		{% csrf_token %}
+		Source:{{source_form.sourcechoice}}
+		</form>
+
+
+{% if error %}
+<p><p><H5 style="color:red">{{error}}</H5>
+{% else %}
+	{% if success %}
+	Added successfully <span class="glyphicon glyphicon-ok" aria-hidden="true"></span>
+	{% else %}
+	<a href="{% url 'make_collection_confirm' path=path %}" class="btn btn-primary btn-sm " role="button">Confirm</a>
+	{%endif%}
+
+
+{%endif%}
+
+
+
+
+{% endblock %}
+
+
+{% block javascript %}
+<script>
+
+$('#confirm').click(function(e) {
+
+alert('clicked');
+
+});
+
+
+</script>
+{% endblock %}
+

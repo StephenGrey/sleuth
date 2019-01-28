@@ -39,7 +39,7 @@ class Command(BaseCommand):
         try:
             self.args_check()
         
-            self.collection,self.created=make(self.path,self.source,self._index)
+            self.collection,self.created=make(self.path,self.sourceID,self._index)
             if not self.created:
                 print('Collection already existed')
             else:
@@ -92,7 +92,9 @@ class Command(BaseCommand):
     
 def make(path,source,_index):
     """make or fetch a collection of documents"""
+
     collection,created=Collection.objects.get_or_create(path=path,core=_index,indexedFlag=False,source=source)
+
     return collection,created
 
 def make_sourcedisplay(source):

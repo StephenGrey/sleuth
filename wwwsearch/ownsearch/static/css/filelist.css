@@ -4,13 +4,27 @@
 .topmenu{
 color:red	
 }
+2
 
+.modal-header .close {
+  font-size: 40px; //bigger
+}
+.collection-folder{
+color:white;
+background-color:green;
+}
+.collection-inside{
+color:blue;
+background-color:grey;
+}
 .menu {
-  width: 120px;
+  width: 400px;
   box-shadow: 0 4px 5px 3px rgba(0, 0, 0, 0.2);
-  position: relative;
-  display: none;
-  color: green;
+  position: absolute;
+  display: hide;
+  color: black;
+  background: #e3e9f2;
+  opacity: 1;
   
   .menu-options {
     list-style: none;

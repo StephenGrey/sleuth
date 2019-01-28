@@ -1,14 +1,18 @@
 # -*- coding: utf-8 -*-
 from __future__ import unicode_literals
-from ownsearch.pages import Page
-import logging
+from ownsearch.pages import Page,quote_plus,unquote_plus
+import logging,os
 log=logging.getLogger('ownsearch.documentpage')
 from ownsearch import authorise
-from .forms import IndexForm, get_corechoices
-from .models import Collection,Index
-from .file_utils import make_relpath
+from .forms import IndexForm, get_corechoices,SourceForm,get_sourcechoices
+from .models import Collection,Index,Source
+from .file_utils import make_relpath,new_is_inside
+from .management.commands import make_collection
 
 class NoValidCore(Exception):
+    pass
+
+class NoValidCollection(Exception):
     pass
 
 class CollectionPage(Page):
@@ -56,8 +60,7 @@ class CollectionPage(Page):
         log.debug('CORES: '+str(self.cores)+' DEFAULT CORE:'+str(self.defaultcoreID))
         
     def chooseindexes(self,request_method,request_postdata='',test=False):
-        #log.debug(request_method)
-        if request_method=='POST': #if data posted => switch core
+        if request_method=='POST' and request_postdata.get('corechoice'): #if data posted => switch core
             form=IndexForm(request_postdata)
             if test:
             #NOT CLEAR WHY THIS SHOULD BE NECESSARY
@@ -83,4 +86,81 @@ class FilesPage(CollectionPage):
 class SolrFilesPage(CollectionPage):
     pass
         
+class MakeCollectionPage(CollectionPage):
+    def __init__(self,relpath='',rootpath=''):
+        self.docpath=relpath
+        self.rootpath=rootpath
+        self.error=None
+        self.success=False
         
+    def make_sources(self,request_method,request_postdata,source_initial=None):
+        if request_method=='POST' and request_postdata.get('sourcechoice'):
+             #if data posted => switch core
+            form=SourceForm(request_postdata)
+            if form.is_valid():
+                self.sourceID=int(form.cleaned_data['sourcechoice'])
+                self.validform=True
+                self.source_form=form
+                log.debug('change source selection to {}'.format(self.sourceID))
+            
+            else:
+                log.warning('posted form is not valid: {}'.format(form.errors))
+                self.validform=False
+                self.source_form=None
+                self.sourceID=None
+        else:
+            if not source_initial:
+                try:
+                    source_initial=get_sourcechoices()[0][0]
+                except Exception as e:
+                    log.error(e)
+                    source_initial=None
+            self.source_form=SourceForm(initial={'sourcechoice':source_initial})
+            self.sourceID=source_initial
+        
+    def check_path(self):
+        log.debug(self.rootpath)
+        log.debug(self.docpath)
+        try:
+            self._path=os.path.join(self.rootpath,self.docpath)
+            assert self.path_exists
+        except Exception as e:
+            raise NoValidCollection('Not valid path')
+
+        try:
+            assert self.relpath_valid
+        except Exception as e:
+            raise NoValidCollection('Relative path not exists')
+        assert self.valid_new_collection
+        
+    @property
+    def valid_new_collection(self):
+        for path,_id in self.authorised_collections_relpaths:
+            if path==self.docpath:
+                raise NoValidCollection('This collection exists already')
+            elif path==".":
+                raise NoValidCollection('The entire docstore is indexed \n- no need to add more collections')
+            #is this new collection inside an existing one
+            elif new_is_inside(self.docpath,path):
+                raise NoValidCollection('This folder is inside an existing collection')
+            elif path.startswith(self.docpath):
+                raise NoValidCollection('This folder has existing one or more existing collections inside\n -- remove them first!')
+        return True
+            
+    def make_collection(self):
+        try:
+            source=Source.objects.get(id=self.sourceID)
+            collection,created=make_collection.make(path=self._path, source=source,_index=self.myindex)
+            self.new_collection=collection
+            self.success=created
+            log.info(f'Collection with path {self._path} in index {self.myindex} created: {created}')
+        except Exception as e:
+            log.error(e)
+            raise NoValidCollection("Error saving new collection")
+        
+        
+        
+        
+    
+    
+    

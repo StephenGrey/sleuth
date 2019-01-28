@@ -1,3 +1,9 @@
 <li>
-<a href="/documents/files/{{filepath}}">{{file}}</a>
+{% if is_collection_root%}
+<a class="collection-folder sbfolder" id="{{file}}" href="/documents/files/{{filepath}}">{{file}}</a>
+{% elif is_inside_collection %}
+<a class="collection-inside sbfolder" id="{{file}}" href="/documents/files/{{filepath}}">{{file}}</a>
+{% else %}
+<a class="sbfolder" id="{{file}}" href="/documents/files/{{filepath}}">{{file}}</a>
+{%endif%}
 </li>
