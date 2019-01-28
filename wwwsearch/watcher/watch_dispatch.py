@@ -272,7 +272,7 @@ def scan_extract_job(job_id,job,task):
         sub_status=r.hget(sub_job,'status')
         if sub_status =='completed':
             log.debug('now index')   
-            sub_job_id=make_index_job(collection_id,_test=False,force_retry=False,use_icij=False,ocr=1)
+            sub_job_id=make_index_job(collection_id,_test=0,force_retry=False,use_icij=False,ocr=1)
             r.hset(job,'status','indexing')
             r.hset(job,'sub_job_id',sub_job_id)
         else:
