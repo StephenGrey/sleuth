@@ -152,7 +152,7 @@ $(".scan-folder").click(
   var dataform=$('#scan-folder-form').serialize();
   var folder_clean = encodeURIComponent(folder); //deals with special characters in filepaths e.g + sign
   dataform=dataform+"&folder_type=local&folder_path="+folder_clean
-  alert(dataform)
+  //alert(dataform)
   
   $.post( '/dups/ajax',dataform, function(data)
   	{

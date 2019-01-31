@@ -404,8 +404,9 @@ def pagesearch(page):
 
     return
 
-#MAIN SEARCH METHOD  (q is search term)
+
 def solrSearch(q,sorttype,startnumber,core,filters={},faceting=False,start_date=None,end_date=None):
+    """ #MAIN SEARCH METHOD  (q is search term)  """
     core.ping()
 
     #make date filter
@@ -520,7 +521,7 @@ def resPostfile(url,path,timeout=1):
             elif resstatus==200:
                 return res       
             else:
-                log.debug('Post result {}'.format(res.content))
+                logresult(res.content)                
                 raise PostFailure(resstatus)
     except ConnectTimeout as e:
         raise SolrTimeOut
@@ -533,6 +534,17 @@ def resPostfile(url,path,timeout=1):
         log.error(str(e))
         log.debug('Post result {}'.format(res.content))
         raise PostFailure
+
+def logresult(logmessage):
+    """decode logmessage in bytes format and then log"""
+    try:
+        logmessage=logmessage.decode('utf-8')
+    except AttributeError:
+        pass
+    log.debug('Post result {}'.format(logmessage))
+    
+    
+
 
 def fieldexists(field,core):
     try:
@@ -574,8 +586,9 @@ def gettrimcontents(docid,core,maxlength):
 #    log.debug('{}'.format(SR.results[0].__dict__))
     return SR
 
-#GET CONTENTS OF LARGE DOCUMENT
+#
 def bighighlights(docid,core,q,contentsmax):
+    """GET CONTENTS OF LARGE DOCUMENT"""
     #contents max = max length of snippet to avoid loading up huge file
     searchterm=r'{}:{}'.format(core.unique_id,docid)
     #make snippets of max length 5000 with searchterm highlighted; if searchterm not found, return maxlength sample
@@ -589,7 +602,7 @@ def bighighlights(docid,core,q,contentsmax):
     return SR
 
 def getlist(jres,counter,core,linebreaks=False,big=False):
- #this parses the list of results, starting at 'counter'
+    """this parses the list of results, starting at 'counter'"""
     SR=SolrResult(jres,core,startcount=counter)
 #    log.debug([doc.data['resultnumber'] for doc in SR.results])
     SR.addstoredmeta()

@@ -1,8 +1,9 @@
 # -*- coding: utf-8 -*-
-import os, logging,hashlib,re,datetime,unicodedata,pickle,time
+import os, logging,hashlib,re,datetime,unicodedata,pickle,time,sys,traceback
 from pathlib import Path
 from collections import defaultdict
 from klepto.archives import *
+from . import win_utils
 
 try:
     from django.http import HttpResponse
@@ -56,7 +57,7 @@ class EmptyDirectory(Exception):
 
 class FileSpecs:
     def __init__(self,path,folder=False,scan_contents=True):
-        self.path=path
+        self.path=normalise(path) #adjust windows longpaths
         self.name=os.path.basename(path)
         self.scan_contents=scan_contents
         self.shortname, self.ext = os.path.splitext(self.name)
@@ -160,30 +161,36 @@ class PathIndex:
                 self.update_results()
                 
             for filename in fileList: #now through every file in the folder/subfolder
-                self.counter+=1
-                if self.ignore_pattern and filename.startswith(self.ignore_pattern):
-                    pass
-                else:
-                    
-                    path = os.path.join(dirName, filename)
-                    if specs_dict:
-                        self.update_record(path,scan_contents=scan_contents)
+                try:
+                    self.counter+=1
+                    if self.ignore_pattern and filename.startswith(self.ignore_pattern):
+                        pass
                     else:
-                        self.files[path]=FileSpecs(path)
-                    if self.counter%1000==0:
-                        log.info(f'Scanned {self.counter} files.. dumping output')
-                        self.save()
-                    elif self.counter%200==0:
-                        log.info(f'Scanned {self.counter} files)')
-            
-            
+                        path = os.path.join(dirName, filename)
+                        if specs_dict:
+                            self.update_record(path,scan_contents=scan_contents)
+                        else:
+                            self.files[path]=FileSpecs(path)
+                        if self.counter%1000==0:
+                            log.info(f'Scanned {self.counter} files.. dumping output')
+                            self.save()
+                        elif self.counter%200==0:
+                            log.info(f'Scanned {self.counter} files)')
+                except Exception as e:
+                    log.warning(e)
+                    log.error(f'Error scanning {filename} in {dirName}')
             for subfolder in subdirs:
-                self.counter+=1
-                if self.ignore_pattern and subfolder.startswith(self.ignore_pattern):
-                    subdirs.remove(subfolder)
-                else:
-                    path= os.path.join(dirName,subfolder)
-                    self.update_folder(path)
+                try:
+                    self.counter+=1
+                    if self.ignore_pattern and subfolder.startswith(self.ignore_pattern):
+                        subdirs.remove(subfolder)
+                    else:
+                        path= os.path.join(dirName,subfolder)
+                        path=normalise(path) #handle NT paths; over max length paths
+                        self.update_folder(path)
+                except Exception as e:
+                    log.warning(e)
+                    log.error(f'Error scanning {subfolder} in {dirName}')
             self.save()
 
     def update_results(self):
@@ -335,6 +342,9 @@ class PathIndex:
                     self.update_record(docpath)
             except Exception as e:
                 log.info(f'Update failed for {docpath}: {e}')
+                #debug:
+                exc_type, exc_value, exc_traceback = sys.exc_info()
+                traceback.print_exc(limit=2, file=sys.stdout)
             #log.debug(f'Added {docpath} to index')
             self.counter+=1
             if self.counter%200==0:
@@ -485,22 +495,32 @@ class HashIndex(PathIndex):
 
 class Index_Maker():
 #index_maker
-    def __init__(self, path,index_collections,specs=None,masterindex=None, rootpath=DOCSTORE, hidden_files=False):
+    def __init__(self, path,index_collections,specs=None,masterindex=None, rootpath=DOCSTORE, hidden_files=False,max_depth=1):
         log.info(f'Indexmaker PATH: {path}, ROOTPATH: {rootpath}')
-        def _index(root,depth,index_collections,maxdepth=2):
-            #log.debug(f'Root :{root} Depth: {depth}')
+        def _index(root,depth,index_collections,max_depth=1):
+            log.debug(f'Root :{root} Depth: {depth}')
             try:
+                is_windows_drivelist=win_utils.is_drivelist(root)
                 
                 files = self.dir_list(root)
                 for mfile in files:
+
                     t = os.path.join(root, mfile)
-                    relpath=os.path.relpath(t,rootpath)
-                    #print(f'FILE/DIR: {t}')
-                    if os.path.isdir(t):    
+
+                    if  is_windows_drivelist:
+                        relpath=t
+                    elif rootpath=='/':
+                        relpath=t
+                    else:
+                        relpath=os.path.relpath(t,rootpath)
+
+
+                    #log.debug(f'FILE/DIR: {t} MFILE:{mfile}')
+                    if self.isdir(t,is_windows_drivelist):    
                         #log.debug(f"{t},{index_collections}")
                         is_collection_root,is_inside_collection=inside_collection(t,index_collections)
                         #log.debug(is_inside_collection)
-                        if depth==maxdepth-1:
+                        if depth==max_depth-1:
                             yield self.folder_html_nosub(mfile,relpath,path,is_collection_root,is_inside_collection)
                         else:
                             subfiles=_index(os.path.join(root, t),depth+1,index_collections)
@@ -515,6 +535,7 @@ class Index_Maker():
                             _stored,_indexed=None,None
                         dupcheck=DupCheck(t,specs,masterindex)
                         #log.debug(f'Local check: {t},indexed: {_indexed}, stored: {_stored}')
+                        #log.debug(f'Dupcheck: {dupcheck.__dict__}')
                         yield self.file_html(mfile,_stored,_indexed,dupcheck,relpath,path)
                         continue
             except PermissionError:
@@ -530,16 +551,23 @@ class Index_Maker():
         
         #log.debug('Basepath: {}'.format(basepath))
         if os.path.isdir(basepath):
-            self._index=_index(basepath,0,index_collections)
+            self._index=_index(basepath,0,index_collections,max_depth=max_depth)
         else:
             raise Not_A_Directory('not a valid path to a folder')
     
     @staticmethod
     def dir_list(root):
-        if root=='/' and os.name=='nt':
-            return ['C','D'] #TODO replace with Windows volume list
+        if win_utils.is_drivelist(root):
+            return win_utils.get_drives()
         else:
             return os.listdir(root)
+
+    @staticmethod    
+    def isdir(path,is_windows_drivelist):
+        if is_windows_drivelist:
+            return True
+        else:
+            return os.path.isdir(path)
         
     @staticmethod
     def file_html(mfile,_stored,_indexed,dupcheck,relpath,path):	
@@ -740,7 +768,11 @@ def directory_tags(path,isfile=False):
     """make subfolder tags from full filepath"""
     #returns fullrelativepath,folder,basename,hash_relpath
     log.debug('Path: {}'.format(path))
-    a,b=os.path.split(path)
+    drive,path_and_file=os.path.splitdrive(path)
+    a,b=os.path.split(path_and_file)
+    if drive:
+        a=os.path.join(drive,a)
+    print (drive,a,b)
     if isfile:
         tags=[]
     else:
@@ -748,10 +780,18 @@ def directory_tags(path,isfile=False):
         tags=[(path,a,b,a_hash)]
     path=a
     while True:
-        a,b=os.path.split(path)
-
-        if b=='/' or b=='' or b=='\\':
-            #print('break')
+        drive,path_and_file=os.path.splitdrive(path)
+        a,b=os.path.split(path_and_file)
+        if drive:
+            a=os.path.join(drive,a)
+        #print (drive,a,b)
+        if drive and b=='' and a !='':
+            #print('root')
+            b=drive
+            a=''
+            
+        elif b=='/' or b=='' or b=='\\':
+            print('break')
             
             break
         a_hash=pathHash(path)
@@ -759,7 +799,7 @@ def directory_tags(path,isfile=False):
         path=a
         
     tags=tags[::-1]
-    #log.debug(f'Tags: {tags}')
+    log.debug(f'Tags: {tags}')
     return tags
 
 def slugify(value):
@@ -787,6 +827,19 @@ def sizeof_fmt(num, suffix='B'):
             return "%3.1f %s%s" % (num, unit, suffix)
         num /= 1024.0
     return "%.1f%s%s" % (num, 'Yi', suffix)
+
+
+def normalise(path):
+    """handle long windows filenames"""
+    try:
+        path=os.path.normpath(path)
+        if os.name=='nt' and len(path)>255 and not path.startswith("\\\\?\\"):
+            return u"\\\\?\\"+path
+        else:
+            return path
+    except Exception as e:
+        log.warning(e)
+        return path
 
 
 #FILE MODEL METHODS

@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+"""DUPLICATES AND ORPHANS FINDER AND MEDIA SCANNER"""
 from __future__ import unicode_literals
 from django.http import HttpResponse, HttpResponseRedirect, JsonResponse
 from django.shortcuts import render, redirect
@@ -20,7 +21,7 @@ MEDIAROOT=dupsconfig.get('rootpath') if dupsconfig else None
 @staff_member_required()
 def index(request,path=''):
     """display files in a directory"""
-    
+    path=os.path.normpath(path) if path else '' #cope with windows filepaths
     local_scanpath=request.session.get('scanfolder')
     masterindex_path=request.session.get('masterfolder',DEFAULT_MASTERINDEX_PATH)
     log.debug(f'Masterindex path: {masterindex_path}')
@@ -34,6 +35,7 @@ def index(request,path=''):
        if 'scan' in request.POST:
            log.debug('scanning')
            local_scanpath=request.POST.get('local-path')
+           local_scanpath=os.path.normpath(local_scanpath) if local_scanpath else ''
            if not os.path.exists(os.path.join(MEDIAROOT,local_scanpath)):
                log.debug('scan request sent non-existent path')
                return redirect('dups_index',path=path)
@@ -45,6 +47,7 @@ def index(request,path=''):
 
        elif 'masterscan' in request.POST:
            full_masterpath=os.path.join(MEDIAROOT,masterindex_path)
+           full_masterpath=os.path.normpath(full_masterpath) if full_masterpath else ''
            log.debug(f'scanning master: {full_masterpath}')
            masterspecs=file_utils.BigFileIndex(full_masterpath)
            masterspecs.hash_scan()
@@ -71,7 +74,7 @@ def index(request,path=''):
     
     if os.path.exists(os.path.join(MEDIAROOT,path)):
         page.masterpath=masterindex_path
-        log.debug(f'Path{path} Master: {masterindex_path}')
+        log.debug(f'Path: {path} Master: {masterindex_path}')
         page.masterpath_url=f'/dups/folder/{masterindex_path}'
         if masterindex_path:
             page.inside_master=path.startswith(masterindex_path)
@@ -103,8 +106,9 @@ def dups_api(request):
             if request.method == 'POST':
                 folder_type=request.POST.get('folder_type')
                 folder_path=request.POST.get('folder_path')
-#                log.debug(folder_type)
-#                log.debug(folder_path)
+                folder_path=os.path.normpath(folder_path) if folder_path else '' #cope with windows filepaths
+                log.debug(folder_type)
+                log.debug(folder_path)
                 if folder_type=='local':
                     request.session['scanfolder']=folder_path
                     jsonresponse={'saved':True}
