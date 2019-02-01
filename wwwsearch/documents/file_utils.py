@@ -407,6 +407,12 @@ class PathIndex:
         self.filelist=filelist
 #        self.save()
 
+    def dups(self):
+        return [k for k in self.hash_index if len(self.hash_index[k])>1]
+
+
+
+
 class PathFileIndex(PathIndex):
     """index of FileSpec objects"""
     def __init__(self,folder,specs_dict=False,scan_contents=True,ignore_pattern='X-',job=None):
@@ -475,6 +481,8 @@ class StoredBigFileIndex(BigFileIndex):
             raise DoesNotExist('No stored filespecs')
         self.hash_scan()
         self.files.load()
+
+
 
 
            
@@ -615,6 +623,15 @@ def changed_file(_file):
     return False
 
 
+class Dups_Lister(Dups_Index_Maker):
+    def __init__(self):
+        pass
+    
+    
+    
+    
+
+
 
 def changed(oldspecs):
     if not oldspecs.get('folder'): #ignore folders
@@ -688,6 +705,69 @@ def get_contents_hash(path,blocksize = 65536):
         buf = afile.read(blocksize)
     afile.close()
     return hasher.hexdigest()
+
+#SCANNING
+
+def file_tree(folder):
+    """generator to scan directory tree"""
+    for dirName, subdirs, fileList in os.walk(folder):
+        for filename in fileList:
+            yield os.path.join(dirName,filename)
+
+#CHECK DUPS
+def check_local_dups(folder,scan_index=None,master_index=None):
+    """generator of dups within scan folder"""
+    _t=file_tree(folder)
+    for path in _t: 
+        ck=DupCheck(path,scan_index,master_index)
+        if ck.local_dup:
+            yield ck
+
+def check_master_dups(folder,scan_index=None,master_index=None):
+    """generator of dups within scan folder"""
+    _t=file_tree(folder)
+    for path in _t: 
+        ck=DupCheck(path,scan_index,master_index)
+        if ck.master_dup:
+            yield ck
+
+def check_master_dups_html(folder,scan_index=None,master_index=None,rootpath=''):
+    _t=file_tree(folder)
+    dupLister=Dups_Lister()
+    for path in _t: 
+        ck=DupCheck(path,scan_index,master_index)
+        if ck.master_dup:
+#            if MODELS:
+#                _stored,_indexed=model_index(t,index_collections)
+#            else:
+            _stored,_indexed=None,None
+            
+            filename=os.path.basename(path)
+            relpath=os.path.relpath(path,rootpath)
+            yield dupLister.file_html(filename,_stored,_indexed,ck,relpath,folder)
+
+
+
+def check_local_orphans(folder,scan_index=None,master_index=None):
+    """generator of locally-unique files within scan folder"""
+    _t=file_tree(folder)
+    for path in _t: 
+        ck=DupCheck(path,scan_index,master_index)
+        if not ck.local_dup:
+            yield ck
+        
+def check_master_orphans(folder,scan_index=None,master_index=None):
+    """generator of locally-unique files within scan folder"""
+    _t=file_tree(folder)
+    for path in _t: 
+        ck=DupCheck(path,scan_index,master_index)
+        if not ck.master_dup:
+            yield ck
+        
+
+
+
+
 
 
 #PATH METHODS
@@ -830,7 +910,11 @@ class DupCheck:
         self.masterindex=masterindex
         #log.debug(self.__dict__)
         #log.debug(self.specs.files)
+        self.dups=None
+        self.local_dup=False
+        self.master_dup=None
         self.check()
+        
         
 
     def check(self):

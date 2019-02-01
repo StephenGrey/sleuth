@@ -18,14 +18,16 @@ MEDIAROOT=dupsconfig.get('rootpath') if dupsconfig else None
 #log.debug(DEFAULT_MASTERINDEX_PATH)
 
 @staff_member_required()
-def index(request,path=''):
+def index(request,path='',duplist=False):
     """display files in a directory"""
+    
     
     local_scanpath=request.session.get('scanfolder')
     masterindex_path=request.session.get('masterfolder',DEFAULT_MASTERINDEX_PATH)
     log.debug(f'Masterindex path: {masterindex_path}')
     log.debug(f'path: {path}')
     log.debug(f'Mediaroot: {MEDIAROOT}')
+    log.debug(f'Dups only: {duplist}')
     
     if not MEDIAROOT or not masterindex_path:
     	    return HttpResponse ("Missing 'Dups' configuration information in user.settings : set the 'rootpath' and 'masterindex_path' variables")
@@ -75,11 +77,19 @@ def index(request,path=''):
         page.masterpath_url=f'/dups/folder/{masterindex_path}'
         if masterindex_path:
             page.inside_master=path.startswith(masterindex_path)
-        try:
-            c = file_utils.Dups_Index_Maker(path,'',specs=page.specs,masterindex=page.masterspecs,rootpath=MEDIAROOT)._index
-        except file_utils.EmptyDirectory as e:
-            c= None
+        
+        if duplist:
+            #display only duplicates
+            c=file_utils.check_master_dups_html(os.path.join(MEDIAROOT,path),scan_index=page.specs,master_index=page.masterspecs)            
+
+        else:
+            try:
+                c = file_utils.Dups_Index_Maker(path,'',specs=page.specs,masterindex=page.masterspecs,rootpath=MEDIAROOT)._index
+            except file_utils.EmptyDirectory as e:
+                c= None
         #log.debug(c)
+        
+        
         if path:
             rootpath=path
             tags=file_utils.directory_tags(path)
@@ -90,6 +100,10 @@ def index(request,path=''):
                                    {'page': page, 'subfiles': c, 'rootpath':rootpath, 'tags':tags,  'path':path,})
     else:
         return redirect('dups_index',path='')
+
+
+
+
 
 
 @login_required

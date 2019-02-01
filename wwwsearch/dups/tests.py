@@ -3,6 +3,7 @@ from __future__ import unicode_literals
 
 from django.test import TestCase
 
+import os
 from documents.test_indexing import IndexTester
 from documents import file_utils
 from documents.models import File,Collection,Source,Index
@@ -18,7 +19,7 @@ class Dups(IndexTester):
         index_collections=Collection.objects.all()
         _ind=[x for x in file_utils.Index_Maker(self.testdups_path,index_collections)._index]
         
-        print(_ind)
+        #print(_ind)
         self.assertEquals(_ind[0],'<li class="du">\n\n<span style="color:red;">HilaryEmailC05793347.pdf</span>\n\n</li>')
 
         
@@ -30,8 +31,32 @@ class Dups(IndexTester):
         print(_ind)
         pass
         
+    def test_filetree(self):
+        x=file_utils.file_tree(self.testdups_path)
+        self.assertEquals([f for f in x][0],os.path.join(self.testdups_path,'HilaryEmailC05793347.pdf'))
         
+        
+    def test_bigfileindex(self):
+        specs=file_utils.BigFileIndex(self.testdups_path)
+        _spec=specs.files[os.path.join(self.testdups_path,'HilaryEmailC05793347.pdf')]
+        self.assertEquals(_spec['contents_hash'],'6d50ecaf0fb1fc3d59fd83f8e9ef962cf91eb14e547b2231e18abb12f6cfa809')
+        
+    def test_checkdups(self):
+        specs=file_utils.BigFileIndex(self.testdups_path)
+        specs.hash_scan()
+        _d=file_utils.check_local_dups(self.testdups_path,scan_index=specs)
+        self.assertEquals(len([d.dups for d in _d if d.local_dup]),3)
+        
+        _d=file_utils.check_local_orphans(self.testdups_path,scan_index=specs)
+        self.assertTrue(len([d.__dict__ for d in _d])==2)
     
+    def test_master_dups(self):
+        _master_spec=file_utils.BigFileIndex(self.testdups_path)
+        _master_spec.hash_scan()
+        
+        _d=file_utils.check_master_dups(self.testdups_path,master_index=_master_spec)
+        self.assertEquals(len([d for d in _d]),3)
+        
     
 
 
