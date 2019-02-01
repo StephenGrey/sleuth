@@ -52,7 +52,6 @@ class Scanner:
         """1. scan all files in collection"""
         self.files_in_database=File.objects.filter(collection=self.collection)
         self.files_on_disk=file_utils.filespecs(self.collection.path,job=self.job) #get dict of specs of files in disk folder(and subfolders)
-        
         self.total=len(self.files_on_disk)
         
     def find_on_disk(self):
@@ -91,12 +90,15 @@ class Scanner:
         #time.sleep(10)
         for newpath in self.files_on_disk:
             if not self.files_on_disk[newpath].folder:
-                self.update_working_file(newpath)
-                newhash=file_utils.get_contents_hash(newpath)
-                if newhash in self.new_files_hash:
-                    self.new_files_hash[newhash].append(newpath)
-                else:
-                    self.new_files_hash[newhash]=[newpath]
+                try:
+                    self.update_working_file(newpath)
+                    newhash=file_utils.get_contents_hash(file_utils.normalise(newpath)) #normalise to adjust for windows quirks, e.g. cope with long paths
+                    if newhash in self.new_files_hash:
+                        self.new_files_hash[newhash].append(newpath)
+                    else:
+                        self.new_files_hash[newhash]=[newpath]
+                except Exception as e:
+                    log.error(e) 
             else:
                 #print('New folder found: {}'.format(newpath))
                 self.new_files.append(newpath)

@@ -401,7 +401,7 @@ class UpdateMeta(Extractor):
 
 
 class ExtractSingleFile(Extractor):
-    """extract a collection of docs into solr"""
+    """extract a single doc into solr"""
     def __init__(self,_file,forceretry=False,useICIJ=False,ocr=True,docstore=DOCSTORE):        
         cores=s.getcores() #fetch dictionary of installed solr indexes (cores)
         self.mycore=cores[_file.collection.core.id]

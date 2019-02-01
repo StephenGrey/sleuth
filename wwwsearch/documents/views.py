@@ -264,6 +264,7 @@ def list_solrfiles(request,path=''):
 @staff_member_required()
 def file_display(request,path=''):
     """display files in a directory"""
+    path=os.path.normpath(path) if path else '' #cope with windows filepaths
     #get the core , or set the the default    
     page=documentpage.FilesPage()
     page.getcores(request.user,request.session.get('mycore')) #arguments: user, storedcore
@@ -290,6 +291,7 @@ def file_display(request,path=''):
 @staff_member_required()
 def make_collection(request,path='',confirm=False):
         #get the core , or set the the default    
+    path=os.path.normpath(path) if path else ''
     log.debug(f'Attempting to add collection with path {path}, confirmed: {confirm}, with rootpath {BASEDIR}')
     page=documentpage.MakeCollectionPage(relpath=path,rootpath=BASEDIR)
     path_info=request.session.get("back_url")
@@ -317,5 +319,6 @@ def make_collection(request,path='',confirm=False):
 
 @staff_member_required()
 def cancel_collection(request,path=''):
+    path=os.path.normpath(path) if path else '' #cope with windows filepaths
     return render(request,'documents/cancelcollection.html',
          {'path':path})
