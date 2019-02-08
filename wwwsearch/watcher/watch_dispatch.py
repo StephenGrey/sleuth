@@ -284,6 +284,11 @@ def scan_extract_job(job_id,job,task):
             r.srem('SEARCHBOX_JOBS',job_id)
             r.sadd('SEARCHBOX_JOBS_DONE',job_id)
             log.debug('scan and index complete')
+        elif sub_status =='error':
+            r.hset(job,'status','completed')
+            r.srem('SEARCHBOX_JOBS',job_id)
+            r.sadd('SEARCHBOX_JOBS_DONE',job_id)
+            log.debug('scan and index shutdown on error')
         else:
             log.debug('still indexing')
     else: 
@@ -329,6 +334,8 @@ def index_job(job_id,job,task):
 #                log.info(results)
     except Exception as e:
         log.error(e)
+        r.hset(job,'status','error')
+        r.hset(job,'message','Unknown error - see trace')
         exc_type, exc_value, exc_traceback = sys.exc_info()
         traceback.print_exc(limit=2, file=sys.stdout)
         raise
