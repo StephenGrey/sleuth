@@ -1,4 +1,28 @@
 
+$('.glyphicon-duplicate').click(function(e) {
+    //alert('clicked this');
+    
+    
+    var $this = $(this);
+    var _src = $(this).closest("li[src]").attr('src');
+    //$.post( ,{'hash':'a hash'}, function(data)
+  	window.location.href = "/dups/files/"+_src;
+  	
+  	//works:
+ /* 	$.get("/dups/files_api", { "hash": _src},function(data)
+  	{
+  	if (data.dups=='')
+  		{
+  		console.log(data.message);
+  		alert(data.message);
+  		}
+  	else
+  		{
+  		alert(data.dups);	
+  		};
+  	},'json' // I expect a JSON response
+  	);*/
+	});
 
 
 $('.flip').click(function(e) {
@@ -99,6 +123,8 @@ $('.bread1').contextmenu(function(event)
 	clicked=this;
 	folderActions(clicked);
 	});
+
+
 
 //folder right-click menu
 $('.subfolder').contextmenu(function(event)

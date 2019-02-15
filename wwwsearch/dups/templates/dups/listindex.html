@@ -1,19 +1,23 @@
+{% extends "base.html" %}
 
+{% block stylesheet %}
+{% load static %}
+<link rel="stylesheet" type="text/css" href="{% static 'css/dups.css' %}" />
 
-{% extends "dups/base.html" %}
-
+{% endblock %}
+	
 {% block sidebar %}
 
 <p><p>
 	<div class="panel panel-default">
 		<h4><b>Master Archive Folder:</b></h4>
-		{% if page.masterpath %}
+		{% if page.masterindex_path %}
 		
 		<form action="/dups/folder/{{path}}" method ="post" id="master-folder-form">
 		{% csrf_token %}
 		<p>
 			<div class="master-url">
-			<a href="{{page.masterpath_url}}">{{page.masterpath}}</a>
+			<a href="{{page.masterpath_url}}">{{page.masterindex_path}}</a>
 		</div>
 		<p>
 		<p>
@@ -43,6 +47,11 @@
 
 {% if page.inside_master %}
 <div style="color:white;background-color:red">INSIDE MASTER ARCHIVE </div>
+
+<p>
+<a href="{% url "dups_index" path=path %}">Display All</a> &nbsp;&nbsp; <a href="{% url "dups_index_dups" path=path %}">List Duplicates</a>
+
+
 {% endif %}
 <div class='nav-container'>		
 		<ol class="breadcrumb bread1" id="{{path}}">
@@ -67,7 +76,6 @@
 				</div>	
 	
 		<p>
-
 		<div class="panel-group" id="accordion" role="tablist" aria-multiselectable="true">
 		  <div class="panel panel-default">
 				<ul>

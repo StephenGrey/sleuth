@@ -1,0 +1,87 @@
+<html>
+<!doctype html>
+  <head> 
+{% load static %}
+{% block title %} <title>SearchBox</title>{% endblock %}
+
+<!--
+<script src="http://ajax.googleapis.com/ajax/libs/jquery/1.9.1/jquery.min.js"></script>
+<script src="https://ajax.googleapis.com/ajax/libs/jqueryui/1.12.1/jquery-ui.min.js"></script>
+
+-->
+<!-- Latest compiled and minified JavaScript -->
+<!--<script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js" integrity="sha384-Tc5IQib027qvyjSMfHjOMaLkfuWVxZxUPnCJA7l2mCWNIpG9mGCD8wGNIcPD7Txa" crossorigin="anonymous"></script>
+-->
+
+<!-- Latest compiled and minified CSS -->
+<!--<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous">
+<link rel="stylesheet" href="https://ajax.googleapis.com/ajax/libs/jqueryui/1.12.1/themes/smoothness/jquery-ui.css">
+-->
+
+
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" type="text/css" href="{% static 'css/bootstrap1.min.css' %}" />
+    <link rel="stylesheet" type="text/css" href="{% static 'css/jquery-ui.css' %}" />
+    <link rel="stylesheet" type="text/css" href="{% static 'css/bootstrap-theme.min.css' %}" />
+    <link rel="stylesheet" type="text/css" href="{% static 'css/dups.css' %}" />
+
+    <script src="{% static 'js/jquery.min.js' %}"></script>
+    <script src="{% static 'js/bootstrap.min.js' %}"></script>  
+    <script src="{% static 'js/jquery-ui.min.js' %}"></script>
+
+ 
+{% block stylesheet %}{% endblock %}
+</head>
+
+
+<div class="container">
+		<div class="row" style="background:lightblue; padding:5px">
+
+
+		<h2><a class='no-deco' style="color:white" href="/ownsearch/">SearchBox</a></h2>
+ 
+ 		{% if user.is_authenticated %}
+			<div class='login'>    Logged in as: {{ user.username }}  <a href="{% url 'logout' %}?next=/ownsearch/"">[logout]</a>
+			</div>
+		</div>
+
+    <div class="row" style="padding: 10px">
+	      <div class="col-sm-3">
+					{% block sidebar %}
+					      <ul class="sidebar-nav">
+
+					
+					      </ul>
+					{% endblock %}
+	      </div>
+
+	    {% block maincontent %}
+	      <div class="col-sm-9 ">
+	      {% block top_content %}{% endblock %}
+	      {% block user_tags %}{% endblock %}
+	      {% block embed_content %}{% endblock %}
+	      {% block body_content %}{% endblock %}
+	      {% block footer_content %}{% endblock %}
+	      </div>
+	    {% endblock %}
+    </div>
+</div>
+	{% block javascript %}
+
+	{% endblock %}
+	{% else %}
+    <p>Welcome, Guest <a href="{% url 'login' %}?next=/dups"">[login]</a></p>
+    </div>
+</div>
+
+{% endif %}
+
+{% comment %}
+modified log-in code from: https://rayed.com/wordpress/?p=1350
+{% endcomment %}
+
+
+
+</html>
+

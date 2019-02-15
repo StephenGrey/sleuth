@@ -2,8 +2,8 @@
 import os, logging,hashlib,re,datetime,unicodedata,pickle,time,sys,traceback
 from pathlib import Path
 from collections import defaultdict
-from klepto.archives import *
-from . import win_utils
+from . import win_utils, klepto_archive
+from send2trash import send2trash
 
 try:
     from django.http import HttpResponse
@@ -221,14 +221,20 @@ class PathIndex:
             #print(f'Filepath: {filepath}')
             filespec=self.files.get(filepath)
             is_folder=filespec.get('folder') if self.specs_dict else filespec.folder
-            #print(f'Folder: {is_folder}')
-            #print(f'Filespecs: {filespec}')
             if not is_folder:
                 contents_hash=filespec.get('contents_hash') if self.specs_dict else filespec.contents_hash
                 if contents_hash:
                     #log.debug(f'Contents hash: {contents_hash}')
                     self.hash_index.setdefault(contents_hash,[]).append(filespec)
-
+    
+    def hash_remove(self,_hash,path):
+        try:
+            duplist=self.hash_index[_hash]
+            self.hash_index[_hash]=[item for item in duplist if item['path']!=path]
+        except AttributeError:
+            #log.debug('no hash_index')
+            pass
+    
 #        self.save()    
     def check_pickle(self):
         return os.path.exists(os.path.join(self.folder_path,SPECS_FILENAME))
@@ -365,16 +371,20 @@ class PathIndex:
             try:
                 self.delete_record(docpath)
             except Exception as e:
+                log.debug(f'Delete record failed for {docpath}')
                 log.debug(e)
-                log.debug(self.files)
-                log.debug(deletedfiles)
+                #log.debug(self.files)
+                #log.debug(deletedfiles)
                 raise
         if deletedfiles:
             try:
-                self.save()
+                self.sync()
             except Exception as e:
                 log.info(f'Save failure: {e}')
 
+    
+    def sync(self):
+        self.save()
     
     def reload_index(self):
         pass
@@ -436,14 +446,14 @@ class PathFileIndex(PathIndex):
 
 class BigFileIndex(PathIndex):
     """index of Filespec objects using Klepto"""
-    def __init__(self,folder,specs_dict=True,scan_contents=True,ignore_pattern='X-',job=None):
+    def __init__(self,folder,specs_dict=True,scan_contents=True,ignore_pattern='X-',job=None,label='master'):
         
         self.folder_path=folder
         self.ignore_pattern=ignore_pattern
         self.specs_dict=specs_dict
         self.job=job
         
-        self.files=file_archive(os.path.join(self.folder_path,ARCH_FILENAME),cache=False)
+        self.files=klepto_archive.files(os.path.join(self.folder_path,ARCH_FILENAME),label=label)
         self.files.load()
         log.debug(f'loaded files ..{len(self.files)}')
         self.scan_or_rescan()
@@ -454,8 +464,28 @@ class BigFileIndex(PathIndex):
         self.files.dump() #save from cache to filestore
         self.files.clear() #clear memory cache
 
+    def sync(self):
+        """clear file index and dump cache"""
+        self.files.sync(clear=True)
+    
     def delete_record(self,docpath):
-        del(self.files[docpath]) #delete from the disk cache
+        _hash=''
+        log.debug(f'deleting \"{docpath}\"')
+        try:
+            _hash=self.files[docpath].get('contents_hash')
+            log.debug(_hash)
+        except KeyError:
+            pass
+        try:
+            del(self.files[docpath]) #delete from the memory cache
+        except KeyError:
+            pass
+#        try:
+#            del(self.files.archive[docpath]) #delete from the disk cache
+#        except KeyError:
+#            pass
+        if _hash:    
+            self.hash_remove(_hash,docpath)
 
     def reload_index(self):
         self.files.load()
@@ -480,11 +510,11 @@ class StoredPathIndex(PathIndex):
             raise DoesNotExist('No stored filespecs')
 
 class StoredBigFileIndex(BigFileIndex):
-    def __init__(self,folder,specs_dict=True,scan_contents=True,ignore_pattern='X-'):
+    def __init__(self,folder,specs_dict=True,scan_contents=True,ignore_pattern='X-',label='master'):
         self.folder_path=folder
         self.ignore_pattern=ignore_pattern
         self.specs_dict=specs_dict
-        self.files=file_archive(os.path.join(self.folder_path,ARCH_FILENAME),cache=False)
+        self.files=klepto_archive.files(os.path.join(self.folder_path,ARCH_FILENAME),label=label)
         self.files.load()
         #print('loaded files ..',len(self.files))
         if not self.check_pickle():
@@ -794,7 +824,14 @@ def check_master_orphans(folder,scan_index=None,master_index=None):
         
 
 
+#DELETE FILES
 
+def delete_file(path):
+    if os.path.exists(path):
+        send2trash(path)
+        return not os.path.exists(path)
+    else:
+        return False
 
 
 
@@ -871,8 +908,6 @@ def directory_tags(path,isfile=False):
             a=''
             
         elif b=='/' or b=='' or b=='\\':
-            print('break')
-            
             break
         a_hash=pathHash(path)
         tags.append((path,a,b,a_hash))
@@ -920,6 +955,15 @@ def normalise(path):
     except Exception as e:
         log.warning(e)
         return path
+
+def safe_hash(_hash):
+    if len(_hash)<201:
+        if re.match("^[a-z0-9]+$", _hash):
+            return True
+    return False
+    
+    
+    
 
 
 #FILE MODEL METHODS
@@ -1018,3 +1062,13 @@ class DupCheck:
                     else:
                         self.master_dup=False
                             
+def specs_list(_index,_hash):
+    if _index.hash_index:
+        return _index.hash_index.get(_hash,[])
+
+def specs_path_list(_index,_hash):
+    duplist=specs_list(_index,_hash)
+    path_list=[]
+    for dup in duplist:
+        path_list.append(dup.get('path'))
+    return path_list

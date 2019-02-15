@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 import string,os,itertools,platform
-from ctypes import windll,cdll
+
+if os.name=='nt':
+    from ctypes import windll,cdll
 
 class NotWindows(Exception):
     pass

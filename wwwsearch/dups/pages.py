@@ -1,23 +1,23 @@
-# -*- coding: utf-8 -*-
-from __future__ import unicode_literals
-import logging
-log=logging.getLogger('dups.page')
-#from .forms import IndexForm, get_corechoices
-#from .models import Collection,Index
-
-#class NoValidCore(Exception):
+## -*- coding: utf-8 -*-
+#from __future__ import unicode_literals
+#import logging
+#log=logging.getLogger('dups.page')
+##from .forms import IndexForm, get_corechoices
+##from .models import Collection,Index
+#
+##class NoValidCore(Exception):
+##    pass
+#
+#class Page():
 #    pass
-
-class Page():
-    pass
-
-class FilesPage(Page):
-    def __init__(self,path=''):
-        self.docpath=path
-    
-#    def getcores(self,this_user,stored_core=None):
-#        """get authorised solr cores , choosed stored core or default """
-#        self.getindexes(this_user)
+#
+#class FilesPage(Page):
+#    def __init__(self,path=''):
+#        self.docpath=path
+#    
+##    def getcores(self,this_user,stored_core=None):
+##        """get authorised solr cores , choosed stored core or default """
+##        self.getindexes(this_user)
 #        if stored_core==None or stored_core=='':
 #            self.stored_core=None
 #            if self.defaultcoreID:

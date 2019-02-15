@@ -5,6 +5,9 @@
 		<form action="{% url 'listfiles' path=path %}" method ="post">
 		{% csrf_token %}
 		Index:{{form.corechoice}}
+		
+
+		
 		</form>
 	</ul>
 {% endblock %}
@@ -64,7 +67,7 @@ const toggleMenu = command => {
 const setPosition = ({ top, left }) => {
 //  console.log(left)
 //  console.log(`${top}px`)
-  menu.style.left = `${left-400}px`;
+  menu.style.left = `${left-30}px`;
   menu.style.top = `${top-80}px`;
   toggleMenu('show');
 };
@@ -113,9 +116,6 @@ $('.close').click(function(){
 toggleMenu('none');
 menuVisible= false;
 });
-
-
-
 
 
 $('.flip').click(function(e) {

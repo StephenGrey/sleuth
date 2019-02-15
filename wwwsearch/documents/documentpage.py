@@ -6,7 +6,7 @@ log=logging.getLogger('ownsearch.documentpage')
 from ownsearch import authorise
 from .forms import IndexForm, get_corechoices,SourceForm,get_sourcechoices
 from .models import Collection,Index,Source
-from .file_utils import make_relpath,new_is_inside
+from .file_utils import make_relpath,new_is_inside,StoredBigFileIndex
 from .management.commands import make_collection
 
 class NoValidCore(Exception):
@@ -81,7 +81,39 @@ class CollectionPage(Page):
 
     
 class FilesPage(CollectionPage):
-    pass
+    def __init__(self,request='',default_master=''):
+        self.request=request
+        
+        if self.request and default_master:
+            self.local_scanpath=request.session.get('scanfolder')
+            self.masterindex_path=request.session.get('masterfolder',default_master)
+            
+            self.masterpath_url=f'/dups/folder/{self.masterindex_path}'
+            log.debug(f'Masterindex path: {self.masterindex_path}')
+            self.scanpath=self.local_scanpath
+            log.debug(f'stored scanpath: {self.scanpath}')
+    
+    def get_stored(self,media_root):
+        
+        if self.scanpath:
+            try:
+                self.specs=StoredBigFileIndex(os.path.join(media_root,self.scanpath),label='local')
+            except:
+                self.specs=None
+        else:
+            self.specs=None
+            
+        try:
+            self.masterspecs=StoredBigFileIndex(os.path.join(media_root,self.masterindex_path),label='master')
+        except Exception as e:
+            log.debug(e)
+            self.masterspecs=None
+        
+        
+        
+        
+
+
     
 class SolrFilesPage(CollectionPage):
     pass
