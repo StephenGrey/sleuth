@@ -34,6 +34,39 @@ class CollectionPage(Page):
             self.coreID=int(stored_core)
         self.mycore=self.cores[self.coreID]
             
+    def getindexes(self,thisuser):
+        #set up solr indexes
+        try:
+            authcores=authorise.AuthorisedCores(thisuser)      
+        except Exception as e:
+            log.warning('No valid indexes defined in database')
+            self.defaultcoreID='' #if no indexes, no valid default
+        self.cores=authcores.cores
+        self.defaultcoreID=authcores.defaultcore
+        log.debug('CORES: '+str(self.cores)+' DEFAULT CORE:'+str(self.defaultcoreID))
+        
+    def chooseindexes(self,request_method,request_postdata='',test=False):
+        if request_method=='POST' and request_postdata.get("checkindex_form"):
+            if request_postdata.get("check_index"):
+                self.check_index=True
+                log.debug('setting check_index')
+            else:
+                self.check_index=False
+                log.debug('clearing check_index')
+            
+        if request_method=='POST' and request_postdata.get('corechoice'): #if data posted => switch core
+            form=IndexForm(request_postdata)
+            if test:
+            #NOT CLEAR WHY THIS SHOULD BE NECESSARY
+                form.fields['corechoice'].choices=get_corechoices()
+            self.post_indexform(form)
+            self.form=IndexForm(initial={'corechoice':self.coreID})
+            self.mycore=self.cores[self.coreID]
+        else:
+            self.form=IndexForm(initial={'corechoice':self.coreID})
+            #log.debug('Form created: {} with choices: {}'.format(self.form.__dict__,self.form.fields['corechoice'].__dict__))
+            self.mycore=self.cores[self.coreID]
+            
     def post_indexform(self,form):
         """change index"""
         #log.debug('Form: {} Valid: {}'.format(form.__dict__,form.is_valid()))
@@ -48,36 +81,13 @@ class CollectionPage(Page):
             self.validform=False
             self.form=None
 
-    def getindexes(self,thisuser):
-        #set up solr indexes
-        try:
-            authcores=authorise.AuthorisedCores(thisuser)      
-        except Exception as e:
-            log.warning('No valid indexes defined in database')
-            self.defaultcoreID='' #if no indexes, no valid default
-        self.cores=authcores.cores
-        self.defaultcoreID=authcores.defaultcore
-        log.debug('CORES: '+str(self.cores)+' DEFAULT CORE:'+str(self.defaultcoreID))
-        
-    def chooseindexes(self,request_method,request_postdata='',test=False):
-        if request_method=='POST' and request_postdata.get('corechoice'): #if data posted => switch core
-            form=IndexForm(request_postdata)
-            if test:
-            #NOT CLEAR WHY THIS SHOULD BE NECESSARY
-                form.fields['corechoice'].choices=get_corechoices()
-            self.post_indexform(form)
-            self.form=IndexForm(initial={'corechoice':self.coreID})
-            self.mycore=self.cores[self.coreID]
-        else:
-            self.form=IndexForm(initial={'corechoice':self.coreID})
-            #log.debug('Form created: {} with choices: {}'.format(self.form.__dict__,self.form.fields['corechoice'].__dict__))
-            self.mycore=self.cores[self.coreID]
-            
+
+
     def get_collections(self):
         self.myindex=Index.objects.get(id=self.coreID)
         log.debug('my Index: {}'.format(self.myindex))
         self.authorised_collections=Collection.objects.filter(core=self.myindex)
-        self.authorised_collections_relpaths=[(make_relpath(c.path),c.id) for c in self.authorised_collections]
+        self.authorised_collections_relpaths=[(make_relpath(c.path),c.id,c.live_update) for c in self.authorised_collections]
 
     
 class FilesPage(CollectionPage):
@@ -125,16 +135,18 @@ class MakeCollectionPage(CollectionPage):
         self.error=None
         self.success=False
         
-    def make_sources(self,request_method,request_postdata,source_initial=None):
-        if request_method=='POST' and request_postdata.get('sourcechoice'):
-             #if data posted => switch core
+    def make_sources(self,request_method,request_postdata,source_initial=None,live_default=False):
+        if request_method=='POST' and request_postdata.get('make_collection'):
             form=SourceForm(request_postdata)
             if form.is_valid():
-                self.sourceID=int(form.cleaned_data['sourcechoice'])
                 self.validform=True
                 self.source_form=form
-                log.debug('change source selection to {}'.format(self.sourceID))
-            
+                self.live_update=True if form.cleaned_data['live_update'] else False
+                if request_postdata.get('sourcechoice'):
+                    self.sourceID=int(form.cleaned_data['sourcechoice'])
+                    log.debug('change source selection to {}'.format(self.sourceID))
+                else:
+                    self.sourceID=None
             else:
                 log.warning('posted form is not valid: {}'.format(form.errors))
                 self.validform=False
@@ -147,7 +159,7 @@ class MakeCollectionPage(CollectionPage):
                 except Exception as e:
                     log.error(e)
                     source_initial=None
-            self.source_form=SourceForm(initial={'sourcechoice':source_initial})
+            self.source_form=SourceForm(initial={'sourcechoice':source_initial,'live_update':self.live_update})
             self.sourceID=source_initial
         
     def check_path(self):
@@ -167,7 +179,7 @@ class MakeCollectionPage(CollectionPage):
         
     @property
     def valid_new_collection(self):
-        for path,_id in self.authorised_collections_relpaths:
+        for path,_id,live_update in self.authorised_collections_relpaths:
             if path==self.docpath:
                 raise NoValidCollection('This collection exists already')
             elif path==".":
@@ -182,7 +194,7 @@ class MakeCollectionPage(CollectionPage):
     def make_collection(self):
         try:
             source=Source.objects.get(id=self.sourceID)
-            collection,created=make_collection.make(path=self._path, source=source,_index=self.myindex)
+            collection,created=make_collection.make(path=self._path, source=source,_index=self.myindex,live_update=self.live_update)
             self.new_collection=collection
             self.success=created
             log.info(f'Collection with path {self._path} in index {self.myindex} created: {created}')

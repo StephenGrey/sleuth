@@ -74,7 +74,7 @@ class Index_Dispatch:
             self.modify() #just check it's all ok
             return
             
-        _collections=file_utils.find_collections(self.sourcepath)
+        _collections=file_utils.find_live_collections(self.sourcepath)
         if not _collections:
             log.debug('Not in any collection - no modification of database')
             return
@@ -93,7 +93,7 @@ class Index_Dispatch:
                 #MODIFIED_FILES.setdefault(self.sourcepath,set()).add(_file.id)
                 r.sadd('MODIFIED_FILES',_file.id)
                 r.set(f'MODIFIED_TIME.{_file.id}',time.time())
-                print(f'Added: \'{_file}\' with id {_file.id}to modification queue')
+                log.debug(f'Added: \'{_file}\' with id \'{_file.id}\' to modification queue')
 #                if changes.changefile(_file):
 #                    print(f'Modified: \'{_file}\' in Index: \'{_file.collection.core}\'')
         else:
@@ -125,15 +125,16 @@ class Index_Dispatch:
             
             
     def check_base(self):
-        _database_files=File.objects.filter(filepath=self.sourcepath)
+        _database_files=file_utils.find_live_files(self.sourcepath)
         log.debug(f'Existing files found: {_database_files}')
+        
         if len(_database_files)>0:
             self.source_in_database=_database_files
         else:
             self.source_in_database=[]
         
         if self.destpath:
-            _database_files=File.objects.filter(filepath=self.destpath)
+            _database_files=file_utils.find_live_files(self.destpath)
             if len(_database_files)>1:
                 self.dest_in_database=_database_files
             else:
@@ -149,8 +150,6 @@ class Index_Dispatch:
                 log.debug(f'Now should update solr meta for {_file}')
                 updateSolr.metaupdate_rawfile(_file)
 
-
-
 def index_file(_file):
     extractor=indexSolr.ExtractSingleFile(_file)
     #print(extractor.__dict__)
@@ -158,7 +157,7 @@ def index_file(_file):
     if extractor.failed==0:
         return True
     else:
-        #print('Extraction failed')
+        log.debug('Extraction failed')
         return False
 
 def index_file2(_file):

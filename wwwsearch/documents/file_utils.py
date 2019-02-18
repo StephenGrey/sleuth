@@ -533,7 +533,7 @@ class HashIndex(PathIndex):
 
 class Index_Maker():
 #index_maker
-    def __init__(self, path,index_collections,specs=None,masterindex=None, rootpath=DOCSTORE, hidden_files=False,max_depth=1):
+    def __init__(self, path,index_collections,specs=None,masterindex=None, rootpath=DOCSTORE, hidden_files=False,max_depth=1,check_index=True):
         log.info(f'Indexmaker PATH: {path}, ROOTPATH: {rootpath}')
         def _index(root,depth,index_collections,max_depth=1):
             log.debug(f'Root :{root} Depth: {depth}')
@@ -556,7 +556,10 @@ class Index_Maker():
                     #log.debug(f'FILE/DIR: {t} MFILE:{mfile}')
                     if self.isdir(t,is_windows_drivelist):    
                         #log.debug(f"{t},{index_collections}")
-                        is_collection_root,is_inside_collection=inside_collection(t,index_collections)
+                        if check_index:
+                            is_collection_root,is_inside_collection=inside_collection(t,index_collections)
+                        else:
+                            is_collection_root,is_inside_collection=False,False
                         #log.debug(is_inside_collection)
                         if depth==max_depth-1:
                             yield self.folder_html_nosub(mfile,relpath,path,is_collection_root,is_inside_collection)
@@ -567,7 +570,7 @@ class Index_Maker():
                         continue
                     else:
                         #files
-                        if MODELS:
+                        if MODELS and check_index:
                             _stored,_indexed=model_index(t,index_collections)
                         else:
                             _stored,_indexed=None,None
@@ -978,6 +981,24 @@ def model_index(path,index_collections,hashcheck=False):
         return True,indexed
     else:
         return None,None
+        
+def find_database_files(path):
+    return File.objects.filter(filepath=path)
+    
+    
+def find_live_files(path):
+    l=find_database_files(path)
+    return [f for f in l if f.collection.live_update]
+
+def find_live_collections(path):
+    match_collections=[]
+    for collection in live_collections():
+        if is_inside(path, collection.path) and path !=collection.path:
+            match_collections.append(collection)
+    return match_collections    
+
+def live_collections():
+    return [c for c in Collection.objects.all() if c.live_update]            
         
 def find_collections(path):
     match_collections=[]

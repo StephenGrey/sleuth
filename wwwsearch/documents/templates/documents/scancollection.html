@@ -14,9 +14,11 @@ Index:{{page.form.corechoice}}<p>
 
 <form action="{% url 'listfiles'%}" method ="post">
 {% csrf_token %}
-{% for collection_path,collection_id in page.authorised_collections_relpaths %}
+{% for collection_path,collection_id,live_update in page.authorised_collections_relpaths %}
     <input type="radio" name="choice" id="choice{{collection_id}}" value="{{ collection_id }}" />
-    <label for="choice{{collection_id}}">{{collection_path }}</label><br />
+    <label for="choice{{collection_id}}">{{collection_path }} 
+    {%if live_update%}<span style="color:red" class="glyphicon glyphicon-fire"></span>{%endif%}
+    	</label><br />
 {% endfor %}
 <p>
 

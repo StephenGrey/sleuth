@@ -1,5 +1,5 @@
 import os,time,logging,random, shutil,redis
-from watcher import watch_dispatch
+from watcher import watch_dispatch,watch_filesystem
 THREADS=[]
 from threading import Thread, current_thread, Event
 try:
@@ -8,6 +8,13 @@ try:
 except ImportError:
     from Queue import Full,Empty #pip install queuelib
     from Queue import Queue as Q
+
+try:
+    from configs import config
+    DOCSTORE=config['Models']['collectionbasepath'] #get base path of the docstore
+except:
+    DOCSTORE=''
+
 
 log = logging.getLogger('ownsearch.tasks')
 #r=redis.Redis()
@@ -43,15 +50,6 @@ class StoppableThread(Thread):
                 self.process_q.task_done()
             except ValueError:
                 break
-
-class TestWatch(StoppableThread):
-    
-    def run(self):
-        print('running something')
-        while True:
-            time.sleep(10)
-            print ('keeping going')
-            
 
 class Watcher(StoppableThread):
     def __init__(self):
@@ -115,17 +113,22 @@ class Tasker(StoppableThread):
             print('{}: terminating'.format(self.name))
 
 class DocProcessor(StoppableThread):
-#    """Threaded OCR processor"""
-#    #----------------------------------------------------------------------
-    def __init__(self,name):
-    	
+    def __init__(self,name,watch_files=False,watch_folder=DOCSTORE):
+        print('docprocessor launched')
     	 #process_q,upload_q,results_q,name
         super(DocProcessor,self).__init__()
         self.setName(name)
         self.name=self.getName()
+        self.watch_files=watch_files
+        self.watch_folder=watch_folder
 #
     def run(self):
-        print('Launching {}'.format(self.name))
+        print('Launching process name \'{}\''.format(self.name))
+        
+        if self.watch_files:
+            print(f'Launching Watchdog on filesystem: {self.watch_folder}')
+            self.observer=watch_filesystem.launch(self.watch_folder)
+        
         try:
             while (not self.killswitch.is_set()):
                 #print('doing a background task then wait')
@@ -136,9 +139,12 @@ class DocProcessor(StoppableThread):
             pass            
         finally:
             print('{}: terminating'.format(self.name))
+            if self.watch_files:
+                self.observer.stop()
+                self.observer.join()
     
 def set_watcher():
-    t=DocProcessor('docprocess1')
+    t=DocProcessor('docprocess1',watch_files=True)
     t.start()
     return t
 

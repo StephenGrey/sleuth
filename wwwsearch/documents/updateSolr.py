@@ -766,7 +766,7 @@ def updatetags(solrid,mycore,value=['test','anothertest'],field_to_update='usert
     doc[mycore.unique_id]=solrid
     doc[field]={"set":value}
     jsondoc=json.dumps([doc])
-    log.debug('Json to post: {}'.format(jsondoc))
+    log.debug(f'Json to post to index \"{mycore}\": {jsondoc}')
 
     #post the update
     result,status=post_jsonupdate(jsondoc,mycore,timeout=10,test=test)

@@ -15,7 +15,7 @@ def run():
             TASKS.append(t)
        
     else:
-        print(f'Other thread running has id: {os.getpid()}')
+        print(f'Secondary thread launching, other thread running has id: {os.getpid()}')
   # myVar exists.
 
 #from django.utils.importlib import import_module

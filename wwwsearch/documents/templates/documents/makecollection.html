@@ -17,9 +17,12 @@
 <H5 style="color:blue">Path: {{path}}</H5>
 <H5 style="color:blue">Index: {{index}}</H5>
 
-		<form action="{% url 'make_collection' path=path %}" method ="post">
+		<form id="make_collection_form" action="{% url 'make_collection' path=path %}" method ="post">
 		{% csrf_token %}
+		<input type="hidden" name="make_collection" value="make_collection_f">
 		Source:{{source_form.sourcechoice}}
+		<p><p>
+		Update Live:{{source_form.live_update}}<span style="color:red" class="glyphicon glyphicon-fire"></span>
 		</form>
 
 
@@ -43,12 +46,19 @@
 
 {% block javascript %}
 <script>
+//
+//$('#confirm').click(function(e) {
+//
+//alert('clicked');
+//
+//});
 
-$('#confirm').click(function(e) {
-
-alert('clicked');
-
+$(document).ready(function(){
+    $("#make_collection_form").on("change", "input:checkbox", function(){
+        $("#make_collection_form").submit();
+    });
 });
+
 
 
 </script>

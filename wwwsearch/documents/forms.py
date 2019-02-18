@@ -39,8 +39,8 @@ class IndexForm(forms.Form):
     
 class SourceForm(forms.Form):
     sourcechoice= ChoiceField(label='Source: ',choices=get_sourcechoices(),widget=forms.Select(attrs={"id":"source_form","onChange":'this.form.submit();'}))
+    live_update= forms.BooleanField(required=False)
     
-
 
 class TestForm(forms.Form):
     testfield = forms.CharField(label='Search Terms:', max_length=100) 	

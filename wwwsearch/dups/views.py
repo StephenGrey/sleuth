@@ -176,7 +176,7 @@ def file_dups(request,_hash):
         if page.masterspecs:
             duplist_master=file_utils.specs_path_list(page.masterspecs,_hash)
             log.debug(duplist_master)
-        if page.masterspecs:
+        if page.specs:
             duplist_local=file_utils.specs_path_list(page.specs,_hash)
             log.debug(duplist_local)
         

@@ -1,19 +1,43 @@
 {% extends "base.html" %}
 
  {% block sidebar %}
+	<form id='checkindex_form' action="{% url 'listfiles' path=path %}" method ="post">
+	{% csrf_token %}
+	<input type="hidden" name="checkindex_form" value="True">
+	<div class="form-check">
+  <input class="form-check-input" type="checkbox" name="check_index" value="True" {% if check_index%}checked{% endif%} id="checkindex">
+  <label class="form-check-label" for="checkindex">
+    Check Index
+  </label>
+</div>
+
+{%if check_index %}
+</form>
+	
 	<ul class="sidebar-nav">
 		<form action="{% url 'listfiles' path=path %}" method ="post">
 		{% csrf_token %}
 		Index:{{form.corechoice}}
-		
 
-		
 		</form>
 	</ul>
+	<p><p>
+	<div class="panel panel-default">
+	
+	Key
+	<p><span style="color:green;">Indexed File</span>
+	<p><span style="color:red;">Not-Indexed File</span>
+	<p><span style="color:blue;" ">Folder</span>
+	<p><span class="collection-folder ">Collection folder</span>
+	<p><span class="collection-inside ">Folder inside Collection</span>
+
+	</div>
+{% endif %}
 {% endblock %}
 
 {% block body_content %}
-
+		<h4>Document Explorer</h4>
+		<p>
 		<ol class="breadcrumb">
 		  <li><a href="/documents/files">Home</a></li>
 		{% for fullpath,relpath,basename,hash in tags %}  
@@ -142,6 +166,12 @@ $('.flip').click(function(e) {
 		};
 
 	});*/
+
+$(document).ready(function(){
+    $("#checkindex_form").on("change", "input:checkbox", function(){
+        $("#checkindex_form").submit();
+    });
+});
 
 
 </script>

@@ -159,7 +159,7 @@ class Extractor():
                             
             
             if file.is_folder:
-                log.debug('Skipping extract of folder')
+                log.debug('detected folder path')
                 result=self.extract_folder(file)
                 
             else:
@@ -346,7 +346,7 @@ class Extractor():
     def extract_folder(self,file):
         
         solrid=file.hash_filename
-        log.debug('extracting folder')
+        log.info('Adding (meta-only) folder name to index')
            #extract a relative path from the docstore root
         relpath=make_relpath(file.filepath,docstore=self.docstore)
         #args+='&literal.{}={}&literal.{}={}'.format(filepathfield,relpath,pathhashfield,file_utils.pathHash(path))
@@ -402,7 +402,7 @@ class UpdateMeta(Extractor):
 
 class ExtractSingleFile(Extractor):
     """extract a single doc into solr"""
-    def __init__(self,_file,forceretry=False,useICIJ=False,ocr=True,docstore=DOCSTORE):        
+    def __init__(self,_file,forceretry=False,useICIJ=False,ocr=True,docstore=DOCSTORE,job=None):        
         cores=s.getcores() #fetch dictionary of installed solr indexes (cores)
         self.mycore=cores[_file.collection.core.id]
         self.collection=_file.collection
@@ -411,6 +411,7 @@ class ExtractSingleFile(Extractor):
         self.forceretry=forceretry
         self.useICIJ=useICIJ
         self.ocr=ocr
+        self.job=None
         self.docstore=docstore
         self.counter,self.skipped,self.failed=0,0,0
         self.skippedlist,self.failedlist=[],[]

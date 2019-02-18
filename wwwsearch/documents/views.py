@@ -267,17 +267,21 @@ def file_display(request,path=''):
     path=os.path.normpath(path) if path else '' #cope with windows filepaths
     #get the core , or set the the default    
     page=documentpage.FilesPage()
+    log.debug(request.POST)
     page.getcores(request.user,request.session.get('mycore')) #arguments: user, storedcore
+    page.check_index=True if request.session.get('check_index') else False
     page.chooseindexes(request.method,request_postdata=request.POST)
+    log.debug('CORE ID: {}'.format(page.coreID))
+    request.session['mycore']=page.coreID
+    request.session['check_index']=page.check_index
     page.get_collections() #filter authorised collections
 #        log.debug('Core set in request: {}'.format(request.session['mycore']))
-    log.debug('CORE ID: {}'.format(page.coreID))
     path_info=request.META.get('PATH_INFO')
     request.session["back_url"]=path_info  
     
 #    is_collection_root=None
 #    is_inside_collection=None
-    c = file_utils.Index_Maker(path,page.authorised_collections)._index
+    c = file_utils.Index_Maker(path,page.authorised_collections,check_index=page.check_index)._index
     if path:
         rootpath=path
         tags=directory_tags(path)
@@ -285,7 +289,7 @@ def file_display(request,path=''):
         rootpath=""
         tags=None
     return render(request,'documents/filedisplay/listindex.html',
-         {'subfiles': c, 'rootpath':rootpath, 'tags':tags, 'form':page.form, 'path':path})
+         {'subfiles': c, 'rootpath':rootpath, 'tags':tags, 'form':page.form, 'path':path, 'check_index':page.check_index})
 
 
 @staff_member_required()
@@ -295,25 +299,28 @@ def make_collection(request,path='',confirm=False):
     log.debug(f'Attempting to add collection with path {path}, confirmed: {confirm}, with rootpath {BASEDIR}')
     page=documentpage.MakeCollectionPage(relpath=path,rootpath=BASEDIR)
     path_info=request.session.get("back_url")
+    page.live_update=request.session.get("live_update")
     page.back_url=path_info
     log.debug(request.POST)
     page.getcores(request.user,request.session.get('mycore')) #arguments: user, storedcore
     page.chooseindexes(request.method,request_postdata=request.POST)
     page.get_collections() #filter authorised collections
     page.make_sources(request.method,request_postdata=request.POST,source_initial=request.session.get('mysource'))
-    
     #log.debug(f'{page.authorised_collections_relpaths}')
+    log.debug(f'Live update {page.live_update}')
     try:
         page.check_path()
         if confirm:
             page.make_collection()
-    
+            page.live_update=None
+
     except documentpage.NoValidCollection as e:
         page.error=f"{e}"
     if page.error:
         log.debug(page.error)
     request.session['mycore']=page.coreID
-    request.session['mysource']=page.sourceID 
+    request.session['mysource']=page.sourceID
+    request.session['live_update']=page.live_update
     return render(request,'documents/makecollection.html',
          {'path':path,'source_form':page.source_form,'form':page.form, 'index':page.mycore.name, 'error':page.error, 'back_url':page.back_url,'success':page.success})
 

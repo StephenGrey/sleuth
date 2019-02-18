@@ -34,12 +34,12 @@ class Command(BaseCommand):
 
         sourcedisplay=kwargs['sourcedisplay']
         self.dargs.update({'sourcedisplay':sourcedisplay}) if sourcedisplay else None        
-
+        self.live_update=False
 
         try:
             self.args_check()
         
-            self.collection,self.created=make(self.path,self.sourceID,self._index)
+            self.collection,self.created=make(self.path,self.sourceID,self._index,live_update=self.live_update)
             if not self.created:
                 print('Collection already existed')
             else:
@@ -90,10 +90,10 @@ class Command(BaseCommand):
             print(e)
             raise BadParameters("Error getting or creating source text for collection")
     
-def make(path,source,_index):
+def make(path,source,_index,live_update=False):
     """make or fetch a collection of documents"""
 
-    collection,created=Collection.objects.get_or_create(path=path,core=_index,indexedFlag=False,source=source)
+    collection,created=Collection.objects.get_or_create(path=path,core=_index,live_update=live_update,source=source)
 
     return collection,created
 

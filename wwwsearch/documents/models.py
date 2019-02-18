@@ -9,7 +9,7 @@ collectionbasepath=config['Models']['collectionbasepath']
 
 class Collection(models.Model):
     path = models.FilePathField('File path',path=collectionbasepath, allow_files=False,allow_folders=True,recursive=True, max_length=150)
-    indexedFlag = models.BooleanField('Indexed')
+    live_update = models.BooleanField('Live update')
     core = models.ForeignKey(
         'Index',
         on_delete=models.CASCADE,
