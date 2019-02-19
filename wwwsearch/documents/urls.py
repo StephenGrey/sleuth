@@ -10,6 +10,7 @@ urlpatterns = [
     url(r'makecollection/(?P<path>.*)$',views.make_collection,name='make_collection'),
     url(r'cancelcollection/(?P<path>.*)$',views.cancel_collection,name='cancel_collection'),
     url(r'results/(?P<job_id>.*)$', views.display_results, name='display_results'),
+    url(r'listcollections$', views.list_collections, name='list_collections'),
     url(r'^files/(?P<path>.*)$',views.file_display,name='listfiles'),
     url(r'^files',views.file_display,name='listfiles_base'),
     url(r'^api/changes/(?P<user_edit_id>.*)$',api.api_changes,name='api_changes'),

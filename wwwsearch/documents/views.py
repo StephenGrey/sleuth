@@ -293,6 +293,30 @@ def file_display(request,path=''):
 
 
 @staff_member_required()
+def list_collections(request):
+    """list and edit collections for an index"""
+    page=documentpage.FilesPage()
+    log.debug(request.POST)
+    page.getcores(request.user,request.session.get('mycore')) #arguments: user, storedcore
+    page.chooseindexes(request.method,request_postdata=request.POST)
+    log.debug('CORE ID: {}'.format(page.coreID))
+    request.session['mycore']=page.coreID
+    page.get_collections() #filter authorised collections
+#        log.debug('Core set in request: {}'.format(request.session['mycore']))
+    path_info=request.META.get('PATH_INFO')
+    request.session["back_url"]=path_info  
+    
+    if request.method=='POST':
+        page.collection_updates(request.POST) #action any changes to collections
+        return redirect('list_collections')
+    else:
+        return render(request,'documents/listcollections.html',
+         {'page': page})
+
+
+
+
+@staff_member_required()
 def make_collection(request,path='',confirm=False):
         #get the core , or set the the default    
     path=os.path.normpath(path) if path else ''

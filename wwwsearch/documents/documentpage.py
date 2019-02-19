@@ -82,6 +82,8 @@ class CollectionPage(Page):
             self.form=None
 
 
+    
+
 
     def get_collections(self):
         self.myindex=Index.objects.get(id=self.coreID)
@@ -89,6 +91,30 @@ class CollectionPage(Page):
         self.authorised_collections=Collection.objects.filter(core=self.myindex)
         self.authorised_collections_relpaths=[(make_relpath(c.path),c.id,c.live_update) for c in self.authorised_collections]
 
+    def collection_updates(self,request_posted):
+        _collection_IDs=request_posted.getlist('checked')
+        if _collection_IDs:
+            #validate
+            try:
+                _collections=[Collection.objects.get(id=int(c)) for c in _collection_IDs]
+                for c in _collections:
+                    assert c in self.authorised_collections
+            except Exception as e:
+                log.debug(e)
+                raise NoValidCollection
+            if request_posted.get('live-button'):
+                log.debug('make live')
+                for c in _collections:
+                    c.live_update=True
+                    c.save()
+            elif request_posted.get('unlive-button'):
+                log.debug('unmake live')
+                for c in _collections:
+                    c.live_update=False
+                    c.save()
+            elif request_posted.get('delete-button'):
+                log.debug('delete collection')
+    
     
 class FilesPage(CollectionPage):
     def __init__(self,request='',default_master=''):

@@ -1,0 +1,151 @@
+{% extends "base.html" %}
+
+{% block sidebar %}
+	
+	<ul class="sidebar-nav">
+		<form action="{% url 'list_collections' %}" method ="post">
+		{% csrf_token %}
+		Index:{{page.form.corechoice}}
+
+		</form>
+	</ul>
+
+{% endblock %}
+
+{% block body_content %}
+		<h4>Collections Explorer</h4>
+		<p>
+		<p>
+		<form method="post">
+		{% csrf_token %}
+		<div class="panel-group" id="accordion" role="tablist" aria-multiselectable="true">
+		  <div class="panel panel-default">
+				<ul>
+		{% for collection in page.authorised_collections %}  
+		
+				<div class="checkbox">
+					<label><input type="checkbox" name="checked" value="{{collection.id}}">{{ collection }} (ID:{{collection.id}})</label>
+				{% if collection.live_update %}<span class="glyphicon glyphicon-fire" style="color:red;">Live!</span>{% endif %}
+				</div>	
+		
+		
+		{% endfor %}
+				</ul><p>
+		<input type="submit" name="live-button"  class="btn btn-info btn-sm" value="Make Live">	
+		<input type="submit" name="unlive-button"  class="btn btn-info btn-sm" value="Unmake Live">	
+		<input type="submit" name="delete-button"  class="btn btn-info btn-sm" value="Delete">	
+			</div>
+		</div>
+		
+		</form>
+
+
+		
+{% endblock %}
+
+
+{% block javascript %}
+<script>
+
+const menu = document.querySelector(".menu");
+
+let menuVisible = false;
+let clicked=false
+
+menu.style.display="none"
+
+const toggleMenu = command => {
+//  var menu=document.getElementById('foo')
+  menu.style.display = command === "show" ? "block" : "none";
+  menuVisible = !menuVisible;
+};
+
+const setPosition = ({ top, left }) => {
+//  console.log(left)
+//  console.log(`${top}px`)
+  menu.style.left = `${left-30}px`;
+  menu.style.top = `${top-80}px`;
+  toggleMenu('show');
+};
+
+//file right-click menu
+$('.sbfolder').contextmenu(function(event)
+	{
+	if(clicked){
+    clicked.style.fontWeight="normal"; //clear previous highlight
+		};
+  clicked=this
+  var item_id = this.id;
+  var hash_id= $(this).attr('src');
+  var size=$(this).attr('size');
+  	$(".menu-path").html("<b>Folder:</b> "+clicked.id);
+//  $(".menu-hash").html('<b>Hash:</b>...'+hash_id.substring(50));
+	this.style.fontWeight="bold";
+	var _path="{{path}}"
+	
+	if (_path !== "") 
+		{var url="/documents/makecollection/{{path}}/"+this.id;
+		}
+	else {
+		var url="/documents/makecollection/"+this.id;
+		};
+	$(".set-folder").html("<a href=\""+url+"\"> Make collection </a>");
+//	$(".menu-path").html("<b>File:</b> "+this.id);
+//	$(".menu-size").html("<b>Size:</b> "+size);
+//	$(".menu-scans").html('<p><b>MASTER</b>: Scanned: '+$(this).attr('master_scan')+' Changed:'+$(this).attr('master_changed')+' Dups: '+$(this).attr('m_dup')+' ('+$(this).attr('m_dups')+')');	
+//	$(".menu-localscans").html('<p><b>SCAN FOLDER</b>: Scanned: '+$(this).attr('local_scan')+' Duplicate: '+$(this).attr('l_dup')+' Changed:'+$(this).attr('local_changed')+' Dups:'+$(this).attr('l_dup')+' ('+$(this).attr('l_dups')+')'+' Found in Master: '+$(this).attr('hash_in_master'));	
+//	$(".scan-folder").hide();
+//	$(".master-folder").hide();
+	var rect = clicked.getBoundingClientRect();
+  event.preventDefault();
+  event.stopPropagation();
+//  alert('context');
+  const origin = {
+  	left: rect.right,
+  	top: rect.top+window.scrollY
+  };
+    setPosition(origin);
+    menuVisible = true;
+  });
+
+$('.close').click(function(){
+toggleMenu('none');
+menuVisible= false;
+});
+
+
+$('.flip').click(function(e) {
+//    alert('clicked this')
+    var $this = $(this);
+    $this.next('div.subdir').slideToggle('fast');
+    $this.toggleClass('show');
+    if ($this.hasClass('show')) {
+        $this.html('<span style="font-size:12px">[hide}</span>');
+    } else {
+        $this.html(' +');
+			};
+
+		});
+
+/*$('.SeeMore2').click(function(){
+		var $this = $(this);
+		$this.next('div.subdir').slideToggle('fast');
+		$this.toggleClass('SeeMore2');
+		if($this.hasClass('SeeMore2')){
+			$this.text('See More');			
+		} else {
+			$this.text('See Less');
+		};
+
+	});*/
+
+$(document).ready(function(){
+    $("#checkindex_form").on("change", "input:checkbox", function(){
+        $("#checkindex_form").submit();
+    });
+});
+
+
+</script>
+{% endblock %}
+

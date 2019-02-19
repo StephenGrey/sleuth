@@ -5,7 +5,7 @@
 {% endblock %}
 {% block body_content %}
 
-<h3>Document Collections</h3>
+<h3>Document Collections <small> <a id="sophie-cog" href="/documents/listcollections" style="color:grey" class="glyphicon glyphicon-cog glyphicon-small"></a></small></h3>
 
 <form action="{% url 'docs_index'%}" method ="post">
 {% csrf_token %}
@@ -18,7 +18,9 @@ Index:{{page.form.corechoice}}<p>
     <input type="radio" name="choice" id="choice{{collection_id}}" value="{{ collection_id }}" />
     <label for="choice{{collection_id}}">{{collection_path }} 
     {%if live_update%}<span style="color:red" class="glyphicon glyphicon-fire"></span>{%endif%}
-    	</label><br />
+    	</label>
+    	
+    	<br />
 {% endfor %}
 <p>
 
@@ -146,6 +148,7 @@ $("#progress_cancel").click(function() {
 //	{if (data.error==true){console.log("task cancel failed");};
 });
 
+
 </script>
 {% endif %}
 <script>
@@ -211,7 +214,6 @@ More Functions:<p>
 <p>
 <input type="submit" name="dupscan" value="Scan for and remove duplicates" />
 <input type="submit" name="path-check" value="Convert paths to relatives links" />
-
 
 </form>
 
