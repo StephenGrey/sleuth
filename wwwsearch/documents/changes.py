@@ -67,7 +67,7 @@ class Scanner:
         """2a. For a database file found on disk - add to changed or unchanged list/dict"""
         file_meta=self.files_on_disk.pop(database_file.filepath)
         
-        log.debug(file_meta)
+        #log.debug(file_meta)
 #        path_date=time_utils.timeaware(file_meta.date_from_path)
 #        if database_file.content_date != path_date:
 #            log.debug(f'Path date modified: database: {database_file.content_date} local: {path_date}')
@@ -174,7 +174,7 @@ class Scanner:
     def update_results(self):
         if self.job:
             self.count_changes()
-            log.debug(f'scanned files: {self.scanned_files}')
+            #log.debug(f'scanned files: {self.scanned_files}')
             progress=f'{((self.scanned_files/self.total)*100):.0f}'
             progress_str=f"{self.scanned_files} of {self.total} files" #0- replace 0 for decimal places
             log.debug(f'Progress: {progress_str}')
@@ -211,7 +211,7 @@ def add_oldpaths(_file,oldpath):
         _file.save()
 
 def newfile(path,collection):
-    if os.path.exists(path)==True: #check file exists
+    if os.path.exists(file_utils.normalise(path))==True: #check file exists
         #now create new entry in File database
         try:
             _newfile=File(collection=collection)
@@ -250,7 +250,7 @@ def changefile(file):
 def updatefiledata(file,path,makehash=False):
     """calculate all the metadata and update database; default don't make hash"""
     try:
-        specs=file_utils.FileSpecs(path)
+        specs=file_utils.FileSpecs(file_utils.normalise(path))
         file.filepath=path #
         file.hash_filename=specs.pathhash #get the HASH OF PATH
         file.filename=specs.name

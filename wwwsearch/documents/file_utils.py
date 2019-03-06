@@ -892,7 +892,7 @@ def directory_tags(path,isfile=False):
     a,b=os.path.split(path_and_file)
     if drive:
         a=os.path.join(drive,a)
-    print (drive,a,b)
+    #print (drive,a,b)
     if isfile:
         tags=[]
     else:

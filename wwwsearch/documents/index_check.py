@@ -53,9 +53,9 @@ def index_check(collection,thiscore):
                         file.hash_contents=hash
                         file.save()
                     #now lookup hash in solr index
-                    log.debug('looking up hash : '+hash)
+                    #log.debug('looking up hash : '+hash)
                     solrresult=solr.hashlookup(hash,thiscore).results
-                    log.debug(solrresult)
+                    #log.debug(solrresult)
                 except Exception as e:
                     log.error(e)
                     solrresult=''
@@ -74,7 +74,7 @@ def index_check(collection,thiscore):
                     
             #NO MATCHES< RETURN FAILURE
 
-            log.info(file.filepath+'.. not found in Solr index')
+            log.info(f'\"{file.filepath}\" not found in Solr index')
             file.indexedSuccess=False
             file.indexedTry=False #reset indexing try flag
             file.solrid='' #wipe any stored solr id; DEBUG: this wipes also oldsolr ids scheduled for delete

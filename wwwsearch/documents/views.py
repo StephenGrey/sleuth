@@ -264,9 +264,11 @@ def list_solrfiles(request,path=''):
 @staff_member_required()
 def file_display(request,path=''):
     """display files in a directory"""
-    path=os.path.normpath(path) if path else '' #cope with windows filepaths
+    log.debug(path)
+    normpath=os.path.normpath(path) if path else '' #cope with windows filepaths
+    log.debug(path)
     #get the core , or set the the default    
-    page=documentpage.FilesPage()
+    page=documentpage.FilesPage(path=normpath)
     log.debug(request.POST)
     page.getcores(request.user,request.session.get('mycore')) #arguments: user, storedcore
     page.check_index=True if request.session.get('check_index') else False
@@ -281,10 +283,11 @@ def file_display(request,path=''):
     
 #    is_collection_root=None
 #    is_inside_collection=None
-    c = file_utils.Index_Maker(path,page.authorised_collections,check_index=page.check_index)._index
+#    c = file_utils.Index_Maker(path,page.authorised_collections,)._index
+    c = file_utils.Index_Maker(normpath,page.authorised_collections,check_index=page.check_index)._index
     if path:
         rootpath=path
-        tags=directory_tags(path)
+        tags=directory_tags(normpath)
     else:
         rootpath=""
         tags=None
@@ -319,6 +322,7 @@ def list_collections(request):
 @staff_member_required()
 def make_collection(request,path='',confirm=False):
         #get the core , or set the the default    
+    log.debug(path)
     path=os.path.normpath(path) if path else ''
     log.debug(f'Attempting to add collection with path {path}, confirmed: {confirm}, with rootpath {BASEDIR}')
     page=documentpage.MakeCollectionPage(relpath=path,rootpath=BASEDIR)

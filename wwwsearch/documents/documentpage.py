@@ -18,7 +18,8 @@ class NoValidCollection(Exception):
 class CollectionPage(Page):
     def __init__(self,path=''):
         self.docpath=path
-    
+        self.url_path=quote_plus(path)
+        log.debug(self.url_path)
     def getcores(self,this_user,stored_core=None):
         """get authorised solr cores , choosed stored core or default """
         self.getindexes(this_user)

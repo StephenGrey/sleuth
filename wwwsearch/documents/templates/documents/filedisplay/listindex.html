@@ -113,6 +113,7 @@ $('.sbfolder').contextmenu(function(event)
 	
 	if (_path !== "") 
 		{var url="/documents/makecollection/{{path}}/"+this.id;
+		alert(url);
 		}
 	else {
 		var url="/documents/makecollection/"+this.id;
@@ -140,7 +141,6 @@ $('.close').click(function(){
 toggleMenu('none');
 menuVisible= false;
 });
-
 
 $('.flip').click(function(e) {
 //    alert('clicked this')
