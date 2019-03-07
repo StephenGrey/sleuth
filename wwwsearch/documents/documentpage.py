@@ -81,11 +81,7 @@ class CollectionPage(Page):
             log.warning('posted form is not valid: {}'.format(form.errors))
             self.validform=False
             self.form=None
-
-
-    
-
-
+            
     def get_collections(self):
         self.myindex=Index.objects.get(id=self.coreID)
         log.debug('my Index: {}'.format(self.myindex))
@@ -114,7 +110,9 @@ class CollectionPage(Page):
                     c.live_update=False
                     c.save()
             elif request_posted.get('delete-button'):
-                log.debug('delete collection')
+                for c in _collections:
+                    c.delete()
+                    log.debug(f'deleted collection {c.path} with ID: {c.id}')
     
     
 class FilesPage(CollectionPage):

@@ -399,21 +399,21 @@ def modify_check(time_before_check):
             _rawmod=r.get(f'MODIFIED_TIME.{_file.id}')
             _modtime=float(_rawmod) if _rawmod else None
             _now=time.time()
-            print(f'Checking: File:{_file} Modified: {int(_now-_modtime)} seconds ago')
+            log.debug(f'Checking: File:{_file} Modified: {int(_now-_modtime)} seconds ago')
             if _now-_modtime>time_before_check:
-                print('needs update check')
+                log.debug('needs update check')
                 result=update_file(_file)
                 log.info(f'{_file} updated: {result}')
                 #remove checked files:
                 r.srem('MODIFIED_FILES',_fileid)
                 r.delete(f'MODIFIED_TIME.{_file.id}')                
         except File.DoesNotExist:
-            print(f'{_fileid} not found .. removing from MODIFIED_FILES')
+            log.info(f'{_fileid} not found .. removing from MODIFIED_FILES')
             r.srem('MODIFIED_FILES',_fileid)
 
 def update_file(_file):
     if file_utils.changed_file(_file):
-        print('This file needs updating')
+        log.info(f'This file \"{_file}\"needs updating')
         _file.hash_contents=''
         _file.indexedSuccess=False
         _file.indexedTry=False

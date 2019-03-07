@@ -16,7 +16,7 @@
 		<h4>Collections Explorer</h4>
 		<p>
 		<p>
-		<form method="post">
+		<form id="coll-form" method="post">
 		{% csrf_token %}
 		<div class="panel-group" id="accordion" role="tablist" aria-multiselectable="true">
 		  <div class="panel panel-default">
@@ -33,13 +33,17 @@
 				</ul><p>
 		<input type="submit" name="live-button"  class="btn btn-info btn-sm" value="Make Live">	
 		<input type="submit" name="unlive-button"  class="btn btn-info btn-sm" value="Unmake Live">	
-		<input type="submit" name="delete-button"  class="btn btn-info btn-sm" value="Delete">	
+		<input type="submit" id="delete-button" name="delete-button"  class="btn btn-info btn-sm" value="Delete">	
 			</div>
 		</div>
 		
 		</form>
 
 
+<div id="wrapper" title="Delete Collection Confirmation">
+  <p><span class="ui-icon ui-icon-alert" style="float:left; margin:12px 12px 20px 0;"></span>
+  	These collections and their files will be permanently deleted and cannot be recovered. Are you sure?</p>
+</div>
 		
 {% endblock %}
 
@@ -47,104 +51,75 @@
 {% block javascript %}
 <script>
 
-const menu = document.querySelector(".menu");
-
-let menuVisible = false;
-let clicked=false
-
-menu.style.display="none"
-
-const toggleMenu = command => {
-//  var menu=document.getElementById('foo')
-  menu.style.display = command === "show" ? "block" : "none";
-  menuVisible = !menuVisible;
-};
-
-const setPosition = ({ top, left }) => {
-//  console.log(left)
-//  console.log(`${top}px`)
-  menu.style.left = `${left-30}px`;
-  menu.style.top = `${top-80}px`;
-  toggleMenu('show');
-};
-
-//file right-click menu
-$('.sbfolder').contextmenu(function(event)
-	{
-	if(clicked){
-    clicked.style.fontWeight="normal"; //clear previous highlight
-		};
-  clicked=this
-  var item_id = this.id;
-  var hash_id= $(this).attr('src');
-  var size=$(this).attr('size');
-  	$(".menu-path").html("<b>Folder:</b> "+clicked.id);
-//  $(".menu-hash").html('<b>Hash:</b>...'+hash_id.substring(50));
-	this.style.fontWeight="bold";
-	var _path="{{path}}"
-	
-	if (_path !== "") 
-		{var url="/documents/makecollection/{{path}}/"+this.id;
-		}
-	else {
-		var url="/documents/makecollection/"+this.id;
-		};
-	$(".set-folder").html("<a href=\""+url+"\"> Make collection </a>");
-//	$(".menu-path").html("<b>File:</b> "+this.id);
-//	$(".menu-size").html("<b>Size:</b> "+size);
-//	$(".menu-scans").html('<p><b>MASTER</b>: Scanned: '+$(this).attr('master_scan')+' Changed:'+$(this).attr('master_changed')+' Dups: '+$(this).attr('m_dup')+' ('+$(this).attr('m_dups')+')');	
-//	$(".menu-localscans").html('<p><b>SCAN FOLDER</b>: Scanned: '+$(this).attr('local_scan')+' Duplicate: '+$(this).attr('l_dup')+' Changed:'+$(this).attr('local_changed')+' Dups:'+$(this).attr('l_dup')+' ('+$(this).attr('l_dups')+')'+' Found in Master: '+$(this).attr('hash_in_master'));	
-//	$(".scan-folder").hide();
-//	$(".master-folder").hide();
-	var rect = clicked.getBoundingClientRect();
-  event.preventDefault();
-  event.stopPropagation();
-//  alert('context');
-  const origin = {
-  	left: rect.right,
-  	top: rect.top+window.scrollY
-  };
-    setPosition(origin);
-    menuVisible = true;
-  });
-
-$('.close').click(function(){
-toggleMenu('none');
-menuVisible= false;
-});
+$('#wrapper').dialog({
+    closeText: "",
+    autoOpen: false,
+    title: 'Delete collections - confirmation',
+    resizable: false,
+      	height: "auto",
+      	width: 400,
+      	modal: true,
+    buttons: {
+        	"Delete selected collections": function() 
+        		{
+         	 	$( this ).dialog( "close" );
+        		//$('form#coll-form').submit();//let delete go ahead
+        		$('#coll-form').append('<input type="text" name="delete-button" value="Delete" />');
+        		document.getElementById("coll-form").submit();
+        		},
+        	Cancel: function() {
+          	$( this ).dialog( "close" );
+        	
+        	
+        	},
+        },
+    
+	});
 
 
-$('.flip').click(function(e) {
-//    alert('clicked this')
-    var $this = $(this);
-    $this.next('div.subdir').slideToggle('fast');
-    $this.toggleClass('show');
-    if ($this.hasClass('show')) {
-        $this.html('<span style="font-size:12px">[hide}</span>');
-    } else {
-        $this.html(' +');
-			};
+    //$('#wrapper').dialog('open');
+    //e.preventDefault();
+    //alert(answer);
+//     $('form#coll-form').submit();
 
-		});
+var go_ahead=false
 
-/*$('.SeeMore2').click(function(){
-		var $this = $(this);
-		$this.next('div.subdir').slideToggle('fast');
-		$this.toggleClass('SeeMore2');
-		if($this.hasClass('SeeMore2')){
-			$this.text('See More');			
-		} else {
-			$this.text('See Less');
-		};
-
-	});*/
 
 $(document).ready(function(){
-    $("#checkindex_form").on("change", "input:checkbox", function(){
-        $("#checkindex_form").submit();
-    });
-});
+     //using standard javascript
+     //return false from a click function also prevents the default behaviour
+//     $('#delete-button').click(function(e) {
+//    var answer=confirm('Are you sure you want to delete these collections?');
+//    if(answer){
+//     alert('Deleted');
+//     go_ahead=true;
+//     return true
+//    }
+//    else{
+//        alert('Not Deleted');
+//        go_ahead=false;
+//        return false      
+//    };
+//	};)
+     
+    $('#dialogue-confirm').dialog({
+    autoOpen: false,
+    title: 'Basic Dialog'
+	});
+         
+    $('#delete-button').click(function(e) {
+    //e.preventDefault();	
+    $('#wrapper').dialog('open');
+    //alert(go_ahead);
+    return false;
 
+	});
+    
+});
+//$('#opener').click(function() {
+//    $('#wrapper').dialog('open');
+//    return false;
+//});
 
 </script>
 {% endblock %}

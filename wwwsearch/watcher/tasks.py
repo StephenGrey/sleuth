@@ -1,6 +1,7 @@
 import os,time,logging,random, shutil,redis
 from watcher import watch_dispatch,watch_filesystem
 THREADS=[]
+MODIFY_DELAY=120
 from threading import Thread, current_thread, Event
 try:
     from queue import Full,Empty #pip3 install queuelib
@@ -113,7 +114,7 @@ class Tasker(StoppableThread):
             print('{}: terminating'.format(self.name))
 
 class DocProcessor(StoppableThread):
-    def __init__(self,name,watch_files=False,watch_folder=DOCSTORE):
+    def __init__(self,name,watch_files=False,watch_folder=DOCSTORE,modify_delay=MODIFY_DELAY):
         print('docprocessor launched')
     	 #process_q,upload_q,results_q,name
         super(DocProcessor,self).__init__()
@@ -121,19 +122,24 @@ class DocProcessor(StoppableThread):
         self.name=self.getName()
         self.watch_files=watch_files
         self.watch_folder=watch_folder
+        self.modify_delay=modify_delay
 #
     def run(self):
         print('Launching process name \'{}\''.format(self.name))
         
         if self.watch_files:
-            print(f'Launching Watchdog on filesystem: {self.watch_folder}')
-            self.observer=watch_filesystem.launch(self.watch_folder)
+            if os.path.exists(self.watch_folder):
+                print(f'Launching Watchdog on filesystem: {self.watch_folder}')
+                self.observer=watch_filesystem.launch(self.watch_folder)
+            else:
+                print(f'Watch folder \'{self.watch_folder}\' does not exist: cannot launch Watchdog')
         
         try:
             while (not self.killswitch.is_set()):
                 #print('doing a background task then wait')
                 time.sleep(1)
                 watch_dispatch.task_check()
+                watch_dispatch.modify_check(self.modify_delay)
                 watch_dispatch.HBEAT.tick()   #heartbeat signal
         except Terminate:
             pass            
