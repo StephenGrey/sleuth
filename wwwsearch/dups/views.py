@@ -68,7 +68,7 @@ def index(request,path='',duplist=False):
         #page.masterpath=masterindex_path
 
         if page.masterindex_path:
-            page.inside_master=path.startswith(page.masterindex_path)
+            page.inside_master=file_utils.new_is_inside(path,page.masterindex_path)
         
         if duplist:
             #display only duplicates

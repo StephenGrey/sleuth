@@ -116,8 +116,9 @@ class CollectionPage(Page):
     
     
 class FilesPage(CollectionPage):
-    def __init__(self,request='',default_master=''):
+    def __init__(self,request='',default_master='',path=''):
         self.request=request
+        self.docpath=path
         
         if self.request and default_master:
             self.local_scanpath=request.session.get('scanfolder')

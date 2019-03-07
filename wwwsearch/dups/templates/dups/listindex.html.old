@@ -3,8 +3,8 @@
 {% block stylesheet %}
 {% load static %}
 <link rel="stylesheet" type="text/css" href="{% static 'css/dups.css' %}" />
-{% endblock%}
 
+{% endblock %}
 	
 {% block sidebar %}
 
@@ -44,7 +44,8 @@
 {% endblock %}
 
 {% block body_content %}
-	{% if page.inside_master %}
+
+{% if page.inside_master %}
 <div style="color:white;background-color:red">INSIDE MASTER ARCHIVE </div>
 
 <p>
@@ -61,6 +62,19 @@
 		</ol>
 
 </div>
+ 		
+				<div class="menu" id="foo" data-id="somepath">
+		  		<span class="menu-path"></span>
+		  		<p><span class="menu-hash">somehash</span>
+ 		  			<span class="menu-size">somehash</span>
+ 		  			<span class="menu-scans">info</span>
+ 		  			<span class="menu-localscans">info</span>
+		  		<ul class="menu-options">
+		    		<li class="menu-option scan-folder"><u>Set as Scan Folder</u></li>
+		    		<li class="menu-option master-folder"><u>Set as Master Folder</u></li>
+		  		</ul>
+				</div>	
+	
 		<p>
 		<div class="panel-group" id="accordion" role="tablist" aria-multiselectable="true">
 		  <div class="panel panel-default">
@@ -74,20 +88,6 @@
 				</ul>	
 			</div>
 		</div>
-
-				<div class="menu" id="foo" data-id="somepath">
-		  		<span class="menu-path"></span>
-		  		<p><span class="menu-hash">somehash</span>
- 		  			<span class="menu-size">somehash</span>
- 		  			<span class="menu-scans">info</span>
- 		  			<span class="menu-localscans">info</span>
-		  		<ul class="menu-options">
-		    		<li class="menu-option scan-folder"><u>Set as Scan Folder</u></li>
-		    		<li class="menu-option master-folder"><u>Set as Master Folder</u></li>
-		  		
-		  		</ul>
-				</div>	
-
 {% endblock %}
 
 
@@ -96,14 +96,5 @@
 <script src="{% static 'js/dups.js' %}">
 </script>
 
-<!--<script>
-const menu = document.querySelector(".menu");
-menu.style.left = 0;
-menu.style.top = 50;
-
-
-
-</script>
--->
 {% endblock %}
 

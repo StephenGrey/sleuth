@@ -26,7 +26,7 @@ color:red
   width: 400px;
   box-shadow: 0 4px 5px 3px rgba(0, 0, 0, 0.2);
   position: absolute;
-  display: hide;
+/*  display: hide;*/
   color: black;
   background: #e3e9f2;
   opacity: 1;

@@ -24,6 +24,16 @@ $('.glyphicon-duplicate').click(function(e) {
   	);*/
 	});
 
+$('.glyphicon-saved').click(function(e) {
+    //alert('clicked this');
+    var $this = $(this);
+    var _src = $(this).closest("li[src]").attr('src');
+    //$.post( ,{'hash':'a hash'}, function(data)
+  	window.location.href = "/dups/files/"+_src;
+  	
+	});
+
+
 
 $('.flip').click(function(e) {
 //    alert('clicked this')
@@ -83,7 +93,8 @@ const folderActions = (clicked) =>
     menuVisible = true;
  };
 
-
+const yes_icon='<span class="glyphicon glyphicon-ok"></span>'
+const no_icon='<span class="glyphicon glyphicon-remove"></span>'
 //file right-click menu
 $('.du').contextmenu(function(event)
 	{
@@ -93,13 +104,58 @@ $('.du').contextmenu(function(event)
   clicked=this
   var item_id = this.id;
   var hash_id= $(this).attr('src');
+  var hash_url_str="<a href='/dups/files/"+hash_id
   var size=$(this).attr('size');
+  var master_scan=$(this).attr('master_scan');
+  var master_scan_icon=no_icon;
+  if (master_scan=="True")
+	{
+	   master_scan_icon=yes_icon
+	};
+  var master_changed=$(this).attr('master_changed');
+  var master_changed_icon=no_icon;
+  if (master_changed=="True")
+	{
+	   master_changed_icon=yes_icon
+	};
+  var master_dups=$(this).attr('m_dup')
+  var master_dups_icon=no_icon;
+  var master_dups_count=''
+  if (master_dups=="True"){
+  	master_dups_icon=yes_icon;
+	master_dups_count=' ('+$(this).attr('m_dups')+')'
+	};
+   
   $(".menu-hash").html('<b>Hash:</b>...'+hash_id.substring(50));
-	this.style.fontWeight="bold";
+  this.style.fontWeight="bold";
 	$(".menu-path").html("<b>File:</b> "+this.id);
 	$(".menu-size").html("<b>Size:</b> "+size);
-	$(".menu-scans").html('<p><b>MASTER</b>: Scanned: '+$(this).attr('master_scan')+' Changed:'+$(this).attr('master_changed')+' Dups: '+$(this).attr('m_dup')+' ('+$(this).attr('m_dups')+')');	
-	$(".menu-localscans").html('<p><b>SCAN FOLDER</b>: Scanned: '+$(this).attr('local_scan')+' Duplicate: '+$(this).attr('l_dup')+' Changed:'+$(this).attr('local_changed')+' Dups:'+$(this).attr('l_dup')+' ('+$(this).attr('l_dups')+')'+' Found in Master: '+$(this).attr('hash_in_master'));	
+	$(".menu-scans").html('<p><b>MASTER</b>: Scanned: '+master_scan_icon+' Changed:'+master_changed_icon+' Dups: '+master_dups_icon+master_dups_count);	
+	
+	var local_scan=$(this).attr('local_scan');
+	var local_scan_icon=no_icon;
+	if (local_scan=="True"){local_scan_icon=yes_icon;};
+	var local_changed=$(this).attr('local_changed');
+	var local_changed_icon=no_icon;
+	if (local_changed){local_changed_icon=yes_icon};
+	var local_dups=$(this).attr('l_dup');
+	var local_dups_icon=no_icon;
+	var local_dups_count='';
+	var in_master=$(this).attr('hash_in_master');
+	var in_master_icon=no_icon;
+	if (in_master=="True"){in_master_icon=yes_icon;};
+	
+
+	var list_dups_str=""
+	if (in_master=="True" || local_dups=="True" || master_dups=="True")
+	{	
+	list_dups_str=hash_url_str+"'>List Duplicates</a>";
+	};
+	if (local_dups=="True"){
+  	local_dups_icon=yes_icon;
+	local_dups_count=hash_url_str+"'>("+$(this).attr('l_dups')+")</a>"
+	};
+	$(".menu-localscans").html('<p><b>SCAN FOLDER</b>: Scanned: '+local_scan_icon+' Duplicate: '+local_dups_icon+' Changed:'+local_changed_icon+' Dups:'+local_dups_icon+local_dups_count+' Found in Master: '+in_master_icon+' <p>'+list_dups_str);	
 	$(".scan-folder").hide();
 	$(".master-folder").hide();
 	var rect = this.getBoundingClientRect();
