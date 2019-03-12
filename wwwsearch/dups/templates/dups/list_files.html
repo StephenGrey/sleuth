@@ -44,6 +44,10 @@
 				{% endfor %}				
 				</ul>
 				<input type="submit" name="delete-button"  class="btn btn-info" value="Delete">	
+				<input type="submit" id="move-button" name="move-button"  class="btn btn-info move-button" value="Move">
+				<input type="hidden" class="hash-value" name="hash-value" id="hash-value" value="{{page.hash}}">
+				<input type="hidden" class="destination" name="destination" id="destination" value="something">
+				<input type="hidden" id="to-do" name="action" value="">
 				</form>
 			</div>
 		</div>

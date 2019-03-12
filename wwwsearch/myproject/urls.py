@@ -25,6 +25,7 @@ urlpatterns = [
     url(r'^admin/', admin.site.urls),
     url(r'^ownsearch/',include('ownsearch.urls')),
     url(r'^documents/',include('documents.urls')),
+    url(r'^picker/',include('pickfile.urls')),
     url(r'^scraper/',include('scraper.urls')),
     url(r'^dups/',include('dups.urls')),
     url(r'^whatsapp/',include('whatsapp.urls')),

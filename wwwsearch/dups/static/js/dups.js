@@ -53,7 +53,9 @@ const menu = document.querySelector(".menu");
 let menuVisible = false;
 let clicked=false
 
+if (menu !== null) {
 menu.style.display="none"
+};
 
 const toggleMenu = command => {
 //  var menu=document.getElementById('foo')
@@ -203,6 +205,25 @@ $('.folder-item').contextmenu(function(event)
   clicked=this;
   folderActions(clicked);
   });
+
+$( ".move-button" ).click(
+  function() {
+  	const file_hash=$(".hash-value").attr('value');
+  	newwindow=window.open("/picker/&next_url=/dups/files/"+file_hash,'box','height=400,width=300');
+    if (window.focus) {newwindow.focus()}
+    return false;
+    
+});
+
+function HandlePopupResult(result) {
+    //alert("result of popup is: " + result);
+    $("#destination").attr("value",result);
+    $("#to-do").attr("value","move");
+    //alert($("#destination").attr("value"));
+    $("#duplicates-form").submit();
+
+}
+
 
 $(".master-folder").click(
   function() {

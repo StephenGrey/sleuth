@@ -46,6 +46,7 @@ INSTALLED_APPS = [
     'ownsearch',
     'whatsapp',
     'dups',
+    'pickfile',
     'documents.apps.DocumentsConfig',
     'scraper.apps.ScraperConfig',
 ]

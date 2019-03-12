@@ -158,19 +158,34 @@ def file_dups(request,_hash):
     duplist_master,duplist_local="",""
     page=pages.FilesPage(request=request,default_master=DEFAULT_MASTERINDEX_PATH)
     page.get_stored(MEDIAROOT)
+    destination=request.session.get('destination')
     page.hash=None
     if file_utils.safe_hash(_hash):
         page.hash=_hash
-        
+        log.info(f'Displaying dups for hash: {_hash}')
         if request.method=='POST':
+            log.debug(request.POST)
             checklist=request.POST.getlist('checked')
             if request.POST.get('delete-button')=='Delete':
                 log.debug(f'Deleting: {checklist}')
                 for f in checklist:
                     result=file_utils.delete_file(f)
                     log.info(f'Deleted: {f} Result: {result}')
-                    if page.masterspecs:
-                        page.masterspecs.delete_record(f)
+                    page.remove_file(f)
+            elif request.POST.get('action')=='move':
+                reldest=request.POST.get('destination')
+                destination=os.path.join(MEDIAROOT,reldest)
+                assert os.path.exists(destination)
+                request.session['destination']=reldest
+                
+                for f in checklist:
+                    filename=os.path.basename(f)
+                    filedest=os.path.join(destination,filename)
+                    log.debug(f'Moving ... {f} to {filedest}')
+                    result=file_utils.move_file(f,filedest)
+                    log.info(f'Moved.. \'{f}\' to \'{filedest}\' result:{result}')
+                    page.move_file(f,filedest)
+                    
                         
         log.debug(page.__dict__)
         if page.masterspecs:
@@ -182,7 +197,7 @@ def file_dups(request,_hash):
         
         if duplist_local or duplist_master:
             return render(request,'dups/list_files.html',
-                                   {'page': page, 'files_master': duplist_master,'files_local':duplist_local,})
+                                   {'page': page, 'files_master': duplist_master,'files_local':duplist_local,'default_destination':destination})
         else:
             return HttpResponse('no dups')
     return HttpResponse('error')

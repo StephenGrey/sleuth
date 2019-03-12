@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-import os, logging,hashlib,re,datetime,unicodedata,pickle,time,sys,traceback
+import os, logging,hashlib,re,datetime,unicodedata,pickle,time,sys,traceback,shutil
 from pathlib import Path
 from collections import defaultdict
 from . import win_utils, klepto_archive
@@ -235,6 +235,16 @@ class PathIndex:
             #log.debug('no hash_index')
             pass
     
+    def hash_append(self,_hash,path):
+        try:
+            duplist=self.hash_index[_hash]
+            filespec=self.files.get(path)
+            duplist.append(filespec)
+            self.hash_index[_hash]=duplist
+        except AttributeError:
+            #log.debug('no hash_index')
+            pass
+        
 #        self.save()    
     def check_pickle(self):
         return os.path.exists(os.path.join(self.folder_path,SPECS_FILENAME))
@@ -479,6 +489,7 @@ class BigFileIndex(PathIndex):
         try:
             del(self.files[docpath]) #delete from the memory cache
         except KeyError:
+            log.debug('not in index')
             pass
 #        try:
 #            del(self.files.archive[docpath]) #delete from the disk cache
@@ -533,7 +544,7 @@ class HashIndex(PathIndex):
 
 class Index_Maker():
 #index_maker
-    def __init__(self, path,index_collections,specs=None,masterindex=None, rootpath=DOCSTORE, hidden_files=False,max_depth=1,check_index=True):
+    def __init__(self, path,index_collections,specs=None,masterindex=None, rootpath=DOCSTORE, hidden_files=False,max_depth=1,check_index=True,next_url=''):
         log.info(f'Indexmaker PATH: {path}, ROOTPATH: {rootpath}')
         def _index(root,depth,index_collections,max_depth=1):
             log.debug(f'Root :{root} Depth: {depth}')
@@ -574,6 +585,7 @@ class Index_Maker():
                             _stored,_indexed=model_index(t,index_collections)
                         else:
                             _stored,_indexed=None,None
+                        
                         dupcheck=DupCheck(t,specs,masterindex)
                         #log.debug(f'Local check: {t},indexed: {_indexed}, stored: {_stored}')
                         #log.debug(f'Dupcheck: {dupcheck.__dict__}')
@@ -690,17 +702,18 @@ class Dups_Lister(Dups_Index_Maker):
     
     
     
-    
-
-
 
 def changed(oldspecs):
     if not oldspecs.get('folder'): #ignore folders
         if 'path' not in oldspecs:
             return True
-        docpath=oldspecs['path']
-        newspecs=FileSpecs(docpath,scan_contents=False)
-        if oldspecs['last_modified'] != newspecs.last_modified or oldspecs['length'] != newspecs.length:
+        try:
+            docpath=oldspecs['path']
+            newspecs=FileSpecs(docpath,scan_contents=False)
+            if oldspecs['last_modified'] != newspecs.last_modified or oldspecs['length'] != newspecs.length:
+                return True
+        except Exception as e:
+            log.debug(e)
             return True
     return False
 
@@ -836,6 +849,16 @@ def delete_file(path):
     else:
         return False
 
+#MOVE FILES
+
+def move_file(source,dest):
+    """move file, no overwrite"""
+    if os.path.exists(source) and not os.path.exists(dest):
+        shutil.move(source,dest)
+        return True
+    else:
+        return False
+    
 
 
 #PATH METHODS
@@ -973,6 +996,9 @@ def safe_hash(_hash):
 def model_index(path,index_collections,hashcheck=False):
     """check if True/False file in collection is in database, return File object"""
     
+    if not index_collections:
+        return None,None
+    
     stored=File.objects.filter(filepath=path, collection__in=index_collections)
     #log.debug(stored)
     if stored:
@@ -1009,6 +1035,8 @@ def find_collections(path):
 
 def inside_collection(path,_collections):
     """return is collection path or inside collection"""
+    if not _collections:
+        return False,False
     for collection in _collections:
 #        log.debug(path)
 #        log.debug(collection.path)
@@ -1033,8 +1061,6 @@ class DupCheck:
         self.master_dup=None
         self.check()
         
-        
-
     def check(self):
         self.contents_hash=''
         if self.masterindex:

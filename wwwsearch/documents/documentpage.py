@@ -145,12 +145,57 @@ class FilesPage(CollectionPage):
             log.debug(e)
             self.masterspecs=None
         
+    def remove_file(self,filepath):
+        if self.masterspecs:
+            self.masterspecs.delete_record(filepath)
+        if self.specs:
+            self.specs.delete_record(filepath)
+
+    def move_file(self,filepath,newpath):
+        spec=None
         
+        #get specs, if stored, and remove entry on source file
+        if self.masterspecs:
+            log.debug(self.masterspecs.folder_path)
+            if new_is_inside(filepath,self.masterspecs.folder_path):
+                log.debug('source inside masterfolder')
+                spec=self.masterspecs.files.get(filepath)
+                log.debug(spec)
+                
+        if self.specs:
+                if new_is_inside(filepath,self.specs.folder_path):
+                    if not spec:
+                        spec=self.masterspecs.files.get(filepath)
+        self.remove_file(filepath)
         
-        
+        #now add specs on destination fle
+        if self.masterspecs:
+            if new_is_inside(newpath,self.masterspecs.folder_path):
+                log.debug('destination in master folder')
+                self.masterspecs.update_record(newpath) #add the specs to the index
+                try:
+                    _hash=self.masterspecs.files[newpath].get('contents_hash')
+                    log.debug(_hash)
+                    if _hash:
+                        self.masterspecs.hash_append(_hash,newpath)
+                except KeyError:
+                    pass
+                self.masterspecs.sync()
+            #self.masterspecs.hash_scan()
+            
+        if self.specs:
+            if new_is_inside(newpath,self.specs.folder_path):
+                self.specs.update_record(newpath)
+                try:
+                    _hash=self.specs.files[newpath].get('contents_hash')
+                    log.debug(_hash)
+                    if _hash:
+                        self.specs.hash_append(_hash,newpath)
+                except KeyError:
+                    pass
+                self.specs.sync()
 
 
-    
 class SolrFilesPage(CollectionPage):
     pass
         

@@ -1,0 +1,62 @@
+{% load static %}
+
+  <link rel="stylesheet" type="text/css" href="{% static 'css/bootstrap1.min.css' %}" />
+  <link rel="stylesheet" type="text/css" href="{% static 'css/bootstrap-theme.min.css' %}" />
+  <link rel="stylesheet" type="text/css" href="{% static 'css/jquery-ui.css' %}" />
+  <script src="{% static 'js/jquery.min.js' %}"></script>
+  <script src="{% static 'js/bootstrap.min.js' %}"></script>  
+  <script src="{% static 'js/jquery-ui.min.js' %}"></script>
+
+{% block body_content %}
+		<h4>Select a Folder</h4>
+		<p>
+		<span class="rootpath" path="{{rootpath}}"></span>
+		<div class='nav-container'>		
+		<ol class="breadcrumb bread1" id="{{path}}">
+		  <li><a href="/picker/{%if next_url%}&next_url={{next_url}}
+			{% endif %}">Home</a></li>
+		{% for fullpath,relpath,basename,hash in tags %}  
+		  <li><a href="/picker/{{fullpath}}{%if next_url%}&next_url={{next_url}}
+			{% endif %}">{{basename}}</a></li>
+		{% endfor %} 
+		<p><button onclick="return CloseMySelf();">Select</button>
+		</ol>
+
+		</div>
+		
+		<p>
+		<div class="panel-group" id="accordion" role="tablist" aria-multiselectable="true">
+		  <div class="panel panel-default">
+				Subfolders:
+				<ul>
+				{% for f in subfiles %}
+				{{ f }}
+				{% endfor %}
+				</ul>
+			</div>
+		    <button type="button" class="close" aria-label="Close">
+ 				 <span aria-hidden="true">&times;</span>
+			</button>
+
+		</div>
+		
+
+{% endblock %}
+
+
+{% block javascript %}
+<script>
+
+        
+function CloseMySelf() {
+    try {
+        var rootpath= $(".rootpath").attr('path');
+        window.opener.HandlePopupResult(rootpath); //sender.getAttribute(rootpath)
+    }
+    catch (err) {}
+    window.close();
+    return false;
+}
+</script>
+{% endblock %}
+
