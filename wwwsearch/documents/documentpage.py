@@ -146,11 +146,14 @@ class FilesPage(CollectionPage):
             self.masterspecs=None
         
     def remove_file(self,filepath):
-        if self.masterspecs:
+        try:
             self.masterspecs.delete_record(filepath)
-        if self.specs:
+        except AttributeError:
+            pass
+        try:
             self.specs.delete_record(filepath)
-
+        except AttributeError:
+            pass
     def move_file(self,filepath,newpath):
         spec=None
         

@@ -36,6 +36,8 @@ def index(request,path='',duplist=False):
     	    return HttpResponse ("Missing 'Dups' configuration information in user.settings : set the 'rootpath' and 'masterindex_path' variables")
     
     if request.method == 'POST':
+       log.info(request.POST)
+       checklist=request.POST.getlist('checkbox')
        if 'scan' in request.POST:
            log.debug('scanning')
            page.local_scanpath=request.POST.get('local-path')
@@ -58,11 +60,39 @@ def index(request,path='',duplist=False):
            request.session['masterfolder']=page.masterindex_path
            return redirect('dups_index',path=path)           
 
+    page.get_stored(MEDIAROOT)
+     
+    if request.method == 'POST':
+        if request.POST.get('delete-button')=='Delete':
+            log.debug(f'Deleting: {checklist}')
+            for f in checklist:
+                result=file_utils.delete_file(f)
+                log.info(f'Deleted: {f} Result: {result}')
+                if result:
+                    page.remove_file(f)
+
+        elif request.POST.get('action')=='move':
+            reldest=request.POST.get('destination')
+            destination=os.path.join(MEDIAROOT,reldest)
+            try:
+                assert os.path.exists(destination)
+                request.session['destination']=reldest
+                
+                for f in checklist:
+                    filename=os.path.basename(f)
+                    filedest=os.path.join(destination,filename)
+                    log.debug(f'Moving ... {f} to {filedest}')
+                    result=file_utils.move_file(f,filedest)
+                    log.info(f'Moved.. \'{f}\' to \'{filedest}\' result:{result}')
+                    page.move_file(f,filedest)
+            except AssertionError:
+                pass
+                       
+       
+
     #page.masterform=forms.MasterForm()
     
-    page.get_stored(MEDIAROOT)
     
-    #log.debug(page.masterspecs)
     
     if os.path.exists(os.path.join(MEDIAROOT,path)):
         #page.masterpath=masterindex_path
@@ -171,7 +201,8 @@ def file_dups(request,_hash):
                 for f in checklist:
                     result=file_utils.delete_file(f)
                     log.info(f'Deleted: {f} Result: {result}')
-                    page.remove_file(f)
+                    if result:
+                        page.remove_file(f)
             elif request.POST.get('action')=='move':
                 reldest=request.POST.get('destination')
                 destination=os.path.join(MEDIAROOT,reldest)

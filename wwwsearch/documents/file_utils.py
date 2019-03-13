@@ -844,7 +844,10 @@ def check_master_orphans(folder,scan_index=None,master_index=None):
 
 def delete_file(path):
     if os.path.exists(path):
-        send2trash(path)
+        try:
+            send2trash(path)
+        except Exception as e:
+            log.error(e)
         return not os.path.exists(path)
     else:
         return False
