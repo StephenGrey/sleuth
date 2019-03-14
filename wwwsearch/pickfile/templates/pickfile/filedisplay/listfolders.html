@@ -51,6 +51,7 @@
 function CloseMySelf() {
     try {
         var rootpath= $(".rootpath").attr('path');
+        //alert('returning: '+rootpath);
         window.opener.HandlePopupResult(rootpath); //sender.getAttribute(rootpath)
     }
     catch (err) {}

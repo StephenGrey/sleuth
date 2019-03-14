@@ -161,7 +161,6 @@ class FilesPage(CollectionPage):
         if self.masterspecs:
             log.debug(self.masterspecs.folder_path)
             if new_is_inside(filepath,self.masterspecs.folder_path):
-                log.debug('source inside masterfolder')
                 spec=self.masterspecs.files.get(filepath)
                 log.debug(spec)
                 

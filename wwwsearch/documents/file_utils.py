@@ -856,11 +856,14 @@ def delete_file(path):
 
 def move_file(source,dest):
     """move file, no overwrite"""
-    if os.path.exists(source) and not os.path.exists(dest):
-        shutil.move(source,dest)
-        return True
-    else:
+    if os.path.exists(dest):
+        log.info(f'Move failed: destination file \'{dest}\' exists already.')
         return False
+    if not os.path.exists(source):
+        log.info(f'Move failed: source file \'{source}\' does not exist')
+        return False
+    shutil.move(source,dest)
+    return True
     
 
 

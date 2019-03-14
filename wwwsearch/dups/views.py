@@ -65,7 +65,8 @@ def index(request,path='',duplist=False):
     if request.method == 'POST':
         if request.POST.get('delete-button')=='Delete':
             log.debug(f'Deleting: {checklist}')
-            for f in checklist:
+            for relfile in checklist:
+                f=os.path.join(MEDIAROOT,relfile)
                 result=file_utils.delete_file(f)
                 log.info(f'Deleted: {f} Result: {result}')
                 if result:
@@ -79,12 +80,14 @@ def index(request,path='',duplist=False):
                 request.session['destination']=reldest
                 
                 for f in checklist:
-                    filename=os.path.basename(f)
+                    source=os.path.join(MEDIAROOT,f)
+                    filename=os.path.basename(source)
                     filedest=os.path.join(destination,filename)
-                    log.debug(f'Moving ... {f} to {filedest}')
-                    result=file_utils.move_file(f,filedest)
-                    log.info(f'Moved.. \'{f}\' to \'{filedest}\' result:{result}')
-                    page.move_file(f,filedest)
+                    log.debug(f'Moving ... {source} to {filedest}')
+                    result=file_utils.move_file(source,filedest)
+                    log.info(f'Moved.. \'{source}\' to \'{filedest}\' result:{result}')
+                    if result:
+                        page.move_file(source,filedest)
             except AssertionError:
                 pass
                        
@@ -215,7 +218,8 @@ def file_dups(request,_hash):
                     log.debug(f'Moving ... {f} to {filedest}')
                     result=file_utils.move_file(f,filedest)
                     log.info(f'Moved.. \'{f}\' to \'{filedest}\' result:{result}')
-                    page.move_file(f,filedest)
+                    if result:
+                        page.move_file(f,filedest)
                     
                         
         log.debug(page.__dict__)

@@ -4,7 +4,7 @@ $('.glyphicon-duplicate').click(function(e) {
     
     
     var $this = $(this);
-    var _src = $(this).closest("li[src]").attr('src');
+    var _src = $(this).closest("div[src]").attr('src');
     //$.post( ,{'hash':'a hash'}, function(data)
   	window.location.href = "/dups/files/"+_src;
   	
@@ -27,7 +27,7 @@ $('.glyphicon-duplicate').click(function(e) {
 $('.glyphicon-saved').click(function(e) {
     //alert('clicked this');
     var $this = $(this);
-    var _src = $(this).closest("li[src]").attr('src');
+    var _src = $(this).closest("div[src]").attr('src');
     //$.post( ,{'hash':'a hash'}, function(data)
   	window.location.href = "/dups/files/"+_src;
   	
@@ -216,7 +216,7 @@ $( ".move-button" ).click(
 });
 
 function HandlePopupResult(result) {
-    //alert("result of popup is: " + result);
+//    alert("result of popup is: " + result);
     $("#destination").attr("value",result);
     $("#to-do").attr("value","move");
     //alert($("#destination").attr("value"));
