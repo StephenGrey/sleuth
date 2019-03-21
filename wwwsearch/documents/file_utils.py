@@ -161,6 +161,7 @@ class PathIndex:
                 self.update_results()
                 
             for filename in fileList: #now through every file in the folder/subfolder
+                log.debug(filename)
                 try:
                     self.counter+=1
                     if self.ignore_pattern and filename.startswith(self.ignore_pattern):
@@ -409,6 +410,8 @@ class PathIndex:
             docspec.update({'last_modified':spec.last_modified})
             docspec.update({'length':spec.length})
             if scan_contents:
+                if spec.get('length',0) > 1000000:
+                    log.debug(f'checking contents of large file {path} ')
                 docspec.update({'contents_hash':spec.contents_hash})
             self.files[path]=docspec
         else:
