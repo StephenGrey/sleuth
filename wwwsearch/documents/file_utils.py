@@ -338,9 +338,10 @@ class PathIndex:
                 self.filelist.remove(docpath)  #self.filelist - disk files - leaving list of new files
             except ValueError:
                 if not oldfile.get('folder'):
-                    log.debug(f'Filepath {docpath} no longer exists - delete from index')
+                    log.debug(f'Filepath {docpath} no longer exists or moved- delete from index')
                     deletedfiles.append(docpath)
                     continue                    
+            log.debug(f'\'{docpath}\' in _index still exists')
             if changed(oldfile):
                 log.info(f'File \'{docpath}\' is modified; updating hash of contents')
                 self.update_record(docpath)
@@ -536,7 +537,18 @@ class StoredBigFileIndex(BigFileIndex):
         self.hash_scan()
         self.files.load()
 
-
+def check_paths(_index):
+    """deal with poorly formed windows paths"""
+    missing=[]
+    for path in [p for p in _index.files][:1000000]:
+        if path.startswith(r"R:/$RECYCLE.BIN"):
+            continue
+        if not os.path.exists(path):
+            log.debug(f'Path: \'{path}\' does not exist')
+            missing.append(path)
+    return missing
+        
+        
 
 
            
