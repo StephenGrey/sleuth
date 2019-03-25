@@ -17,7 +17,7 @@ from ownsearch.hashScan import hashfile256 as hexfile
 from ownsearch.hashScan import FileSpecTable as filetable
 from .file_utils import directory_tags
 import datetime, hashlib, os, logging, requests, json 
-from . import indexSolr, updateSolr, solrDeDup, solrcursor,correct_paths,documentpage,redis_cache,file_utils
+from . import indexSolr, updateSolr, index_check, solrDeDup, solrcursor,correct_paths,documentpage,redis_cache,file_utils
 import ownsearch.solrJson as solr
 from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.auth.decorators import login_required
@@ -38,6 +38,7 @@ def index(request):
         page=documentpage.CollectionPage()
         job_id=request.session.get('tasks')
         page.maxsize=indexSolr.MAXSIZE_MB
+        page.timeout=indexSolr.TIMEOUT
         try:
             page.selected_collection=int(request.session.get('collection_selected'))
         except:
@@ -91,7 +92,7 @@ def display_results(request,job_id=''):
             #failed=ast.literal_eval(json.loads(failed))
     except KeyError:
         failed=None
-    #results['failed_list']=failed
+    results['failed_list']=failed
     log.debug(f'Failed list {failed}')
     
     skipped=results.get('skipped_list')
@@ -107,11 +108,11 @@ def display_results(request,job_id=''):
 
 @staff_member_required()
 def listfiles(request):
-
     job_id=request.session.get('tasks')
     log.info(f'Stored jobs: {job_id}')
     page=documentpage.CollectionPage()
     page.maxsize=indexSolr.MAXSIZE_MB
+    page.timeout=indexSolr.TIMEOUT
     try:
         mycore=getcores(page,request)
     except NoIndexSelected:
@@ -137,6 +138,14 @@ def listfiles(request):
                     indexSolr.MAXSIZE_MB=page.maxsize
                     indexSolr.MAXSIZE=_maxsize
             
+            if 'timeout' in request.POST:
+                timeout=int(request.POST.get('timeout'))
+                if timeout != page.timeout:
+                    page.timeout=timeout
+                    log.debug(f'New maxsize set to {timeout}')
+                    configs.userconfig.update('Solr','solrtimeout',str(timeout))
+                    indexSolr.TIMEOUT=page.timeout
+                                
             if 'list' in request.POST:
             #get the files in selected collection
                 filelist=File.objects.filter(collection=thiscollection)
@@ -180,7 +189,7 @@ def listfiles(request):
     #CURSOR SEARCH OF SOLR INDEX
             elif 'solrcursor' in request.POST:
                 mycore.ping()
-                match,skipped,failed=indexcheck(thiscollection,mycore) #GO SCAN THE SOLR INDEX
+                match,skipped,failed=index_check.index_check(thiscollection,mycore) #GO SCAN THE SOLR INDEX
                 
                 results={
                 'task':'check_index',
@@ -255,97 +264,103 @@ def list_solrfiles(request,path=''):
 @staff_member_required()
 def file_display(request,path=''):
     """display files in a directory"""
+    log.debug(path)
+    normpath=os.path.normpath(path) if path else '' #cope with windows filepaths
+    log.debug(path)
     #get the core , or set the the default    
+<<<<<<< Updated upstream
     page=documentpage.FilesPage()
+    log.debug(request.POST)
+=======
+    page=documentpage.FilesPage(path=normpath)
+>>>>>>> Stashed changes
     page.getcores(request.user,request.session.get('mycore')) #arguments: user, storedcore
+    page.check_index=True if request.session.get('check_index') else False
     page.chooseindexes(request.method,request_postdata=request.POST)
+    log.debug('CORE ID: {}'.format(page.coreID))
+    request.session['mycore']=page.coreID
+    request.session['check_index']=page.check_index
     page.get_collections() #filter authorised collections
 #        log.debug('Core set in request: {}'.format(request.session['mycore']))
-    log.debug('CORE ID: {}'.format(page.coreID))    
-        
-    c = file_utils.Index_Maker(path,page.authorised_collections)._index
+    path_info=request.META.get('PATH_INFO')
+    request.session["back_url"]=path_info  
+    
+#    is_collection_root=None
+#    is_inside_collection=None
+<<<<<<< Updated upstream
+    c = file_utils.Index_Maker(path,page.authorised_collections,check_index=page.check_index)._index
+=======
+    c = file_utils.Index_Maker(normpath,page.authorised_collections)._index
+>>>>>>> Stashed changes
     if path:
         rootpath=path
-        tags=directory_tags(path)
+        tags=directory_tags(normpath)
     else:
         rootpath=""
         tags=None
     return render(request,'documents/filedisplay/listindex.html',
-         {'subfiles': c, 'rootpath':rootpath, 'tags':tags, 'form':page.form, 'path':path})
+         {'subfiles': c, 'rootpath':rootpath, 'tags':tags, 'form':page.form, 'path':path, 'check_index':page.check_index})
 
 
-#checking for what files in existing solrindex
-def indexcheck(collection,thiscore):
+@staff_member_required()
+def list_collections(request):
+    """list and edit collections for an index"""
+    page=documentpage.FilesPage()
+    log.debug(request.POST)
+    page.getcores(request.user,request.session.get('mycore')) #arguments: user, storedcore
+    page.chooseindexes(request.method,request_postdata=request.POST)
+    log.debug('CORE ID: {}'.format(page.coreID))
+    request.session['mycore']=page.coreID
+    page.get_collections() #filter authorised collections
+#        log.debug('Core set in request: {}'.format(request.session['mycore']))
+    path_info=request.META.get('PATH_INFO')
+    request.session["back_url"]=path_info  
+    
+    if request.method=='POST':
+        page.collection_updates(request.POST) #action any changes to collections
+        return redirect('list_collections')
+    else:
+        return render(request,'documents/listcollections.html',
+         {'page': page})
 
-    #first get solrindex ids and key fields
-    try:#make a dictionary of filepaths from solr index
-        indexpaths=solrcursor.cursor(thiscore)
-    except Exception as e:
-        log.warning('Failed to retrieve solr index')
-        log.warning(str(e))
-        return 0,0,0
 
-    #now compare file list with solrindex
-    if True:
-        counter=0
-        skipped=0
-        failed=0
-        #print(collection)
-        filelist=File.objects.filter(collection=collection)
 
-        #main loop - go through files in the collection
-        for file in filelist:
-            relpath=os.path.relpath(file.filepath,start=BASEDIR) #extract the relative path from the docstore
-            hash=file.hash_contents #get the stored hash of the file contents
-            #print (file.filepath,relpath,file.id,hash)
 
-	#INDEX CHECK: METHOD ONE : IF RELATIVE PATHS STORED MATCH
-            if relpath in indexpaths:  #if the path in database in the solr index
-                solrdata=indexpaths[relpath][0] #take the first of list of docs with this path
-                #print ('PATH :'+file.filepath+' found in Solr index', 'Solr \'id\': '+solrdata['id'])
-                file.indexedSuccess=True
-                file.solrid=solrdata.id
-                file.save()
-                counter+=1
-                continue
-        #INDEX CHECK: METHOD TWO: CHECK IF FILE STORED IN SOLR INDEX UNDER CONTENTS HASH
-            elif not file.is_folder:
-                try:
-                    log.debug('trying hash method')
-                    #is there a stored hash, if not get one
-                    if not hash:
-                        hash=hexfile(file.filepath)
-                        file.hash_contents=hash
-                        file.save()
-                    #now lookup hash in solr index
-                    log.debug('looking up hash : '+hash)
-                    solrresult=solr.hashlookup(hash,thiscore).results
-                    log.debug(solrresult)
-                except Exception as e:
-                    log.error(e)
-                    solrresult=''
-                
-                if len(solrresult)>0:
-                    #if some files, take the first one
-                    solrdata=solrresult[0]
-                    log.debug('solrdata: {}'.format(vars(solrdata)))
-                    file.indexedSuccess=True
-                    file.solrid=solrdata.id
-                    file.save()
-                    counter+=1
-                    log.debug(f'PATH : {file.filepath} indexed successfully (HASHMATCH) Solr \'id\': {solrdata.id}')
-                    
-                    continue
-                    
-            #NO MATCHES< RETURN FAILURE
+@staff_member_required()
+def make_collection(request,path='',confirm=False):
+        #get the core , or set the the default    
+    log.debug(path)
+    path=os.path.normpath(path) if path else ''
+    log.debug(f'Attempting to add collection with path {path}, confirmed: {confirm}, with rootpath {BASEDIR}')
+    page=documentpage.MakeCollectionPage(relpath=path,rootpath=BASEDIR)
+    path_info=request.session.get("back_url")
+    page.live_update=request.session.get("live_update")
+    page.back_url=path_info
+    log.debug(request.POST)
+    page.getcores(request.user,request.session.get('mycore')) #arguments: user, storedcore
+    page.chooseindexes(request.method,request_postdata=request.POST)
+    page.get_collections() #filter authorised collections
+    page.make_sources(request.method,request_postdata=request.POST,source_initial=request.session.get('mysource'))
+    #log.debug(f'{page.authorised_collections_relpaths}')
+    log.debug(f'Live update {page.live_update}')
+    try:
+        page.check_path()
+        if confirm:
+            page.make_collection()
+            page.live_update=None
 
-            log.info(file.filepath+'.. not found in Solr index')
-            file.indexedSuccess=False
-            file.indexedTry=False #reset indexing try flag
-            file.solrid='' #wipe any stored solr id; DEBUG: this wipes also oldsolr ids scheduled for delete
-            file.save()
-            skipped+=1
-                
-                    
-        return counter,skipped,failed
+    except documentpage.NoValidCollection as e:
+        page.error=f"{e}"
+    if page.error:
+        log.debug(page.error)
+    request.session['mycore']=page.coreID
+    request.session['mysource']=page.sourceID
+    request.session['live_update']=page.live_update
+    return render(request,'documents/makecollection.html',
+         {'path':path,'source_form':page.source_form,'form':page.form, 'index':page.mycore.name, 'error':page.error, 'back_url':page.back_url,'success':page.success})
 
+@staff_member_required()
+def cancel_collection(request,path=''):
+    path=os.path.normpath(path) if path else '' #cope with windows filepaths
+    return render(request,'documents/cancelcollection.html',
+         {'path':path})
