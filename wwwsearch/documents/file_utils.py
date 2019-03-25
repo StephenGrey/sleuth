@@ -521,6 +521,7 @@ class StoredPathIndex(PathIndex):
             raise DoesNotExist('No stored filespecs')
 
 class StoredBigFileIndex(BigFileIndex):
+    """retrieved stored file index without rescan"""
     def __init__(self,folder,specs_dict=True,scan_contents=True,ignore_pattern='X-',label='master'):
         self.folder_path=folder
         self.ignore_pattern=ignore_pattern
