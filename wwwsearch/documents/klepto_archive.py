@@ -54,5 +54,3 @@ def set_lock(archive):
         stored['locked']=True
         CACHE[path].update(stored)
         
-
-        

@@ -48,17 +48,17 @@ class IndexTester(TestCase):
         
 
         #make a test collection
-        samplecollection,created=Collection.objects.get_or_create(path=os.path.join('some','path','somewhere'),core=self.sampleindex,indexedFlag=False,source=self.testsource)
+        samplecollection,created=Collection.objects.get_or_create(path=os.path.join('some','path','somewhere'),core=self.sampleindex,live_update=False,source=self.testsource)
         self.sample_collection=samplecollection
 
 
-        anothercollection=Collection.objects.get_or_create(path=os.path.join('some','different','path','somewhere'),core=self.sampleindex,indexedFlag=False,source=self.testsource)
+        anothercollection=Collection.objects.get_or_create(path=os.path.join('some','different','path','somewhere'),core=self.sampleindex,source=self.testsource,live_update=False)
 #        anothercollection.save()
         
         #DUPS
         self.testdups_path=os.path.abspath(os.path.join(os.path.dirname(__file__), '..','tests','testdocs','dups'))
 
-        collectiondups=Collection(path=self.testdups_path,core=self.sampleindex,indexedFlag=False,source=self.testsource)
+        collectiondups=Collection(path=self.testdups_path,core=self.sampleindex,source=self.testsource,live_update=False)
         collectiondups.save()
         self.collectiondups=collectiondups
         
@@ -108,7 +108,7 @@ class ExtractorTest(ExtractTest):
         self.assertTrue(status)
         
         #make non-existent collection
-        collection=Collection(path=os.path.join('some','path','somewhere'),core=self.sampleindex,indexedFlag=False,source=self.testsource)
+        collection=Collection(path=os.path.join('some','path','somewhere'),core=self.sampleindex,source=self.testsource,live_update=False)
         collection.save()
         ext=indexSolr.Extractor(collection,mycore,useICIJ=self.icij_extract)
         #NOTHING HAPPENS ON EMPTY FILELIST
@@ -214,7 +214,7 @@ class ExtractorTest(ExtractTest):
         updateSolr.delete('d5cf9b334b0e479d2a070f9c239b154bf1a894d14f2547b3c894f95e6b0dad67',mycore)
         updateSolr.delete('4be826ace55d600ee70d7a4335ca26abc1b3e22dee62935c210f2c80ea5ba0d0',mycore)
 
-        collection,res=Collection.objects.get_or_create(path=testchanges_path,core=self.sampleindex,indexedFlag=False,source=self.testsource)
+        collection,res=Collection.objects.get_or_create(path=testchanges_path,core=self.sampleindex,source=self.testsource,live_update=False)
         self.assertTrue(res)
 
         scanfiles=updateSolr.scandocs(collection,docstore=self.docstore) 
@@ -240,7 +240,7 @@ class ExtractorTest(ExtractTest):
         updateSolr.delete('4be826ace55d600ee70d7a4335ca26abc1b3e22dee62935c210f2c80ea5ba0d0',mycore)
 
 
-        collection,res=Collection.objects.get_or_create(path=testchanges_path,core=self.sampleindex,indexedFlag=False,source=self.testsource)
+        collection,res=Collection.objects.get_or_create(path=testchanges_path,core=self.sampleindex,source=self.testsource,live_update=False)
         self.assertTrue(res)
 
         scanfiles=updateSolr.scandocs(collection,docstore=self.docstore) 
@@ -280,7 +280,7 @@ class ExtractorTest(ExtractTest):
         updateSolr.delete('4be826ace55d600ee70d7a4335ca26abc1b3e22dee62935c210f2c80ea5ba0d0',mycore)
 
 
-        collection,res=Collection.objects.get_or_create(path=testchanges_path,core=self.sampleindex,indexedFlag=False,source=self.testsource)
+        collection,res=Collection.objects.get_or_create(path=testchanges_path,core=self.sampleindex,source=self.testsource,live_update=False)
         self.assertTrue(res)
 
         scanfiles=updateSolr.scandocs(collection,docstore=self.docstore) 
@@ -318,7 +318,7 @@ class ExtractorTest(ExtractTest):
     def test_extract_folder(self):
         """extract a folder reference"""
         testfolders_path=os.path.abspath(os.path.join(os.path.dirname(__file__), '..','tests','testdocs','emptyfolders'))
-        collection=Collection(path=testfolders_path,core=self.sampleindex,indexedFlag=False,source=self.testsource)
+        collection=Collection(path=testfolders_path,core=self.sampleindex,source=self.testsource,live_update=False)
         collection.save()
         mycore=solrJson.SolrCore('tests_only')
         scanfiles=updateSolr.scandocs(collection,docstore=self.docstore) 
@@ -336,7 +336,7 @@ class ICIJFolderTest(IndexTester):
         self.makebase()
         _relpath="mixed_folder"
         self._path=os.path.abspath(os.path.join(os.path.dirname(__file__), '../tests/testdocs', _relpath))
-        self.collection,created=Collection.objects.get_or_create(path=self._path,core=self.sampleindex,indexedFlag=False,source=self.testsource)
+        self.collection,created=Collection.objects.get_or_create(path=self._path,core=self.sampleindex,source=self.testsource,live_update=False)
         self.assertTrue(created)
         
     def test_folder(self):
@@ -784,7 +784,7 @@ class ExtractFileTest(ExtractTest):
 
     def test_updatefiledata(self):
         #make non-existent collection
-        collection=Collection(path='some/path/somewhere',core=self.sampleindex,indexedFlag=False,source=self.testsource)
+        collection=Collection(path='some/path/somewhere',core=self.sampleindex,source=self.testsource,live_update=False)
         collection.save()
         testchanges_path=os.path.abspath(os.path.join(os.path.dirname(__file__),'..','tests','testdocs','changes_and_dups'))
         

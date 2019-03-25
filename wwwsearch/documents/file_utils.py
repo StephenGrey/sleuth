@@ -409,6 +409,8 @@ class PathIndex:
             docspec.update({'last_modified':spec.last_modified})
             docspec.update({'length':spec.length})
             if scan_contents:
+                if spec.length > 1000000:
+                    log.debug(f'checking contents of large file {path} ')
                 docspec.update({'contents_hash':spec.contents_hash})
             self.files[path]=docspec
         else:
@@ -521,6 +523,7 @@ class StoredPathIndex(PathIndex):
             raise DoesNotExist('No stored filespecs')
 
 class StoredBigFileIndex(BigFileIndex):
+    """retrieved stored file index without rescan"""
     def __init__(self,folder,specs_dict=True,scan_contents=True,ignore_pattern='X-',label='master'):
         self.folder_path=folder
         self.ignore_pattern=ignore_pattern
