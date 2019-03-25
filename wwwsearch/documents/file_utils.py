@@ -410,7 +410,7 @@ class PathIndex:
             docspec.update({'last_modified':spec.last_modified})
             docspec.update({'length':spec.length})
             if scan_contents:
-                if spec.get('length',0) > 1000000:
+                if spec.length > 1000000:
                     log.debug(f'checking contents of large file {path} ')
                 docspec.update({'contents_hash':spec.contents_hash})
             self.files[path]=docspec

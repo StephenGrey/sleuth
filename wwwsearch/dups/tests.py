@@ -14,6 +14,9 @@ class Dups(IndexTester):
     def setUp(self):
         
         self.makebase()
+        self.dups2_path=os.path.abspath(os.path.join(os.path.dirname(__file__), '..','tests','testdocs','dups_tree'))
+
+        
         
     def test_indexmaker(self):
         index_collections=Collection.objects.all()
@@ -59,7 +62,7 @@ class Dups(IndexTester):
         
     
     def test_stored_dups(self):
-        _folder=os.path.join(self.testdups_path,'dups_tree')
+        _folder=os.path.join(self.dups2_path)
         self.assertTrue(os.path.exists(_folder))
 #        self.assertRaises(file_utils.DoesNotExist,file_utils.StoredBigFileIndex,_folder)
         
