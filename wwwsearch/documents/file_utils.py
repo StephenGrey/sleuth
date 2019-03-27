@@ -180,6 +180,8 @@ class PathIndex:
                 except Exception as e:
                     log.warning(e)
                     log.error(f'Error scanning {filename} in {dirName}')
+                    exc_type, exc_value, exc_traceback = sys.exc_info()
+                    traceback.print_exc(limit=2, file=sys.stdout)
             for subfolder in subdirs:
                 try:
                     self.counter+=1
@@ -247,6 +249,7 @@ class PathIndex:
             pass
         
 #        self.save()    
+
     def check_pickle(self):
         return os.path.exists(os.path.join(self.folder_path,SPECS_FILENAME))
 
@@ -313,6 +316,8 @@ class PathIndex:
                 self.rescan()
             except Exception as e:
                 log.warning(e)
+                exc_type, exc_value, exc_traceback = sys.exc_info()
+                traceback.print_exc(limit=2, file=sys.stdout)
             try:
                 self.save()
             except Exception as e:
@@ -324,15 +329,10 @@ class PathIndex:
     def get_and_rescan(self):
         self.get_saved_specs()
         self.rescan()
-        
-    def rescan(self):
-        """rescan changed files in dictionary of filespecs"""
-        log.info(f'rescanning ... {self.folder_path}')
-        self.list_directory() #rescan original disk
-        deletedfiles=[]
-        
 
+    def update_changed(self):
         #update changed files
+        self.deletedfiles=[]
         for docpath in self.files:
             oldfile=self.files.get(docpath)
             try:
@@ -340,11 +340,19 @@ class PathIndex:
             except ValueError:
                 if not oldfile.get('folder'):
                     log.debug(f'Filepath {docpath} no longer exists - delete from index')
-                    deletedfiles.append(docpath)
+                    self.deletedfiles.append(docpath)
                     continue                    
             if changed(oldfile):
                 log.info(f'File \'{docpath}\' is modified; updating hash of contents')
                 self.update_record(docpath)
+
+    def rescan(self):
+        """rescan changed files in dictionary of filespecs"""
+        log.info(f'rescanning ... {self.folder_path}')
+        self.list_directory() #rescan original disk
+        
+        log.debug('checking changes')
+        self.update_changed()
         
         #log.debug(f'stored files: {self.files}')
         
@@ -375,9 +383,8 @@ class PathIndex:
         except Exception as e:
             log.info(f'Save failure: {e}')
 
-
         self.reload_index()
-        for docpath in deletedfiles:
+        for docpath in self.deletedfiles:
             log.debug(f'deleting {docpath} from scan index')
             try:
                 self.delete_record(docpath)
@@ -387,7 +394,7 @@ class PathIndex:
                 #log.debug(self.files)
                 #log.debug(deletedfiles)
                 raise
-        if deletedfiles:
+        if self.deletedfiles:
             try:
                 self.sync()
             except Exception as e:
@@ -590,7 +597,7 @@ class Index_Maker():
                         else:
                             _stored,_indexed=None,None
                         
-                        dupcheck=DupCheck(t,specs,masterindex)
+                        dupcheck=SqlDupCheck(t,specs,masterindex)
                         #log.debug(f'Local check: {t},indexed: {_indexed}, stored: {_stored}')
                         #log.debug(f'Dupcheck: {dupcheck.__dict__}')
                         yield self.file_html(mfile,_stored,_indexed,dupcheck,relpath,path)
@@ -704,16 +711,16 @@ class Dups_Lister(Dups_Index_Maker):
     def __init__(self):
         pass
     
-    
-    
 
 def changed(oldspecs):
+    #log.debug(oldspecs)
     if not oldspecs.get('folder'): #ignore folders
         if 'path' not in oldspecs:
             return True
         try:
             docpath=oldspecs['path']
             newspecs=FileSpecs(docpath,scan_contents=False)
+            #log.debug(f'LastM:{newspecs.last_modified},LEN: {newspecs.length}')
             if oldspecs['last_modified'] != newspecs.last_modified or oldspecs['length'] != newspecs.length:
                 return True
         except Exception as e:
@@ -810,27 +817,43 @@ def check_master_dups(folder,scan_index=None,master_index=None):
             yield ck
 
 def check_master_dups_html(folder,scan_index=None,master_index=None,rootpath=''):
-    _t=file_tree(folder)
     dupLister=Dups_Lister()
-    for path in _t: 
-        ck=DupCheck(path,scan_index,master_index)
-        if ck.master_dup:
-#            if MODELS:
-#                _stored,_indexed=model_index(t,index_collections)
-#            else:
-            _stored,_indexed=None,None
-            
-            filename=os.path.basename(path)
-            relpath=os.path.relpath(path,rootpath)
-            yield dupLister.file_html(filename,_stored,_indexed,ck,relpath,folder)
+    slice_start=0
+    slice_stop=500
+    for dup,_hash,dupcount in master_index.dups_inside(folder)[slice_start:slice_stop]:
+        #log.debug(f'checking {dup.path}')
+        ck=DupCheckFile(dup,scan_index,master_index,master_dupcount=dupcount)
+        _stored,_indexed=None,None
+        filename=os.path.basename(dup.path)
+        relpath=os.path.relpath(dup.path,rootpath)
+        yield dupLister.file_html(filename,_stored,_indexed,ck,relpath,folder)
+     
 
+    
+#    _t=file_tree(folder)
+#    
+#    dupLister=Dups_Lister()
+#    
+#    for path in _t: 
+#        log.debug(f'checking {path}')
+#        ck=SqlDupCheck(path,scan_index,master_index)
+#        if ck.master_dup:
+##            if MODELS:
+##                _stored,_indexed=model_index(t,index_collections)
+##            else:
+#            _stored,_indexed=None,None
+#            
+#            filename=os.path.basename(path)
+#            relpath=os.path.relpath(path,rootpath)
+#            yield dupLister.file_html(filename,_stored,_indexed,ck,relpath,folder)
+#
 
 
 def check_local_orphans(folder,scan_index=None,master_index=None):
     """generator of locally-unique files within scan folder"""
     _t=file_tree(folder)
     for path in _t: 
-        ck=DupCheck(path,scan_index,master_index)
+        ck=SqlDupCheck(path,scan_index,master_index)
         if not ck.local_dup:
             yield ck
         
@@ -838,7 +861,7 @@ def check_master_orphans(folder,scan_index=None,master_index=None):
     """generator of locally-unique files within scan folder"""
     _t=file_tree(folder)
     for path in _t: 
-        ck=DupCheck(path,scan_index,master_index)
+        ck=SqlDupCheck(path,scan_index,master_index)
         if not ck.master_dup:
             yield ck
         
@@ -1118,14 +1141,120 @@ class DupCheck:
                             
                     else:
                         self.master_dup=False
+
+class SqlDupCheck(DupCheck):
+    def check(self):
+        self.contents_hash=''
+        if self.masterindex:
+            #print(f'FILES: {masterindex.files}')
+            
+            master_filespec=self.masterindex.lookup_path(self.filepath)
+            #log.debug(master_filespec)
+            #log.debug(master_filespec.__dict__)
+            self.master_scan=True if master_filespec else False
+            if master_filespec:
+                if True:
+                    self.master_changed=changed(master_filespec.__dict__)
+                    if not self.master_changed:
+                        self.contents_hash=master_filespec.contents_hash
+                        self.size=sizeof_fmt(master_filespec.length)
+        if self.specs: 
+            filespec=self.specs.lookup_path(self.filepath)
+            self.local_scan=True if filespec else False
+            if filespec:
+                #log.debug(f'Filespec: {filespec}')
+                self.local_changed=changed(filespec.__dict__)
+                if not self.local_changed:
+                    self.contents_hash=filespec.contents_hash
+                    self.size=sizeof_fmt(filespec.length)
+
+        if self.contents_hash:
+            if self.specs:
+                dupcount=self.specs.count_hash(self.contents_hash)
+                if dupcount>1:
+                    self.local_dup=True
+                    self.dups=dupcount
+                else:
+                    self.local_dup=False
+                        
+            if self.masterindex:
+                master_dupcount=self.masterindex.count_hash(self.contents_hash)
+                #log.debug(f'Dupchek for {self} hash: {self.contents_hash} count:{master_dupcount}')
+                self.hash_in_master=True if master_dupcount>0 else False
+                if master_dupcount>1:
+                    self.master_dup=True
+                    self.m_dups=master_dupcount
+                else:
+                    self.master_dup=False
+
+
+class DupCheckFile():
+    def __init__(self,_file,specs,masterindex,master_dupcount=None):
+        self.specs=specs
+        self.masterindex=masterindex
+        self._file=_file
+        self.master_dupcount=master_dupcount
+        #log.debug(self.__dict__)
+        #log.debug(self.specs.files)
+        self.dups=None
+        self.local_dup=False
+        self.master_dup=None
+        self.check()
+
+
+    def check(self):
+        self.contents_hash=''
+        
+        if self.masterindex:
+            #print(f'FILES: {masterindex.files}')
+            self.master_scan=True
+            #master_filespec=self.masterindex.lookup_path(self.filepath)
+            #log.debug(master_filespec)
+            #log.debug(master_filespec.__dict__)
+            self.master_changed=changed(self._file.__dict__)
+            if not self.master_changed:
+                self.contents_hash=self._file.contents_hash
+                self.size=sizeof_fmt(self._file.length)
+                
+                
+#        if self.specs: 
+#            filespec=self.specs.lookup_path(self.filepath)
+#            self.local_scan=True if filespec else False
+#            if filespec:
+#                #log.debug(f'Filespec: {filespec}')
+#                self.local_changed=changed(filespec.__dict__)
+#                if not self.local_changed:
+#                    self.contents_hash=filespec.contents_hash
+#                    self.size=sizeof_fmt(filespec.length)
+
+        if self.contents_hash:
+#            if self.specs:
+#                dupcount=self.specs.count_hash(self.contents_hash)
+#                if dupcount>1:
+#                    self.local_dup=True
+#                    self.dups=dupcount
+#                else:
+#                    self.local_dup=False
+                        
+            if self.masterindex:
+                if not self.master_dupcount:
+                    self.master_dupcount=self.masterindex.count_hash(self.contents_hash)
+                #log.debug(f'Dupchek for {self} hash: {self.contents_hash} count:{master_dupcount}')
+                self.hash_in_master=True if self.master_dupcount>0 else False
+                if self.master_dupcount>1:
+                    self.master_dup=True
+                    self.m_dups=self.master_dupcount
+                else:
+                    self.master_dup=False
+
+
                             
 def specs_list(_index,_hash):
-    if _index.hash_index:
-        return _index.hash_index.get(_hash,[])
+    return [f for f in _index.lookup_hash(_hash)]
 
 def specs_path_list(_index,_hash):
     duplist=specs_list(_index,_hash)
     path_list=[]
     for dup in duplist:
-        path_list.append(dup.get('path'))
+        path_list.append(dup.path)
     return path_list

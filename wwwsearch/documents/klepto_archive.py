@@ -9,12 +9,12 @@ CACHE={}
 class ArchiveLocked(Exception):
     pass
 
-def files(archive_location,label='master'):
+def files(archive_location,label='master',sql=False):
     """return a klepto file archive object"""
     log.debug(f'fetching archive for {archive_location}')
-    return retrieve_or_create(archive_location,label)
+    return retrieve_or_create(archive_location,label,sql=sql)
     
-def retrieve_or_create(path,label):
+def retrieve_or_create(path,label,sql=False):
     stored=CACHE.get(path)
     if stored:
         if stored.get('locked'):
@@ -30,7 +30,10 @@ def retrieve_or_create(path,label):
                 del(CACHE[item])
         
         log.debug(f'loading file archive into cache')
-        archive=file_archive(path,cache=False)
+        if sql:
+            archive=sql_files(path)
+        else:
+            archive=file_archive(path,cache=False)
         CACHE[path]={
         	'archive':archive,
         	'label':label,
@@ -54,3 +57,8 @@ def set_lock(archive):
         stored['locked']=True
         CACHE[path].update(stored)
         
+
+def sql_files(path):
+    return sql_archive(f"sqlite:///{path}sql.db")
+
+

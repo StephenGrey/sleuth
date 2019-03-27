@@ -34,7 +34,7 @@ $('.glyphicon-saved').click(function(e) {
 	});
 
 $('.btn').click(function(e) {
-	alert('clicked');
+	//alert('clicked');
 	});
 
 $('.flip').click(function(e) {

@@ -6,7 +6,7 @@ from django.shortcuts import render, redirect
 from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.auth.decorators import login_required
 from . import pages
-from documents import file_utils, documentpage as pages
+from documents import file_utils, documentpage as pages, sql_connect as sql
 from dups import forms
 import os, configs, logging,json
 log = logging.getLogger('ownsearch.dups.views')
@@ -45,9 +45,10 @@ def index(request,path='',duplist=False):
            if not os.path.exists(os.path.join(MEDIAROOT,page.local_scanpath)):
                log.debug('scan request sent non-existent path')
                return redirect('dups_index',path=path)
-           specs=file_utils.BigFileIndex(os.path.join(MEDIAROOT,page.local_scanpath),label='local')
+           specs=sql.SqlFileIndex(os.path.join(MEDIAROOT,page.local_scanpath),label='local')
            #print(specs.files)
-           specs.hash_scan()
+           specs.scan_or_rescan()
+           #specs.hash_scan()
            request.session['scanfolder']=page.local_scanpath
            return redirect('dups_index',path=path)
 
@@ -55,8 +56,9 @@ def index(request,path='',duplist=False):
            full_masterpath=os.path.join(MEDIAROOT,page.masterindex_path)
            full_masterpath=os.path.normpath(full_masterpath) if full_masterpath else ''
            log.debug(f'scanning master: {full_masterpath}')
-           masterspecs=file_utils.BigFileIndex(full_masterpath,label='master')
-           masterspecs.hash_scan()
+           masterspecs=sql.SqlFileIndex(full_masterpath,label='master')
+           masterspecs.scan_or_rescan()
+           #masterspecs.hash_scan()
            request.session['masterfolder']=page.masterindex_path
            return redirect('dups_index',path=path)           
 
@@ -102,11 +104,11 @@ def index(request,path='',duplist=False):
 
         if page.masterindex_path:
             page.inside_master=file_utils.new_is_inside(path,page.masterindex_path)
-        
+            
         if duplist:
             #display only duplicates
-            c=file_utils.check_master_dups_html(os.path.join(MEDIAROOT,path),scan_index=page.specs,master_index=page.masterspecs)            
-
+            c=file_utils.check_master_dups_html(os.path.join(MEDIAROOT,path),scan_index=page.specs,master_index=page.masterspecs)
+            log.debug(f'Scanned \'{path}\' for duplicates')            
         else:
             try:
                 c = file_utils.Dups_Index_Maker(path,'',specs=page.specs,masterindex=page.masterspecs,rootpath=MEDIAROOT)._index
@@ -225,10 +227,11 @@ def file_dups(request,_hash):
         log.debug(page.__dict__)
         if page.masterspecs:
             duplist_master=file_utils.specs_path_list(page.masterspecs,_hash)
-            log.debug(duplist_master)
+            #log.debug(duplist_master)
         if page.specs:
+            log.debug(page.specs)
             duplist_local=file_utils.specs_path_list(page.specs,_hash)
-            log.debug(duplist_local)
+            #log.debug(duplist_local)
         
         if duplist_local or duplist_master:
             return render(request,'dups/list_files.html',

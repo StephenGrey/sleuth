@@ -6,8 +6,9 @@ log=logging.getLogger('ownsearch.documentpage')
 from ownsearch import authorise
 from .forms import IndexForm, get_corechoices,SourceForm,get_sourcechoices
 from .models import Collection,Index,Source
-from .file_utils import make_relpath,new_is_inside,StoredBigFileIndex
+from .file_utils import make_relpath,new_is_inside
 from .management.commands import make_collection
+from . import sql_connect as sql
 
 class NoValidCore(Exception):
     pass
@@ -133,14 +134,17 @@ class FilesPage(CollectionPage):
         
         if self.scanpath:
             try:
-                self.specs=StoredBigFileIndex(os.path.join(media_root,self.scanpath),label='local')
+                self.specs=sql.SqlFileIndex(os.path.join(media_root,self.scanpath),label='local')
+                #self.specs.hash_scan()
             except:
                 self.specs=None
         else:
             self.specs=None
             
         try:
-            self.masterspecs=StoredBigFileIndex(os.path.join(media_root,self.masterindex_path),label='master')
+            self.masterspecs=sql.SqlFileIndex(os.path.join(media_root,self.masterindex_path),label='master')
+            log.debug(self.masterspecs)
+            #self.masterspecs.hash_scan()
         except Exception as e:
             log.debug(e)
             self.masterspecs=None
