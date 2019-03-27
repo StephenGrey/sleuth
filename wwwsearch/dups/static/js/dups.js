@@ -33,9 +33,11 @@ $('.glyphicon-saved').click(function(e) {
   	
 	});
 
+
 $('.btn').click(function(e) {
 	//alert('clicked');
 	});
+
 
 $('.flip').click(function(e) {
 //    alert('clicked this')

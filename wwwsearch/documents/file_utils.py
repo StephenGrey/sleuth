@@ -161,7 +161,6 @@ class PathIndex:
                 self.update_results()
                 
             for filename in fileList: #now through every file in the folder/subfolder
-                log.debug(filename)
                 try:
                     self.counter+=1
                     if self.ignore_pattern and filename.startswith(self.ignore_pattern):
@@ -342,6 +341,7 @@ class PathIndex:
                     log.debug(f'Filepath {docpath} no longer exists - delete from index')
                     self.deletedfiles.append(docpath)
                     continue                    
+            log.debug(f'\'{docpath}\' in _index still exists')
             if changed(oldfile):
                 log.info(f'File \'{docpath}\' is modified; updating hash of contents')
                 self.update_record(docpath)
@@ -544,7 +544,18 @@ class StoredBigFileIndex(BigFileIndex):
         self.hash_scan()
         self.files.load()
 
-
+def check_paths(_index):
+    """deal with poorly formed windows paths"""
+    missing=[]
+    for path in [p for p in _index.files][:1000000]:
+        if path.startswith(r"R:/$RECYCLE.BIN"):
+            continue
+        if not os.path.exists(path):
+            log.debug(f'Path: \'{path}\' does not exist')
+            missing.append(path)
+    return missing
+        
+        
 
 
            
