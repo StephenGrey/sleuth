@@ -838,7 +838,21 @@ def check_master_dups_html(folder,scan_index=None,master_index=None,rootpath='')
         filename=os.path.basename(dup.path)
         relpath=os.path.relpath(dup.path,rootpath)
         yield dupLister.file_html(filename,_stored,_indexed,ck,relpath,folder)
-     
+
+def check_local_dups_html(folder,scan_index=None,master_index=None,rootpath='',combo=None):
+    dupLister=Dups_Lister()
+    slice_start=0
+    slice_stop=500
+    if combo:
+        for dup,_hash,dupcount in combo.dups[slice_start:slice_stop]:
+            #log.debug(f'checking {dup.path}')
+            ck=DupCheckFile(dup,scan_index,master_index,master_dupcount=dupcount)
+            _stored,_indexed=None,None
+            filename=os.path.basename(dup.path)
+            relpath=os.path.relpath(dup.path,rootpath)
+            yield dupLister.file_html(filename,_stored,_indexed,ck,relpath,folder)
+
+
 
     
 #    _t=file_tree(folder)

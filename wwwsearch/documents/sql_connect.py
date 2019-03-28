@@ -163,6 +163,64 @@ class SqlFileIndex(file_utils.PathIndex):
             if not is_folder:
                 if _file.contents_hash:
                     self.hash_index.setdefault(_file.contents_hash,[]).append(_file.__dict__)
+
+
+class ComboIndex():
+    def __init__(self,master_index,local_index):
+        self.i1=master_index
+        self.i2=local_index
+
+        
+    def find_master_dups(self):
+       #check scan hashes in master
+       self.dups_in_master={}
+       for _hash,_id in self.i2.session.query(File.contents_hash,File.id).all():
+           dups=self.i1.count_hash(_hash)
+           if dups>0:
+               self.dups_in_master[_hash]=dups
+       log.debug(f"Dups in master: {self.dups_in_master}")
+    
+    @property
+    def dups(self):
+       self.find_master_dups()
+       self.local_dups=self.i2.dups
+       self.combine_dups()
+       return self.combodups
+       
+    def combine_dups(self):
+       self.combodups=[]
+       hashes_in_both=set()
+       for dup,_hash,localcount in self.local_dups:
+           if _hash:
+               if _hash in self.dups_in_master:
+                   log.debug(f'dups in both: local{dup}')
+                   totalcount=localcount+self.dups_in_master[_hash]
+                   self.combodups.append((dup,_hash,totalcount))
+                   hashes_in_both.add(_hash)
+               else:
+                   self.combodups.append((dup,_hash,localcount))
+       for _hash in hashes_in_both:
+                   try:
+                       del self.dups_in_master[_hash]
+                   except KeyError:
+                       log.debug('deletion error')
+       
+       
+       for _hash in self.dups_in_master:
+           if _hash:
+               mastercount=self.dups_in_master[_hash]
+               local_files=self.i2.lookup_hash(_hash)
+               log.debug(local_files)
+               for _file in local_files:
+                   self.combodups.append((_file,_hash,mastercount+1))
+    #               =self.dups_in_master[dup.contents_hash]
+#           else:
+#           
+               
+        
+        
+        
+
      
 class File(Base):
     __tablename__ = 'files'

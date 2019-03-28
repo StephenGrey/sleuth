@@ -47,11 +47,12 @@
 	{% if page.inside_master %}
 <div style="color:white;background-color:red">INSIDE MASTER ARCHIVE </div>
 
-<p>
-<a href="{% url "dups_index" path=path %}">Display All</a> &nbsp;&nbsp; <a href="{% url "dups_index_dups" path=path %}">List Duplicates</a>
 
 
 {% endif %}
+<p>
+<a href="{% url "dups_index" path=path %}">Display All</a> &nbsp;&nbsp; <a href="{% url "dups_index_dups" path=path %}">List Duplicates</a>
+
 <div class='nav-container'>		
 		<ol class="breadcrumb bread1" id="{{path}}">
 		  <li><a href="/dups">Home</a></li>
@@ -73,6 +74,8 @@
 				{% for f in subfiles %}
 					{{f}}
 				{% endfor %}
+				
+				<p>(First 500 files shown)
 				</ul>	
 				<input type="submit" name="delete-button"  class="btn btn-info" value="Delete">	
 				<input type="submit" id="move-button" name="move-button"  class="btn btn-info move-button" value="Move">

@@ -104,11 +104,20 @@ def index(request,path='',duplist=False):
 
         if page.masterindex_path:
             page.inside_master=file_utils.new_is_inside(path,page.masterindex_path)
-            
+        page.inside_scan_folder=file_utils.new_is_inside(path,page.local_scanpath) if page.local_scanpath else None
+        
         if duplist:
             #display only duplicates
-            c=file_utils.check_master_dups_html(os.path.join(MEDIAROOT,path),scan_index=page.specs,master_index=page.masterspecs)
-            log.debug(f'Scanned \'{path}\' for duplicates')            
+            if page.masterspecs and page.inside_master:
+                c=file_utils.check_master_dups_html(os.path.join(MEDIAROOT,path),scan_index=page.specs,master_index=page.masterspecs)
+                log.debug(f'Scanned \'{path}\' for duplicates')
+            elif page.specs and page.inside_scan_folder:
+                combodups=sql.ComboIndex(page.masterspecs,page.specs)
+                c=file_utils.check_local_dups_html(os.path.join(MEDIAROOT,path),scan_index=page.specs,master_index=page.masterspecs,combo=combodups)
+                log.debug(f'Scanned \'{path}\' for duplicates')                
+                
+                
+                       
         else:
             try:
                 c = file_utils.Dups_Index_Maker(path,'',specs=page.specs,masterindex=page.masterspecs,rootpath=MEDIAROOT)._index
