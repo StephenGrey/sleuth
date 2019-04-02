@@ -22,6 +22,9 @@ wwwsearch/usersettings.config
 # ignore database - it should be recreated
 wwwsearch/db.sqlite3
 
+#ignore migrations - make them locally
+wwwsearch/documents/migrations/*
+
 # ignore Solr data and PID files
 solr/solr-*/server/solr/*/data/*
 !solr/solr-*/server/solr/coreexample/data/*
