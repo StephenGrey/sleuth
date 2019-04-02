@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
-import os, logging,hashlib,re,datetime,unicodedata,pickle,time,sys,traceback,shutil
+import os, logging,hashlib,re,datetime,unicodedata,pickle,time,sys,traceback,shutil,threading
 from pathlib import Path
 from collections import defaultdict
-from . import win_utils, klepto_archive
+from . import win_utils, klepto_archive,sql_connect
 from send2trash import send2trash
 
 try:
@@ -556,13 +556,169 @@ def check_paths(_index):
     return missing
         
         
-
-
-           
 class HashIndex(PathIndex):
     def __init__(self,ignore_pattern='X-'):
         self.ignore_pattern=ignore_pattern
         pass
+
+class SqlFileIndex(sql_connect.SqlIndex,PathIndex):
+   def __init__(self,folder_path,job=None,ignore_pattern='X-',rescan=False,label=None):
+      """index of file objects using sqlite and sqlalchemy"""
+      log.debug(f'Thread: {threading.get_ident()}')
+      
+      self.folder_path=folder_path
+      self.job=job
+      self.ignore_pattern=ignore_pattern
+      self.specs_dict=True
+      self.connect_sql()
+      log.debug(f'loaded files ..{self.count_files}')
+      if rescan:
+          self.scan_or_rescan()
+      
+   
+#   def _add(self,filepath):
+#      name=os.path.basename(filepath)
+#      entry=File(name='filename',path=path)
+#      self.session.add(entry)
+#   
+   def get_saved_specs(self):
+      pass
+       
+   def check_pickle(self):
+      return True
+   
+   def update_record(self,path, scan_contents=True,existing=None):
+      spec=FileSpecs(path)
+      docspec=spec.__dict__
+      docspec.update({'last_modified':spec.last_modified})
+      docspec.update({'length':spec.length})
+      if scan_contents:
+         if spec.length > 1000000:
+            log.debug(f'checking contents of large file {path} ')
+         docspec.update({'contents_hash':spec.contents_hash})
+      
+      self.map_record(docspec,existing=existing)  
+
+   def update_folder(self,path):
+      docspec=FileSpecs(path,folder=True).__dict__
+      self.map_record(docspec)
+
+   def hash_append(self,_hash,path):
+      try:
+          duplist=self.hash_index[_hash]
+          filespec=lookup_path(self,path)
+          log.debug(filespec)
+          if filespec:
+              duplist.append(filespec.__dict__)
+              self.hash_index[_hash]=duplist
+      except AttributeError:           #log.debug('no hash_index')
+          pass
+
+   def check_path(self,path,is_folder):
+      if self.ignore_pattern and path.startswith(self.ignore_pattern):
+          return
+      db_file=self.lookup_path(path)
+      if db_file:
+#              log.debug(db_file)
+          db_file.checked=True
+          if not is_folder:
+             if changed(db_file.__dict__):
+                 log.info(f'File \'{db_file.path}\' is modified; updating hash of contents')
+                 self.update_record(db_file.path,existing=db_file)
+      else:
+          self.newfiles.append(path)
+
+   def update_changed(self):
+      """#update changed files"""
+      self.set_all(False) #mark all files to check
+      self.deletedfiles=[]
+      self.newfiles=[]
+      #log.debug(self.filelist)
+      counter=0
+      total_folders=len([p for p,s,f in os.walk(self.folder_path)])
+      log.info(f'Scanning {total_folders} total folders in {self.folder_path}')
+      for folder_path,sub_dirs,file_names in os.walk(self.folder_path):
+          counter+=1
+          #log.debug(f'checking {folder_path}')
+          if counter%50==0:
+              log.info(f'checking folder #{counter} out of {total_folders}')
+          if counter>1000:
+              self.save()          
+          if self.ignore_pattern and os.path.basename(folder_path).startswith(self.ignore_pattern):
+              continue
+          for sub_dir in sub_dirs:
+              self.check_path(os.path.join(folder_path,sub_dir),True)
+          for filename in file_names:
+              
+              self.check_path(os.path.join(folder_path,filename),False)
+      self.save()
+
+      self.deletedfiles=[f for f in self.session.query(File).filter(File.checked==False)]
+      log.debug(f'Deleted: {self.deletedfiles[:10]}')
+      log.debug(f'New files: {self.newfiles[:10]}')
+
+
+
+   def rescan(self):
+      """rescan changed files in dictionary of filespecs"""
+      log.info(f'rescanning ... {self.folder_path}')
+#        self.list_directory() #rescan original disk
+      
+      log.debug('checking changes')
+      self.update_changed()
+      
+      #log.debug(f'stored files: {self.files}')
+      
+      #add new files    
+      log.info(f'Checking {len(self.newfiles)} unscanned files')
+      self.counter=0
+      for newfile in self.newfiles:
+         log.debug(f'newfile to add: {newfile} Directory:{os.path.isdir(newfile)}')
+         try:            
+            if os.path.isdir(newfile):
+               self.update_folder(newfile)
+            else:
+               self.update_record(newfile)
+         except Exception as e:
+            log.info(f'Update failed for {newfile} Exception: {e}')
+              #debug:
+            exc_type, exc_value, exc_traceback = sys.exc_info()
+            traceback.print_exc(limit=2, file=sys.stdout)
+          #log.debug(f'Added {docpath} to index')
+         self.counter+=1
+         if self.counter%200==0:
+            log.info(f'{self.counter} files updated')
+            try:
+               self.save()
+            except Exception as e:
+               log.info(f'Save failure: {e}')
+      try:
+         self.save()
+      except Exception as e:
+         log.info(f'Save failure: {e}')
+
+      for deletedfile in self.deletedfiles:
+         log.debug(f'deleting {deletedfile.path} from scan index')
+         try:
+            self.delete_record(deletedfile)
+         except Exception as e:
+           log.debug(f'Delete record failed for {deletedfile.path}')
+           log.debug(e)
+              #log.debug(self.files)
+              #log.debug(deletedfiles)
+           raise
+      if self.deletedfiles:
+         try:
+            self.sync()
+         except Exception as e:
+            log.info(f'Save failure: {e}')
+
+
+
+
+
+
+
 
 class Index_Maker():
 #index_maker
@@ -706,6 +862,12 @@ class Dups_Index_Maker(Index_Maker):
             })
 
 
+def update_file(_file):
+    newspecs=FileSpecs(_file.filepath,scan_contents=False)
+    _file.last_modified = time_utils.timestamp2aware(newspecs.last_modified)
+    _file.filesize = newspecs.length
+    _file.save()
+
 def changed_file(_file):
     newspecs=FileSpecs(_file.filepath,scan_contents=False)
     
@@ -738,6 +900,10 @@ def changed(oldspecs):
             log.debug(e)
             return True
     return False
+
+
+
+    
 
 def filespecs(parent_folder,specs_dict=False,scan_contents=True,job=None): #  
     specs=PathFileIndex(parent_folder,specs_dict=specs_dict,scan_contents=scan_contents,job=job)

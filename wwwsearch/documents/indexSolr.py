@@ -329,7 +329,7 @@ class Extractor():
             log.info(f'Skipped {file.error_message} path: {file.filename}')
         elif file.filesize<3:
             #skip , it's empty
-            file.error_message=f'Skipped. Empty file: {file.filesize}b'
+            file.error_message=f'Skipped. Empty file: {file.filesize}bytes'
             log.info(f'Skipped {file.error_message} path: {file.filename}')
         else:
             #don't skip
@@ -496,14 +496,13 @@ class ChildProcessor():
                 log.error('Failed to clear previous date')
                 return None
             return time_utils.timestringGMT(date_from_path)
-        #2. or date from first sourcefield (clean)
-        elif not s.getfield(solrid,self.mycore.datesourcefield,self.mycore):
 
+        #2. else if no date stored in date sourcefield .. try the other sourcefield
+        elif not s.getfield(solrid,self.mycore.datesourcefield,self.mycore):
             #3. or date from cleaned-up second source field
             altdate=time_utils.cleaned_ISOtimestring(s.getfield(solrid,self.mycore.datesourcefield2,self.mycore))
             if altdate:
                 return altdate
-            
             #4. or date from file's last-modified stamp
             elif last_modified:
                 return time_utils.ISOtimestring(last_modified)

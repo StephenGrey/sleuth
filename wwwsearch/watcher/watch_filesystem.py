@@ -11,7 +11,7 @@ log = logging.getLogger('ownsearch.watch_filesystem')
 class MySyncHandler(FileSystemEventHandler):
 	
     def on_any_event(self,event):
-        log.debug(event)
+        log.debug(event.event_type)
         log.debug(f'{event.__dict__} at {time.time()}')
         
         if event.event_type=='created':

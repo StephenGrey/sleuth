@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-import sys,datetime,time, logging, redis, sys,traceback
+import sys,datetime,time, logging, redis, sys,traceback,os
 
 from tools import wwwsearch_connect #Connect to Django project
 from django.conf import settings
@@ -59,13 +59,15 @@ class Index_Dispatch:
         log.info(f'EVENT: {self.event_type}  PATH: {self.sourcepath}  (DESTPATH: {self.destpath})')
         if self.event_type=='created':
             self.create()
+            self._index()
         elif self.event_type=='modified':
             self.modify()
         elif self.event_type=='delete':
             self.delete()
         elif self.event_type=='moved':
             self.moved()
-        self._index()
+            self._index()
+        
         log.debug(f'Modification queues: {MODIFIED_FILES}, TIMES: {MODIFIED_TIMES}')
         
     def create(self):
@@ -86,7 +88,13 @@ class Index_Dispatch:
                 log.debug(f'Created new record in Collection: \'{_collection}\' in Index: \'{_collection.core}\'')    
     
     def modify(self):
-        if self.source_in_database:
+        if os.path.isdir(self.sourcepath):
+            log.debug(f'Ignore directory modified')
+            pass
+        elif indexSolr.ignorefile(self.sourcepath):
+            log.debug(f'Modification ignored - filename on ignore list')
+            pass
+        elif self.source_in_database:
             #MODIFIED_TIMES[self.sourcepath]=time.time()
             for _file in self.source_in_database:
                 #putting modified file in q
@@ -144,13 +152,14 @@ class Index_Dispatch:
     def _index(self):
         for _file in self.source_in_database:
             if not _file.indexedSuccess:
-                log.debug(f'Now should index {_file} in solr')
+                log.debug(f'{_file} in database not indexed: try to index')
                 index_file(_file)
             elif _file.indexUpdateMeta:
                 log.debug(f'Now should update solr meta for {_file}')
                 updateSolr.metaupdate_rawfile(_file)
 
 def index_file(_file):
+    file_utils.update_file(_file) #update filesize and last-modified in database
     extractor=indexSolr.ExtractSingleFile(_file)
     #print(extractor.__dict__)
     """options: forceretry=False,useICIJ=False,ocr=True,docstore=DOCSTORE """

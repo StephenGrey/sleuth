@@ -21,7 +21,8 @@ MEDIAROOT=dupsconfig.get('rootpath') if dupsconfig else None
 @staff_member_required()
 def index(request,path='',duplist=False):
     """display files in a directory"""
-
+    warning=""
+    
     log.debug(f'path: {path}')
     log.debug(f'Mediaroot: {MEDIAROOT}')
     
@@ -45,7 +46,7 @@ def index(request,path='',duplist=False):
            if not os.path.exists(os.path.join(MEDIAROOT,page.local_scanpath)):
                log.debug('scan request sent non-existent path')
                return redirect('dups_index',path=path)
-           specs=sql.SqlFileIndex(os.path.join(MEDIAROOT,page.local_scanpath),label='local')
+           specs=file_utils.SqlFileIndex(os.path.join(MEDIAROOT,page.local_scanpath),label='local')
            #print(specs.files)
            specs.scan_or_rescan()
            #specs.hash_scan()
@@ -56,7 +57,7 @@ def index(request,path='',duplist=False):
            full_masterpath=os.path.join(MEDIAROOT,page.masterindex_path)
            full_masterpath=os.path.normpath(full_masterpath) if full_masterpath else ''
            log.debug(f'scanning master: {full_masterpath}')
-           masterspecs=sql.SqlFileIndex(full_masterpath,label='master')
+           masterspecs=file_utils.SqlFileIndex(full_masterpath,label='master')
            masterspecs.scan_or_rescan()
            #masterspecs.hash_scan()
            request.session['masterfolder']=page.masterindex_path
@@ -108,14 +109,19 @@ def index(request,path='',duplist=False):
         
         if duplist:
             #display only duplicates
+            warning="""
+            
+            (Only first 500 duplicate files shown)"""
             if page.masterspecs and page.inside_master:
                 c=file_utils.check_master_dups_html(os.path.join(MEDIAROOT,path),scan_index=page.specs,master_index=page.masterspecs)
                 log.debug(f'Scanned \'{path}\' for duplicates')
             elif page.specs and page.inside_scan_folder:
                 combodups=sql.ComboIndex(page.masterspecs,page.specs)
                 c=file_utils.check_local_dups_html(os.path.join(MEDIAROOT,path),scan_index=page.specs,master_index=page.masterspecs,combo=combodups)
-                log.debug(f'Scanned \'{path}\' for duplicates')                
-                
+                log.debug(f'Scanned \'{path}\' for duplicates')
+            else:
+                c=None                
+                warning="Navigate to a scanned folder to see duplicates"
                 
                        
         else:
@@ -133,7 +139,7 @@ def index(request,path='',duplist=False):
             rootpath=""
             tags=None
         return render(request,'dups/listindex.html',
-                                   {'page': page, 'subfiles': c, 'rootpath':rootpath, 'tags':tags,  'path':path,})
+                                   {'page': page, 'subfiles': c, 'rootpath':rootpath, 'tags':tags,  'path':path,'warning':warning})
     else:
         return redirect('dups_index',path='')
 

@@ -674,7 +674,7 @@ def getmeta(docid,core):
     return res.results
     
 
-def getfield(docid,field,core):
+def getfield(docid,field,core,resultfield=''):
     """return contents of single field in solr doc"""
     searchterm='{}:\"{}\"'.format(core.unique_id,docid)
     args='&fl={}'.format(field)
