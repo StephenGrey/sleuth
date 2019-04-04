@@ -651,6 +651,13 @@ class SqlFileIndex(sql_connect.SqlIndex,PathIndex):
                   log.info(f'Save failure: {e}')
        except PermissionError:
            log.info(f'Cannot check {path}; in use or not permitted')
+       except UnicodeEncodeError:
+           log.info('Cannot check path')
+           try:
+               sanitised=re.sub(r'[^\x00-\x7F]+','!?!', path)
+               log.info(f'Failed path (SANITISED WITH !?! ): {sanitised}') 
+           except Exception as e:
+               pass
        except Exception as e:
            log.error(f'Error {e } checking {path}; against database entry {db_file}')
            exc_type, exc_value, exc_traceback = sys.exc_info()
