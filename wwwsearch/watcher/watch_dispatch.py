@@ -51,12 +51,12 @@ class Index_Dispatch:
     def __init__(self,event_type,sourcepath,destpath):
         self.event_type=event_type
         self.sourcepath=sourcepath
+        self.ignore=True if indexSolr.ignorefile(self.sourcepath) else False
         self.destpath=destpath
         self.check_base()
         self.process()
-        
     def process(self):
-        log.info(f'EVENT: {self.event_type}  PATH: {self.sourcepath}  (DESTPATH: {self.destpath})')
+        log.info(f'EVENT: {self.event_type}  PATH: {self.sourcepath}  (DESTPATH: {self.destpath})') if not self.ignore else None
         if self.event_type=='created':
             self.create()
             self._index()
@@ -68,10 +68,13 @@ class Index_Dispatch:
             self.moved()
             self._index()
         
-        log.debug(f'Modification queues: {MODIFIED_FILES}, TIMES: {MODIFIED_TIMES}')
+        #log.debug(f'Modification queues: {MODIFIED_FILES}, TIMES: {MODIFIED_TIMES}')
         
     def create(self):
-        if self.source_in_database:
+        if indexSolr.ignorefile(self.sourcepath):
+            #log.debug(f'Create file ignored - filename on ignore list')
+            return
+        elif self.source_in_database:
             #exists already
             self.modify() #just check it's all ok
             return
@@ -92,7 +95,7 @@ class Index_Dispatch:
             log.debug(f'Ignore directory modified')
             pass
         elif indexSolr.ignorefile(self.sourcepath):
-            log.debug(f'Modification ignored - filename on ignore list')
+            #log.debug(f'Modification ignored - filename on ignore list')
             pass
         elif self.source_in_database:
             #MODIFIED_TIMES[self.sourcepath]=time.time()
@@ -123,7 +126,10 @@ class Index_Dispatch:
     
     def delete(self):
         """delete both from database and solr index, if indexed"""
-        if self.source_in_database:
+        if indexSolr.ignorefile(self.sourcepath):
+            #log.debug(f'Modification ignored - filename on ignore list')
+            pass
+        elif self.source_in_database:
             for _file in self.source_in_database:
                 deletefiles=[_file.filepath]
                 collection=_file.collection
@@ -134,7 +140,7 @@ class Index_Dispatch:
             
     def check_base(self):
         _database_files=file_utils.find_live_files(self.sourcepath)
-        log.debug(f'Existing files found: {_database_files}')
+        #log.debug(f'Existing files found: {_database_files}')
         
         if len(_database_files)>0:
             self.source_in_database=_database_files

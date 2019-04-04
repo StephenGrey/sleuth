@@ -102,7 +102,15 @@ def index(request,path='',duplist=False):
     
     if os.path.exists(os.path.join(MEDIAROOT,path)):
         #page.masterpath=masterindex_path
-
+        if path:
+            rootpath=path
+            tags=file_utils.directory_tags(path)
+        else:
+            rootpath=""
+            tags=None
+        
+        
+        
         if page.masterindex_path:
             page.inside_master=file_utils.new_is_inside(path,page.masterindex_path)
         page.inside_scan_folder=file_utils.new_is_inside(path,page.local_scanpath) if page.local_scanpath else None
@@ -113,16 +121,15 @@ def index(request,path='',duplist=False):
             
             (Only first 500 duplicate files shown)"""
             if page.masterspecs and page.inside_master:
-                c=file_utils.check_master_dups_html(os.path.join(MEDIAROOT,path),scan_index=page.specs,master_index=page.masterspecs)
+                c=file_utils.check_master_dups_html(os.path.join(MEDIAROOT,path),scan_index=page.specs,master_index=page.masterspecs,rootpath=rootpath)
                 log.debug(f'Scanned \'{path}\' for duplicates')
             elif page.specs and page.inside_scan_folder:
                 combodups=sql.ComboIndex(page.masterspecs,page.specs)
-                c=file_utils.check_local_dups_html(os.path.join(MEDIAROOT,path),scan_index=page.specs,master_index=page.masterspecs,combo=combodups)
+                c=file_utils.check_local_dups_html(os.path.join(MEDIAROOT,path),scan_index=page.specs,master_index=page.masterspecs,combo=combodups,rootpath=rootpath)
                 log.debug(f'Scanned \'{path}\' for duplicates')
             else:
                 c=None                
                 warning="Navigate to a scanned folder to see duplicates"
-                
                        
         else:
             try:
@@ -132,12 +139,7 @@ def index(request,path='',duplist=False):
         #log.debug(c)
         
         
-        if path:
-            rootpath=path
-            tags=file_utils.directory_tags(path)
-        else:
-            rootpath=""
-            tags=None
+
         return render(request,'dups/listindex.html',
                                    {'page': page, 'subfiles': c, 'rootpath':rootpath, 'tags':tags,  'path':path,'warning':warning})
     else:

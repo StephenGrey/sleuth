@@ -615,24 +615,55 @@ class SqlFileIndex(sql_connect.SqlIndex,PathIndex):
           pass
 
    def check_path(self,path,is_folder):
-      if self.ignore_pattern and path.startswith(self.ignore_pattern):
-          return
-      db_file=self.lookup_path(path)
-      if db_file:
-#              log.debug(db_file)
-          db_file.checked=True
-          if not is_folder:
-             if changed(db_file.__dict__):
-                 log.info(f'File \'{db_file.path}\' is modified; updating hash of contents')
-                 self.update_record(db_file.path,existing=db_file)
-      else:
-          self.newfiles.append(path)
-
+       db_file=None
+       try:
+          if self.ignore_pattern and path.startswith(self.ignore_pattern):
+              return
+          path=normalise(path) #convert long or malformed nt paths
+          db_file=self.lookup_path(path)
+          if db_file:
+    #              log.debug(db_file)
+              db_file.checked=True
+              if not is_folder:
+                 if changed(db_file.__dict__):
+                     log.info(f'File \'{db_file.path}\' is modified; updating hash of contents')
+                     self.update_record(db_file.path,existing=db_file)
+          else:
+              self.newfiles+=1
+              log.debug(f'newfile to add: {path} Directory:{os.path.isdir(path)}')
+              try:            
+                  if os.path.isdir(path):
+                      self.update_folder(path)
+                  else:
+                      self.update_record(path)
+              except PermissionError:
+                  log.info(f'Failed to add {path}: permission error')
+              except Exception as e:
+                  log.info(f'Update failed for {path} Exception: {e}')
+                  #debug:
+                  exc_type, exc_value, exc_traceback = sys.exc_info()
+                  traceback.print_exc(limit=2, file=sys.stdout)
+              if self.newfiles%200==0:
+                  log.info(f'{self.counter} files updated')
+              try:
+                  self.save()
+              except Exception as e:
+                  log.info(f'Save failure: {e}')
+       except PermissionError:
+           log.info(f'Cannot check {path}; in use or not permitted')
+       except Exception as e:
+           log.error(f'Error {e } checking {path}; against database entry {db_file}')
+           exc_type, exc_value, exc_traceback = sys.exc_info()
+           traceback.print_exc(limit=2, file=sys.stdout)
+           if db_file:
+               db_file.checked=True
+           
    def update_changed(self):
       """#update changed files"""
+      log.debug('setting all files in database as unchecked')
       self.set_all(False) #mark all files to check
       self.deletedfiles=[]
-      self.newfiles=[]
+      self.newfiles=0
       #log.debug(self.filelist)
       counter=0
       total_folders=len([p for p,s,f in os.walk(self.folder_path)])
@@ -640,7 +671,7 @@ class SqlFileIndex(sql_connect.SqlIndex,PathIndex):
       for folder_path,sub_dirs,file_names in os.walk(self.folder_path):
           counter+=1
           #log.debug(f'checking {folder_path}')
-          if counter%50==0:
+          if counter%100==0:
               log.info(f'checking folder #{counter} out of {total_folders}')
           if counter>1000:
               self.save()          
@@ -652,10 +683,9 @@ class SqlFileIndex(sql_connect.SqlIndex,PathIndex):
               
               self.check_path(os.path.join(folder_path,filename),False)
       self.save()
-
-      self.deletedfiles=[f for f in self.session.query(File).filter(File.checked==False)]
+      self.deletedfiles=self.checked_false() #fetch files not checked
       log.debug(f'Deleted: {self.deletedfiles[:10]}')
-      log.debug(f'New files: {self.newfiles[:10]}')
+      log.debug(f'New files: {self.newfiles}')
 
 
 
@@ -667,31 +697,6 @@ class SqlFileIndex(sql_connect.SqlIndex,PathIndex):
       log.debug('checking changes')
       self.update_changed()
       
-      #log.debug(f'stored files: {self.files}')
-      
-      #add new files    
-      log.info(f'Checking {len(self.newfiles)} unscanned files')
-      self.counter=0
-      for newfile in self.newfiles:
-         log.debug(f'newfile to add: {newfile} Directory:{os.path.isdir(newfile)}')
-         try:            
-            if os.path.isdir(newfile):
-               self.update_folder(newfile)
-            else:
-               self.update_record(newfile)
-         except Exception as e:
-            log.info(f'Update failed for {newfile} Exception: {e}')
-              #debug:
-            exc_type, exc_value, exc_traceback = sys.exc_info()
-            traceback.print_exc(limit=2, file=sys.stdout)
-          #log.debug(f'Added {docpath} to index')
-         self.counter+=1
-         if self.counter%200==0:
-            log.info(f'{self.counter} files updated')
-            try:
-               self.save()
-            except Exception as e:
-               log.info(f'Save failure: {e}')
       try:
          self.save()
       except Exception as e:
@@ -704,8 +709,6 @@ class SqlFileIndex(sql_connect.SqlIndex,PathIndex):
          except Exception as e:
            log.debug(f'Delete record failed for {deletedfile.path}')
            log.debug(e)
-              #log.debug(self.files)
-              #log.debug(deletedfiles)
            raise
       if self.deletedfiles:
          try:
@@ -995,10 +998,12 @@ def check_master_dups(folder,scan_index=None,master_index=None):
 
 def check_master_dups_html(folder,scan_index=None,master_index=None,rootpath=''):
     dupLister=Dups_Lister()
-    slice_start=0
+    #slice_start=0
     slice_stop=500
-    for dup,_hash,dupcount in master_index.dups_inside(folder)[slice_start:slice_stop]:
-        #log.debug(f'checking {dup.path}')
+    log.debug(f'Looking for dups inside {folder}')
+    sqldups=master_index.dups_inside(folder,limit=slice_stop)
+    for dup,_hash,dupcount in sqldups:
+        log.debug(f'checking {dup.path}')
         ck=DupCheckFile(dup,scan_index,master_index,master_dupcount=dupcount)
         _stored,_indexed=None,None
         filename=os.path.basename(dup.path)
@@ -1193,12 +1198,29 @@ def sizeof_fmt(num, suffix='B'):
         num /= 1024.0
     return "%.1f%s%s" % (num, 'Yi', suffix)
 
+def check_paths(folder):
+    """check filenames can be scanned on an windows system"""
+    for dir,subdirs, files in os.walk(folder):
+        for subdir in subdirs:
+            x=os.path.join(dir,subdir)
+            x=normalise(x)
+            if not os.path.exists(x):
+                log.error(f'Cannot find subfolder {x}')
+        for filepath in files:
+            x=os.path.join(dir,filepath)
+            x=normalise(x)
+            if not os.path.exists(x):
+                log.error(f'Cannot find file {x}')
+    
+
 
 def normalise(path):
-    """handle long windows filenames"""
+    """handle long windows filenames or paths ending in spaces"""
     try:
         path=os.path.normpath(path)
         if os.name=='nt' and len(path)>255 and not path.startswith("\\\\?\\"):
+            return u"\\\\?\\"+path
+        elif os.name=='nt' and (path.endswith(" ") or path.endswith("."))and not path.startswith("\\\\?\\"):
             return u"\\\\?\\"+path
         else:
             return path

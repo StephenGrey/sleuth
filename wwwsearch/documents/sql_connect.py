@@ -72,15 +72,18 @@ class SqlIndex():
 
     def dup_hashes(self,n=1):
         return self.session.query(File.contents_hash,func.count(File.contents_hash)).group_by(File.contents_hash).having(func.count(File.contents_hash)>n)
+    
+    def checked_false(self):
+        return  [f for f in self.session.query(File).filter(File.checked==False)]
+        
    
     @property
     def dups(self):
         _hashes=self.dup_hashes().subquery()
         return self.session.query(File,_hashes).join(_hashes,File.contents_hash==_hashes.c.contents_hash)
 
-    def dups_inside(self,folder):
-        return self.dups.filter(File.path.startswith(folder))
-
+    def dups_inside(self,folder,limit=500):
+        return self.dups.filter(File.path.startswith(folder)).limit(limit)
 
     @property
     def count_files(self):
@@ -106,6 +109,7 @@ class SqlIndex():
 
 class ComboIndex():
     def __init__(self,master_index,local_index):
+        log.debug(f'looking for dups in {master_index} and {local_index}')
         self.i1=master_index
         self.i2=local_index
 
