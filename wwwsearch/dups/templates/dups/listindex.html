@@ -40,7 +40,121 @@
 			{% endif %} 
 			</form>
 	</div>
-	</ul>
+
+{% if page.results %}
+<div id="results_panel" class="panel panel-default" > 
+<div class="panel-heading">
+		<span id="summary_results">Scanning:&nbsp{{ page.results.progress_str }}</span>
+</div>
+<div class="progress">
+  <div id="task_bar" class="progress-bar" role="progressbar" style="width: {{page.results.progress}}%" aria-valuemin="0" aria-valuemax="100">
+  </div>
+</div>
+  <span id="results_list" {% ifnotequal page.results.progress '100' %} style="visibility:hidden"{%endifnotequal%}>
+		
+  </span>
+
+<button id="progress_cancel" class="btn btn-default pull-left">Cancel scan</button>
+</div>
+
+<script>
+
+function check_tasks() 
+{
+	var task_url = '/documents/api/tasks/'+'{{page.job}}';
+	$.get( task_url, function(data) 
+		{
+    	if (data.error==true){
+    		console.log(data.message);
+    		}
+    	else
+    		{
+    		//alert(data.results.progress);
+    		console.log(data);
+//    		console.log(data.results.progress);
+//    		console.log(data.results.progress_str);
+    		var job=data.results.job;
+    		var task=data.results.task;
+    		var task_str="Scanning";
+    		var working_file =data.results.working_file;
+//    		$("#results_url").attr("href", "/documents/results/"+job)
+//    		if (master_task_status=='completed')
+//    			{
+//        		clearInterval(timerID); //stop checking;
+//    			};
+//        		if (data.results.show_taskbar=='False'){
+//        			$("#main-panel").css('display','none');
+//        			//('visibility','hidden'); 
+//        			}
+//        		else{
+//        			$("#main-panel").css('display','inline'); 
+//        		    };
+//    
+//        		$("#task_bar").html(data.results.progress+"%");
+//        		$("#task_bar").css("width", data.results.progress+"%");
+//        	console.log(data.results.progress+"%");
+        	$("#task_bar").html(data.results.progress+"%");
+        	$("#task_bar").css("width", data.results.progress+"%");
+        	if (data.results.status=='error'){
+        			$("#task_bar").removeClass("progress-bar-warning").addClass("progress-bar-danger");
+        			$("#summary_results").html('Error: '+data.results.message);
+        			};
+        	if (data.results.status=='completed')
+        			{
+//        			console.log('done');
+        			clearInterval(timerID); //stop checking; unless this is a subtask 
+        			$("#task_bar").removeClass("progress-bar-warning").addClass("progress-bar-success");
+        			$("#main-panel").css('display','inline'); 
+        			$("#results_list").css("visibility","visible");
+        			//document.getElementById("task_bar").style.color="green"
+        			if (task=data.results.task=="dupscan")
+        			{ 
+        			$("#results_list").html("<b>Scan results:</b>&nbspTotal folders: "+data.results.total+"&nbsp&nbspNew files: "+data.results.new+" &nbsp&nbspChanged files: "+data.results.changed+"&nbsp&nbspDeleted files: "+data.results.deleted+"<p><p>");    			
+        			}
+        			else {
+        				$("#results_list").html("<b>Indexing results:</b>&nbspTotal files: "+data.results.target_count+"&nbsp&nbspIndexed: "+data.results.counter+" &nbsp&nbspFailed: "+data.results.failed+" &nbsp&nbspSkipped: "+data.results.skipped+"&nbsp;&nbsp;&nbsp;");
+        				};
+    				$("#summary_results").html(task_str+":&nbsp"+data.results.progress_str+"&nbsp&nbspCompleted");
+        			}
+        	else
+        		{
+        		
+        		
+        		$("#summary_results").html(task_str+":&nbsp"+data.results.progress_str);
+        		//+"&nbsp&nbsp&nbspcurrently processing:&nbsp&nbsp "+working_file);	
+        			};
+    		
+    	};
+     },
+     'json' // I expect a JSON response
+     );
+};
+
+
+check_tasks();
+var timerID = setInterval(check_tasks, 2*1000); //checking every 2 seconds
+
+$("#progress_cancel").click(function() {
+  event.preventDefault();
+  console.log('remove task bar');
+  clearInterval(timerID);
+//  $("#task_wrap").css('visibility','hidden');
+//  $("#results_list").css('visibility','hidden');
+  $("#results_panel").css('display','none'); 
+  $.get( "/documents/api/cleartasks", function(data)
+  	{
+  	},"json")
+  .fail(function(){ alert('Failed to clear task')});
+//	{if (data.error==true){console.log("task cancel failed");};
+});
+
+
+</script>
+
+
+
+{%endif %}
+	
 {% endblock %}
 
 {% block body_content %}
@@ -91,6 +205,7 @@
  		  			<span class="menu-size">somehash</span>
  		  			<span class="menu-scans">info</span>
  		  			<span class="menu-localscans">info</span>
+		  		
 		  		<ul class="menu-options">
 		    		<li class="menu-option scan-folder"><u>Set as Scan Folder</u></li>
 		    		<li class="menu-option master-folder"><u>Set as Master Folder</u></li>

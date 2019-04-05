@@ -235,7 +235,23 @@ def make_scan_job(collection_id,_test=0):
         r.hmset(job,{'show_taskbar':1,'progress':0,'progress_str':"",'target_count':"",'moved':"",'new':"",'deleted':"",'unchanged':""})
         return job_id
 
-
+def make_dupscan_job(folder,label,_test=0):
+    job_id=f"DupScan.{label}"
+    makejob=r.sadd('SEARCHBOX_JOBS',job_id)
+    if not makejob:
+        log.info('task exists already')
+        return job_id
+    else:
+        job=f'SB_TASK.{job_id}'
+        r.hset(job,'task','dupscan')
+        r.hset(job,'label',label)
+        r.hset(job,'folder',folder)
+        r.hset(job,'status','queued')
+        r.hset(job,'test',_test)
+        r.hset(job,'job',job)
+        r.hmset(job,{'show_taskbar':1,'progress':0,'progress_str':"",'total_folders':"",'total_scanned':"",'new':"",'deleted':"",'unchanged':""})
+        return job_id
+        
 def get_extract_results(job):
     return r.hgetall(job)
     
@@ -246,6 +262,7 @@ def task_check():
         if r.exists(job):
             log.debug(f'Processing {job}')
             task=r.hget(job,'task')
+            log.debug(f'Task found {task}')
             if task[:18]=='extract_collection':
                 #expecting: 'extract_collection' or 'extract_collection_force_retry' or 'extract_collection_icij' or 'extract_collection_force_retry_icij'
                 try:
@@ -257,6 +274,8 @@ def task_check():
             elif task=='scan_extract_collection' or task=='scan_extract_collection_force_retry' or task=='scan_extract_collection_icij' or task=='scan_extract_collection_force_retry_icij':
                 #DEBUG
                 scan_extract_job(job_id,job,task)                    
+            elif task=='dupscan':
+                dupscan_job(job_id,job,task)
             else:
                 log.info(f'no task defined .. killing job')
                 r.delete(job)
@@ -316,6 +335,29 @@ def scan_job(job_id,job,task):
     r.srem('SEARCHBOX_JOBS',job_id)
     r.sadd('SEARCHBOX_JOBS_DONE',job_id)
     
+def dupscan_job(job_id,job,task):
+    folder=r.hget(job,'folder')
+    label=r.hget(job,'label')
+    r.hset(job,'status','scanning')
+    log.info(f'scanning folder {folder}')
+    dupscan_process(job,folder,label)
+    log.debug(f'completed scanning {job_id}')
+    r.srem('SEARCHBOX_JOBS',job_id)
+    r.sadd('SEARCHBOX_JOBS_DONE',job_id)
+
+def dupscan_process(job,folder,label):
+    _index=dupscan_folder(job,folder,label=label)
+    r.hset(job,'status','completed')
+    if _index:
+        r.hmset(job,{
+        'total':_index.total,
+        'new':_index.newfiles,
+        'deleted':_index.deleted_files_count,
+        'moved':"",
+        'unchanged':"",
+        'changed':_index.changed_files_count
+        })
+
 
 def index_job(job_id,job,task):
     ocr_raw=r.hget(job,'ocr')
@@ -377,6 +419,15 @@ def scan_collection_id(job,collection_id,_test=False):
 def scan_collection(job,_collection,_test=False):
     scanner=updateSolr.scandocs(_collection,job=job)
     return scanner
+
+def dupscan_folder(job,folder_path,label=None):
+    try:
+        _index=file_utils.sql_dupscan(folder_path,label=label,job=job)
+        return _index
+    except:
+        log.error('Error scanning')
+        return None
+    
 
 def collection_from_id(collection_id):
     _collection=Collection.objects.get(id=int(collection_id))

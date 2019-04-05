@@ -196,15 +196,18 @@ class PathIndex:
             self.save()
 
     def update_results(self):
-        log.debug(f'scanned files: {self.counter}')
-        progress=f'{((self.counter/self.total)*100):.0f}'
-        progress_str=f" disk {self.counter} of {self.total} files/folders " #0- replace 0 for decimal places
-        log.debug(f'Progress: {progress_str}')
-        r.hmset(self.job,{
-            'progress':progress,
-            'progress_str':progress_str,
-            'total':self.total,
-            })
+        if self.job:
+            #log.debug(f'scanned files: {self.counter}')
+            progress=f'{((self.counter/self.total)*100):.0f}'
+            progress_str=f" {self.counter} of {self.total} files/folders " #0- replace 0 for decimal places
+#            log.debug(f'Progress: {progress_str}')
+#            log.debug(self.total)
+#            log.debug(progress)
+            r.hmset(self.job,{
+                'progress':progress,
+                'progress_str':progress_str,
+                'total':self.total,
+                })
 
 
     def update_folder(self,path):
@@ -565,11 +568,15 @@ class SqlFileIndex(sql_connect.SqlIndex,PathIndex):
    def __init__(self,folder_path,job=None,ignore_pattern='X-',rescan=False,label=None):
       """index of file objects using sqlite and sqlalchemy"""
       log.debug(f'Thread: {threading.get_ident()}')
-      
+      log.debug(job)
       self.folder_path=folder_path
       self.job=job
       self.ignore_pattern=ignore_pattern
       self.specs_dict=True
+      self.counter=0
+      self.changed_files_count=0
+      self.newfiles=0
+      self.deleted_files_count=0
       self.connect_sql()
       log.debug(f'loaded files ..{self.count_files}')
       if rescan:
@@ -627,6 +634,7 @@ class SqlFileIndex(sql_connect.SqlIndex,PathIndex):
               if not is_folder:
                  if changed(db_file.__dict__):
                      log.info(f'File \'{db_file.path}\' is modified; updating hash of contents')
+                     self.changed_files_count+=1
                      self.update_record(db_file.path,existing=db_file)
           else:
               self.newfiles+=1
@@ -669,18 +677,18 @@ class SqlFileIndex(sql_connect.SqlIndex,PathIndex):
       """#update changed files"""
       log.debug('setting all files in database as unchecked')
       self.set_all(False) #mark all files to check
+      self.counter,self.newfiles,self.changed_files_count=0,0,0
       self.deletedfiles=[]
-      self.newfiles=0
       #log.debug(self.filelist)
-      counter=0
-      total_folders=len([p for p,s,f in os.walk(self.folder_path)])
-      log.info(f'Scanning {total_folders} total folders in {self.folder_path}')
+      self.total=len([p for p,s,f in os.walk(self.folder_path)])
+      log.info(f'Scanning {self.total} total folders in {self.folder_path}')
       for folder_path,sub_dirs,file_names in os.walk(self.folder_path):
-          counter+=1
+          self.counter+=1
           #log.debug(f'checking {folder_path}')
-          if counter%100==0:
-              log.info(f'checking folder #{counter} out of {total_folders}')
-          if counter>1000:
+          self.update_results()
+          if self.counter%100==0:
+              log.info(f'checking folder #{self.counter} out of {self.total}')
+          if self.counter>1000:
               self.save()          
           if self.ignore_pattern and os.path.basename(folder_path).startswith(self.ignore_pattern):
               continue
@@ -691,7 +699,8 @@ class SqlFileIndex(sql_connect.SqlIndex,PathIndex):
               self.check_path(os.path.join(folder_path,filename),False)
       self.save()
       self.deletedfiles=self.checked_false() #fetch files not checked
-      log.debug(f'Deleted: {self.deletedfiles[:10]}')
+      self.deleted_files_count=len(self.deletedfiles)
+      log.debug(f'Deleted: {self.deleted_files_count}')
       log.debug(f'New files: {self.newfiles}')
 
 
@@ -723,12 +732,19 @@ class SqlFileIndex(sql_connect.SqlIndex,PathIndex):
          except Exception as e:
             log.info(f'Save failure: {e}')
 
-
-
-
-
-
-
+def sql_dupscan(folder_path,label=None,job=None):
+    log.debug('Creating new sql file scanner connection, with job: {job} on folder {folder_path}')
+    specs=SqlFileIndex(folder_path,label=label,job=job)
+    try:
+        specs.scan_or_rescan()
+        specs.session.commit()
+        return specs
+    except Exception as e:
+        log.error(f'Exception in dup scanning: {e}')
+        specs.session.rollback()
+        raise
+    finally:
+        specs.session.close()
 
 class Index_Maker():
 #index_maker

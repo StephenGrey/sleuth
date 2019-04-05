@@ -10,6 +10,7 @@ from documents import file_utils, documentpage as pages, sql_connect as sql
 from dups import forms
 import os, configs, logging,json
 log = logging.getLogger('ownsearch.dups.views')
+from watcher import watch_dispatch
 
 dupsconfig=configs.config.get('Dups')
 DEFAULT_MASTERINDEX_PATH=dupsconfig.get('masterindex_path') if dupsconfig else None
@@ -25,6 +26,7 @@ def index(request,path='',duplist=False):
     
     log.debug(f'path: {path}')
     log.debug(f'Mediaroot: {MEDIAROOT}')
+    job_id=request.session.get('dup_tasks')
     
     path=os.path.normpath(path) if path else '' #cope with windows filepaths
     
@@ -57,9 +59,12 @@ def index(request,path='',duplist=False):
            full_masterpath=os.path.join(MEDIAROOT,page.masterindex_path)
            full_masterpath=os.path.normpath(full_masterpath) if full_masterpath else ''
            log.debug(f'scanning master: {full_masterpath}')
-           masterspecs=file_utils.SqlFileIndex(full_masterpath,label='master')
-           masterspecs.scan_or_rescan()
-           #masterspecs.hash_scan()
+           job_id=watch_dispatch.make_dupscan_job(full_masterpath,'master',_test=0)
+           #dupscan_folder(job_id,full_masterpath,label='master')
+#           masterspecs=file_utils.SqlFileIndex(full_masterpath,label='master')
+#           masterspecs.scan_or_rescan()
+#           #masterspecs.hash_scan()'dup_tasks'
+           request.session['dup_tasks']=job_id
            request.session['masterfolder']=page.masterindex_path
            return redirect('dups_index',path=path)           
 
@@ -136,10 +141,12 @@ def index(request,path='',duplist=False):
                 c = file_utils.Dups_Index_Maker(path,'',specs=page.specs,masterindex=page.masterspecs,rootpath=MEDIAROOT)._index
             except file_utils.EmptyDirectory as e:
                 c= None
-        #log.debug(c)
-        
-        
-
+        if job_id:
+            page.job=f'SB_TASK.{job_id}'
+            log.debug(f'job: {page.job}')
+            page.results=watch_dispatch.get_extract_results(page.job)
+            log.debug(page.results)
+            
         return render(request,'dups/listindex.html',
                                    {'page': page, 'subfiles': c, 'rootpath':rootpath, 'tags':tags,  'path':path,'warning':warning})
     else:
