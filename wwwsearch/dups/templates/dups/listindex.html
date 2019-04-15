@@ -44,7 +44,7 @@
 {% if page.results %}
 <div id="results_panel" class="panel panel-default" > 
 <div class="panel-heading">
-		<span id="summary_results">Scanning:&nbsp{{ page.results.progress_str }}</span>
+		<span id="summary_results">Scanning: &nbsp{{ page.results.progress_str }}</span>
 </div>
 <div class="progress">
   <div id="task_bar" class="progress-bar" role="progressbar" style="width: {{page.results.progress}}%" aria-valuemin="0" aria-valuemax="100">
@@ -75,24 +75,17 @@ function check_tasks()
 //    		console.log(data.results.progress_str);
     		var job=data.results.job;
     		var task=data.results.task;
-    		var task_str="Scanning";
+    		var task_str="";
     		var working_file =data.results.working_file;
-//    		$("#results_url").attr("href", "/documents/results/"+job)
-//    		if (master_task_status=='completed')
-//    			{
-//        		clearInterval(timerID); //stop checking;
-//    			};
-//        		if (data.results.show_taskbar=='False'){
-//        			$("#main-panel").css('display','none');
-//        			//('visibility','hidden'); 
-//        			}
-//        		else{
-//        			$("#main-panel").css('display','inline'); 
-//        		    };
-//    
-//        		$("#task_bar").html(data.results.progress+"%");
-//        		$("#task_bar").css("width", data.results.progress+"%");
-//        	console.log(data.results.progress+"%");
+    		var label=data.results.label;
+    		if (label=='local')
+    			{
+    		    task_str="Scanning Scan Folder"; 
+    		    }
+    		else
+    			{
+    			task_str="Scanning Master Folder";
+    			};
         	$("#task_bar").html(data.results.progress+"%");
         	$("#task_bar").css("width", data.results.progress+"%");
         	if (data.results.status=='error'){
@@ -141,7 +134,7 @@ $("#progress_cancel").click(function() {
 //  $("#task_wrap").css('visibility','hidden');
 //  $("#results_list").css('visibility','hidden');
   $("#results_panel").css('display','none'); 
-  $.get( "/documents/api/cleartasks", function(data)
+  $.get( "/documents/api/clearduptasks", function(data)
   	{
   	},"json")
   .fail(function(){ alert('Failed to clear task')});

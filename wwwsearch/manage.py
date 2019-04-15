@@ -43,11 +43,10 @@ if __name__ == "__main__":
         execute_from_command_line(sys.argv)
     
     finally:
-        print('Closing down background tasks')
+        print('Closing down background tasks in manage.py')
     
         for t in TASKS:
+            print(f'closing task {t}')
             t.stop()
             t.stopper()
-        
-        
-    
+

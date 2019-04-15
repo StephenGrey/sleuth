@@ -129,6 +129,9 @@ class FilesPage(CollectionPage):
             log.debug(f'Masterindex path: {self.masterindex_path}')
             self.scanpath=self.local_scanpath
             log.debug(f'stored scanpath: {self.scanpath}')
+        else:
+            self.scanpath=None
+            self.masterindex_path=None
     
     def get_stored(self,media_root):
         
@@ -158,6 +161,19 @@ class FilesPage(CollectionPage):
             self.specs.delete_record(filepath)
         except AttributeError:
             pass
+            
+    def save(self):
+        try:
+            self.masterspecs.save()
+        except AttributeError as e:
+            pass
+            #log.debug(e)
+        try:
+            self.specs.save()
+        except AttributeError as e:
+            pass
+            #log.debug(e)
+    
     def move_file(self,filepath,newpath):
         spec=None
         

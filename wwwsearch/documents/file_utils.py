@@ -568,8 +568,10 @@ class SqlFileIndex(sql_connect.SqlIndex,PathIndex):
    def __init__(self,folder_path,job=None,ignore_pattern='X-',rescan=False,label=None):
       """index of file objects using sqlite and sqlalchemy"""
       log.debug(f'Thread: {threading.get_ident()}')
-      log.debug(job)
+      log.debug(f'Job: {job}')
       self.folder_path=folder_path
+      if not os.path.exists(folder_path):
+          raise DoesNotExist("Folder to index does not exist")
       self.job=job
       self.ignore_pattern=ignore_pattern
       self.specs_dict=True
@@ -578,7 +580,7 @@ class SqlFileIndex(sql_connect.SqlIndex,PathIndex):
       self.newfiles=0
       self.deleted_files_count=0
       self.connect_sql()
-      log.debug(f'loaded files ..{self.count_files}')
+      #log.debug(f'loaded files ..{self.count_files}')
       if rescan:
           self.scan_or_rescan()
       
@@ -638,21 +640,25 @@ class SqlFileIndex(sql_connect.SqlIndex,PathIndex):
                      self.update_record(db_file.path,existing=db_file)
           else:
               self.newfiles+=1
-              log.debug(f'newfile to add: {path} Directory:{os.path.isdir(path)}')
+              #log.debug(f'newfile to add: {path} Directory:{os.path.isdir(path)}')
               try:            
                   if os.path.isdir(path):
                       self.update_folder(path)
                   else:
                       self.update_record(path)
+              except DoesNotExist:
+                  log.info(f'Failed to add {path}: does not exist / no access')
               except PermissionError:
                   log.info(f'Failed to add {path}: permission error')
+              except OSError:
+                  log.info(f'Failed to add {path}: OS error')
               except Exception as e:
                   log.info(f'Update failed for {path} Exception: {e}')
                   #debug:
                   exc_type, exc_value, exc_traceback = sys.exc_info()
                   traceback.print_exc(limit=2, file=sys.stdout)
               if self.newfiles%200==0:
-                  log.info(f'{self.counter} files updated')
+                  log.info(f'{self.newfiles} new filepaths updated')
               try:
                   self.save()
               except Exception as e:
@@ -703,8 +709,10 @@ class SqlFileIndex(sql_connect.SqlIndex,PathIndex):
       log.debug(f'Deleted: {self.deleted_files_count}')
       log.debug(f'New files: {self.newfiles}')
 
-
-
+#   def delete_record(self,docpath):
+#      log.debug(f'trying to delete record {docpath}')
+#      pass
+      
    def rescan(self):
       """rescan changed files in dictionary of filespecs"""
       log.info(f'rescanning ... {self.folder_path}')
@@ -721,7 +729,7 @@ class SqlFileIndex(sql_connect.SqlIndex,PathIndex):
       for deletedfile in self.deletedfiles:
          log.debug(f'deleting {deletedfile.path} from scan index')
          try:
-            self.delete_record(deletedfile)
+            self.delete_file(deletedfile)
          except Exception as e:
            log.debug(f'Delete record failed for {deletedfile.path}')
            log.debug(e)
@@ -733,7 +741,7 @@ class SqlFileIndex(sql_connect.SqlIndex,PathIndex):
             log.info(f'Save failure: {e}')
 
 def sql_dupscan(folder_path,label=None,job=None):
-    log.debug('Creating new sql file scanner connection, with job: {job} on folder {folder_path}')
+    log.debug(f'Creating new sql file scanner connection, with job: {job} on folder {folder_path}')
     specs=SqlFileIndex(folder_path,label=label,job=job)
     try:
         specs.scan_or_rescan()
@@ -789,8 +797,10 @@ class Index_Maker():
                             _stored,_indexed=model_index(t,index_collections)
                         else:
                             _stored,_indexed=None,None
-                        
-                        dupcheck=SqlDupCheck(t,specs,masterindex)
+                        try:
+                            dupcheck=SqlDupCheck(t,specs,masterindex)
+                        except Exception as e:
+                            log.error(e)
                         #log.debug(f'Local check: {t},indexed: {_indexed}, stored: {_stored}')
                         #log.debug(f'Dupcheck: {dupcheck.__dict__}')
                         yield self.file_html(mfile,_stored,_indexed,dupcheck,relpath,path)
@@ -1040,15 +1050,16 @@ def check_local_dups_html(folder,scan_index=None,master_index=None,rootpath='',c
     if combo:
         for dup,_hash,dupcount in combo.dups[slice_start:slice_stop]:
             #log.debug(f'checking {dup.path}')
-            ck=DupCheckFile(dup,scan_index,master_index,master_dupcount=dupcount)
+            #ck=DupCheckFile(dup,scan_index,master_index,master_dupcount=dupcount)
+            
+            ck=SqlDupCheck(dup.path,master_index,scan_index)
+            
             _stored,_indexed=None,None
+            #log.debug(ck.__dict__)
             filename=os.path.basename(dup.path)
             relpath=os.path.relpath(dup.path,rootpath)
             yield dupLister.file_html(filename,_stored,_indexed,ck,relpath,folder)
 
-
-
-    
 #    _t=file_tree(folder)
 #    
 #    dupLister=Dups_Lister()
@@ -1328,8 +1339,10 @@ class DupCheck:
         self.dups=None
         self.local_dup=False
         self.master_dup=None
-        self.check()
-        
+        try:
+            self.check()
+        except Exception as e:
+            log.error(f'Exception {e}')
     def check(self):
         self.contents_hash=''
         if self.masterindex:

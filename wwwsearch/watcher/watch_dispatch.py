@@ -258,7 +258,11 @@ def get_extract_results(job):
 def task_check():
     job_ids=r.smembers('SEARCHBOX_JOBS')
     for job_id in job_ids:
-        job=f'SB_TASK.{job_id}'
+        task_dispatch(job_id)
+
+def task_dispatch(job_id):
+    job=f'SB_TASK.{job_id}'
+    try:
         if r.exists(job):
             log.debug(f'Processing {job}')
             task=r.hget(job,'task')
@@ -280,6 +284,15 @@ def task_check():
                 log.info(f'no task defined .. killing job')
                 r.delete(job)
                 r.srem('SEARCHBOX_JOBS',job_id)
+            return True
+        else:
+            log.info(f'Job \"{job_id}\" does not exist in queue')
+            r.srem('SEARCHBOX_JOBS',job_id)
+            return False
+    except:
+        log.info('Exception in searchbox task: removing job')
+        r.srem('SEARCHBOX_JOBS',job_id)
+        raise
 
 def scan_extract_job(job_id,job,task):
     sub_job_id=r.hget(job,'sub_job_id')
@@ -465,7 +478,7 @@ def modify_check(time_before_check):
             _rawmod=r.get(f'MODIFIED_TIME.{_file.id}')
             _modtime=float(_rawmod) if _rawmod else None
             _now=time.time()
-            log.debug(f'Checking: File:{_file} Modified: {int(_now-_modtime)} seconds ago')
+            #log.debug(f'Checking: File:{_file} Modified: {int(_now-_modtime)} seconds ago')
             if _now-_modtime>time_before_check:
                 log.debug('needs update check')
                 result=update_file(_file)

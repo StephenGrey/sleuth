@@ -160,6 +160,15 @@ def api_clear_tasks(request):
     return JsonResponse({'error':False})
 
 @staff_member_required()
+def api_clear_dup_tasks(request):
+    """clear dup tasks from session"""
+    log.debug('clearing dup tasks')
+    request.session['dup_tasks']=''
+    return JsonResponse({'error':False})
+
+
+
+@staff_member_required()
 def api_check_redis(request):
     jsonresponse={'error':False}
     try:

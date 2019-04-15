@@ -21,6 +21,7 @@ from django.conf import settings #to access settings constants
 from documents.management.commands import setup
 import re, os, logging, unicodedata, json
 from . import markup
+from watcher import watch_dispatch
 
 try:
     from urllib.parse import quote_plus #python3
@@ -405,11 +406,30 @@ def check_solr(request):
     """API to check solr index is up"""
     jsonresponse={'error':True, 'solr_up':False,'message':'Unknown error checking solr index'}
     
+
     try:
         server=setup.check_solr(verbose=False) 
         if server.server_up:
             jsonresponse={'error':False, 'solr_up':True,'message': None}
     except Exception as e:
+        pass
+    
+    return JsonResponse(jsonresponse)
+
+@login_required
+def check_bot(request):
+    """API to check watcher threads are running"""
+    jsonresponse={'error':True, 'sleuth_bot':False,'message':'Unknown error checking bot heartbeat'}
+
+    try:
+        heartbeat=watch_dispatch.HeartBeat().alive
+        #log.debug(f'Heartbeat: {heartbeat}')
+        if heartbeat:
+            jsonresponse={'error':False, 'sleuth_bot':True,'message':''}
+        else:
+            jsonresponse.update({'error':False,'message':''})
+    except Exception as e:
+        log.debug(e)
         pass
     return JsonResponse(jsonresponse)
 

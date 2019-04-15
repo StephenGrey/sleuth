@@ -27,14 +27,15 @@
 </head>
 <div class="container">
 <div class="row" style="background: lightblue; padding: 5px">
+
+
 <h2><a class='no-deco' style="color:white" href="/ownsearch/">SearchBox</a></h2>
 
 <!--<a href="{% static 'Squirrel.jpg' %}">test picture</a>
 -->
 {% if user.is_authenticated %}
 
-
-<div class='login'><span class='solr_check' id="solr_check"></span>   Logged in as: {{ user.username }}  <a href="{% url 'logout' %}?next=/ownsearch/"">[logout]</a>
+<div class='login'><span class='solr_check' id="solr_check"></span><div class='botcheck'></div>   Logged in as: {{ user.username }}  <a href="{% url 'logout' %}?next=/ownsearch/"">[logout]</a>
 </div>
 </div>
 
@@ -80,6 +81,30 @@ modified log-in code from: https://rayed.com/wordpress/?p=1350
  {% endcomment %}
 
 <script>
+
+function check_bot() 
+{
+	var bot_url = '/ownsearch/ajax/check_bot';
+	$.get( bot_url, function(data)
+	{	
+    if (data.sleuth_bot==true){
+    $(".botcheck").html('Sleuthbot Alive');
+    }
+    else
+    {
+	$(".botcheck").html('Sleuthbot Down');
+	};
+    },
+     'json' // I expect a JSON response
+     );
+};
+
+check_bot();
+var bottimerID = setInterval(check_bot, 30*1000); //checking every 30 seconds
+
+
+
+
 (function() {
 	$.get( '/ownsearch/ajax/check_solr', function(data) 
 		{
@@ -94,6 +119,7 @@ modified log-in code from: https://rayed.com/wordpress/?p=1350
     		document.getElementById("solr_check").style.color="green"
     		document.getElementById("solr_check").innerHTML="CONNECTED "	
     	};
+//    	console.log(data);
     };
      },
                  'json' // I expect a JSON response

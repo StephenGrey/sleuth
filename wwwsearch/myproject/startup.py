@@ -1,21 +1,22 @@
-import os
+import os, threading
 from django.conf import settings
 
 TASKS=[]
 from watcher import tasks
 
-
 def run():
 #    autoload(["receivers"])
     if os.environ.get('RUN_MAIN') != 'true':
         if not tasks.THREADS: #prevent the background processes being set twice
-            print('Initialising Search Box background processes.. ')
-            print(f'Main thread has id: {os.getpid()}')
+            print('Initialising Search Box background processes in startup.py.. ')
+            tid=threading.get_ident()
+            print(f'Main thread has id: {os.getpid()} and thread:{tid}')
             t=tasks.set_watcher()
             TASKS.append(t)
        
     else:
-        print(f'Secondary thread launching, other thread running has id: {os.getpid()}')
+        tid=threading.get_ident()
+        print(f'Secondary thread launching, other thread running has id: {os.getpid()} thread:{tid}')
   # myVar exists.
 
 #from django.utils.importlib import import_module

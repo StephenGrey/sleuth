@@ -16,6 +16,7 @@ urlpatterns = [
     url(r'^api/changes/(?P<user_edit_id>.*)$',api.api_changes,name='api_changes'),
     url(r'^api/tasks/(?P<job>.*)$',api.api_task_progress,name='api_tasks'),
     url(r'^api/cleartasks$',api.api_clear_tasks,name='clear_tasks'),
+    url(r'^api/clearduptasks$',api.api_clear_dup_tasks,name='clear_dup_tasks'),    
     url(r'^api/checkredis$',api.api_check_redis,name='redis_check'),
     url(r'^indexedfiles/(?P<path>.*)$',views.list_solrfiles,name='list_solrfiles'),
 #    url(r'^indexedfiles',views.list_solrfiles,name='list_solrfiles_base'),

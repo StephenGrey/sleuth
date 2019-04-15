@@ -35,6 +35,8 @@ urlpatterns = [
     
     url(r'^ajax/post_usertags$',views.post_usertags,name='post_usertags'),
     url(r'^ajax/check_solr$',views.check_solr,name='check_solr_api'),
+    url(r'^ajax/check_bot$',views.check_bot,name='check_bot_api'),
+
    ]
 
 urlpatterns += staticfiles_urlpatterns()

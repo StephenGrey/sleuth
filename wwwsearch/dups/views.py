@@ -8,7 +8,7 @@ from django.contrib.auth.decorators import login_required
 from . import pages
 from documents import file_utils, documentpage as pages, sql_connect as sql
 from dups import forms
-import os, configs, logging,json
+import os, configs, logging,json,threading
 log = logging.getLogger('ownsearch.dups.views')
 from watcher import watch_dispatch
 
@@ -23,7 +23,7 @@ MEDIAROOT=dupsconfig.get('rootpath') if dupsconfig else None
 def index(request,path='',duplist=False):
     """display files in a directory"""
     warning=""
-    
+    log.debug(f'Thread: {threading.get_ident()}')
     log.debug(f'path: {path}')
     log.debug(f'Mediaroot: {MEDIAROOT}')
     job_id=request.session.get('dup_tasks')
@@ -33,8 +33,7 @@ def index(request,path='',duplist=False):
     log.debug(f'Dups only: {duplist}')
     
     page=pages.FilesPage(request=request,default_master=DEFAULT_MASTERINDEX_PATH)
-    
-    
+        
     if not MEDIAROOT or not page.masterindex_path:
     	    return HttpResponse ("Missing 'Dups' configuration information in user.settings : set the 'rootpath' and 'masterindex_path' variables")
     
@@ -42,16 +41,17 @@ def index(request,path='',duplist=False):
        log.info(request.POST)
        checklist=request.POST.getlist('checkbox')
        if 'scan' in request.POST:
-           log.debug('scanning')
+           
            page.local_scanpath=request.POST.get('local-path')
            page.local_scanpath=os.path.normpath(page.local_scanpath) if page.local_scanpath else ''
+           log.debug('scanning scanfolder {page.local_scanpath}')
            if not os.path.exists(os.path.join(MEDIAROOT,page.local_scanpath)):
-               log.debug('scan request sent non-existent path')
+               log.error('scan request sent non-existent path')
                return redirect('dups_index',path=path)
-           specs=file_utils.SqlFileIndex(os.path.join(MEDIAROOT,page.local_scanpath),label='local')
-           #print(specs.files)
-           specs.scan_or_rescan()
-           #specs.hash_scan()
+           fullpath=os.path.join(MEDIAROOT,page.local_scanpath)
+           fullpath=os.path.normpath(fullpath) if fullpath else ''
+           job_id=watch_dispatch.make_dupscan_job(fullpath,'local',_test=0)
+           request.session['dup_tasks']=job_id
            request.session['scanfolder']=page.local_scanpath
            return redirect('dups_index',path=path)
 
@@ -60,12 +60,9 @@ def index(request,path='',duplist=False):
            full_masterpath=os.path.normpath(full_masterpath) if full_masterpath else ''
            log.debug(f'scanning master: {full_masterpath}')
            job_id=watch_dispatch.make_dupscan_job(full_masterpath,'master',_test=0)
-           #dupscan_folder(job_id,full_masterpath,label='master')
-#           masterspecs=file_utils.SqlFileIndex(full_masterpath,label='master')
-#           masterspecs.scan_or_rescan()
-#           #masterspecs.hash_scan()'dup_tasks'
            request.session['dup_tasks']=job_id
            request.session['masterfolder']=page.masterindex_path
+           log.debug(f'redirecting back to dups in {path}')
            return redirect('dups_index',path=path)           
 
     page.get_stored(MEDIAROOT)
@@ -129,7 +126,7 @@ def index(request,path='',duplist=False):
                 c=file_utils.check_master_dups_html(os.path.join(MEDIAROOT,path),scan_index=page.specs,master_index=page.masterspecs,rootpath=rootpath)
                 log.debug(f'Scanned \'{path}\' for duplicates')
             elif page.specs and page.inside_scan_folder:
-                combodups=sql.ComboIndex(page.masterspecs,page.specs)
+                combodups=sql.ComboIndex(page.masterspecs,page.specs,folder=os.path.join(MEDIAROOT,path))
                 c=file_utils.check_local_dups_html(os.path.join(MEDIAROOT,path),scan_index=page.specs,master_index=page.masterspecs,combo=combodups,rootpath=rootpath)
                 log.debug(f'Scanned \'{path}\' for duplicates')
             else:
@@ -227,11 +224,23 @@ def file_dups(request,_hash):
             checklist=request.POST.getlist('checked')
             if request.POST.get('delete-button')=='Delete':
                 log.debug(f'Deleting: {checklist}')
-                for f in checklist:
-                    result=file_utils.delete_file(f)
-                    log.info(f'Deleted: {f} Result: {result}')
-                    if result:
-                        page.remove_file(f)
+                for path in checklist:
+                    if os.path.exists(path):
+                        result=file_utils.delete_file(path)
+                        log.info(f'Deleted: {path} Result: {result}')
+                        if result: #result:
+                            try:
+                                page.remove_file(path)
+                            except Exception as e:
+                                log.error(e)
+                    else:
+                        log.info(f'Remove non-existing {path} from database')
+                        try:
+                            page.remove_file(path)
+                        except Exception as e:
+                            log.error(e)
+                page.save() #commit the deletes
+                
             elif request.POST.get('action')=='move':
                 reldest=request.POST.get('destination')
                 destination=os.path.join(MEDIAROOT,reldest)
@@ -248,18 +257,22 @@ def file_dups(request,_hash):
                         page.move_file(f,filedest)
                     
                         
-        log.debug(page.__dict__)
+        
         if page.masterspecs:
             duplist_master=file_utils.specs_path_list(page.masterspecs,_hash)
-            #log.debug(duplist_master)
+            log.debug(duplist_master)
         if page.specs:
             log.debug(page.specs)
             duplist_local=file_utils.specs_path_list(page.specs,_hash)
-            #log.debug(duplist_local)
-        
+            log.debug(duplist_local)
+        log.debug(page.__dict__)
         if duplist_local or duplist_master:
             return render(request,'dups/list_files.html',
-                                   {'page': page, 'files_master': duplist_master,'files_local':duplist_local,'default_destination':destination})
+                                   {'files_master': duplist_master,
+                                   'files_local':duplist_local,
+                                   'default_destination':destination,
+                                   'page':page,
+                                   })  #removing page
         else:
             return HttpResponse('no dups')
     return HttpResponse('error')
