@@ -802,7 +802,7 @@ class Index_Maker():
                         except Exception as e:
                             log.error(e)
                         #log.debug(f'Local check: {t},indexed: {_indexed}, stored: {_stored}')
-                        #log.debug(f'Dupcheck: {dupcheck.__dict__}')
+                        log.debug(f'Dupcheck: {dupcheck.__dict__}')
                         yield self.file_html(mfile,_stored,_indexed,dupcheck,relpath,path)
                         continue
             except PermissionError:
@@ -932,8 +932,12 @@ def changed(oldspecs):
             #log.debug(f'LastM:{newspecs.last_modified},LEN: {newspecs.length}')
             if oldspecs['last_modified'] != newspecs.last_modified or oldspecs['length'] != newspecs.length:
                 return True
+        except DoesNotExist:
+            log.debug(f'\'{docpath}\'Does not exist')
         except Exception as e:
             log.debug(e)
+            exc_type, exc_value, exc_traceback = sys.exc_info()
+            traceback.print_exc(limit=2, file=sys.stdout)
             return True
     return False
 
@@ -1041,6 +1045,7 @@ def check_master_dups_html(folder,scan_index=None,master_index=None,rootpath='')
         _stored,_indexed=None,None
         filename=os.path.basename(dup.path)
         relpath=os.path.relpath(dup.path,rootpath)
+        log.debug(f'Relpath: {relpath}')
         yield dupLister.file_html(filename,_stored,_indexed,ck,relpath,folder)
 
 def check_local_dups_html(folder,scan_index=None,master_index=None,rootpath='',combo=None):
@@ -1049,15 +1054,16 @@ def check_local_dups_html(folder,scan_index=None,master_index=None,rootpath='',c
     slice_stop=500
     if combo:
         for dup,_hash,dupcount in combo.dups[slice_start:slice_stop]:
-            #log.debug(f'checking {dup.path}')
+            #log.debug(f'checking {dup.path} with rootpath{rootpath}')
             #ck=DupCheckFile(dup,scan_index,master_index,master_dupcount=dupcount)
             
-            ck=SqlDupCheck(dup.path,master_index,scan_index)
+            ck=SqlDupCheck(dup.path,scan_index,master_index,)
             
             _stored,_indexed=None,None
             #log.debug(ck.__dict__)
             filename=os.path.basename(dup.path)
             relpath=os.path.relpath(dup.path,rootpath)
+            #log.debug(f'Relpath: {relpath}')
             yield dupLister.file_html(filename,_stored,_indexed,ck,relpath,folder)
 
 #    _t=file_tree(folder)

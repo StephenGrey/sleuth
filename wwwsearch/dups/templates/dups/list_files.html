@@ -10,7 +10,9 @@
 		</ol>
 
 </div>
-
+{% if page.return_url %}
+<a href="{{page.return_url}}">Back</a><p>
+{% endif%}
 <h4>Hash of contents:</h4>{{page.hash}}
 <p>
 
@@ -23,9 +25,14 @@
 				{% if not files_master and not files_local%}
 				No files
 				{% endif %}
+				<div class="checkbox">
+					<label><input type="checkbox" id="select_all" name="checked" value="">Select All</label>
+				</div>	
+
 				{% if files_master %}
 				<div style="color:white;background-color:red">INSIDE MASTER ARCHIVE </div>
 				{% endif %}
+				 
 				{% for f in files_master %}
 				
 				<div class="checkbox">

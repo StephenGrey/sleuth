@@ -28,6 +28,11 @@ def index(request,path='',duplist=False):
     log.debug(f'Mediaroot: {MEDIAROOT}')
     job_id=request.session.get('dup_tasks')
     
+    path_info=request.META.get('PATH_INFO')
+    request.session['lastpage']=path_info
+    #log.debug(request.session.get('lastpage'))
+    
+    
     path=os.path.normpath(path) if path else '' #cope with windows filepaths
     
     log.debug(f'Dups only: {duplist}')
@@ -123,11 +128,11 @@ def index(request,path='',duplist=False):
             
             (Only first 500 duplicate files shown)"""
             if page.masterspecs and page.inside_master:
-                c=file_utils.check_master_dups_html(os.path.join(MEDIAROOT,path),scan_index=page.specs,master_index=page.masterspecs,rootpath=rootpath)
+                c=file_utils.check_master_dups_html(os.path.join(MEDIAROOT,path),scan_index=page.specs,master_index=page.masterspecs,rootpath=MEDIAROOT)
                 log.debug(f'Scanned \'{path}\' for duplicates')
             elif page.specs and page.inside_scan_folder:
                 combodups=sql.ComboIndex(page.masterspecs,page.specs,folder=os.path.join(MEDIAROOT,path))
-                c=file_utils.check_local_dups_html(os.path.join(MEDIAROOT,path),scan_index=page.specs,master_index=page.masterspecs,combo=combodups,rootpath=rootpath)
+                c=file_utils.check_local_dups_html(os.path.join(MEDIAROOT,path),scan_index=page.specs,master_index=page.masterspecs,combo=combodups,rootpath=MEDIAROOT)
                 log.debug(f'Scanned \'{path}\' for duplicates')
             else:
                 c=None                
@@ -225,6 +230,8 @@ def file_dups(request,_hash):
             if request.POST.get('delete-button')=='Delete':
                 log.debug(f'Deleting: {checklist}')
                 for path in checklist:
+                    if path=="":
+                        continue
                     if os.path.exists(path):
                         result=file_utils.delete_file(path)
                         log.info(f'Deleted: {path} Result: {result}')
@@ -248,6 +255,8 @@ def file_dups(request,_hash):
                 request.session['destination']=reldest
                 
                 for f in checklist:
+                    if f=='':
+                        continue
                     filename=os.path.basename(f)
                     filedest=os.path.join(destination,filename)
                     log.debug(f'Moving ... {f} to {filedest}')
@@ -265,7 +274,9 @@ def file_dups(request,_hash):
             log.debug(page.specs)
             duplist_local=file_utils.specs_path_list(page.specs,_hash)
             log.debug(duplist_local)
-        log.debug(page.__dict__)
+        #log.debug(page.__dict__)
+        return_url=request.session.get('lastpage')
+        page.return_url=return_url if return_url else None
         if duplist_local or duplist_master:
             return render(request,'dups/list_files.html',
                                    {'files_master': duplist_master,

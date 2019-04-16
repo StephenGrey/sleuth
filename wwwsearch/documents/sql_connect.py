@@ -70,7 +70,8 @@ class SqlIndex():
                 self.delete_file(_file)
                 log.debug(f'delete done')
             else:
-                log.error('Delete failed - no database record found') 
+                log.debug('Delete failed - no database record found')
+                pass 
         except Exception as e:
             log.error(f'{docpath} delete failed from index; exception {e}')
 
@@ -78,17 +79,28 @@ class SqlIndex():
     def delete_file(self,_file):
         try:
             self.session.delete(_file)
+            self.save()
         except KeyError:
             log.debug(f'{docpath} delete failed from index')
             pass
         except sqlite3.OperationalError as e:
+            self.session.rollback()
             log.debug(f'{docpath} delete failed from index with exception {e}')
+            raise
         except Exception as e:
             log.debug(f'{docpath} delete failed from index with exception {e}')
+            self.session.rollback()
+            raise
    
     def lookup_path(self,path):
         #log.debug(path)
-        return self.session.query(File).filter(File.path==path).first()
+        try:
+            return self.session.query(File).filter(File.path==path).first()
+        except Exception as e:
+            log.error(e)
+            self.session.rollback()
+            raise
+        
 
     def lookup_hash(self,_hash):
         try:
@@ -160,7 +172,7 @@ class ComboIndex():
            dups=self.i1.count_hash(_hash)
            if dups>0:
                self.dups_in_master[_hash]=dups
-       log.debug(f"Dups in master: {self.dups_in_master}")
+       #log.debug(f"Dups in master: {self.dups_in_master}")
     
     @property
     def dups(self):

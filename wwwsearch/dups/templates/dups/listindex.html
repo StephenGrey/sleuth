@@ -178,6 +178,10 @@ $("#progress_cancel").click(function() {
 				{% if not subfiles%}
 				Empty folder
 				{% endif %}
+				<div class="checkbox">
+					<label><input type="checkbox" id="select_all" name="checked" value="">Select All</label>
+				</div>	
+				
 				{% for f in subfiles %}
 					{{f}}
 				{% endfor %}
