@@ -158,8 +158,12 @@ $("#progress_cancel").click(function() {
 
 {% endif %}
 <p>
-<a href="{% url "dups_index" path=path %}">Display All</a> &nbsp;&nbsp; <a href="{% url "dups_index_dups" path=path %}">List Duplicates</a>
+<a href="{% url "dups_index" path=path %}">Display All</a> &nbsp;&nbsp; 
+<a href="{% url "dups_index_dups" path=path %}">List Duplicates</a>
+{% if not page.inside_master %}&nbsp;&nbsp;
+<a href="{% url "dups_index_orphans" path=path %}">List Orphans</a>
 
+{% endif %}
 <div class='nav-container'>		
 		<ol class="breadcrumb bread1" id="{{path}}">
 		  <li><a href="/dups">Home</a></li>

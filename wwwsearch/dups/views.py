@@ -20,7 +20,7 @@ MEDIAROOT=dupsconfig.get('rootpath') if dupsconfig else None
 #log.debug(DEFAULT_MASTERINDEX_PATH)
 
 @staff_member_required()
-def index(request,path='',duplist=False):
+def index(request,path='',duplist=False,orphans=False):
     """display files in a directory"""
     warning=""
     log.debug(f'Thread: {threading.get_ident()}')
@@ -138,6 +138,28 @@ def index(request,path='',duplist=False):
                 c=None                
                 warning="Navigate to a scanned folder to see duplicates"
                        
+        elif orphans:
+            #display only orphans
+            warning="""
+            
+            (Only first 500 orphan files shown)"""
+            if page.masterspecs and page.inside_master:
+                c=None
+                warning="Navigate to scan folder to see orphans from master"
+#                c=file_utils.check_master_dups_html(os.path.join(MEDIAROOT,path),scan_index=page.specs,master_index=page.masterspecs,rootpath=MEDIAROOT)
+#                log.debug(f'Scanned \'{path}\' for orphans')
+            elif page.specs and page.inside_scan_folder:
+                combodups=sql.ComboIndex(page.masterspecs,page.specs,folder=os.path.join(MEDIAROOT,path))
+                c=file_utils.check_local_dups_html(os.path.join(MEDIAROOT,path),scan_index=page.specs,master_index=page.masterspecs,combo=combodups,rootpath=MEDIAROOT,orphans=True)
+                log.debug(f'Scanned \'{path}\' for orphans')
+            else:
+                c=None                
+                warning="Navigate to a scan folder to see orphans"
+
+            
+            
+            
+        
         else:
             try:
                 c = file_utils.Dups_Index_Maker(path,'',specs=page.specs,masterindex=page.masterspecs,rootpath=MEDIAROOT)._index
@@ -285,7 +307,12 @@ def file_dups(request,_hash):
                                    'page':page,
                                    })  #removing page
         else:
-            return HttpResponse('no dups')
+            return render(request,'dups/list_files.html',
+                                   {'files_master': None,
+                                   'files_local':None,
+                                   'default_destination':None,
+                                   'page':page,
+                                   })  #removing page
     return HttpResponse('error')
     
     

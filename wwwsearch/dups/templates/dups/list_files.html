@@ -23,12 +23,14 @@
 				{% csrf_token %}
 				<ul>
 				{% if not files_master and not files_local%}
-				No files
-				{% endif %}
+				No files indexed with this hash
+				
+				{% else %}
 				<div class="checkbox">
 					<label><input type="checkbox" id="select_all" name="checked" value="">Select All</label>
 				</div>	
-
+				{% endif %}
+				
 				{% if files_master %}
 				<div style="color:white;background-color:red">INSIDE MASTER ARCHIVE </div>
 				{% endif %}
@@ -50,8 +52,12 @@
 				</div>			
 				{% endfor %}				
 				</ul>
+				{% if files_master or files_local%}
+				
 				<input type="submit" name="delete-button"  class="btn btn-info" value="Delete">	
 				<input type="submit" id="move-button" name="move-button"  class="btn btn-info move-button" value="Move">
+				{% endif %}
+				
 				<input type="hidden" class="hash-value" name="hash-value" id="hash-value" value="{{page.hash}}">
 				<input type="hidden" class="destination" name="destination" id="destination" value="something">
 				<input type="hidden" id="to-do" name="action" value="">

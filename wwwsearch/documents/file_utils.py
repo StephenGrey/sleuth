@@ -55,6 +55,9 @@ class Not_A_Directory(Exception):
 class EmptyDirectory(Exception):
     pass
 
+class TaskReset(Exception):
+    pass
+
 class FileSpecs:
     def __init__(self,path,folder=False,scan_contents=True):
         self.path=normalise(path) #adjust windows longpaths
@@ -209,7 +212,6 @@ class PathIndex:
                 'total':self.total,
                 })
 
-
     def update_folder(self,path):
         if self.specs_dict:
             spec=FileSpecs(path,folder=True)
@@ -218,6 +220,10 @@ class PathIndex:
         else:
             self.files[path]=FileSpecs(path,folder=True)        
         
+    
+    def check_reset(self):
+        if self.job in r.smembers('JOBS_TO_KILL'):
+            raise TaskReset
     
     def hash_scan(self):
         self.hash_index={}
@@ -628,6 +634,8 @@ class SqlFileIndex(sql_connect.SqlIndex,PathIndex):
        try:
           if self.ignore_pattern and path.startswith(self.ignore_pattern):
               return
+          if os.path.islink(path):
+              return
           path=normalise(path) #convert long or malformed nt paths
           db_file=self.lookup_path(path)
           if db_file:
@@ -692,6 +700,7 @@ class SqlFileIndex(sql_connect.SqlIndex,PathIndex):
           self.counter+=1
           #log.debug(f'checking {folder_path}')
           self.update_results()
+          self.check_reset()
           if self.counter%100==0:
               log.info(f'checking folder #{self.counter} out of {self.total}')
           if self.counter>1000:
@@ -802,7 +811,7 @@ class Index_Maker():
                         except Exception as e:
                             log.error(e)
                         #log.debug(f'Local check: {t},indexed: {_indexed}, stored: {_stored}')
-                        log.debug(f'Dupcheck: {dupcheck.__dict__}')
+                        #log.debug(f'Dupcheck: {dupcheck.__dict__}')
                         yield self.file_html(mfile,_stored,_indexed,dupcheck,relpath,path)
                         continue
             except PermissionError:
@@ -1048,12 +1057,17 @@ def check_master_dups_html(folder,scan_index=None,master_index=None,rootpath='')
         log.debug(f'Relpath: {relpath}')
         yield dupLister.file_html(filename,_stored,_indexed,ck,relpath,folder)
 
-def check_local_dups_html(folder,scan_index=None,master_index=None,rootpath='',combo=None):
+def check_local_dups_html(folder,scan_index=None,master_index=None,rootpath='',combo=None,orphans=False):
     dupLister=Dups_Lister()
     slice_start=0
     slice_stop=500
+    
     if combo:
-        for dup,_hash,dupcount in combo.dups[slice_start:slice_stop]:
+        if orphans:
+            duplist=combo.orphans[slice_start:slice_stop]
+        else:
+            duplist=combo.dups[slice_start:slice_stop]
+        for dup,_hash,dupcount in duplist:
             #log.debug(f'checking {dup.path} with rootpath{rootpath}')
             #ck=DupCheckFile(dup,scan_index,master_index,master_dupcount=dupcount)
             

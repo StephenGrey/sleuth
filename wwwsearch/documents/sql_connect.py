@@ -115,6 +115,9 @@ class SqlIndex():
     def dup_hashes(self,n=1):
         return self.session.query(File.contents_hash,func.count(File.contents_hash)).group_by(File.contents_hash).having(func.count(File.contents_hash)>n)
     
+    def dup_orphans(self):
+        return self.session.query(File.contents_hash,func.count(File.contents_hash)).group_by(File.contents_hash).having(func.count(File.contents_hash)==1)
+    
     def checked_false(self):
         return  [f for f in self.session.query(File).filter(File.checked==False)]
         
@@ -122,6 +125,11 @@ class SqlIndex():
     @property
     def dups(self):
         _hashes=self.dup_hashes().subquery()
+        return self.session.query(File,_hashes).join(_hashes,File.contents_hash==_hashes.c.contents_hash)
+
+    @property
+    def orphans(self):
+        _hashes=self.dup_orphans().subquery()
         return self.session.query(File,_hashes).join(_hashes,File.contents_hash==_hashes.c.contents_hash)
 
     def dups_inside(self,folder,limit=500):
@@ -152,7 +160,6 @@ class SqlIndex():
       
 #ALTER TABLE db3.files ADD COLUMN checked Boolean
 
-
 class ComboIndex():
     def __init__(self,master_index,local_index,folder=None):
         log.debug(f'looking for dups in {master_index} and {local_index} inside {folder}')
@@ -174,6 +181,20 @@ class ComboIndex():
                self.dups_in_master[_hash]=dups
        #log.debug(f"Dups in master: {self.dups_in_master}")
     
+    def find_orphans(self):
+       self.orphans_from_master=[]
+       for _hash,_id in self.query:
+           dups=self.i1.count_hash(_hash)
+           if not dups:
+               dup=self.i2.lookup_hash(_hash)
+               dup=dup[0] if dup else None
+               self.orphans_from_master.append((dup,_hash,1))
+    
+    @property
+    def orphans(self):
+        self.find_orphans()
+        return self.orphans_from_master
+        
     @property
     def dups(self):
        self.find_master_dups()

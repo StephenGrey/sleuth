@@ -239,9 +239,11 @@ def make_dupscan_job(folder,label,_test=0):
     job_id=f"DupScan.{label}"
     makejob=r.sadd('SEARCHBOX_JOBS',job_id)
     if not makejob:
-        log.info('task exists already')
-        return job_id
-    else:
+        log.info('task exists already ... resetting')
+        
+        
+        #return job_id
+    if True:
         job=f'SB_TASK.{job_id}'
         r.hset(job,'task','dupscan')
         r.hset(job,'label',label)
