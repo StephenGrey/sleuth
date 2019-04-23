@@ -18,7 +18,7 @@ from ownsearch.hashScan import FileSpecTable as filetable
 from .file_utils import directory_tags
 import datetime, hashlib, os, logging, requests, json 
 from . import indexSolr, updateSolr, index_check, solrDeDup, solrcursor,correct_paths,documentpage,redis_cache,file_utils
-import ownsearch.solrJson as solr
+from ownsearch import solrJson as solr, solr_indexes
 from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.auth.decorators import login_required
 log = logging.getLogger('ownsearch.docs.views')
@@ -26,10 +26,41 @@ import configs
 from watcher import watch_dispatch
 
 BASEDIR=configs.config['Models']['collectionbasepath'] #get base path of the docstore
+dupsconfig=configs.config.get('Dups')
+DEFAULT_MASTERINDEX_PATH=dupsconfig.get('masterindex_path') if dupsconfig else None
+MEDIAROOT=dupsconfig.get('rootpath') if dupsconfig else None
+
+
+
 r=redis_cache.redis_connection
 
 class NoIndexSelected(Exception):
     pass
+
+@staff_member_required()
+def docadmin(request):
+    
+    page=documentpage.CollectionPage()
+    page.getcores(request.user,request.session.get('mycore'))
+    server=solr_indexes.SolrServer()
+    server.status_check()
+    display_names={}
+    for _id,displayname in page.choice_list:
+        display_names[_id]=displayname
+    
+    cores=[(k,v.name,display_names[str(k)]) for k,v in sorted(page.cores.items())]
+    log.debug(cores)
+    return render(request, 'documents/admin.html',
+    {
+    'docbase':BASEDIR,
+    'mediaroot':MEDIAROOT,
+    'masterindex_path':DEFAULT_MASTERINDEX_PATH,
+    'page':page,
+    'cores':cores,
+    'server':server,
+    'solr_indexes':server.status.items(),
+    'display_names':display_names,
+    })
     
 @staff_member_required()
 def index(request):
@@ -284,7 +315,10 @@ def file_display(request,path=''):
 #    is_collection_root=None
 #    is_inside_collection=None
 #    c = file_utils.Index_Maker(path,page.authorised_collections,)._index
-    c = file_utils.Index_Maker(normpath,page.authorised_collections,check_index=page.check_index)._index
+    try:
+        c = file_utils.Index_Maker(normpath,page.authorised_collections,check_index=page.check_index)._index
+    except file_utils.EmptyDirectory:
+        c=None
     if path:
         rootpath=path
         tags=directory_tags(normpath)

@@ -439,8 +439,10 @@ def dupscan_folder(job,folder_path,label=None):
     try:
         _index=file_utils.sql_dupscan(folder_path,label=label,job=job)
         return _index
-    except:
-        log.error('Error scanning')
+    except Exception as e:
+        log.error(f'Error scanning {e}')
+        r.hset(job,{'message':'Scan Error','progress_str':'Scan terminated'})
+        
         return None
     
 

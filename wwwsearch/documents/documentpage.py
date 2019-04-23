@@ -21,6 +21,7 @@ class CollectionPage(Page):
         self.docpath=path
         self.url_path=quote_plus(path)
         log.debug(self.url_path)
+
     def getcores(self,this_user,stored_core=None):
         """get authorised solr cores , choosed stored core or default """
         self.getindexes(this_user)
@@ -44,6 +45,7 @@ class CollectionPage(Page):
             log.warning('No valid indexes defined in database')
             self.defaultcoreID='' #if no indexes, no valid default
         self.cores=authcores.cores
+        self.choice_list=authcores.choice_list
         self.defaultcoreID=authcores.defaultcore
         log.debug('CORES: '+str(self.cores)+' DEFAULT CORE:'+str(self.defaultcoreID))
         

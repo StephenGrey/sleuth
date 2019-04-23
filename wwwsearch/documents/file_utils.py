@@ -222,8 +222,10 @@ class PathIndex:
         
     
     def check_reset(self):
-        if self.job in r.smembers('JOBS_TO_KILL'):
-            raise TaskReset
+        if self.job:
+            if self.job[8:] in r.smembers('JOBS_TO_KILL'):
+                r.srem('JOBS_TO_KILL',self.job[8:])
+                raise TaskReset
     
     def hash_scan(self):
         self.hash_index={}
@@ -322,6 +324,8 @@ class PathIndex:
                 self.scan_and_save()
             try:
                 self.rescan()
+            except TaskReset:
+                log.warning('Folder scan cancelled')
             except Exception as e:
                 log.warning(e)
                 exc_type, exc_value, exc_traceback = sys.exc_info()
@@ -689,6 +693,7 @@ class SqlFileIndex(sql_connect.SqlIndex,PathIndex):
            
    def update_changed(self):
       """#update changed files"""
+      self.check_reset()
       log.debug('setting all files in database as unchecked')
       self.set_all(False) #mark all files to check
       self.counter,self.newfiles,self.changed_files_count=0,0,0

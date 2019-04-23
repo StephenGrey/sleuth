@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block body_content %}
+
+<H3>Admin</H3>
+<LI><a href="/documents/listcollections">List collections</a></LI>
+<p><p>
+<LI><a href="/admin">Add users, usergroups, indexes, & site admin</a></LI>
+<p>
+	
+<LI><u>REGISTERED FOLDERS</u></LI>
+Document folder: <b>{{docbase}}</b>
+<i>(Permitted for indexing)</i>
+<p><p>
+Media root: <b>{{mediaroot}}</b>
+<i>(Permissioned for duplicates comparison)</i>
+<p>
+<LI><u>REGISTERED INDEXES</u>: <small>(id/name/displayname)</small></LI>
+{% for id,core,displayname in cores%}
+({{id}}) <b>{{core}}</b>&nbsp;"{{displayname}}"&nbsp;&nbsp;
+
+{% endfor %}
+<p>
+Default index: {{page.defaultcoreID}}&nbsp;&nbsp;
+Stored index: {{page.stored_core}}
+<P>
+<LI><u>SOLR SERVER</u></LI>
+URL: {{server.url}}<p>
+Server running: {{server.server_up}}<p> 
+<LI><u>SOLR INDEXES:</u></LI>
+<p>
+	{%for name,status in solr_indexes%}
+<b>{{name}}</b>&nbsp;
+size: {{status.index.size}}&nbsp; #docs {{status.index.numDocs}}&nbsp;(Deleted: {{status.index.deletedDocs}})&nbsp;
+
+Data folder: {{status.dataDir}}<p>
+{%endfor%}
+<p><p><p>
+
+
+
+{% endblock %}

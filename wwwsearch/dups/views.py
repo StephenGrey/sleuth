@@ -167,9 +167,9 @@ def index(request,path='',duplist=False,orphans=False):
                 c= None
         if job_id:
             page.job=f'SB_TASK.{job_id}'
-            log.debug(f'job: {page.job}')
+#            log.debug(f'job: {page.job}')
             page.results=watch_dispatch.get_extract_results(page.job)
-            log.debug(page.results)
+#            log.debug(page.results)
             
         return render(request,'dups/listindex.html',
                                    {'page': page, 'subfiles': c, 'rootpath':rootpath, 'tags':tags,  'path':path,'warning':warning})

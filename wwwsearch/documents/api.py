@@ -6,9 +6,11 @@ from .models import UserEdit,SyncStatus
 from django.http import JsonResponse, HttpResponse
 from django.core import serializers
 from django.urls import reverse
-from documents import updateSolr
+from documents import updateSolr, redis_cache
 from ownsearch import solrJson
 from configs import config as userconfig
+r=redis_cache.redis_connection
+
 
 LOGIN_URL="/admin/login/"
 API_URL="/documents/api/changes/"
@@ -162,10 +164,13 @@ def api_clear_tasks(request):
 @staff_member_required()
 def api_clear_dup_tasks(request):
     """clear dup tasks from session"""
-    log.debug('clearing dup tasks')
+    job_id=request.session.get('dup_tasks')
+    log.debug(f'clearing dup task {job_id}')
     request.session['dup_tasks']=''
+    r.sadd('JOBS_TO_KILL',job_id)
+    job=f'SB_TASK.{job_id}'
+    r.hmset(job,{'progress_str':'Scan cancelled'})
     return JsonResponse({'error':False})
-
 
 
 @staff_member_required()

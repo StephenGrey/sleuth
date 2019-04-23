@@ -81,14 +81,14 @@ class SqlIndex():
             self.session.delete(_file)
             self.save()
         except KeyError:
-            log.debug(f'{docpath} delete failed from index')
+            log.debug(f'{_file} delete failed from index')
             pass
         except sqlite3.OperationalError as e:
             self.session.rollback()
-            log.debug(f'{docpath} delete failed from index with exception {e}')
+            log.debug(f'{_file} delete failed from index with exception {e}')
             raise
         except Exception as e:
-            log.debug(f'{docpath} delete failed from index with exception {e}')
+            log.debug(f'{_file} delete failed from index with exception {e}')
             self.session.rollback()
             raise
    
