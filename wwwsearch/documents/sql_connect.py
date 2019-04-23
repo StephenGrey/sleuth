@@ -31,8 +31,8 @@ class SqlIndex():
             self.session.commit()
         except sqlite3.OperationalError as e:
             log.error(f'Op Error: {e}') 
-        except sqlite3.InvalidRequestError as e:
-            log.error(f'InvalidReqError: {e}') 
+#        except sqlite3.InvalidRequestError as e:
+#            log.error(f'InvalidReqError: {e}') 
         except Exception as e:
             log.error(e)         
       

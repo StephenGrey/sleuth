@@ -37,7 +37,7 @@ def index(request,path='',duplist=False,orphans=False):
     
     log.debug(f'Dups only: {duplist}')
     
-    page=pages.FilesPage(request=request,default_master=DEFAULT_MASTERINDEX_PATH)
+    page=pages.SqlFilesPage(request=request,default_master=DEFAULT_MASTERINDEX_PATH)
         
     if not MEDIAROOT or not page.masterindex_path:
     	    return HttpResponse ("Missing 'Dups' configuration information in user.settings : set the 'rootpath' and 'masterindex_path' variables")
@@ -98,7 +98,10 @@ def index(request,path='',duplist=False,orphans=False):
                     log.info(f'Moved.. \'{source}\' to \'{filedest}\' result:{result}')
                     if result:
                         page.move_file(source,filedest)
+                log.debug('Completed file moves')
+                page.sync_all()
             except AssertionError:
+                log.debug('assert error')
                 pass
                        
        

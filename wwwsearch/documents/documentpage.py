@@ -155,13 +155,20 @@ class FilesPage(CollectionPage):
             self.masterspecs=None
         
     def remove_file(self,filepath):
+        log.debug('removing file from db')
         try:
             self.masterspecs.delete_record(filepath)
-        except AttributeError:
+            self.masterspecs.save()
+            log.debug('removed from database')
+        except AttributeError as e:
+            log.debug(e)
             pass
         try:
             self.specs.delete_record(filepath)
-        except AttributeError:
+            self.specs.save()
+            log.debug('removed from database')
+        except AttributeError as e:
+            log.debug(e)
             pass
             
     def save(self):
@@ -176,6 +183,11 @@ class FilesPage(CollectionPage):
             pass
             #log.debug(e)
     
+
+    def get_spec(self,specs,path):
+        return specs.files.get(path)
+        
+
     def move_file(self,filepath,newpath):
         spec=None
         
@@ -183,14 +195,17 @@ class FilesPage(CollectionPage):
         if self.masterspecs:
             log.debug(self.masterspecs.folder_path)
             if new_is_inside(filepath,self.masterspecs.folder_path):
-                spec=self.masterspecs.files.get(filepath)
+                spec=get_spec(self.masterspecs,filepath)
                 log.debug(spec)
                 
         if self.specs:
+                log.debug(self.specs.folder_path)
                 if new_is_inside(filepath,self.specs.folder_path):
+                    log.debug('file inside scan folder')
                     if not spec:
-                        spec=self.masterspecs.files.get(filepath)
+                        spec=get_spec(self.specs,filepath)
         self.remove_file(filepath)
+
         
         #now add specs on destination fle
         if self.masterspecs:
@@ -219,6 +234,20 @@ class FilesPage(CollectionPage):
                     pass
                 self.specs.sync()
 
+class SqlFilesPage(FilesPage):
+    def move_file(self,filepath,newpath):
+        spec=None
+        #does it exist
+        if self.masterspecs:
+            self.masterspecs.move_path(filepath,newpath)
+        if self.specs:
+            self.specs.move_path(filepath,newpath)
+
+    def sync_all(self):
+        if self.specs:
+            self.specs.save()
+        if self.masterspecs:
+            self.masterspecs.save()
 
 class SolrFilesPage(CollectionPage):
     pass

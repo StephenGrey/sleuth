@@ -588,6 +588,7 @@ class SqlFileIndex(sql_connect.SqlIndex,PathIndex):
       self.counter=0
       self.changed_files_count=0
       self.newfiles=0
+      self.total=0
       self.deleted_files_count=0
       self.connect_sql()
       #log.debug(f'loaded files ..{self.count_files}')
@@ -690,7 +691,23 @@ class SqlFileIndex(sql_connect.SqlIndex,PathIndex):
            traceback.print_exc(limit=2, file=sys.stdout)
            if db_file:
                db_file.checked=True
-           
+               
+               
+   def move_path(self,oldpath,newpath):
+       spec=self.lookup_path(oldpath)
+       moved_inside=new_is_inside(newpath,self.folder_path)
+       if spec:
+           if moved_inside:
+               log.debug('alter filepath')
+               spec.path=newpath
+           else:
+               self.delete_record(oldpath)
+               log.debug('removed from database')
+       elif moved_inside:
+               self.update_record(newpath) #add it
+               log.debug(f'added new entry inside {self}')
+   	    
+               
    def update_changed(self):
       """#update changed files"""
       self.check_reset()
@@ -1076,8 +1093,11 @@ def check_local_dups_html(folder,scan_index=None,master_index=None,rootpath='',c
             #log.debug(f'checking {dup.path} with rootpath{rootpath}')
             #ck=DupCheckFile(dup,scan_index,master_index,master_dupcount=dupcount)
             
-            ck=SqlDupCheck(dup.path,scan_index,master_index,)
-            
+            try:
+                ck=SqlDupCheck(dup.path,scan_index,master_index,)
+            except Exception as e:
+                log.error(e)
+                continue
             _stored,_indexed=None,None
             #log.debug(ck.__dict__)
             filename=os.path.basename(dup.path)
@@ -1368,6 +1388,7 @@ class DupCheck:
             self.check()
         except Exception as e:
             log.error(f'Exception {e}')
+            raise
     def check(self):
         self.contents_hash=''
         if self.masterindex:
@@ -1419,6 +1440,8 @@ class DupCheck:
 class SqlDupCheck(DupCheck):
     def check(self):
         self.contents_hash=''
+        if not os.path.exists(self.filepath):
+            raise DoesNotExist("Checking nonexistent file")
         if self.masterindex:
             #print(f'FILES: {masterindex.files}')
             

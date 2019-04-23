@@ -167,9 +167,11 @@ def api_clear_dup_tasks(request):
     job_id=request.session.get('dup_tasks')
     log.debug(f'clearing dup task {job_id}')
     request.session['dup_tasks']=''
-    r.sadd('JOBS_TO_KILL',job_id)
     job=f'SB_TASK.{job_id}'
-    r.hmset(job,{'progress_str':'Scan cancelled'})
+    log.debug(r.smembers('SEARCHBOX_JOBS'))
+    if job in r.smembers('SEARCHBOX_JOBS'):
+        r.sadd('JOBS_TO_KILL',job_id)
+        r.hmset(job,{'progress_str':'Scan cancelled'})
     return JsonResponse({'error':False})
 
 
