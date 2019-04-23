@@ -1081,7 +1081,7 @@ def check_local_dups_html(folder,scan_index=None,master_index=None,rootpath='',c
             _stored,_indexed=None,None
             #log.debug(ck.__dict__)
             filename=os.path.basename(dup.path)
-            relpath=os.path.relpath(dup.path,rootpath)
+            relpath=dup.path if rootpath=='/' else os.path.relpath(dup.path,rootpath)
             #log.debug(f'Relpath: {relpath}')
             yield dupLister.file_html(filename,_stored,_indexed,ck,relpath,folder)
 
