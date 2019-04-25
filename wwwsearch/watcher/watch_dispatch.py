@@ -56,7 +56,7 @@ class Index_Dispatch:
         self.check_base()
         self.process()
     def process(self):
-        log.info(f'EVENT: {self.event_type}  PATH: {self.sourcepath}  (DESTPATH: {self.destpath})') if not self.ignore else None
+        log.debug(f'EVENT: {self.event_type}  PATH: {self.sourcepath}  (DESTPATH: {self.destpath})') if not self.ignore else None
         if self.event_type=='created':
             self.create()
             self._index()
@@ -81,7 +81,7 @@ class Index_Dispatch:
             
         _collections=file_utils.find_live_collections(self.sourcepath)
         if not _collections:
-            log.debug('Not in any collection - no modification of database')
+            #log.debug('Not in any collection - no modification of database')
             return
             
         for _collection in _collections:

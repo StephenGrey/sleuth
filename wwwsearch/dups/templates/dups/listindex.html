@@ -162,6 +162,8 @@ $("#progress_cancel").click(function() {
 <a href="{% url "dups_index_dups" path=path %}">List Duplicates</a>
 {% if not page.inside_master %}&nbsp;&nbsp;
 <a href="{% url "dups_index_orphans" path=path %}">List Orphans</a>
+{% else%}&nbsp;&nbsp;
+<a href="{% url "dups_index_orphans" path=path %}">List Folder-Orphans</a>
 
 {% endif %}
 <div class='nav-container'>		
