@@ -704,6 +704,7 @@ class SqlFileIndex(sql_connect.SqlIndex,PathIndex):
 
    
    def move_path(self,oldpath,newpath):
+       log.debug(f'Adjusting index for move from {oldpath} to {newpath}')
        spec=self.lookup_path(oldpath)
        moved_inside=new_is_inside(newpath,self.folder_path)
        if spec:
@@ -715,7 +716,7 @@ class SqlFileIndex(sql_connect.SqlIndex,PathIndex):
                log.debug('removed from database')
        elif moved_inside:
                self.update_record(newpath) #add it
-               log.debug(f'added new entry inside {self}')
+               log.debug(f'added new entry inside Index:{self.folder_path}')
    	    
                
    def update_changed(self):
@@ -839,11 +840,12 @@ class Index_Maker():
                         else:
                             _stored,_indexed=None,None
                         try:
-                            dupcheck=SqlDupCheck(t,specs,masterindex)
+                            dupcheck=SqlDupCheck(t,specs,masterindex,subfolder=root)
                         except Exception as e:
+                            dupcheck=None
                             log.error(e)
                         #log.debug(f'Local check: {t},indexed: {_indexed}, stored: {_stored}')
-                        #log.debug(f'Dupcheck: {dupcheck.__dict__}')
+                        log.debug(f'Dupcheck: {dupcheck.__dict__}')
                         yield self.file_html(mfile,_stored,_indexed,dupcheck,relpath,path)
                         continue
             except PermissionError:
@@ -1074,19 +1076,25 @@ def check_master_dups(folder,scan_index=None,master_index=None):
         if ck.master_dup:
             yield ck
 
-def check_master_dups_html(folder,scan_index=None,master_index=None,rootpath=''):
+def check_master_dups_html(folder,scan_index=None,master_index=None,rootpath='',orphans=False):
     dupLister=Dups_Lister()
     #slice_start=0
     slice_stop=500
     log.debug(f'Looking for dups inside {folder}')
-    sqldups=master_index.dups_inside(folder,limit=slice_stop)
+    if orphans:
+        sqldups=master_index.folder_orphans(folder,limit=slice_stop)
+    else:
+        sqldups=master_index.dups_inside(folder,limit=slice_stop)
+    
     for dup,_hash,dupcount in sqldups:
-        log.debug(f'checking {dup.path}')
-        ck=DupCheckFile(dup,scan_index,master_index,master_dupcount=dupcount)
+        #log.debug(f'checking {dup.path}')
+        ck=DupCheckFile(dup,scan_index,master_index,master_dupcount=dupcount,subfolder=folder)
         _stored,_indexed=None,None
+        #log.debug(ck.__dict__)
         filename=os.path.basename(dup.path)
-        relpath=os.path.relpath(dup.path,rootpath)
-        log.debug(f'Relpath: {relpath}')
+        #relpath=os.path.relpath(dup.path,rootpath)
+        relpath=dup.path if rootpath=='/' else os.path.relpath(dup.path,rootpath)
+        #log.debug(f'Relpath: {relpath}')
         yield dupLister.file_html(filename,_stored,_indexed,ck,relpath,folder)
 
 def check_local_dups_html(folder,scan_index=None,master_index=None,rootpath='',combo=None,orphans=False):
@@ -1162,7 +1170,8 @@ def delete_file(path):
             log.error(e)
         return not os.path.exists(path)
     else:
-        return False
+        raise DoesNotExist
+        #return False
 
 #MOVE FILES
 
@@ -1385,9 +1394,10 @@ def inside_collection(path,_collections):
     
 #DUP CHECKS
 class DupCheck:
-    def __init__(self,filepath,specs,masterindex):
+    def __init__(self,filepath,specs,masterindex,subfolder=None):
         self.filepath=filepath
         self.specs=specs
+        self.subfolder=subfolder
         self.masterindex=masterindex
         #log.debug(self.__dict__)
         #log.debug(self.specs.files)
@@ -1487,6 +1497,9 @@ class SqlDupCheck(DupCheck):
             if self.masterindex:
                 master_dupcount=self.masterindex.count_hash(self.contents_hash)
                 #log.debug(f'Dupchek for {self} hash: {self.contents_hash} count:{master_dupcount}')
+                masterdups=self.masterindex.lookup_hash(self.contents_hash)
+                self.outside_folder_count=self.outside_folder(masterdups)
+                assert len(masterdups)==master_dupcount
                 self.hash_in_master=True if master_dupcount>0 else False
                 if master_dupcount>1:
                     self.master_dup=True
@@ -1494,11 +1507,15 @@ class SqlDupCheck(DupCheck):
                 else:
                     self.master_dup=False
 
+    def outside_folder(self,dups):
+        return len([f for f in dups if not f.path.startswith(self.subfolder)]) if self.subfolder else None
+
 
 class DupCheckFile():
-    def __init__(self,_file,specs,masterindex,master_dupcount=None):
+    def __init__(self,_file,specs,masterindex,master_dupcount=None,subfolder=None):
         self.specs=specs
         self.masterindex=masterindex
+        self.subfolder=subfolder
         self._file=_file
         self.master_dupcount=master_dupcount
         #log.debug(self.__dict__)
@@ -1548,12 +1565,16 @@ class DupCheckFile():
                     self.master_dupcount=self.masterindex.count_hash(self.contents_hash)
                 #log.debug(f'Dupchek for {self} hash: {self.contents_hash} count:{master_dupcount}')
                 self.hash_in_master=True if self.master_dupcount>0 else False
+                masterdups=self.masterindex.lookup_hash(self.contents_hash)
+                self.outside_folder_count=self.outside_folder(masterdups)
+                
                 if self.master_dupcount>1:
                     self.master_dup=True
                     self.m_dups=self.master_dupcount
                 else:
                     self.master_dup=False
-
+    def outside_folder(self,dups):
+        return len([f for f in dups if not f.path.startswith(self.subfolder)]) if self.subfolder else None
 
                             
 def specs_list(_index,_hash):

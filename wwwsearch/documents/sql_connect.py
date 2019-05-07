@@ -158,14 +158,39 @@ class SqlIndex():
         _hashes=self.dup_hashes().subquery()
         return self.session.query(File,_hashes).join(_hashes,File.contents_hash==_hashes.c.contents_hash)
 
+    def dups_inside(self,folder,limit=500):
+        return self.dups.filter(File.path.startswith(folder)).order_by(File.length.desc()).limit(limit)
+
     @property
     def orphans(self):
         _hashes=self.dup_orphans().subquery()
         return self.session.query(File,_hashes).join(_hashes,File.contents_hash==_hashes.c.contents_hash)
 
-    def dups_inside(self,folder,limit=500):
-        return self.dups.filter(File.path.startswith(folder)).order_by(File.length.desc()).limit(limit)
+    def orphans_inside(self,folder,limit=500):
+        return self.orphans.filter(File.path.startswith(folder)).order_by(File.length.desc()).limit(limit)
 
+    def folder_orphan_hashes(self,folder,limit=500,n=1):
+        """return files unique in the index, or duplicates contained only within this folder"""
+        count1=func.count(File.id).label('count1')
+        folder_filter=os.path.join(folder,'')
+        #log.debug(folder_filter)
+        filteredq=self.session.query(File.contents_hash,count1).filter(File.path.startswith(folder_filter)).group_by(File.contents_hash)
+        #log.debug(filteredq[:10])
+        filtered=filteredq.subquery()
+        f2=aliased(File)
+        count2=func.count(f2.id).label('count2')
+        #log.debug(count2)
+        if limit:
+            return self.session.query(f2.contents_hash,count2).having(func.count(f2.id)==filtered.c.count1).group_by(f2.contents_hash).join(filtered,f2.contents_hash==filtered.c.contents_hash).limit(limit)
+        else:
+            return self.session.query(f2.contents_hash,count2).having(func.count(f2.id)==filtered.c.count1).group_by(f2.contents_hash).join(filtered,f2.contents_hash==filtered.c.contents_hash)
+
+    def folder_orphans(self,folder,limit=500):
+        f3=aliased(File)
+        orphs=self.folder_orphan_hashes(folder,limit=None).subquery()
+        return self.session.query(f3,orphs.c.contents_hash,orphs.c.count2).join(orphs,f3.contents_hash==orphs.c.contents_hash).limit(limit)
+
+#,filtered.c.count1
     @property
     def count_files(self):
         return self.session.query(File).count()
@@ -173,7 +198,8 @@ class SqlIndex():
     @property
     def files(self):
         return (f for f in self.session.query(File).all())
-        
+    
+    
     def files_inside(self,folder,limit=500):
         return self.session.query(File.contents_hash,File.id).filter(File.path.startswith(folder)).order_by(File.length.desc()).limit(limit) 
     

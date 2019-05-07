@@ -161,14 +161,14 @@ class FilesPage(CollectionPage):
             self.masterspecs.save()
             log.debug('removed from database')
         except AttributeError as e:
-            log.debug(e)
+            #log.debug(e)
             pass
         try:
             self.specs.delete_record(filepath)
             self.specs.save()
             log.debug('removed from database')
         except AttributeError as e:
-            log.debug(e)
+            #log.debug(e)
             pass
             
     def save(self):

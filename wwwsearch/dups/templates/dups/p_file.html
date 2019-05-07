@@ -18,6 +18,10 @@
 {% endif %}
 {%if dupcheck.master_scan and dupcheck.master_dup %}
 <span style="color:gray;"><span class="glyphicon glyphicon-duplicate"></span></small> ({{dupcheck.m_dups}})</span> 
+{% if dupcheck.outside_folder_count%}<span style="color:orange;"><span class="glyphicon glyphicon-ok">{{dupcheck.outside_folder_count}}</span></span>
+{%else%}
+<span style="color:red;"><span class="glyphicon glyphicon-exclamation-sign">
+{% endif %}
 {% endif %}
 {%if not dupcheck.master_scan and dupcheck.local_dup %}
 <span class="minitext" style="color:red;">Duplicate ({{dupcheck.dups}})</span>  <small> <span class="glyphicon glyphicon-duplicate"></span></small>

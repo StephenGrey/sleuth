@@ -77,8 +77,12 @@ def index(request,path='',duplist=False,orphans=False):
             log.debug(f'Deleting: {checklist}')
             for relfile in checklist:
                 f=os.path.join(MEDIAROOT,relfile)
-                result=file_utils.delete_file(f)
-                log.info(f'Deleted: {f} Result: {result}')
+                try:
+                    result=file_utils.delete_file(f)
+                    log.info(f'Deleted: {f} Result: {result}')
+                except Exception as e:
+                    log.error(e)
+                    result=False
                 if result:
                     page.remove_file(f)
 
@@ -147,8 +151,15 @@ def index(request,path='',duplist=False,orphans=False):
             
             (Only first 500 orphan files shown)"""
             if page.masterspecs and page.inside_master:
-                c=None
-                warning="Navigate to scan folder to see orphans from master"
+
+                log.debug(f'Scanning \'{path}\' for folder orphans')
+                c=file_utils.check_master_dups_html(os.path.join(MEDIAROOT,path),scan_index=page.specs,master_index=page.masterspecs,rootpath=MEDIAROOT,orphans=True)
+#
+#
+#                c=None
+#                warning="Navigate to scan folder to see orphans from master"
+
+
 #                c=file_utils.check_master_dups_html(os.path.join(MEDIAROOT,path),scan_index=page.specs,master_index=page.masterspecs,rootpath=MEDIAROOT)
 #                log.debug(f'Scanned \'{path}\' for orphans')
             elif page.specs and page.inside_scan_folder:
@@ -159,8 +170,6 @@ def index(request,path='',duplist=False,orphans=False):
                 c=None                
                 warning="Navigate to a scan folder to see orphans"
 
-            
-            
             
         
         else:
