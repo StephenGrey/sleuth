@@ -85,6 +85,10 @@ class FileSpecs:
             raise DoesNotExist
             
     @property
+    def parent_hash(self):
+        return parent_hash(self.path)
+    
+    @property
     def date_from_path(self):
         """find a date in US format in filename"""
         m=re.match('.*(\d{4})[-_](\d{2})[-_](\d{2})',self.name)
@@ -612,6 +616,7 @@ class SqlFileIndex(sql_connect.SqlIndex,PathIndex):
       docspec=spec.__dict__
       docspec.update({'last_modified':spec.last_modified})
       docspec.update({'length':spec.length})
+      docspec.update({'parent_hash':spec.parent_hash})
       if scan_contents:
          if spec.length > 1000000:
             log.debug(f'checking contents of large file {path} ')
@@ -654,22 +659,7 @@ class SqlFileIndex(sql_connect.SqlIndex,PathIndex):
           else:
               self.newfiles+=1
               #log.debug(f'newfile to add: {path} Directory:{os.path.isdir(path)}')
-              try:            
-                  if os.path.isdir(path):
-                      self.update_folder(path)
-                  else:
-                      self.update_record(path)
-              except DoesNotExist:
-                  log.info(f'Failed to add {path}: does not exist / no access')
-              except PermissionError:
-                  log.info(f'Failed to add {path}: permission error')
-              except OSError:
-                  log.info(f'Failed to add {path}: OS error')
-              except Exception as e:
-                  log.info(f'Update failed for {path} Exception: {e}')
-                  #debug:
-                  exc_type, exc_value, exc_traceback = sys.exc_info()
-                  traceback.print_exc(limit=2, file=sys.stdout)
+              self.add_new_file(path)
               if self.newfiles%200==0:
                   log.info(f'{self.newfiles} new filepaths updated')
               try:
@@ -692,7 +682,27 @@ class SqlFileIndex(sql_connect.SqlIndex,PathIndex):
            if db_file:
                db_file.checked=True
                
-               
+   
+   def add_new_file(self,path):
+       try:            
+           if os.path.isdir(path):
+               self.update_folder(path)
+           else:
+               self.update_record(path)
+       except DoesNotExist:
+           log.info(f'Failed to add {path}: does not exist / no access')
+       except PermissionError:
+           log.info(f'Failed to add {path}: permission error')
+       except OSError:
+           log.info(f'Failed to add {path}: OS error')
+       except Exception as e:
+           log.info(f'Update failed for {path} Exception: {e}')
+           #debug:
+           exc_type, exc_value, exc_traceback = sys.exc_info()
+           traceback.print_exc(limit=2, file=sys.stdout)
+
+
+   
    def move_path(self,oldpath,newpath):
        spec=self.lookup_path(oldpath)
        moved_inside=new_is_inside(newpath,self.folder_path)
@@ -1555,3 +1565,233 @@ def specs_path_list(_index,_hash):
     for dup in duplist:
         path_list.append(dup.path)
     return path_list
+    
+
+class SqlFolderIndex(SqlFileIndex):
+
+
+   
+   def rescan(self):
+
+       self.rescan_folders()
+       self.rescan_files
+   
+   def rescan_files(self):
+       self.changed_files_count=0
+       n=0
+       deleted_dbfiles=[]
+       deleted_files=0
+       new_files,self.counter=0,0
+
+       self.delete_folder_files() # remove db files in deleted folders
+       
+       
+       for _folder in self.folders:
+           #log.debug(_folder)
+           
+           
+           self.counter+=1
+           self.update_results() #update cache progress meter
+           self.check_reset()
+           if self.counter%100==0:
+               log.info(f'checking folder #{self.counter} out of {self.total}')
+           if self.counter>1000:
+               self.save()          
+           if self.ignore_pattern and os.path.basename(_folder.path).startswith(self.ignore_pattern):
+               continue
+           try:    
+               files_on_disk=[f.path for f in os.scandir(_folder.path)]
+           except FileNotFoundError:
+               log.info(f'Folder not found {_folder.path}')
+               continue
+           for db_file in self.list_folder(_folder.path):
+               try:
+                   files_on_disk.remove(db_file.path)#check if db_file exists
+               except ValueError:
+                   deleted_dbfiles.append(db_file)
+                   deleted_files+=1
+               if not db_file.folder:
+                   if changed(db_file.__dict__):
+                       log.info(f'File \'{db_file.path}\' is modified; updating hash of contents')
+                       self.changed_files_count+=1
+                       self.update_record(db_file.path,existing=db_file)
+                       n+=1
+#               if n>20:
+#                   raise Exception
+           #files remaining are new
+           if files_on_disk:
+               print(f'New files in folder ({_folder.path}): {len(files_on_disk)}')
+               for path in files_on_disk:
+                   if self.ignore_pattern and path.startswith(self.ignore_pattern):
+                       continue
+                   if os.path.islink(path):
+                       continue
+                   path=normalise(path) #convert long or malformed nt paths
+                   self.add_new_file(path)
+           #delete the deleted files
+           if deleted_dbfiles:
+               for deletedfile in deleted_dbfiles:
+                   self.delete_dbfile(deletedfile)
+               try:
+                   self.sync()
+               except Exception as e:
+                   log.info(f'Save failure: {e}')
+                   
+      
+   def rescan_folders(self):
+      """rescan changed files in dictionary of filespecs"""
+
+      log.info(f'rescanning folders in ... {self.folder_path}')      
+      self.check_reset()
+      self.counter,self.newfolders=0,0
+      self.deleted_folders=[]
+
+      #self.total=len([p for p,s,f in os.walk(self.folder_path)])
+      
+      #make dictionary of files in db
+      folders_in_db={}
+      for f in self.folders:
+          folders_in_db[f.path]=f
+
+      self.total=len(folders_in_db)
+      log.info(f'Scanning folders in {self.folder_path}')
+      log.debug(f'Found {self.total} in database already')
+
+      newfolders=[]
+      for _folder,sub_dirs,file_names in os.walk(self.folder_path):
+          fullpath=normalise(os.path.join(self.folder_path,_folder))
+          try:
+              #print(fullpath)
+              folders_in_db.pop(fullpath)
+          except KeyError:
+              log.debug(f'Folder not in db : {fullpath}')
+              newfolders.append(fullpath)
+      self.dbfolders_to_delete=folders_in_db
+      
+      #remove deleted folders from folders table
+      log.debug(f'Deleted folders (first 10) of {len(self.dbfolders_to_delete)}: {[f for f in self.dbfolders_to_delete][:10]}')
+      self.delete_dbfolders()
+
+      #add new folders to db
+      log.debug(f'Adding {len(newfolders)} new folders')
+      for f in newfolders:
+          if self.ignore_pattern and os.path.basename(f).startswith(self.ignore_pattern):
+              continue
+          self.check_folder_path(f)
+
+      try:
+         self.save()
+      except Exception as e:
+         log.info(f'Save failure: {e}')
+         
+
+   def delete_dbfolders(self):
+       """delete files from db folder table"""
+       for folderpath in self.dbfolders_to_delete:
+           try:
+               self.delete_file(self.dbfolders_to_delete[folderpath])
+               self.deleted_folders.append(folderpath)
+           except Exception as e:
+               log.debug(f'Delete record failed for {deletedfolder.path}')
+               log.debug(e)
+           
+           
+           
+   def delete_folder_files(self):
+       """delete db files inside a folder path""" 
+       log.debug('Removing db files from deleted folders')
+       while True:
+           try:
+               folderpath=self.deleted_folders.pop()
+               for db_file in self.list_folder(folderpath):
+                   log.debug(f'deleting {db_file.path} from scan index')
+                   self.delete_dbfile(db_file)               
+           except IndexError:
+               break
+       try:
+           self.sync()
+       except Exception as e:
+           log.info(f'Save failure: {e}')
+
+       
+   def delete_dbfile(self,db_file):
+       try:
+           self.delete_file(db_file)
+       except Exception as e:
+           log.debug(f'Delete record failed for {db_file.path}')
+           log.debug(e)
+           #raise
+
+   def list_folder(self,folder_path):
+       _hash=pathHash(folder_path)
+       #log.debug(_hash)
+       return self.lookup_parent_hash(_hash)
+       
+   
+   def check_folder_path(self,path):
+       db_folder=None
+       try:
+          if self.ignore_pattern and path.startswith(self.ignore_pattern):
+              return
+          if os.path.islink(path):
+              return
+          path=normalise(path) #convert long or malformed nt paths
+          db_folder=self.lookup_folder(path)
+          if db_folder:
+              db_folder.checked=True
+          else:
+              self.newfolders+=1
+              log.debug(f'New folder to add: {path} Directory:{os.path.isdir(path)}')
+              try:            
+                  if os.path.isdir(path):
+                       self.add_folder(path)
+                  else:
+                      pass
+              except DoesNotExist:
+                  log.info(f'Failed to add {path}: does not exist / no access')
+              except PermissionError:
+                  log.info(f'Failed to add {path}: permission error')
+              except OSError:
+                  log.info(f'Failed to add {path}: OS error')
+              except Exception as e:
+                  log.info(f'Update failed for {path} Exception: {e}')
+                  #debug:
+                  exc_type, exc_value, exc_traceback = sys.exc_info()
+                  traceback.print_exc(limit=2, file=sys.stdout)
+              if self.newfolders%200==0:
+                  log.info(f'{self.newfolders} new folders updated')
+              try:
+                  self.save()
+              except Exception as e:
+                  log.info(f'Save failure: {e}')
+       except PermissionError:
+           log.info(f'Cannot check {path}; in use or not permitted')
+       except UnicodeEncodeError:
+           log.info('Cannot check path')
+           try:
+               sanitised=re.sub(r'[^\x00-\x7F]+','!?!', path)
+               log.info(f'Failed path (SANITISED WITH !?! ): {sanitised}') 
+           except Exception as e:
+               pass
+       except Exception as e:
+           log.error(f'Error {e } checking {path}; against database entry {db_folder}')
+           exc_type, exc_value, exc_traceback = sys.exc_info()
+           traceback.print_exc(limit=2, file=sys.stdout)
+           if db_folder:
+               db_folder.checked=True
+
+
+def add_parent_hashes(_index):
+    maxid=_index.max_id
+    n=0
+    while n*1000<maxid:
+        pagestart=n*1000
+        pageend=((n+1)*1000)-1
+        for f in _index.id_range(pagestart,pageend):
+            f.parent_hash=parent_hash(f.path)
+        n+=1
+        if n%100==0:
+            print (n)
+            _index.save()
+    _index.save()
+                   

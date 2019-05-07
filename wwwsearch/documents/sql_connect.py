@@ -1,6 +1,5 @@
 import sqlite3, os,logging,threading,sys,traceback
 log = logging.getLogger('ownsearch.sql_connect')
-#from documents import file_utils
 from sqlalchemy import Column, Integer, String, Float, Boolean
 from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
@@ -8,6 +7,10 @@ from sqlalchemy.sql import func
 from sqlalchemy.orm import aliased
 from sqlalchemy.orm import sessionmaker
 Base = declarative_base()
+
+#from sqlalchemy import inspect
+#inspector = inspect(engine)
+#inspector.get_columns('files')
 
 CACHE={}
 ARCH_FILENAME='.sqlfilespecs.db'
@@ -55,12 +58,22 @@ class SqlIndex():
         _file.ext=docspec.get('ext')
         _file.folder=docspec.get('folder')
         _file.length=docspec.get('length')
-        _file.contents_hash=docspec.get('contents_hash')     
+        _file.contents_hash=docspec.get('contents_hash')
+        _file.parent_hash=docspec.get('parent_hash')
         if not existing:
             #log.debug(f'adding new file {_file}')
             self.session.add(_file)
    
-   
+    def add_folder(self,path):
+        try:
+            _folder=Folder(path=path)
+            _folder.name=os.path.basename(path)
+            _folder.checked=True
+            self.session.add(_folder)
+        except Exception as e:
+            log.error(e)
+            self.session.rollback()
+            raise
    
     def delete_record(self,docpath):
         try:
@@ -79,7 +92,6 @@ class SqlIndex():
     def delete_file(self,_file):
         try:
             self.session.delete(_file)
-            self.save()
         except KeyError:
             log.debug(f'{_file} delete failed from index')
             pass
@@ -100,7 +112,23 @@ class SqlIndex():
             log.error(e)
             self.session.rollback()
             raise
-        
+
+    def lookup_folder(self,path):
+        #log.debug(path)
+        try:
+            return self.session.query(Folder).filter(Folder.path==path).first()
+        except Exception as e:
+            log.error(e)
+            self.session.rollback()
+            raise
+
+    def lookup_parent_hash(self,_hash):
+        try:
+            return [f for f in self.session.query(File).filter(File.parent_hash==_hash)]
+        except Exception as e:
+            log.error(e)
+            return []
+
 
     def lookup_hash(self,_hash):
         try:
@@ -120,6 +148,9 @@ class SqlIndex():
     
     def checked_false(self):
         return  [f for f in self.session.query(File).filter(File.checked==False)]
+
+    def checked_folders_false(self):
+        return  [f for f in self.session.query(Folder).filter(Folder.checked==False)]
         
    
     @property
@@ -145,6 +176,21 @@ class SqlIndex():
         
     def files_inside(self,folder,limit=500):
         return self.session.query(File.contents_hash,File.id).filter(File.path.startswith(folder)).order_by(File.length.desc()).limit(limit) 
+    
+    @property
+    def folders(self):
+        return (f for f in self.session.query(Folder).all())
+        
+    @property
+    def folder_paths(self):
+        return (f[0] for f in self.session.query(Folder.path).all())
+
+    @property
+    def max_id(self):
+        return self.session.query(func.Max(File.id))[0][0]
+
+    def id_range(self,start,finish):
+        return self.session.query(File).filter(File.id<=finish).filter(File.id>=start)
 
 #   def hash_scan(self):
 #       self.hash_index={}
@@ -157,7 +203,25 @@ class SqlIndex():
     def set_all(self,flag):
         self.session.query(File.checked).update({File.checked:flag})
         self.session.commit()
-      
+    
+    def set_all_folders(self,flag):
+        self.session.query(Folder.checked).update({Folder.checked:flag})
+        self.session.commit()
+        
+    def sql_direct(self,sql):
+        res=[]
+        with self.engine.connect() as con:
+            rs = con.execute(sql)
+            if rs.cursor:
+                for row in rs:
+                    res.append(row)
+            else:
+                res=True
+        return res
+    
+    def clean(self):
+        return self.sql_direct('VACUUM')
+    
 #ALTER TABLE db3.files ADD COLUMN checked Boolean
 
 class ComboIndex():
@@ -233,12 +297,25 @@ class ComboIndex():
                    self.combodups.append((_file,_hash,mastercount+1))
     #               =self.dups_in_master[dup.contents_hash]
 #           else:
- 
+
+class Folder(Base):
+    __tablename__ = 'folders'
+    id = Column(Integer, primary_key=True)
+    path = Column(String,index=True)
+    checked=Column(Boolean)
+    name=Column(String)
+
+    def __repr__(self):
+        return "<Folder(name='%s', path='%s', id='%s')>" % (
+                           self.name, self.path, self.id)
+
+
 class File(Base):
     __tablename__ = 'files'
     id = Column(Integer, primary_key=True)
     path = Column(String,index=True)
     contents_hash = Column(String,index=True)
+    parent_hash=Column(String,index=True)
     name=Column(String)
     length = Column(Integer)
     last_modified=Column(Float)

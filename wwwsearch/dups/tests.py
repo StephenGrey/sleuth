@@ -60,6 +60,11 @@ class Dups(IndexTester):
         _d=file_utils.check_master_dups(self.testdups_path,master_index=_master_spec)
         self.assertEquals(len([d for d in _d]),3)
         
+        
+    def test_sql_dups(self):
+        specs=file_utils.SqlFolderIndex(self.testdups_path)
+        print(specs)
+        
     
     def test_stored_dups(self):
         _folder=os.path.join(self.dups2_path)
