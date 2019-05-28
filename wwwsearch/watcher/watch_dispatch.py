@@ -54,6 +54,7 @@ class Index_Dispatch:
         self.ignore=True if indexSolr.ignorefile(self.sourcepath) else False
         self.destpath=destpath
         self.check_base()
+        self.check_dupbase()
         self.process()
     def process(self):
         log.debug(f'EVENT: {self.event_type}  PATH: {self.sourcepath}  (DESTPATH: {self.destpath})') if not self.ignore else None
@@ -110,8 +111,6 @@ class Index_Dispatch:
         else:
             self.create()
 
-
-
     def moved(self):
         if self.dest_in_database and self.source_in_database:
             self.delete() #delete the origin - the destination will be picked up with move event
@@ -154,7 +153,9 @@ class Index_Dispatch:
             else:
                 self.dest_in_database=None            
     
-    
+    def check_dupbase(self):
+        pass
+        
     def _index(self):
         for _file in self.source_in_database:
             if not _file.indexedSuccess:

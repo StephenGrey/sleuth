@@ -74,7 +74,20 @@ class SqlIndex():
             log.error(e)
             self.session.rollback()
             raise
-   
+    
+    def add_setting(self,name,_int=None,_float=None,_string=None,_bool=None):
+        try:
+            _setting=Setting(name=name)
+            _setting._int=_int
+            _setting._float=_float
+            _setting._string=_string
+            _setting._bool=_bool
+            self.session.add(_setting)
+        except Exception as e:
+            log.error(e)
+            self.session.rollback()
+            raise        
+    
     def delete_record(self,docpath):
         try:
             _file=self.lookup_path(docpath)
@@ -112,7 +125,21 @@ class SqlIndex():
             log.error(e)
             self.session.rollback()
             raise
-
+    
+    def lookup_id_list(self,id_list):
+        try:
+            _files=[]
+            for _id in id_list:
+                _files.append(self.session.query(File).filter(File.id==_id).first())
+            return _files
+        except Exception as e:
+            log.error(e)
+            self.session.rollback()
+            raise        
+        
+        
+        
+    
     def lookup_folder(self,path):
         #log.debug(path)
         try:
@@ -121,7 +148,16 @@ class SqlIndex():
             log.error(e)
             self.session.rollback()
             raise
-
+    
+    def lookup_setting(self,name):
+        try:
+            return self.session.query(Setting).filter(Setting.name==name).first()
+        except Exception as e:
+            log.error(e)
+            self.session.rollback()
+            raise
+            
+             
     def lookup_parent_hash(self,_hash):
         try:
             return [f for f in self.session.query(File).filter(File.parent_hash==_hash)]
@@ -247,8 +283,12 @@ class SqlIndex():
     
     def clean(self):
         return self.sql_direct('VACUUM')
+        
+        
+    
     
 #ALTER TABLE db3.files ADD COLUMN checked Boolean
+#ALTER TABLE db3.files ADD COLUMN parent_hash String
 
 class ComboIndex():
     def __init__(self,master_index,local_index,folder=None):
@@ -334,6 +374,20 @@ class Folder(Base):
     def __repr__(self):
         return "<Folder(name='%s', path='%s', id='%s')>" % (
                            self.name, self.path, self.id)
+
+class Setting(Base):
+    __tablename__ = 'settings'
+    id = Column(Integer, primary_key=True)
+    _string = Column(String,index=True)
+    _bool=Column(Boolean)
+    _float=Column(Float)
+    _int=Column(Integer)
+    name=Column(String)
+
+    def __repr__(self):
+        return "<Setting(name='%s', string='%s', int='%s', float='%s')>" % (
+                           self.name, self._string, self._int,self._float)
+
 
 
 class File(Base):

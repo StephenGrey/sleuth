@@ -468,8 +468,6 @@ class PathIndex:
         return [k for k in self.hash_index if len(self.hash_index[k])>1]
 
 
-
-
 class PathFileIndex(PathIndex):
     """index of FileSpec objects"""
     def __init__(self,folder,specs_dict=False,scan_contents=True,ignore_pattern='X-',job=None):
@@ -625,7 +623,10 @@ class SqlFileIndex(sql_connect.SqlIndex,PathIndex):
       self.map_record(docspec,existing=existing)  
 
    def update_folder(self,path):
-      docspec=FileSpecs(path,folder=True).__dict__
+      specs=FileSpecs(path,folder=True)
+      docspec=specs.__dict__
+      docspec.update({'parent_hash':specs.parent_hash})
+      docspec.update({'last_modified':specs.last_modified})
       self.map_record(docspec)
 
    def hash_append(self,_hash,path):
@@ -755,7 +756,7 @@ class SqlFileIndex(sql_connect.SqlIndex,PathIndex):
 #      log.debug(f'trying to delete record {docpath}')
 #      pass
       
-   def rescan(self):
+   def full_rescan(self):
       """rescan changed files in dictionary of filespecs"""
       log.info(f'rescanning ... {self.folder_path}')
 #        self.list_directory() #rescan original disk
@@ -781,6 +782,88 @@ class SqlFileIndex(sql_connect.SqlIndex,PathIndex):
             self.sync()
          except Exception as e:
             log.info(f'Save failure: {e}')
+            
+   def rescan(self):
+      """rescan only directories modified since last check"""
+      time_start=int(time.time())
+      last_mod_obj=self.lookup_setting('last_mod')
+      if last_mod_obj:
+          last_check=last_mod_obj._int
+      else:
+          last_check=0
+          self.add_setting('last_mod',_int=last_check)
+          self.save()
+          
+      last_check_str=time_utils.timestring(time_utils.timefromstamp(last_check))
+      _root=self.folder_path
+
+      #check the root
+      log.debug(f'Checking {_root} for changes since {last_check_str}')
+      if os.stat(_root).st_mtime > last_check:
+          self.check_folder(_root)
+
+      #check subfolders
+      for _folder,sub_dirs,file_names in os.walk(_root):
+            for sub in sub_dirs:
+                path=normalise(os.path.join(_folder,sub))
+                if os.stat(path).st_mtime > last_check:
+                    self.check_folder(path)
+      
+      last_check=time_start   #use start time, in case contents change during check
+      last_mod_obj._int=last_check
+      duration=int(time.time())-time_start
+      log.debug(f'checked in {duration} seconds')
+      self.save()
+
+   def check_folder(self,path):
+       try:
+           _files=os.listdir(path)
+       except PermissionError as e:
+           log.error(e)
+           _files=[]
+       _modified=[]
+       #log.debug(f'Files in {path}: {_files}')
+       #log.debug(_index.lookup_parent_hash(pathHash(path)))
+       for _db_file in self.lookup_parent_hash((pathHash(path))):
+           try:
+               _files.remove(_db_file.name)
+               if not _db_file.folder: #ignore modified folders; folder mod not stored in db
+                   if _db_file.last_modified != os.stat(_db_file.path).st_mtime:
+                       _modified.append(_db_file)
+                       log.debug(f'Modified {_db_file.name}: Previous {_db_file.last_modified}; LastMod: {os.stat(_db_file.path).st_mtime}')
+                       self.update_record(_db_file.path,existing=_db_file)
+           except ValueError:
+               if _db_file.folder:
+                   log.debug(f'Deleted folder: {_db_file.path}')
+                   
+                   deleted_ids=[_id for hash,_id in self.files_inside(_db_file.path,limit=1000000)]
+                   deleted_files=self.lookup_id_list(deleted_ids)
+                   log.debug(f'Files inside to purge: {[f.path for f in deleted_files]}')
+                   for _file in deleted_files:
+                       try:
+                           self.delete_file(_file)
+                       except Exception as e:
+                           log.debug(f'Delete record failed for {deletedfile.path}')
+                           log.debug(e)
+                           raise
+               else:
+               
+                   log.debug(f'Deleted file: {_db_file.path}')
+                   try:
+                       self.delete_file(_db_file)
+                   except Exception as e:
+                       log.debug(f'Delete record failed for {deletedfile.path}')
+                       log.debug(e)
+                       raise
+       log.debug(f'New files {_files}') if _files else None
+       for _file in _files:
+           filepath=os.path.join(path,_file)
+           filepath=normalise(filepath) #convert long or malformed nt paths
+           log.debug(f'Adding {filepath} to database')
+           self.add_new_file(filepath)
+       log.debug(f'Modified: {[f.path for f in _modified]}') if _modified else None
+       self.save()
+       
 
 def sql_dupscan(folder_path,label=None,job=None):
     log.debug(f'Creating new sql file scanner connection, with job: {job} on folder {folder_path}')
@@ -1815,4 +1898,6 @@ def add_parent_hashes(_index):
             print (n)
             _index.save()
     _index.save()
-                   
+                
+
+ 
