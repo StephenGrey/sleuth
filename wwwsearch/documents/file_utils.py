@@ -686,10 +686,13 @@ class SqlFileIndex(sql_connect.SqlIndex,PathIndex):
    
    def add_new_file(self,path):
        try:            
+           path.encode('utf-8') # trip exception to check it is savable in sql
            if os.path.isdir(path):
                self.update_folder(path)
            else:
                self.update_record(path)
+       except UnicodeEncodeError as e:
+           log.info(f'Unicode error:  Failed to add {slugify(path)}(cleaned) which contains non utf-8 characters in filename: {e}')
        except DoesNotExist:
            log.info(f'Failed to add {path}: does not exist / no access')
        except PermissionError:
@@ -790,29 +793,42 @@ class SqlFileIndex(sql_connect.SqlIndex,PathIndex):
       if last_mod_obj:
           last_check=last_mod_obj._int
       else:
-          last_check=0
+          last_check=946684800 #default year 2000
           self.add_setting('last_mod',_int=last_check)
           self.save()
-          
+          last_mod_obj=self.lookup_setting('last_mod')
+      log.debug(last_check)
       last_check_str=time_utils.timestring(time_utils.timefromstamp(last_check))
       _root=self.folder_path
 
       #check the root
-      log.debug(f'Checking {_root} for changes since {last_check_str}')
+      log.info(f'Checking {_root} for changes since {last_check_str}')
+      self.total=len([p for p,s,f in os.walk(self.folder_path)])
+
       if os.stat(_root).st_mtime > last_check:
           self.check_folder(_root)
 
       #check subfolders
       for _folder,sub_dirs,file_names in os.walk(_root):
-            for sub in sub_dirs:
-                path=normalise(os.path.join(_folder,sub))
-                if os.stat(path).st_mtime > last_check:
-                    self.check_folder(path)
+          self.counter+=1
+          #log.debug(f'checking {folder_path}')
+          self.update_results()
+          self.check_reset()
+          if self.counter%100==0:
+              log.info(f'checking folder #{self.counter} out of {self.total}')
+          if self.counter>1000:
+              self.save()          
+          if self.ignore_pattern and os.path.basename(_folder).startswith(self.ignore_pattern):
+              continue
+          for sub in sub_dirs:
+              path=normalise(os.path.join(_folder,sub))
+              if os.stat(path).st_mtime > last_check:
+                  self.check_folder(path)
       
       last_check=time_start   #use start time, in case contents change during check
       last_mod_obj._int=last_check
       duration=int(time.time())-time_start
-      log.debug(f'checked in {duration} seconds')
+      log.info(f'checked in {duration} seconds')
       self.save()
 
    def check_folder(self,path):
@@ -867,8 +883,9 @@ class SqlFileIndex(sql_connect.SqlIndex,PathIndex):
 
 def sql_dupscan(folder_path,label=None,job=None):
     log.debug(f'Creating new sql file scanner connection, with job: {job} on folder {folder_path}')
-    specs=SqlFileIndex(folder_path,label=label,job=job)
+    specs=None
     try:
+        specs=SqlFileIndex(folder_path,label=label,job=job)
         specs.scan_or_rescan()
         specs.session.commit()
         return specs
@@ -877,7 +894,8 @@ def sql_dupscan(folder_path,label=None,job=None):
         specs.session.rollback()
         raise
     finally:
-        specs.session.close()
+        if specs:
+            specs.session.close()
 
 class Index_Maker():
 #index_maker
@@ -899,7 +917,8 @@ class Index_Maker():
                         relpath=t
                     else:
                         relpath=os.path.relpath(t,rootpath)
-
+                    
+                    t=normalise(t)  #deal with NT filepaths too long
 
                     #log.debug(f'FILE/DIR: {t} MFILE:{mfile}')
                     if self.isdir(t,is_windows_drivelist):    
@@ -928,7 +947,7 @@ class Index_Maker():
                             dupcheck=None
                             log.error(e)
                         #log.debug(f'Local check: {t},indexed: {_indexed}, stored: {_stored}')
-                        log.debug(f'Dupcheck: {dupcheck.__dict__}')
+                        #log.debug(f'Dupcheck: {dupcheck.__dict__}')
                         yield self.file_html(mfile,_stored,_indexed,dupcheck,relpath,path)
                         continue
             except PermissionError:
@@ -1544,6 +1563,7 @@ class SqlDupCheck(DupCheck):
     def check(self):
         self.contents_hash=''
         if not os.path.exists(self.filepath):
+            log.debug(f'Path does not exist: {self.filepath}')
             raise DoesNotExist("Checking nonexistent file")
         if self.masterindex:
             #print(f'FILES: {masterindex.files}')
