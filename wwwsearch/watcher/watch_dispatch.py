@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-import sys,datetime,time, logging, redis, sys,traceback,os
+import sys,datetime,time, logging, redis, sys,traceback,os, configs
 
 from tools import wwwsearch_connect #Connect to Django project
 from django.conf import settings
@@ -13,6 +13,13 @@ log = logging.getLogger('ownsearch.watch_dispatch')
 r=redis_cache.redis_connection
 #redis.Redis(charset="utf-8", decode_responses=True)
 log.info('initialising watcher')
+
+dupsconfig=configs.config.get('Dups')
+MASTER_RELPATH=dupsconfig.get('masterindex_path') if dupsconfig else None
+MEDIAROOT=dupsconfig.get('rootpath') if dupsconfig else None
+MASTER_FULLPATH=os.path.join(MEDIAROOT,MASTER_RELPATH)
+if os.path.exists(MASTER_FULLPATH):
+    master_index=file_utils.SqlFileIndex(MASTER_FULLPATH)
 
 """
 
@@ -54,8 +61,11 @@ class Index_Dispatch:
         self.ignore=True if indexSolr.ignorefile(self.sourcepath) else False
         self.destpath=destpath
         self.check_base()
+        self.setup_dupbase_watch()
         self.check_dupbase()
         self.process()
+        
+    
     def process(self):
         log.debug(f'EVENT: {self.event_type}  PATH: {self.sourcepath}  (DESTPATH: {self.destpath})') if not self.ignore else None
         if self.event_type=='created':
@@ -153,8 +163,29 @@ class Index_Dispatch:
             else:
                 self.dest_in_database=None            
     
+    
+    def setup_dupbase_watch(self):
+        if os.path.exists(MASTER_FULLPATH):
+            self.master_index=file_utils.SqlFileIndex(MASTER_FULLPATH)
+        else:
+            self.master_index=None
+    
     def check_dupbase(self):
-        pass
+        """check if file in master dupindex"""
+        if self.master_index:
+            if file_utils.new_is_inside(self.sourcepath,self.master_index.folder_path):
+                log.debug('sourcepath inside master index')
+                self.master_source_changed=True
+            else:
+                self.master_source_changed=False
+            if self.destpath:
+                if file_utils.new_is_inside(self.destpath,self.master_index.folder_path):
+                    log.debug('destpath inside master index')
+                    self.master_dest_changed=True
+                else:
+                    self.master_dest_changed=False
+            else:
+                self.master_dest_changed=False
         
     def _index(self):
         for _file in self.source_in_database:

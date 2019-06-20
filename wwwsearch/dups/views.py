@@ -5,7 +5,7 @@ from django.http import HttpResponse, HttpResponseRedirect, JsonResponse
 from django.shortcuts import render, redirect
 from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.auth.decorators import login_required
-from . import pages
+#from . import pages
 from documents import file_utils, documentpage as pages, sql_connect as sql
 from dups import forms
 import os, configs, logging,json,threading
@@ -15,6 +15,7 @@ from watcher import watch_dispatch
 dupsconfig=configs.config.get('Dups')
 DEFAULT_MASTERINDEX_PATH=dupsconfig.get('masterindex_path') if dupsconfig else None
 MEDIAROOT=dupsconfig.get('rootpath') if dupsconfig else None
+
 
 #log.debug(MEDIAROOT)
 #log.debug(DEFAULT_MASTERINDEX_PATH)
