@@ -13,19 +13,20 @@ class MySyncHandler(FileSystemEventHandler):
     def on_any_event(self,event):
         #log.debug(event.event_type)
         #log.debug(f'{event.__dict__} at {time.time()}')
-        
-        if event.event_type=='created':
-            watch_dispatch.Index_Dispatch('created',event._src_path,None)
-
-        elif event.event_type=='moved':
-            watch_dispatch.Index_Dispatch('moved',event._src_path,event._dest_path)
-            
-        elif event.event_type=='deleted':
-            watch_dispatch.Index_Dispatch('delete',event._src_path,None)
-            
-        elif event.event_type=='modified':        
-            watch_dispatch.Index_Dispatch('modified',event._src_path,None)
-        
+        try:
+            if event.event_type=='created':
+                watch_dispatch.Index_Dispatch('created',event._src_path,None)
+    
+            elif event.event_type=='moved':
+                watch_dispatch.Index_Dispatch('moved',event._src_path,event._dest_path)
+                
+            elif event.event_type=='deleted':
+                watch_dispatch.Index_Dispatch('delete',event._src_path,None)
+                
+            elif event.event_type=='modified':        
+                watch_dispatch.Index_Dispatch('modified',event._src_path,None)
+        except Exception as e:
+        	    log.error(f'Event action failed: {e}')
 def launch(path):
     observer = Observer()
     observer.schedule(MySyncHandler(), path, recursive=True)

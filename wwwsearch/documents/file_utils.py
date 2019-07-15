@@ -576,6 +576,25 @@ class HashIndex(PathIndex):
         self.ignore_pattern=ignore_pattern
         pass
 
+class Counter():
+    def __init__(self,root):
+
+        self.counter=0
+        def count_sub(subfolder):
+            for entry in os.scandir(subfolder):
+                if entry.is_dir():
+                    self.counter+=1
+                    #print(entry.path)
+                    try:
+                        count_sub(entry.path)
+                    except Exception as e:
+                        try:
+                            count_sub(normalise(entry.path))
+                        except Exception as e:
+                            print(e)
+                            pass
+        count_sub(root)
+
 class SqlFileIndex(sql_connect.SqlIndex,PathIndex):
    def __init__(self,folder_path,job=None,ignore_pattern='X-',rescan=False,label=None):
       """index of file objects using sqlite and sqlalchemy"""
@@ -788,6 +807,8 @@ class SqlFileIndex(sql_connect.SqlIndex,PathIndex):
             
    def rescan(self):
       """rescan only directories modified since last check"""
+      self.counter,self.newfiles,self.changed_files_count,self.deleted_files_count=0,0,0,0
+      
       time_start=int(time.time())
       last_mod_obj=self.lookup_setting('last_mod')
       if last_mod_obj:
@@ -803,7 +824,7 @@ class SqlFileIndex(sql_connect.SqlIndex,PathIndex):
 
       #check the root
       log.info(f'Checking {_root} for changes since {last_check_str}')
-      self.total=len([p for p,s,f in os.walk(self.folder_path)])
+      self.total=Counter(self.folder_path).counter #len([p for p,s,f in os.walk(self.folder_path)])
 
       if os.stat(_root).st_mtime > last_check:
           self.check_folder(_root)
@@ -829,6 +850,7 @@ class SqlFileIndex(sql_connect.SqlIndex,PathIndex):
       last_mod_obj._int=last_check
       duration=int(time.time())-time_start
       log.info(f'checked in {duration} seconds')
+      
       self.save()
 
    def check_folder(self,path):
@@ -837,18 +859,26 @@ class SqlFileIndex(sql_connect.SqlIndex,PathIndex):
        except PermissionError as e:
            log.error(e)
            _files=[]
+       except FileNotFoundError as e:
+           log.error(e)
+           _files=[]
        _modified=[]
+           
        #log.debug(f'Files in {path}: {_files}')
        #log.debug(_index.lookup_parent_hash(pathHash(path)))
+       
+       #check files in database
        for _db_file in self.lookup_parent_hash((pathHash(path))):
            try:
                _files.remove(_db_file.name)
                if not _db_file.folder: #ignore modified folders; folder mod not stored in db
-                   if _db_file.last_modified != os.stat(_db_file.path).st_mtime:
+                   filemod=os.stat(_db_file.path).st_mtime
+                   if _db_file.last_modified != filemod:
                        _modified.append(_db_file)
                        log.debug(f'Modified {_db_file.name}: Previous {_db_file.last_modified}; LastMod: {os.stat(_db_file.path).st_mtime}')
+                       self.changed_files_count+=1
                        self.update_record(_db_file.path,existing=_db_file)
-           except ValueError:
+           except ValueError: #file in database not on disk
                if _db_file.folder:
                    log.debug(f'Deleted folder: {_db_file.path}')
                    
@@ -858,6 +888,7 @@ class SqlFileIndex(sql_connect.SqlIndex,PathIndex):
                    for _file in deleted_files:
                        try:
                            self.delete_file(_file)
+                           self.deleted_files_count+=1
                        except Exception as e:
                            log.debug(f'Delete record failed for {deletedfile.path}')
                            log.debug(e)
@@ -867,19 +898,25 @@ class SqlFileIndex(sql_connect.SqlIndex,PathIndex):
                    log.debug(f'Deleted file: {_db_file.path}')
                    try:
                        self.delete_file(_db_file)
+                       self.deleted_files_count+=1
                    except Exception as e:
                        log.debug(f'Delete record failed for {deletedfile.path}')
                        log.debug(e)
                        raise
+           except Exception as e:
+               log.error(e)
+               log.error(f'error checking {_db_file}')
        log.debug(f'New files {_files}') if _files else None
        for _file in _files:
            filepath=os.path.join(path,_file)
            filepath=normalise(filepath) #convert long or malformed nt paths
            log.debug(f'Adding {filepath} to database')
            self.add_new_file(filepath)
+           self.newfiles+=1
        log.debug(f'Modified: {[f.path for f in _modified]}') if _modified else None
        self.save()
        
+
 
 def sql_dupscan(folder_path,label=None,job=None):
     log.debug(f'Creating new sql file scanner connection, with job: {job} on folder {folder_path}')
@@ -896,6 +933,8 @@ def sql_dupscan(folder_path,label=None,job=None):
     finally:
         if specs:
             specs.session.close()
+
+
 
 class Index_Maker():
 #index_maker
