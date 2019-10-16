@@ -8,18 +8,20 @@ try:
     BASEDIR=configs.config['Models']['collectionbasepath'] #get base path of the docstore
 except:
     log.error('No BaseDirectory defined')
+
 #checking for what files in existing solrindex
 def index_check(collection,thiscore):
 
+
+    log.debug(f'BASDIR: {BASEDIR}')
     #first get solrindex ids and key fields
     try:#make a dictionary of filepaths from solr index
         indexpaths=solrcursor.cursor(thiscore)
-        log.debug(indexpaths)
+        log.debug(f'Indexpaths: {indexpaths}')
     except Exception as e:
         log.warning('Failed to retrieve solr index')
         log.warning(str(e))
         return 0,0,0
-
     #now compare file list with solrindex
     if True:
         counter=0
@@ -46,7 +48,7 @@ def index_check(collection,thiscore):
         #INDEX CHECK: METHOD TWO: CHECK IF FILE STORED IN SOLR INDEX UNDER CONTENTS HASH
             elif not file.is_folder:
                 try:
-                    log.debug('trying hash method')
+                    log.debug(f'searching by hash for {file.filepath}')
                     #is there a stored hash, if not get one
                     if not hash:
                         hash=hexfile(file.filepath)
@@ -63,7 +65,7 @@ def index_check(collection,thiscore):
                 if len(solrresult)>0:
                     #if some files, take the first one
                     solrdata=solrresult[0]
-                    log.debug('solrdata: {}'.format(vars(solrdata)))
+                    log.debug('Data found in solr: {}'.format(vars(solrdata)))
                     file.indexedSuccess=True
                     file.solrid=solrdata.id
                     file.save()

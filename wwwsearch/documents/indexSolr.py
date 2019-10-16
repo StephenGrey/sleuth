@@ -28,17 +28,23 @@ from .redis_cache import redis_connection as r
 
 try:
     IGNORELIST=config['Solr']['ignore_list'].split(',')
+    EXTRACT_SKIPLIST=config['Solr']['skip_extract'].split(',')
     DOCSTORE=config['Models']['collectionbasepath'] #get base path of the docstore
     TIMEOUT=int(config['Solr']['solrtimeout'])
     MAXSIZE_MB=int(config['Solr']['maxsize'])
+    MAXSIZE_HASH_MB=int(config['Solr']['maxsize_hash'])
     
 except Exception as e:
     log.warning('Some missing configuration options; using defaults')
     IGNORELIST=[]
+    EXTRACT_SKIPLIST=[]
     TIMEOUT=120
     MAXSIZE_MB=5 #MB
+    MAXSIZE_HASH_MB=500
 
 MAXSIZE=MAXSIZE_MB*(1024**2)
+MAXSIZE_HASH=MAXSIZE_HASH_MB*(1024**2)
+
 
 """
 EXTRACT CONTENTS OF A FILE FROM LOCAL MEDIA INTO SOLR INDEX
@@ -144,13 +150,17 @@ class Extractor():
     
     
     def extract_file(self,file):
+        #if ignore file
+        #elif skip_extract
+        #extract content
         
         if self.skip_file(file):
             pass
-            #log.debug('Skipping {}'.format(file))
+            log.debug('Skipping {}'.format(file))
+                
         else:
             log.info('Attempting index of {}'.format(file.filepath))
-            self.update_working_file(file.filepath)
+            self.update_working_file(file.filepath) #update redis output
 
             #if was previously indexed, store old solr ID and then delete if new index successful
             oldsolrid=file.solrid
@@ -168,13 +178,20 @@ class Extractor():
                     file.hash_contents=file_utils.get_contents_hash(file.filepath)
                     file.save()
                 
-                
                 #check by hash of contents if doc exists already in solr index
                 existing_doc=check_file_in_solrdata(file,self.mycore) #searches by hashcontents, not solrid
                 if existing_doc:
-                    #FIX META ONLY
+                    #UPDATE META ONLY
                     result=self.update_existing_meta(file,existing_doc)
-
+                
+                elif self.skip_extract(file):
+                    #INDEX META ONLY
+                    #results=
+                    ext=ExtractFileMeta(file.filepath,self.mycore,hash_contents=file.hash_contents,sourcetext='',docstore=self.docstore)
+                    result=ext.post_process(indexed=False)
+                    
+                    
+                    
                 else:
                 #now try the extract
                     file.indexedTry=True  #set flag to say we've tried
@@ -309,10 +326,42 @@ class Extractor():
         
         
         return result
-       
-    def skip_file(self,file):
+    
+    def index_meta(self,file):
+        #already indexed
         if file.indexedSuccess:
+            return False
+        try:
+            #index meta
             pass
+            #file.indexedSuccess=True
+        except:
+            #index meta failed
+            log.debug('Failed to index meta')
+        
+    
+    def skip_extract(self,file):
+        """test if file should be indexed but not content not extracted"""
+        if file.filesize>MAXSIZE:
+            #skip the extract, it's too big
+            file.error_message=f'Too large {file.filesize}b'
+            log.info(f'Skipped {file.error_message} path: {file.filename}')
+        elif ignorefile(file.filepath,ignorelist=EXTRACT_SKIPLIST):
+            #skip this file because it is on ignore list
+            file.error_message='On ignore list'
+            log.info(f'Skipped {file.error_message} path: {file.filename}')
+        else:
+            #don't skip extract
+            return False
+        self.skipped+=1
+        relpath=os.path.relpath(file.filepath,self.collection.path)
+        self.skippedlist.append((relpath, file.error_message))
+        return True
+        
+    
+    def skip_file(self,file):
+        """test if file should be skipped entirely from index or extract"""
+        if file.indexedSuccess:
             file.error_message='Already indexed'
             #skip this file: it's already indexed
         elif file.indexedTry and not self.forceretry:
@@ -323,7 +372,7 @@ class Extractor():
             #skip this file because it is on ignore list
             file.error_message='On ignore list'
             log.info(f'Skipped {file.error_message} path: {file.filename}')
-        elif file.filesize>MAXSIZE:
+        elif file.filesize>MAXSIZE_HASH:
             #skip the extract, it's too big
             file.error_message=f'Too large {file.filesize}b'
             log.info(f'Skipped {file.error_message} path: {file.filename}')
@@ -392,12 +441,13 @@ class Extractor():
             		})
 
 class UpdateMeta(Extractor):
-    def __init__(self,mycore,file,existing_doc,docstore=DOCSTORE):
+    def __init__(self,mycore,file,existing_doc,docstore=DOCSTORE,existing=True):
         if not isinstance(mycore,s.SolrCore):
             raise BadParameters("Bad parameters for extraction")
         self.mycore=mycore
         self.docstore=docstore
-        self.update_existing_meta(file,existing_doc)   
+        if existing:
+            self.update_existing_meta(file,existing_doc)   
 
 
 class ExtractSingleFile(Extractor):
@@ -487,9 +537,14 @@ class ChildProcessor():
                 if not updatestatus:
                     return False
         return True
-    def parse_date(self,solrid,last_modified,date_from_path):
+
+    def parse_date(self,solrid,last_modified,date_from_path,indexed=True):
         """evaluate the best display date from alternative sources"""
         #in order of priority: 
+        try:
+            existing=s.getfield(solrid,self.mycore.datesourcefield,self.mycore)
+        except s.SolrDocNotFound:
+            existing=None
         #1. take the date from the filename
         if date_from_path:
             if not clear_date(solrid,self.mycore):
@@ -498,16 +553,19 @@ class ChildProcessor():
             return time_utils.timestringGMT(date_from_path)
 
         #2. else if no date stored in date sourcefield .. try the other sourcefield
-        elif not s.getfield(solrid,self.mycore.datesourcefield,self.mycore):
-            #3. or date from cleaned-up second source field
-            altdate=time_utils.cleaned_ISOtimestring(s.getfield(solrid,self.mycore.datesourcefield2,self.mycore))
-            if altdate:
-                return altdate
-            #4. or date from file's last-modified stamp
-            elif last_modified:
-                return time_utils.ISOtimestring(last_modified)
+        elif indexed:
+            if not existing:
+                #3. or date from cleaned-up second source field
+                altdate=time_utils.cleaned_ISOtimestring(s.getfield(solrid,self.mycore.datesourcefield2,self.mycore))
+                if altdate:
+                    return altdate
             else:
                 return None
+        #4. or date from file's last-modified stamp
+        elif last_modified:
+                return time_utils.ISOtimestring(last_modified)
+#            else:
+#                return None
         else:
             return None
   
@@ -531,7 +589,8 @@ class ExtractFile(ChildProcessor):
         log.debug(self.result)
         
         
-    def post_process(self):
+    def post_process(self,indexed=True):
+        self.indexed=indexed
         changes=[]
         changes.append((self.mycore.docnamesourcefield,'docname',self.filename))
         #extract a relative path from the docstore root
@@ -540,7 +599,7 @@ class ExtractFile(ChildProcessor):
         
 
         
-        parsed_date=self.parse_date(self.solrid,self.last_modified,self.date_from_path)
+        parsed_date=self.parse_date(self.solrid,self.last_modified,self.date_from_path,indexed=indexed)
         log.debug(f'parsed date: {parsed_date}')
         changes.append((self.mycore.datesourcefield,'date',parsed_date)) if parsed_date else None
         
@@ -563,19 +622,42 @@ class ExtractFile(ChildProcessor):
         log.debug(f'CHANGES: {changes}')
         
         response,updatestatus=update_meta(self.solrid,changes,self.mycore)
-        log.debug(response)
+        #log.debug(response)
         
         self.post_result=updatestatus
-        #log.debug(jsondata)
-        self.process_children()
-    
+        #log.debug(self.post_result)
+        childresult=self.process_children()
+        log.debug(childresult)
+        if self.post_result and childresult:
+            return True
+        else:
+            return False
+        
     def parse_filesize(self):
         #filesize picked up automatically into 'stream_size' field in standard extract handler
-        return None
-        
+        if self.indexed:
+            return None
+        else:
+            return self.size
 
-    
-  
+class ExtractFileMeta(ExtractFile):
+    def __init__(self,path,mycore,hash_contents='',sourcetext='',docstore='',test=False):
+        self.path=path
+        self.ocr=False
+        specs=file_utils.FileSpecs(path,scan_contents=False)###
+        self.filename=specs.name
+        self.size=specs.length
+        self.date_from_path,self.last_modified=changes.parse_date(specs)
+        self.mycore=mycore
+        self.test=test
+        self.sourcetext=sourcetext
+        self.docstore=docstore
+        self.hash_contents = hash_contents if hash_contents else file_utils.get_contents_hash(path)
+        self.solrid=self.hash_contents
+        
+#        self.result,self.error_message=extract(self.path,self.hash_contents,self.mycore,timeout=TIMEOUT,docstore=docstore,test=self.test,sourcetext=self.sourcetext,ocr=self.ocr)
+#        log.debug(self.result)
+        
 
 
 
@@ -774,10 +856,10 @@ def postSolr(args,path,mycore,timeout=1,ocr=True):
 
 """UTILITIES:"""
 
-def ignorefile(path):
+def ignorefile(path,ignorelist=IGNORELIST):
     """check if filepath fits an ignore pattern (no check to see if file exists)"""
     head,filename=os.path.split(path)
-    if any(fnmatch(filename, pattern) for pattern in IGNORELIST):
+    if any(fnmatch(filename, pattern) for pattern in ignorelist):
         return True
     else:
         return False

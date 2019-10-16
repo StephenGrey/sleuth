@@ -640,6 +640,15 @@ class SqlFileIndex(sql_connect.SqlIndex,PathIndex):
       except AttributeError:           #log.debug('no hash_index')
           pass
 
+   def simple_check_path(self,path):
+       try:
+           path=normalise(path) #convert long or malformed nt paths
+           db_file=self.lookup_path(path)
+           return db_file if db_file else None
+       except Exception as e:
+           log.debug(e)
+           log.debug('Cannot lookup path')
+
    def check_path(self,path,is_folder):
        db_file=None
        try:

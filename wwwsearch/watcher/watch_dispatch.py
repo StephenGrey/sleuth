@@ -18,8 +18,8 @@ dupsconfig=configs.config.get('Dups')
 MASTER_RELPATH=dupsconfig.get('masterindex_path') if dupsconfig else None
 MEDIAROOT=dupsconfig.get('rootpath') if dupsconfig else None
 MASTER_FULLPATH=os.path.join(MEDIAROOT,MASTER_RELPATH)
-if os.path.exists(MASTER_FULLPATH):
-    master_index=file_utils.SqlFileIndex(MASTER_FULLPATH)
+#SQL connection inside Index_Dispatch object if os.path.exists(MASTER_FULLPATH):
+#    master_index=file_utils.SqlFileIndex(MASTER_FULLPATH)
 
 """
 
@@ -53,27 +53,30 @@ class HeartBeat:
         return True
 
 
-
 class Index_Dispatch:
-    def __init__(self,event_type,sourcepath,destpath):
+    """React to file events: add to Solr index if in collection; put modified files into queue for update after delay
+       Delete, move, and create on dupbase masterindex - ignore modified
+    """
+    def __init__(self,):
+        self.setup_dupbase_watch()
+    
+    def process(self,event_type,sourcepath,destpath):
         self.event_type=event_type
         self.sourcepath=sourcepath
         self.ignore=True if indexSolr.ignorefile(self.sourcepath) else False
         self.destpath=destpath
         self.check_base()
-        self.setup_dupbase_watch()
         self.check_dupbase()
-        self.process()
         
-    
-    def process(self):
-        log.debug(f'EVENT: {self.event_type}  PATH: {self.sourcepath}  (DESTPATH: {self.destpath})') if not self.ignore else None
+        log.info(f'EVENT: {self.event_type}  PATH: {self.sourcepath}  (DESTPATH: {self.destpath})') if not self.ignore else None
         if self.event_type=='created':
+            self.dupbase_create()
             self.create()
             self._index()
         elif self.event_type=='modified':
             self.modify()
         elif self.event_type=='delete':
+            self.delete_dupbase()
             self.delete()
         elif self.event_type=='moved':
             self.moved()
@@ -82,6 +85,8 @@ class Index_Dispatch:
         #log.debug(f'Modification queues: {MODIFIED_FILES}, TIMES: {MODIFIED_TIMES}')
         
     def create(self):
+
+        
         if indexSolr.ignorefile(self.sourcepath):
             #log.debug(f'Create file ignored - filename on ignore list')
             return
@@ -122,6 +127,8 @@ class Index_Dispatch:
             self.create()
 
     def moved(self):
+        log.debug('move event')
+        self.moved_dupbase()
         if self.dest_in_database and self.source_in_database:
             self.delete() #delete the origin - the destination will be picked up with move event
         elif self.dest_in_database and not self.source_in_database:
@@ -132,7 +139,45 @@ class Index_Dispatch:
         else:
             self.sourcepath=self.destpath #send new location to source path to create file record
             self.create() #create if within a collection
-    
+
+    def moved_dupbase(self):
+        """ move file inside master dupbase"""
+        if self.master_source_entry and self.master_dest_entry:
+            log.info('delete origin')
+            #delete the origin - the destination will be picked up as modified event
+            try:
+                self.master_index.delete_file(self.master_source_entry)
+            except Exception as e:
+                log.info(f'Delete record failed for {deletedfile.path}')
+                log.error(e)
+                raise
+        elif self.master_dest_entry and not self.master_source_entry:
+            log.info('ignored overwrite')
+            pass #ignore as overwrite - will be picked up as modified event
+        elif self.master_source_entry and not self.master_dest_entry:
+            #for _file in self.master_source_changed:
+            log.info('dupbase move event (correct path of existing entry)')
+            self.master_index.move_path(self.sourcepath,self.destpath)
+            self.master_index.save()
+            #changes.movefile(_file,self.destpath)
+        else:
+            self.sourcepath=self.destpath #send new location to source path to create file record
+            #create if within a collection
+            log.info('CREATE IF WITHIN MASTERINDEX')
+            if self.master_dest_changed:
+                self.master_index.add_new_file(self.destpath)
+                self.master_index.save()
+                log.info('added file')
+
+    def dupbase_create(self):
+        """add a new file to masterindex"""
+        #no ignore list in dupbase
+        log.info('Adding new file to masterindex')
+        if self.master_source_changed and not self.master_source_entry:
+            self.master_index.add_new_file(self.sourcepath)
+            self.master_index.save()
+            log.info('added file')            
+            
     def delete(self):
         """delete both from database and solr index, if indexed"""
         if indexSolr.ignorefile(self.sourcepath):
@@ -147,6 +192,20 @@ class Index_Dispatch:
             log.debug(f'File not in database - nothing to delete')
             
             
+    def delete_dupbase(self):
+        """delete from dupbase masterindex"""
+        if self.master_source_entry:
+            try:
+                log.info(f'Deleting entry in masterindex for {self.master_source_entry}')
+                self.master_index.delete_file(self.master_source_entry)
+                self.master_index.save()
+            except Exception as e:
+                log.info(f'Delete record failed for {deletedfile.path}')
+                log.error(e)
+                self.master_index.rollback()
+
+            
+    
     def check_base(self):
         _database_files=file_utils.find_live_files(self.sourcepath)
         #log.debug(f'Existing files found: {_database_files}')
@@ -163,7 +222,6 @@ class Index_Dispatch:
             else:
                 self.dest_in_database=None            
     
-    
     def setup_dupbase_watch(self):
         if os.path.exists(MASTER_FULLPATH):
             self.master_index=file_utils.SqlFileIndex(MASTER_FULLPATH)
@@ -174,18 +232,29 @@ class Index_Dispatch:
         """check if file in master dupindex"""
         if self.master_index:
             if file_utils.new_is_inside(self.sourcepath,self.master_index.folder_path):
-                log.debug('sourcepath inside master index')
+                log.info(f'sourcepath {self.sourcepath} inside master index folder')
                 self.master_source_changed=True
+                
+                self.master_source_entry=self.master_index.simple_check_path(self.sourcepath)
+                log.info(f'Source in master_index: {self.master_source_entry}')
+                
             else:
                 self.master_source_changed=False
+                self.master_source_entry=None
             if self.destpath:
                 if file_utils.new_is_inside(self.destpath,self.master_index.folder_path):
-                    log.debug('destpath inside master index')
+                    log.info(f'destpath {self.destpath} inside master index')
                     self.master_dest_changed=True
+                    
+                    self.master_dest_entry=self.master_index.simple_check_path(self.destpath)
+                    log.info(f'Destination in master_index:  {self.master_dest_entry}')
+                    
                 else:
                     self.master_dest_changed=False
+                    self.master_dest_entry=None
             else:
                 self.master_dest_changed=False
+                self.master_dest_entry=None
         
     def _index(self):
         for _file in self.source_in_database:

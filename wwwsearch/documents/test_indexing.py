@@ -22,11 +22,15 @@ from django.conf import settings
 PASSWORD = 'mypassword' 
 MANUAL=False
 
+
+
+
 class IndexTester(TestCase):
     def makebase(self):
         """make framework for tests"""
         #CONTROL LOGGING IN TESTS
         #logging.disable(logging.CRITICAL)
+        
         
         self.password=PASSWORD
         self.username='myuser'
@@ -67,7 +71,7 @@ class IndexTester(TestCase):
 
         self.docstore=os.path.abspath(os.path.join(os.path.dirname(__file__), '..','tests','testdocs'))
         self.mycore=solrcursor.solrJson.SolrCore('tests_only')
-        
+        index_check.BASEDIR=self.docstore
         #OVERRIDE MAXISZE FROM USER CONFIGS
         indexSolr.MAXSIZE=10*(1024**2)
         
@@ -123,20 +127,21 @@ class ExtractorTest(ExtractTest):
         #SCAN THE DUPS COLLECTION
         collectiondups=Collection.objects.get(path=self.testdups_path)
         
+        #print(self.testdups_path)
         #NOW SCAN THE COLLECTION
         scanner=updateSolr.scandocs(collectiondups)        
-        self.assertEquals([scanner.new_files_count,scanner.deleted_files_count,scanner.moved_files_count,scanner.unchanged_files_count,scanner.changed_files_count],[5, 0, 0, 0, 0])
+        self.assertEquals([scanner.new_files_count,scanner.deleted_files_count,scanner.moved_files_count,scanner.unchanged_files_count,scanner.changed_files_count],[6, 0, 0, 0, 0])
         
         #print(File.objects.filter(collection=collectiondups))
         
         ext=indexSolr.Extractor(collectiondups,mycore,docstore=self.docstore,useICIJ=self.icij_extract)
-        self.assertEquals((4,1,0),(ext.counter,ext.skipped,ext.failed))
+        self.assertEquals((4,2,0),(ext.counter,ext.skipped,ext.failed))
        
         storedpaths=indexSolr.check_hash_in_solrdata("6d50ecaf0fb1fc3d59fd83f8e9ef962cf91eb14e547b2231e18abb12f6cfa809",mycore).data['docpath']
         calcpaths=[os.path.join('dups','HilaryEmailC05793347.pdf'), os.path.join('dups','HilaryEmailC05793347 copy.pdf'),os.path.join( 'dups','dup_in_folder','HilaryEmailC05793347 copy.pdf')]
         
-        print(storedpaths)
-        print(calcpaths)
+        #print(storedpaths)
+        #print(calcpaths)
         
         for path in calcpaths:
             storedpaths.remove(path)
@@ -185,7 +190,7 @@ class ExtractorTest(ExtractTest):
         os.rename(os.path.join(origindir,filename),os.path.join(tempdir,filename))
         
         scanner=updateSolr.scandocs(collectiondups,docstore=self.docstore)
-        self.assertEquals([scanner.new_files_count,scanner.deleted_files_count,scanner.moved_files_count,scanner.unchanged_files_count,scanner.changed_files_count],[0, 1, 0, 3, 1])      
+        self.assertEquals([scanner.new_files_count,scanner.deleted_files_count,scanner.moved_files_count,scanner.unchanged_files_count,scanner.changed_files_count],[0, 1, 0, 4, 1])      
         ext=indexSolr.Extractor(collectiondups,mycore,docstore=self.docstore,useICIJ=self.icij_extract)
         
         updated_doc=indexSolr.check_hash_in_solrdata("6d50ecaf0fb1fc3d59fd83f8e9ef962cf91eb14e547b2231e18abb12f6cfa809",mycore)
@@ -331,6 +336,63 @@ class ExtractorTest(ExtractTest):
         self.assertEquals(updated_doc.data['docpath'],[os.path.join('emptyfolders','folder1')])
         self.assertEquals(updated_doc.data['sb_parentpath_hash'], '50b1c5e4bb7678653bf119e2da8a7a30')
 
+    def test_index_metaonly(self):
+        """index meta only"""
+        _id='e46df5747edd25174f7d61aa2d333f81e8435029faf1ebcebc5a51e1d535ab8b'
+        testfolders_path=os.path.abspath(os.path.join(os.path.dirname(__file__), '..','tests','testdocs','pdfs','4meta'))
+        mycore=self.mycore
+        updateSolr.delete(_id,self.mycore)
+        
+        for filename in os.listdir(testfolders_path):
+            
+            path=os.path.join(testfolders_path,filename)
+            #print(path)
+            
+            _newfile=changes.newfile(path,self.sample_collection)
+            
+            existing_doc=indexSolr.check_file_in_solrdata(_newfile,self.mycore) #searches by hashcontents, not solrid
+            
+            if existing_doc:
+                #UPDATE META ONLY
+#                result=self.update_existing_meta(_newfile,existing_doc)
+#                self.assertTrue(result)
+                
+                indexSolr.UpdateMeta(mycore,_newfile,existing_doc,docstore=self.docstore)
+                
+            else:
+                ext=indexSolr.ExtractFileMeta(path,mycore,hash_contents='',sourcetext='',docstore=self.docstore,test=True)
+                ext.post_process(indexed=False)
+        
+        #check results
+        doc=solrJson.getmeta(_id,self.mycore)[0]
+        #print(doc.data)
+        self.assertEquals(doc.data.get('docpath'),['pdfs/4meta/CIA_doc.pdf.mov', 'pdfs/4meta/CIA_doc copy.pdf.mov'])
+
+    def test_index_not_extract(self):
+        """index meta only"""
+        _id='e46df5747edd25174f7d61aa2d333f81e8435029faf1ebcebc5a51e1d535ab8b'
+        testfolders_path=os.path.abspath(os.path.join(os.path.dirname(__file__), '..','tests','testdocs','pdfs','4meta'))
+        mycore=self.mycore
+        updateSolr.delete(_id,self.mycore)
+        
+        for filename in os.listdir(testfolders_path):
+            path=os.path.join(testfolders_path,filename)
+            _newfile=changes.newfile(path,self.sample_collection)
+            updater=indexSolr.UpdateMeta(mycore,_newfile,None,docstore=self.docstore,existing=False)
+            updater.job=None
+            updater.useICIJ=False
+            updater.ocr=False
+            updater.counter=1
+            updater.skipped=0
+            updater.skippedlist=[]
+            updater.collection=self.sample_collection
+            
+            updater.skip_extract(_newfile)
+            self.assertEquals(updater.skipped,1)
+            
+            updater.extract_file(_newfile)
+            
+
 class ICIJFolderTest(IndexTester):
     def setUp(self):
         self.makebase()
@@ -352,7 +414,7 @@ class ICIJFolderTest(IndexTester):
         #check if files already indexed
         counter,skipped,failed=index_check.index_check(self.collection,self.mycore)
         #print(f'counter:{counter},skipped: {skipped}, failed: {failed}')
-        self.assertEquals(skipped,10)  #nothing found in initial scan
+        self.assertEquals(skipped,9)  #nothing found in initial scan
         
         #EXTRACT A FOLDER
 
@@ -370,7 +432,7 @@ class ICIJFolderTest(IndexTester):
         self.assertEquals(doc.docname,'HilaryEmailC05793347 copy.pdf')
         
 #        #NOW RECOGNISE FOLDER IN THE DATA - NOT NECESSARY
-#        counter,skipped,failed=index_check.index_check(self.collection,self.mycore)
+#        counter,skipped,failed=.index_check(self.collection,self.mycore)
 #        print(f'counter:{counter},skipped: {skipped}, failed: {failed}')
 #        self.assertEquals(counter,10)
 #        
@@ -386,9 +448,10 @@ class ICIJFolderTest(IndexTester):
         counter,skipped,failed=index_check.index_check(self.collection,self.mycore)
         #print(f'counter:{counter},skipped: {skipped}, failed: {failed}')
         self.assertEquals(counter,7)
-        self.assertEquals(skipped,3)
+        self.assertEquals(skipped,2)
         
     def test_folder_command(self):
+        
         #ERASE EVERYTHING FROM TESTS_ONLY 
         res,status=updateSolr.delete_all(self.mycore)
         self.assertTrue(status)
@@ -586,10 +649,10 @@ class ExtractFileTest(ExtractTest):
         
         #make changes to the solr index
         changes=[(mycore.parenthashfield,mycore.parenthashfield,value)]
-        print(changes)
+        #print(changes)
         json2post=updateSolr.makejson(_id,changes,mycore)
         response,updatestatus=updateSolr.post_jsonupdate(json2post,mycore)
-        print(response,updatestatus)
+        #print(response,updatestatus)
         self.assertTrue(updatestatus)
         result= updateSolr.checkupdate(_id,changes,mycore)
         self.assertTrue(result)
