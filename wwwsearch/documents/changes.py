@@ -52,6 +52,8 @@ class Scanner:
         """1. scan all files in collection"""
         self.files_in_database=File.objects.filter(collection=self.collection)
         self.files_on_disk=file_utils.filespecs(self.collection.path,job=self.job) #get dict of specs of files in disk folder(and subfolders)
+        log.debug(self.files_in_database)
+        log.debug(self.files_on_disk)
         self.total=len(self.files_on_disk)
         
     def find_on_disk(self):

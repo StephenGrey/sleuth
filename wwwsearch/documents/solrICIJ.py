@@ -225,7 +225,7 @@ def parse_out(result):
     if result.stdout:
        sout=bytes(result.stdout.read()).decode()
        if sout != '':
-           print('STDOUT from Java process: {}'.format(sout))
+           log.debug('STDOUT from Java process: {}'.format(sout))
     output=[]
     message=''
     error_message=''

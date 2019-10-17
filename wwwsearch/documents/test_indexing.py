@@ -130,12 +130,12 @@ class ExtractorTest(ExtractTest):
         #print(self.testdups_path)
         #NOW SCAN THE COLLECTION
         scanner=updateSolr.scandocs(collectiondups)        
-        self.assertEquals([scanner.new_files_count,scanner.deleted_files_count,scanner.moved_files_count,scanner.unchanged_files_count,scanner.changed_files_count],[6, 0, 0, 0, 0])
+        self.assertEquals([scanner.new_files_count,scanner.deleted_files_count,scanner.moved_files_count,scanner.unchanged_files_count,scanner.changed_files_count],[4, 0, 0, 0, 0])
         
         #print(File.objects.filter(collection=collectiondups))
         
         ext=indexSolr.Extractor(collectiondups,mycore,docstore=self.docstore,useICIJ=self.icij_extract)
-        self.assertEquals((4,2,0),(ext.counter,ext.skipped,ext.failed))
+        self.assertEquals((4,0,0),(ext.counter,ext.skipped,ext.failed))
        
         storedpaths=indexSolr.check_hash_in_solrdata("6d50ecaf0fb1fc3d59fd83f8e9ef962cf91eb14e547b2231e18abb12f6cfa809",mycore).data['docpath']
         calcpaths=[os.path.join('dups','HilaryEmailC05793347.pdf'), os.path.join('dups','HilaryEmailC05793347 copy.pdf'),os.path.join( 'dups','dup_in_folder','HilaryEmailC05793347 copy.pdf')]
@@ -190,7 +190,7 @@ class ExtractorTest(ExtractTest):
         os.rename(os.path.join(origindir,filename),os.path.join(tempdir,filename))
         
         scanner=updateSolr.scandocs(collectiondups,docstore=self.docstore)
-        self.assertEquals([scanner.new_files_count,scanner.deleted_files_count,scanner.moved_files_count,scanner.unchanged_files_count,scanner.changed_files_count],[0, 1, 0, 4, 1])      
+        self.assertEquals([scanner.new_files_count,scanner.deleted_files_count,scanner.moved_files_count,scanner.unchanged_files_count,scanner.changed_files_count],[0, 1, 0, 3, 0])      
         ext=indexSolr.Extractor(collectiondups,mycore,docstore=self.docstore,useICIJ=self.icij_extract)
         
         updated_doc=indexSolr.check_hash_in_solrdata("6d50ecaf0fb1fc3d59fd83f8e9ef962cf91eb14e547b2231e18abb12f6cfa809",mycore)
@@ -414,7 +414,7 @@ class ICIJFolderTest(IndexTester):
         #check if files already indexed
         counter,skipped,failed=index_check.index_check(self.collection,self.mycore)
         #print(f'counter:{counter},skipped: {skipped}, failed: {failed}')
-        self.assertEquals(skipped,9)  #nothing found in initial scan
+        self.assertEquals(skipped,7)  #nothing found in initial scan
         
         #EXTRACT A FOLDER
 
@@ -448,7 +448,7 @@ class ICIJFolderTest(IndexTester):
         counter,skipped,failed=index_check.index_check(self.collection,self.mycore)
         #print(f'counter:{counter},skipped: {skipped}, failed: {failed}')
         self.assertEquals(counter,7)
-        self.assertEquals(skipped,2)
+        self.assertEquals(skipped,0)
         
     def test_folder_command(self):
         
@@ -794,7 +794,7 @@ class ExtractFileTest(ExtractTest):
         #print(extractor.__dict__)
         
         doc=updateSolr.check_hash_in_solrdata(_id,self.mycore)
-        print(doc.__dict__)
+        #print(doc.__dict__)
         self.assertEquals(doc.data['message_to'],"'Adele Fulton'; Paul J. Brown")
         self.assertEquals(doc.data['message_from'],'Wood, Tracy')
         self.assertEquals(doc.date,'2015-07-29T17:58:40Z')

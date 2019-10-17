@@ -45,6 +45,8 @@ except:
 
 SPECS_FILENAME='.filespecs.p'
 ARCH_FILENAME='.kfilespecs.p'
+IGNOREFILES=['.filespecs.p','.kfilespecs.p','.sqlfilespecs.db','.DS_Store']
+
 
 class DoesNotExist(Exception):
     pass
@@ -148,6 +150,7 @@ class PathIndex:
         self.files={}
         self.scan_or_rescan()
         self.job=job
+        self.ignore_files=IGNOREFILES
 
 
     def scan(self,specs_dict=False,scan_contents=True):
@@ -162,15 +165,19 @@ class PathIndex:
         log.debug(f'scanning ... {self.folder_path}')
         for dirName, subdirs, fileList in os.walk(self.folder_path): #go through every subfolder in a folder
             log.info(f'Scanning {dirName} ...')
-            
+            log.debug(subdirs)
+            log.debug(fileList)
             
             if self.job:
                 self.update_results()
                 
             for filename in fileList: #now through every file in the folder/subfolder
+                log.debug(filename)
                 try:
                     self.counter+=1
                     if self.ignore_pattern and filename.startswith(self.ignore_pattern):
+                        pass
+                    elif filename in self.ignore_files:
                         pass
                     else:
                         path = os.path.join(dirName, filename)
@@ -189,6 +196,7 @@ class PathIndex:
                     exc_type, exc_value, exc_traceback = sys.exc_info()
                     traceback.print_exc(limit=2, file=sys.stdout)
             for subfolder in subdirs:
+                log.debug(subfolder)
                 try:
                     self.counter+=1
                     if self.ignore_pattern and subfolder.startswith(self.ignore_pattern):
@@ -339,6 +347,7 @@ class PathIndex:
             except Exception as e:
                 log.warning(e)
         else:
+            log.debug('scan and saving')
             self.scan_and_save()
         
         
@@ -350,6 +359,8 @@ class PathIndex:
         #update changed files
         self.deletedfiles=[]
         for docpath in self.files:
+            if os.path.basename(docpath) in IGNOREFILES:
+                continue
             oldfile=self.files.get(docpath)
             try:
                 self.filelist.remove(docpath)  #self.filelist - disk files - leaving list of new files
@@ -449,6 +460,8 @@ class PathIndex:
             for filename in fileList: #now through every file in the folder/subfolder
                 if self.ignore_pattern and filename.startswith(self.ignore_pattern):
                     pass
+                elif filename in IGNOREFILES:
+                    pass
                 else:
                     path = os.path.join(dirName, filename)
                     filelist.append(path)
@@ -474,6 +487,7 @@ class PathFileIndex(PathIndex):
         self.job=job
         self.folder_path=folder
         self.ignore_pattern=ignore_pattern
+        self.ignore_files=IGNOREFILES
         self.files={}
         self.scan(specs_dict=specs_dict,scan_contents=scan_contents)
 
@@ -487,7 +501,7 @@ class BigFileIndex(PathIndex):
         self.ignore_pattern=ignore_pattern
         self.specs_dict=specs_dict
         self.job=job
-        
+        self.ignore_files=IGNOREFILES
         self.files=klepto_archive.files(os.path.join(self.folder_path,ARCH_FILENAME),label=label)
         self.files.load()
         log.debug(f'loaded files ..{len(self.files)}')
@@ -899,7 +913,7 @@ class Index_Maker():
                 
                 files = self.dir_list(root)
                 for mfile in files:
-
+#                    log.debug(mfile)
                     t = os.path.join(root, mfile)
 
                     if  is_windows_drivelist:
@@ -912,7 +926,7 @@ class Index_Maker():
 
                     #log.debug(f'FILE/DIR: {t} MFILE:{mfile}')
                     if self.isdir(t,is_windows_drivelist):    
-                        #log.debug(f"{t},{index_collections}")
+                        log.debug(f"{t},{index_collections}")
                         if check_index:
                             is_collection_root,is_inside_collection=inside_collection(t,index_collections)
                         else:
@@ -922,11 +936,14 @@ class Index_Maker():
                             yield self.folder_html_nosub(mfile,relpath,path,is_collection_root,is_inside_collection)
                         else:
                             subfiles=_index(os.path.join(root, t),depth+1,index_collections)
-                            #log.debug(f'ROOT:{root},SUBFILES:{subfiles}')
+                            log.debug(f'ROOT:{root},SUBFILES:{subfiles}')
                             yield self.folder_html(mfile,relpath,subfiles,path,is_collection_root,is_inside_collection)
                         continue
                     else:
                         #files
+                        if mfile in IGNOREFILES:
+                            continue
+                        
                         if MODELS and check_index:
                             _stored,_indexed=model_index(t,index_collections)
                         else:
@@ -1149,6 +1166,8 @@ def file_tree(folder):
     """generator to scan directory tree"""
     for dirName, subdirs, fileList in os.walk(folder):
         for filename in fileList:
+            if filename in IGNOREFILES:
+                continue
             yield os.path.join(dirName,filename)
 
 #CHECK DUPS
@@ -1157,6 +1176,7 @@ def check_local_dups(folder,scan_index=None,master_index=None):
     _t=file_tree(folder)
     for path in _t: 
         ck=DupCheck(path,scan_index,master_index)
+        #log.debug(ck.__dict__)
         if ck.local_dup:
             yield ck
 
@@ -1238,9 +1258,22 @@ def check_local_orphans(folder,scan_index=None,master_index=None):
     """generator of locally-unique files within scan folder"""
     _t=file_tree(folder)
     for path in _t: 
-        ck=SqlDupCheck(path,scan_index,master_index)
+        log.debug(path)
+        ck=DupCheck(path,scan_index,master_index)
         if not ck.local_dup:
+            log.debug(ck.__dict__)
             yield ck
+
+#def check_local_orphans_k(folder,scan_index=None,master_index=None):
+#    """generator of locally-unique files within scan folder"""
+#    _t=file_tree(folder)
+#    for path in _t: 
+#        log.debug(path)
+#        ck=SqlDupCheck(path,scan_index,master_index)
+#        if not ck.local_dup:
+#            yield ck
+
+
         
 def check_master_orphans(folder,scan_index=None,master_index=None):
     """generator of locally-unique files within scan folder"""
@@ -1524,11 +1557,14 @@ class DupCheck:
                     self.size=sizeof_fmt(filespec.get('length'))
 
         if self.contents_hash:
+            #log.debug(self.contents_hash)
             if self.masterindex:
                 self.hash_in_master=True if self.contents_hash in self.masterindex.hash_index else False
             if self.specs:
                 if self.specs.hash_index:
                     dupcount=len(self.specs.hash_index.get(self.contents_hash,[]))
+                    #log.debug(dupcount)
+                    #log.debug(self.specs.hash_index.get(self.contents_hash,[]))
                     if dupcount>1:
                         self.local_dup=True
                         self.dups=dupcount
@@ -1568,6 +1604,8 @@ class SqlDupCheck(DupCheck):
                         self.contents_hash=master_filespec.contents_hash
                         self.size=sizeof_fmt(master_filespec.length)
         if self.specs: 
+            log.debug(dir(self.specs))
+            log.debug(type(self.specs))
             filespec=self.specs.lookup_path(self.filepath)
             self.local_scan=True if filespec else False
             if filespec:
@@ -1733,7 +1771,7 @@ class SqlFolderIndex(SqlFileIndex):
 #                   raise Exception
            #files remaining are new
            if files_on_disk:
-               print(f'New files in folder ({_folder.path}): {len(files_on_disk)}')
+               #print(f'New files in folder ({_folder.path}): {len(files_on_disk)}')
                for path in files_on_disk:
                    if self.ignore_pattern and path.startswith(self.ignore_pattern):
                        continue
