@@ -253,12 +253,22 @@ class Extractor():
                     remove_filepath_or_delete_solrrecord(oldsolrid,relpath,self.mycore)
             else:
                 log.info(f'Indexing fail: PATH \'{file.filepath}\]\' with ERROR:{file.error_message}')
-                self.failed+=1
-                self.failedlist.append((file.filepath,file.error_message))
+                
+                log.info(f'Try to index the meta only')
+                
+                #INDEX META ONLY
+                #results=
+                ext=ExtractFileMeta(file.filepath,self.mycore,hash_contents=file.hash_contents,sourcetext='',docstore=self.docstore)
+                result=ext.post_process(indexed=False)
+                if result:
+                    self.failed+=1
+                    self.failedlist.append((file.filepath,file.error_message))
+                else:
+                    file.indexedSuccess=True
+                    self.counter+=1
             file.save()
         if self.job and r:
             self.update_extract_results()
-                
                 
     def extract(self):
         #main loop

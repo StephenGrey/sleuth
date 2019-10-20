@@ -17,19 +17,24 @@ class ChangesError(Exception):
 
 class Scanner:
     def __init__(self,collection,test=False,job=None):
+        """scan and update collection for changes, live update progress to Redis job"""
         if not isinstance(collection, Collection):
             raise ChangesError('Not a valid collection')
         self.collection=collection
         self.test=test
         self.unchanged_files,self.changed_files,self.moved_files,self.new_files,self.deleted_files=[],[],[],[],[]
+        self.scanned_files=0
+        self.new_files_count,self.deleted_files_count,self.moved_files_count,self.unchanged_files_count,self.changed_files_count="","","","",""
         self.missing_files,self.new_files_hash={},{}
         self.scan_error=False
         self.job=job
-        
         self.total_files()
-        self.update_results()
-        self.process()
-        self.update_results()
+        if self.total:
+            self.update_results()
+            self.process()
+            self.update_results()
+        else:
+            pass
     
     
     def total_files(self):
@@ -50,6 +55,7 @@ class Scanner:
           
     def scan(self):
         """1. scan all files in collection"""
+        self.update_progress('Scanning files on disk')
         self.files_in_database=File.objects.filter(collection=self.collection)
         self.files_on_disk=file_utils.filespecs(self.collection.path,job=self.job) #get dict of specs of files in disk folder(and subfolders)
         log.debug(self.files_in_database)
@@ -69,11 +75,6 @@ class Scanner:
         """2a. For a database file found on disk - add to changed or unchanged list/dict"""
         file_meta=self.files_on_disk.pop(database_file.filepath)
         
-        #log.debug(file_meta)
-#        path_date=time_utils.timeaware(file_meta.date_from_path)
-#        if database_file.content_date != path_date:
-#            log.debug(f'Path date modified: database: {database_file.content_date} local: {path_date}')
-#        
         latest_lastmodified=time_utils.timestamp2aware(file_meta.last_modified)
 
         latestfilesize=file_meta.length

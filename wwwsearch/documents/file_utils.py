@@ -145,12 +145,13 @@ class FileSpecs:
 class PathIndex:
     def __init__(self,folder,ignore_pattern='X-',job=None):
         self.ignore_pattern=ignore_pattern
+        self.ignore_files=IGNOREFILES
         self.folder_path=folder
         self.specs_dict=True
         self.files={}
         self.scan_or_rescan()
         self.job=job
-        self.ignore_files=IGNOREFILES
+
 
 
     def scan(self,specs_dict=False,scan_contents=True):
@@ -460,7 +461,7 @@ class PathIndex:
             for filename in fileList: #now through every file in the folder/subfolder
                 if self.ignore_pattern and filename.startswith(self.ignore_pattern):
                     pass
-                elif filename in IGNOREFILES:
+                elif filename in self.ignore_files:
                     pass
                 else:
                     path = os.path.join(dirName, filename)
@@ -556,6 +557,7 @@ class StoredPathIndex(PathIndex):
     def __init__(self,folder_path,ignore_pattern='X-'):
         self.folder_path=folder_path
         self.ignore_pattern=ignore_pattern
+        self.ignore_files=IGNOREFILES
         if not self.check_pickle():
             raise DoesNotExist('No stored filespecs')
 
@@ -564,6 +566,7 @@ class StoredBigFileIndex(BigFileIndex):
     def __init__(self,folder,specs_dict=True,scan_contents=True,ignore_pattern='X-',label='master'):
         self.folder_path=folder
         self.ignore_pattern=ignore_pattern
+        self.ignore_files=IGNOREFILES
         self.specs_dict=specs_dict
         self.files=klepto_archive.files(os.path.join(self.folder_path,ARCH_FILENAME),label=label)
         self.files.load()
@@ -600,6 +603,7 @@ class SqlFileIndex(sql_connect.SqlIndex,PathIndex):
           raise DoesNotExist("Folder to index does not exist")
       self.job=job
       self.ignore_pattern=ignore_pattern
+      self.ignore_files=IGNOREFILES
       self.specs_dict=True
       self.counter=0
       self.changed_files_count=0

@@ -38,6 +38,9 @@ worker thread: take action on fileevents
 MODIFIED_FILES={}
 MODIFIED_TIMES={}
 
+class TaskError(Exception):
+    pass
+
 
 class HeartBeat:
     def tick(self):
@@ -392,57 +395,79 @@ def task_dispatch(job_id):
             log.info(f'Job \"{job_id}\" does not exist in queue')
             r.srem('SEARCHBOX_JOBS',job_id)
             return False
-    except:
+    except Exception as e:
         log.info('Exception in searchbox task: removing job')
+        log.debug(e)
         r.srem('SEARCHBOX_JOBS',job_id)
         raise
 
 def scan_extract_job(job_id,job,task):
-    sub_job_id=r.hget(job,'sub_job_id')
-    sub_job='SB_TASK.'+sub_job_id if sub_job_id else None
-    status=r.hget(job,'status')
     ocr=0 if r.hget(job,'ocr')==0 else 1
     collection_id=r.hget(job,'collection_id')
     force_retry = True if 'force_retry' in task else False
     use_icij = True if 'icij' in task else False
-    log.debug(f'ocr: {ocr}, force_retry: {force_retry}, icij {use_icij}, sub_id: {sub_job}')
-    if status=='queued':
-        log.info('making scan job')
-        sub_job_id=make_scan_job(collection_id,_test=0)
-        r.hset(job,'status','scanning')
-        if sub_job_id:
-            r.hset(job,'sub_job_id',sub_job_id)
-    elif status=='scan_complete':
-        pass
-    elif status =='scanning' and not sub_job:
-         log.info('no active sub-job put back in queue')
-         r.hset(job,'status','queued')
-    elif status=='scanning':
-        sub_status=r.hget(sub_job,'status')
-        if sub_status =='completed':
-            log.debug('now index')   
-            sub_job_id=make_index_job(collection_id,_test=0,force_retry=False,use_icij=False,ocr=1)
-            r.hset(job,'status','indexing')
-            r.hset(job,'sub_job_id',sub_job_id)
-        else:
-            log.debug('still scanning')
-    elif status=='indexing':
-        sub_status=r.hget(sub_job,'status')
-        if sub_status =='completed':
-            r.hset(job,'status','completed')
-            r.srem('SEARCHBOX_JOBS',job_id)
-            r.sadd('SEARCHBOX_JOBS_DONE',job_id)
-            log.debug('scan and index complete')
-        elif sub_status =='error':
-            r.hset(job,'status','completed')
-            r.srem('SEARCHBOX_JOBS',job_id)
-            r.sadd('SEARCHBOX_JOBS_DONE',job_id)
-            log.debug('scan and index shutdown on error')
-        else:
-            log.debug('still indexing')
-    else: 
-        pass   
-
+    #log.debug(f'ScanExtractJob: ocr: {ocr}, force_retry: {force_retry}, icij {use_icij}')
+    
+    try:
+        while True:
+            status=r.hget(job,'status')
+            sub_job_id=r.hget(job,'sub_job_id')
+            sub_job='SB_TASK.'+sub_job_id if sub_job_id else None
+            log.debug(f'Scan-Extract loop: sub_id= {sub_job}')
+            if status=='queued':
+                log.info('making scan job')
+                sub_job_id=make_scan_job(collection_id,_test=0)
+                r.hset(job,'status','scanning')
+                if sub_job_id:
+                    r.hset(job,'sub_job_id',sub_job_id)
+            elif status=='scan_complete':
+                pass
+            elif status =='scanning' and not sub_job:
+                 log.info('no active sub-job put back in queue')
+                 r.hset(job,'status','queued')
+            elif status=='scanning':
+                sub_status=r.hget(sub_job,'status')
+                if sub_status =='completed':
+                    total=r.hget(sub_job,'total')
+                    #log.debug(total)
+                    if int(total)==0:
+                        log.debug('No files to Extract : no need to index')
+                        raise TaskError
+                    log.debug('now index')   
+                    sub_job_id=make_index_job(collection_id,_test=0,force_retry=False,use_icij=False,ocr=1)
+                    r.hset(job,'status','indexing')
+                    r.hset(job,'sub_job_id',sub_job_id)
+                elif sub_status == 'queued':
+                    #check it is still operational
+                    all_tasks=r.smembers('SEARCHBOX_JOBS')
+                    if sub_job_id in all_tasks:
+                        log.debug('Waiting for scan to start')
+                    else:
+                        log.debug('Scan job not present - abort Scan and Extract')
+                        raise TaskError
+                else:
+                    log.debug('still scanning')
+            elif status=='indexing':
+                sub_status=r.hget(sub_job,'status')
+                if sub_status =='completed':
+                    r.hset(job,'status','completed')
+                    r.srem('SEARCHBOX_JOBS',job_id)
+                    r.sadd('SEARCHBOX_JOBS_DONE',job_id)
+                    log.debug('scan and index complete')
+                    break
+                elif sub_status =='error':
+                    log.debug('scan and index shutdown on error')
+                    raise TaskError
+                else:
+                    log.debug('still indexing')
+            else: 
+                pass   
+            time.sleep(0.2)
+    except TaskError:
+        r.hset(job,'status','completed')
+        r.srem('SEARCHBOX_JOBS',job_id)
+        r.sadd('SEARCHBOX_JOBS_DONE',job_id)            
+    log.debug('terminating ScanExtract loop')
 
 def scan_job(job_id,job,task):
     collection_id=r.hget(job,'collection_id')
@@ -515,8 +540,7 @@ def index_job(job_id,job,task):
         r.srem('SEARCHBOX_JOBS',job_id)
         log.info(f'Removed job {job_id}')
         r.sadd('SEARCHBOX_JOBS_DONE',job_id)
-   
-    
+       
 
 def scan_collection_id(job,collection_id,_test=False):
     _collection,_mycore=collection_from_id(collection_id)
@@ -542,7 +566,7 @@ def dupscan_folder(job,folder_path,label=None):
         return _index
     except Exception as e:
         log.error(f'Error scanning {e}')
-        r.hset(job,{'message':'Scan Error','progress_str':'Scan terminated'})
+        r.hset(job,{'message':'Scan Error','f':'Scan terminated'})
         
         return None
     

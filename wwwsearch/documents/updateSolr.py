@@ -237,26 +237,28 @@ def scandocs(collection,delete_on=True,docstore=DOCSTORE,job=None):
     
     scanner=changes.Scanner(collection,job=job)  #get dictionary of changes to file collection (compare disk folder to meta database)
     
-    try:
-        #make any changes to local file database
-        scanner.update_database()        
-    except Exception as e:
-        log.error('Failed to make updates to file database')
-        log.error(f'Error: {e}')
-        scanner.scan_error=True
-        return scanner
-
-    #remove deleted files from the index
-    #(only remove from database when successfully removed from solrindex, so if solr is down won't lose sync)
-    if delete_on and scanner.deleted_files:
+    if scanner.total:
         try:
-            removedeleted(scanner.deleted_files,collection,docstore=docstore)
+            #make any changes to local file database
+            scanner.update_database()        
         except Exception as e:
-            log.debug('Failed to remove deleted files from solr index. Error: {}'.format(e)) 
-
-    #alters meta in the the solr index (via an atomic update)
-    metaupdate(collection) 
-
+            log.error('Failed to make updates to file database')
+            log.error(f'Error: {e}')
+            scanner.scan_error=True
+            return scanner
+    
+        #remove deleted files from the index
+        #(only remove from database when successfully removed from solrindex, so if solr is down won't lose sync)
+        if delete_on and scanner.deleted_files:
+            try:
+                removedeleted(scanner.deleted_files,collection,docstore=docstore)
+            except Exception as e:
+                log.debug('Failed to remove deleted files from solr index. Error: {}'.format(e)) 
+    
+        #alters meta in the the solr index (via an atomic update)
+        metaupdate(collection) 
+    else:
+        log.debug('no files found')
     return scanner
     
 
