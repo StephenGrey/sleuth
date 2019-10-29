@@ -13,11 +13,11 @@ except:
 def index_check(collection,thiscore):
 
 
-    log.debug(f'BASDIR: {BASEDIR}')
+    log.debug(f'BASEDIR: {BASEDIR}')
     #first get solrindex ids and key fields
     try:#make a dictionary of filepaths from solr index
         indexpaths=solrcursor.cursor(thiscore)
-        log.debug(f'Indexpaths: {indexpaths}')
+        #log.debug(f'Indexpaths: {indexpaths}')
     except Exception as e:
         log.warning('Failed to retrieve solr index')
         log.warning(str(e))
@@ -35,12 +35,19 @@ def index_check(collection,thiscore):
             relpath=os.path.relpath(file.filepath,start=BASEDIR) #extract the relative path from the docstore
             hash=file.hash_contents #get the stored hash of the file contents
             #print (file.filepath,relpath,file.id,hash)
+            file.indexFails=0 #reset the indexing tries
 
 	#INDEX CHECK: METHOD ONE : IF RELATIVE PATHS STORED MATCH
             if relpath in indexpaths:  #if the path in database in the solr index
                 solrdata=indexpaths[relpath][0] #take the first of list of docs with this path
                 #print ('PATH :'+file.filepath+' found in Solr index', 'Solr \'id\': '+solrdata['id'])
-                file.indexedSuccess=True
+                file.meta_only=solrdata.data.get('sb_meta_only')
+                #log.debug(solrdata.data.get('sb_meta_only'))
+                if not file.meta_only:
+                    file.indexedSuccess=True
+                    
+                else:
+                    file.indexedSuccess=False
                 file.solrid=solrdata.id
                 file.save()
                 counter+=1
@@ -79,6 +86,7 @@ def index_check(collection,thiscore):
             log.info(f'\"{file.filepath}\" not found in Solr index')
             file.indexedSuccess=False
             file.indexedTry=False #reset indexing try flag
+            file.indexMetaOnly=False #reset flag for index only
             file.solrid='' #wipe any stored solr id; DEBUG: this wipes also oldsolr ids scheduled for delete
             file.save()
             skipped+=1

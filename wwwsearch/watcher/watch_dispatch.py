@@ -279,9 +279,6 @@ def index_file(_file):
         log.debug('Extraction failed')
         return False
 
-def index_file2(_file):
-    pass
-
 
 def make_scan_and_index_job(collection_id,_test=0,force_retry=False,use_icij=False,ocr=True):
     job_id=f'CollectionScanAndExtract.{collection_id}'
@@ -326,6 +323,7 @@ def make_index_job(collection_id,_test=0,force_retry=False,use_icij=False,ocr=Tr
 def make_scan_job(collection_id,_test=0):
     job_id=f'CollectionScan.{collection_id}'
     makejob=r.sadd('SEARCHBOX_JOBS',job_id)
+
     if not makejob:
         log.info('task exists already')
         return False
@@ -335,6 +333,27 @@ def make_scan_job(collection_id,_test=0):
         r.hset(job,'collection_id',collection_id)
         r.hset(job,'status','queued')
         r.hset(job,'test',_test)
+        r.hset(job,'job',job)
+        r.hmset(job,{'show_taskbar':1,'progress':0,'progress_str':"",'target_count':"",'moved':"",'new':"",'deleted':"",'unchanged':""})
+        return job_id
+
+def make_fileindex_job(file_id,_test=0,forceretry=False,ignore_filesize=False,use_ICIJ=False,ocr=True):	
+    job_id=f'FileIndex.{file_id}'
+    makejob=r.sadd('SEARCHBOX_JOBS',job_id)
+    if not makejob:
+        log.info('task exists already')
+        return False
+    else:
+        job=f'SB_TASK.{job_id}'
+        r.hset(job,'task','file_index')
+        r.hset(job,'file_id',file_id)
+        r.hset(job,'ocr',1) if ocr else r.hset(job,'ocr',0)
+        r.hset(job,'ignore_filesize',1) if ignore_filesize else r.hset(job,'ignore_filesize',0)
+        r.hset(job,'forceretry',1) if forceretry else r.hset(job,'forceretry',0)
+        r.hset(job,'use_ICIJ',1) if use_ICIJ else r.hset(job,'use_ICIJ',0)
+        r.hset(job,'status','queued')
+        r.hset(job,'test',_test)
+        r.hset(job,'label','indexfile')
         r.hset(job,'job',job)
         r.hmset(job,{'show_taskbar':1,'progress':0,'progress_str':"",'target_count':"",'moved':"",'new':"",'deleted':"",'unchanged':""})
         return job_id
@@ -386,6 +405,8 @@ def task_dispatch(job_id):
                 scan_extract_job(job_id,job,task)                    
             elif task=='dupscan':
                 dupscan_job(job_id,job,task)
+            elif task=='file_index':
+                index_file_job(job_id,job,task)
             else:
                 log.info(f'no task defined .. killing job')
                 r.delete(job)
@@ -413,7 +434,7 @@ def scan_extract_job(job_id,job,task):
             status=r.hget(job,'status')
             sub_job_id=r.hget(job,'sub_job_id')
             sub_job='SB_TASK.'+sub_job_id if sub_job_id else None
-            log.debug(f'Scan-Extract loop: sub_id= {sub_job}')
+            #log.debug(f'Scan-Extract loop: sub_id= {sub_job}')
             if status=='queued':
                 log.info('making scan job')
                 sub_job_id=make_scan_job(collection_id,_test=0)
@@ -459,10 +480,11 @@ def scan_extract_job(job_id,job,task):
                     log.debug('scan and index shutdown on error')
                     raise TaskError
                 else:
-                    log.debug('still indexing')
+                    #log.debug('still indexing')
+                    pass
             else: 
                 pass   
-            time.sleep(0.2)
+            time.sleep(1)
     except TaskError:
         r.hset(job,'status','completed')
         r.srem('SEARCHBOX_JOBS',job_id)
@@ -498,6 +520,38 @@ def dupscan_process(job,folder,label):
         'unchanged':"",
         'changed':_index.changed_files_count
         })
+
+def index_file_job(job_id,job,task):
+    ocr_raw=r.hget(job,'ocr')
+    ocr=False if ocr_raw==0 else True
+    useICIJ= True if r.hget(job,'use_ICIJ')=='1' else False
+    forceretry= True if r.hget(job,'forceretry')=='1' else False
+    ignore_filesize=True if r.hget(job,'ignore_filesize')=='1' else False
+    file_id=r.hget(job,'file_id')
+    r.hset(job,'status','started')
+    _test=True if r.hget(job,'test')=='True' else False
+    log.info('This is a test') if _test else None
+    log.info(f'indexing file {file_id} with forceretry={forceretry}, ignore_filesize={ignore_filesize}, useICIJ={useICIJ}' )
+    docstore=indexSolr.DOCSTORE
+    try:
+        _file=file_from_id(file_id)
+        ext=indexSolr.ExtractSingleFile(_file,forceretry=forceretry,useICIJ=useICIJ,ocr=ocr,docstore=docstore,ignore_filesize=ignore_filesize,job=job,meta_only=False)  
+        r.hset(job,'status','completed')
+        r.hset(job,'message','Some message')
+    except updateSolr.s.SolrConnectionError as e:
+        log.error(f'Solr Connection Error: {e}')
+        r.hset(job,'status','error')
+        r.hset(job,'message','Solr connection error')
+        raise
+    except updateSolr.s.MissingConfigData as e:
+        log.error(f'Missing Config Data: {e}')
+        r.hset(job,'status','error')
+        r.hset(job,'message','Missing config data')
+        
+    finally:
+        r.srem('SEARCHBOX_JOBS',job_id)
+        log.info(f'Removed job {job_id}')
+        r.sadd('SEARCHBOX_JOBS_DONE',job_id)
 
 
 def index_job(job_id,job,task):

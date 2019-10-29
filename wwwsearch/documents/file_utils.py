@@ -4,6 +4,7 @@ from pathlib import Path
 from collections import defaultdict
 from . import win_utils, klepto_archive,sql_connect
 from send2trash import send2trash
+from django.db.models import Q
 
 try:
     from django.http import HttpResponse
@@ -930,7 +931,7 @@ class Index_Maker():
 
                     #log.debug(f'FILE/DIR: {t} MFILE:{mfile}')
                     if self.isdir(t,is_windows_drivelist):    
-                        log.debug(f"{t},{index_collections}")
+                        #log.debug(f"{t},{index_collections}")
                         if check_index:
                             is_collection_root,is_inside_collection=inside_collection(t,index_collections)
                         else:
@@ -958,7 +959,7 @@ class Index_Maker():
                             dupcheck=None
                             log.error(e)
                         #log.debug(f'Local check: {t},indexed: {_indexed}, stored: {_stored}')
-                        log.debug(f'Dupcheck: {dupcheck.__dict__}')
+                        #log.debug(f'Dupcheck: {dupcheck.__dict__}')
                         yield self.file_html(mfile,_stored,_indexed,dupcheck,relpath,path)
                         continue
             except PermissionError:
@@ -994,10 +995,15 @@ class Index_Maker():
         
     @staticmethod
     def file_html(mfile,_stored,_indexed,dupcheck,relpath,path):	
+        try:
+            meta_only=_indexed[0].indexMetaOnly
+        except:
+            meta_only=False
         return loader.render_to_string('documents/filedisplay/p_file.html',{
                             'file': mfile, 
                             'local_index':_stored,
-                            'indexed':_indexed,                    
+                            'indexed':_indexed,
+                            'meta_only':meta_only                    
                             	})
                             	
     @staticmethod
@@ -1467,7 +1473,7 @@ def safe_hash(_hash):
 
 #FILE MODEL METHODS
 def model_index(path,index_collections,hashcheck=False):
-    """check if True/False file in collection is in database, return File object"""
+    """check if file in collection if is in database, return File object"""
     
     if not index_collections:
         return None,None
@@ -1475,9 +1481,10 @@ def model_index(path,index_collections,hashcheck=False):
     stored=File.objects.filter(filepath=path, collection__in=index_collections)
     #log.debug(stored)
     if stored:
-        indexed=stored.exclude(solrid='')
+        indexed=stored.exclude(solrid='' )
+            
         #log.debug(indexed)
-        return True,indexed
+        return stored,indexed
     else:
         return None,None
         

@@ -120,7 +120,7 @@ class ExtractorTest(ExtractTest):
                 
         #NOW SCAN THE COLLECTION
         scanner=updateSolr.scandocs(collection)
-        self.assertEquals([scanner.new_files_count,scanner.deleted_files_count,scanner.moved_files_count,scanner.unchanged_files_count,scanner.changed_files_count],[0, 0, 0, 0, 0])
+        self.assertEquals([scanner.new_files_count,scanner.deleted_files_count,scanner.moved_files_count,scanner.unchanged_files_count,scanner.changed_files_count],['', '', '', '', ''])
         collection.save()
         
         
@@ -342,27 +342,16 @@ class ExtractorTest(ExtractTest):
         testfolders_path=os.path.abspath(os.path.join(os.path.dirname(__file__), '..','tests','testdocs','pdfs','4meta'))
         mycore=self.mycore
         updateSolr.delete(_id,self.mycore)
-        
         for filename in os.listdir(testfolders_path):
-            
             path=os.path.join(testfolders_path,filename)
             #print(path)
-            
             _newfile=changes.newfile(path,self.sample_collection)
-            
             existing_doc=indexSolr.check_file_in_solrdata(_newfile,self.mycore) #searches by hashcontents, not solrid
-            
             if existing_doc:
-                #UPDATE META ONLY
-#                result=self.update_existing_meta(_newfile,existing_doc)
-#                self.assertTrue(result)
-                
                 indexSolr.UpdateMeta(mycore,_newfile,existing_doc,docstore=self.docstore)
-                
             else:
                 ext=indexSolr.ExtractFileMeta(path,mycore,hash_contents='',sourcetext='',docstore=self.docstore,test=True)
                 ext.post_process(indexed=False)
-        
         #check results
         doc=solrJson.getmeta(_id,self.mycore)[0]
         #print(doc.data)
@@ -378,7 +367,8 @@ class ExtractorTest(ExtractTest):
         for filename in os.listdir(testfolders_path):
             path=os.path.join(testfolders_path,filename)
             _newfile=changes.newfile(path,self.sample_collection)
-            updater=indexSolr.UpdateMeta(mycore,_newfile,None,docstore=self.docstore,existing=False)
+            self.assertFalse(_newfile.indexMetaOnly)
+            updater=indexSolr.UpdateMeta(mycore,_newfile,None,docstore=self.docstore,existing=False) #an instance of Extractor
             updater.job=None
             updater.useICIJ=False
             updater.ocr=False
@@ -387,12 +377,46 @@ class ExtractorTest(ExtractTest):
             updater.skippedlist=[]
             updater.collection=self.sample_collection
             
-            updater.skip_extract(_newfile)
+            skip=updater.skip_extract(_newfile)
             self.assertEquals(updater.skipped,1)
-            
+            self.assertTrue(skip)
             updater.extract_file(_newfile)
+            self.assertTrue(_newfile.indexMetaOnly)
             
-
+    def test_fail_file(self):
+        testfolders_path=os.path.abspath(os.path.join(os.path.dirname(__file__), '..','tests','testdocs','fails2'))
+        mycore=self.mycore
+        _id='d76380878f1eed6cc07f18f547e9fe7848861fe0e204e3d7b7b4519cd9abec09'
+        updateSolr.delete(_id,self.mycore)
+        
+        for filename in os.listdir(testfolders_path):
+            path=os.path.join(testfolders_path,filename)
+            _newfile=changes.newfile(path,self.sample_collection)
+            ext=indexSolr.ExtractSingleFile(_newfile,forceretry=False,useICIJ=False,ocr=True,docstore=self.docstore,job=None)
+            print(ext.counter,ext.skipped,ext.failed)
+            if ext.failed==1:
+                self.assertEquals(_newfile.indexFails,1)
+            
+        doc=solrJson.getmeta(_id,self.mycore)
+        #print(doc[0].data)
+        #print(self.mycore.meta_only)
+        meta_result=doc[0].data.get(self.mycore.meta_only)
+        self.assertTrue(meta_result)
+        
+    def test_postcontent(self):
+        _id='d76380878f1eed6cc07f18f547e9fe7848861fe0e204e3d7b7b4519cd9abec09'
+        testfolders_path=os.path.abspath(os.path.join(os.path.dirname(__file__), '..','tests','testdocs','fails2'))
+        mycore=self.mycore
+        updateSolr.delete(_id,self.mycore)
+        filename="65865.TIF"
+        filepath=os.path.join(testfolders_path,filename)
+        
+        ext=indexSolr.ExtractFileMeta(filepath,self.mycore,hash_contents=_id,sourcetext='',docstore=self.docstore,meta_only=True)
+        meta_result=ext.post_process(indexed=False)
+        doc=solrJson.getcontents(_id,self.mycore)
+        self.assertEquals('Metadata only: No content extracted from file',doc[0].data['rawtext'])
+        print(doc[0].data)
+        
 class ICIJFolderTest(IndexTester):
     def setUp(self):
         self.makebase()

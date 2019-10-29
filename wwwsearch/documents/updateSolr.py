@@ -478,19 +478,21 @@ def checkupdate(id,changes,mycore):
     if len(res)>0: #check there are solr docs returned
         doc=res[0]
         for sourcefield, resultfield,value in changes:
+            if sourcefield=='rawtext':
+                continue
             #print('Change',sourcefield,resultfield,value)
             solrfield=resultfield            
             newvalue=doc.__dict__.get(solrfield,doc.data.get(solrfield,''))
             if not newvalue:
                 solrfield=mycore.__dict__.get(resultfield,resultfield)
                 newvalue=doc.__dict__.get(solrfield,doc.data.get(solrfield,''))
-            #log.debug(f'Solrdoc.data {doc.data} solrfield: {solrfield} newvalue={newvalue} targetvalue={value}')
-#            log.debug(doc.__dict__)
+#            log.debug(f'Solrdoc.data {doc.data} solrfield: {solrfield} newvalue={newvalue} targetvalue={value}')
+##            log.debug(doc.__dict__)
 #            log.debug(type(newvalue))
 #            log.debug(newvalue)
             
             
-            if newvalue:
+            if newvalue != None:
                 #print(newvalue,type(newvalue))
                 if isinstance(newvalue,int):
                     try:

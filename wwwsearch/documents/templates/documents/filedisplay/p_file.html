@@ -1,7 +1,18 @@
 <li class="du">
 {% if indexed %}
-<a style="color:green;" href="/ownsearch/doc={{indexed.0.solrid}}&searchterm=">{{file}}</a>
+{%if meta_only %}
+<a class="sb_file" style="color:orange;" indexed="meta_only" filesize="{{indexed.0.filesize}}" solrid="{{indexed.0.solrid|slice:":15"}}" id="{{indexed.0.id}}" fails="{{indexed.0.indexFails}}" href="/ownsearch/doc={{indexed.0.solrid}}&searchterm=">{{file}}</a>
+
 {% else%}
-<span style="color:red;">{{ file }}</span>
+<a class="sb_file" style="color:green;" indexed="yes" id="{{indexed.0.id}}"  fails="{{indexed.0.indexFails}}"  filesize="{{indexed.0.filesize}}"solrid="{{indexed.0.solrid|slice:":15"}}" href="/ownsearch/doc={{indexed.0.solrid}}&searchterm=">{{file}}</a>
+
 {% endif %}
+
+{% else%}
+<span class="sb_file" id="{{indexed.0.id}}" indexed="no"  fails="" solrid="" style="color:red;">{{ file }}</span>
+
+{% endif %}
+
+
+
 </li>

@@ -125,11 +125,12 @@ class ExtractFolder():
 
 class Extractor():
     """extract a collection of docs into solr"""
-    def __init__(self,collection,mycore,forceretry=False,useICIJ=False,ocr=True,docstore=DOCSTORE,job=None):
+    def __init__(self,collection,mycore,forceretry=False,useICIJ=False,ignore_filesize=False,ocr=True,docstore=DOCSTORE,job=None):
         
         if not isinstance(mycore,s.SolrCore) or not isinstance(collection,Collection):
             raise BadParameters("Bad parameters for extraction")
         self.collection=collection
+        self.ignore_filesize=ignore_filesize
         self.mycore=mycore
         self.forceretry=forceretry
         self.useICIJ=useICIJ
@@ -150,14 +151,10 @@ class Extractor():
     
     
     def extract_file(self,file):
-        #if ignore file
-        #elif skip_extract
-        #extract content
+        """extract single file to solr index"""
         
-        if self.skip_file(file):
-            pass
+        if self.skip_file(file): #don't index at all
             log.debug('Skipping {}'.format(file))
-                
         else:
             log.info('Attempting index of {}'.format(file.filepath))
             self.update_working_file(file.filepath) #update redis output
@@ -180,17 +177,24 @@ class Extractor():
                 
                 #check by hash of contents if doc exists already in solr index
                 existing_doc=check_file_in_solrdata(file,self.mycore) #searches by hashcontents, not solrid
-                if existing_doc:
+                if existing_doc and not file.indexMetaOnly:
                     #UPDATE META ONLY
                     result=self.update_existing_meta(file,existing_doc)
+#                    if self.skip_extract(file):
+#                        file.indexMetaOnly=True
+#                        file.save()
                 
                 elif self.skip_extract(file):
                     #INDEX META ONLY
-                    #results=
-                    ext=ExtractFileMeta(file.filepath,self.mycore,hash_contents=file.hash_contents,sourcetext='',docstore=self.docstore)
-                    result=ext.post_process(indexed=False)
-                    
-                    
+                    try:
+                        ext=ExtractFileMeta(file.filepath,self.mycore,hash_contents=file.hash_contents,sourcetext='',docstore=self.docstore,meta_only=True)
+                        result=ext.post_process(indexed=False)
+                    except (s.SolrCoreNotFound,s.SolrConnectionError,requests.exceptions.RequestException) as e:
+                            raise ExtractInterruption(self.interrupt_message())
+                    if result:
+                        file.solrid=file.hash_contents
+                        file.indexMetaOnly=True
+                        file.save()
                     
                 else:
                 #now try the extract
@@ -225,6 +229,7 @@ class Extractor():
                             
                     else:
                         try:
+                            #extract contents of file using inbuilt solr tika
                             extractor=ExtractFile(file.filepath,self.mycore,hash_contents=file.hash_contents,sourcetext=sourcetext,docstore=self.docstore,test=False,ocr=self.ocr)
                             result=extractor.result
                             if result:
@@ -236,14 +241,16 @@ class Extractor():
                             raise ExtractInterruption(self.interrupt_message())
          
             if result is True:
+                #succesful extraction of the contents
                 self.counter+=1
-                #print ('PATH :'+file.filepath+' indexed successfully')
                     
                 if not self.useICIJ and not file.is_folder:
                     file.solrid=file.hash_contents  #extract uses hashcontents for an id , so add it
                 
                 file.indexedSuccess=True
+                file.indexFails=0
                 file.error_message=''
+                file.indexMetaOnly=False
                 #now delete previous solr doc of moved file(if any): THIS IS ONLY NECESSARY IF ID CHANGES  
                 log.info('Old ID: '+oldsolrid+' New ID: '+file.solrid)
                 
@@ -253,19 +260,20 @@ class Extractor():
                     remove_filepath_or_delete_solrrecord(oldsolrid,relpath,self.mycore)
             else:
                 log.info(f'Indexing fail: PATH \'{file.filepath}\]\' with ERROR:{file.error_message}')
-                
-                log.info(f'Try to index the meta only')
-                
-                #INDEX META ONLY
-                #results=
-                ext=ExtractFileMeta(file.filepath,self.mycore,hash_contents=file.hash_contents,sourcetext='',docstore=self.docstore)
-                result=ext.post_process(indexed=False)
-                if result:
-                    self.failed+=1
-                    self.failedlist.append((file.filepath,file.error_message))
-                else:
-                    file.indexedSuccess=True
-                    self.counter+=1
+                self.failed+=1
+                self.failedlist.append((file.filepath,file.error_message))
+                file.indexFails+=1
+                #Try to index meta despite the extract failure
+                log.debug(f'try to index the meta only')
+                try:
+                    ext=ExtractFileMeta(file.filepath,self.mycore,hash_contents=file.hash_contents,sourcetext='',docstore=self.docstore,meta_only=True)
+                    meta_result=ext.post_process(indexed=False)
+                except (s.SolrCoreNotFound,s.SolrConnectionError,requests.exceptions.RequestException) as e:
+                    raise ExtractInterruption(self.interrupt_message())
+                if meta_result:
+                    log.info(f'Meta data added successfully')
+                    file.solrid=file.hash_contents  #extract uses hashcontents for an id , so add it
+                    file.indexMetaOnly=True
             file.save()
         if self.job and r:
             self.update_extract_results()
@@ -329,12 +337,6 @@ class Extractor():
         
         file.save()
         
-#        changes.append((self.mycore.docnamesourcefield,'docname',self.filename))
-#        #extract a relative path from the docstore root
-#        
-        
-        
-        
         return result
     
     def index_meta(self,file):
@@ -351,8 +353,8 @@ class Extractor():
         
     
     def skip_extract(self,file):
-        """test if file should be indexed but not content not extracted"""
-        if file.filesize>MAXSIZE:
+        """test if file should be indexed by meta-only"""
+        if file.filesize>MAXSIZE and not self.ignore_filesize:
             #skip the extract, it's too big
             file.error_message=f'Too large {file.filesize}b'
             log.info(f'Skipped {file.error_message} path: {file.filename}')
@@ -373,6 +375,7 @@ class Extractor():
         """test if file should be skipped entirely from index or extract"""
         if file.indexedSuccess:
             file.error_message='Already indexed'
+            log.debug(f'Skipped {file.error_message} path: {file.filename}')
             #skip this file: it's already indexed
         elif file.indexedTry and not self.forceretry:
             #skip this file, tried before and not forcing retry
@@ -382,7 +385,7 @@ class Extractor():
             #skip this file because it is on ignore list
             file.error_message='On ignore list'
             log.info(f'Skipped {file.error_message} path: {file.filename}')
-        elif file.filesize>MAXSIZE_HASH:
+        elif file.filesize>MAXSIZE_HASH and not self.ignore_filesize:
             #skip the extract, it's too big
             file.error_message=f'Too large {file.filesize}b'
             log.info(f'Skipped {file.error_message} path: {file.filename}')
@@ -440,7 +443,7 @@ class Extractor():
             except ZeroDivisionError:
                 progress=f'100'
             progress_str=f"{processed} of {self.target_count} files" #0- replace 0 for decimal places
-            #log.debug(f'Progress: {progress_str}')
+            log.debug(f'Progress: {progress_str}')
             #log.debug(self.failedlist)
             failed_json=json.dumps(self.failedlist)
             #log.debug(failed_json)
@@ -451,33 +454,36 @@ class Extractor():
             		})
 
 class UpdateMeta(Extractor):
+    """extract a single file with meta only"""
     def __init__(self,mycore,file,existing_doc,docstore=DOCSTORE,existing=True):
         if not isinstance(mycore,s.SolrCore):
             raise BadParameters("Bad parameters for extraction")
         self.mycore=mycore
+        self.ignore_filesize=False
         self.docstore=docstore
         if existing:
             self.update_existing_meta(file,existing_doc)   
 
-
 class ExtractSingleFile(Extractor):
     """extract a single doc into solr"""
-    def __init__(self,_file,forceretry=False,useICIJ=False,ocr=True,docstore=DOCSTORE,job=None):        
+    def __init__(self,_file,forceretry=False,useICIJ=False,ocr=True,docstore=DOCSTORE,job=None,meta_only=False,ignore_filesize=False):        
         cores=s.getcores() #fetch dictionary of installed solr indexes (cores)
         self.mycore=cores[_file.collection.core.id]
         self.collection=_file.collection
         if not isinstance(self.mycore,s.SolrCore) or not isinstance(self.collection,Collection):
             raise BadParameters("Bad parameters for extraction")
         self.forceretry=forceretry
+        self.ignore_filesize=ignore_filesize
+        self.meta_only=meta_only
         self.useICIJ=useICIJ
         self.ocr=ocr
-        self.job=None
+        self.job=job
         self.docstore=docstore
         self.counter,self.skipped,self.failed=0,0,0
+        self.target_count=1
         self.skippedlist,self.failedlist=[],[]
         self.filelist=[_file]
         self.extract()
-
 
 class ChildProcessor():
     def __init__(self,path,mycore,hash_contents='',sourcetext='',docstore=''):
@@ -582,7 +588,7 @@ class ChildProcessor():
 
 
 class ExtractFile(ChildProcessor):
-    def __init__(self,path,mycore,hash_contents='',sourcetext='',docstore='',test=False,ocr=True):
+    def __init__(self,path,mycore,hash_contents='',sourcetext='',docstore='',test=False,ocr=True,meta_only=False):
         self.path=path
         self.ocr=ocr
         specs=file_utils.FileSpecs(path,scan_contents=False)###
@@ -590,13 +596,14 @@ class ExtractFile(ChildProcessor):
         self.size=specs.length
         self.date_from_path,self.last_modified=changes.parse_date(specs)
         self.mycore=mycore
+        self.meta_only=meta_only
         self.test=test
         self.sourcetext=sourcetext
         self.docstore=docstore
         self.hash_contents = hash_contents if hash_contents else file_utils.get_contents_hash(path)
         self.solrid=self.hash_contents
         self.result,self.error_message=extract(self.path,self.hash_contents,self.mycore,timeout=TIMEOUT,docstore=docstore,test=self.test,sourcetext=self.sourcetext,ocr=self.ocr)
-        log.debug(self.result)
+        log.debug(f'Extract file success: {self.result}')
         
         
     def post_process(self,indexed=True):
@@ -606,8 +613,13 @@ class ExtractFile(ChildProcessor):
         #extract a relative path from the docstore root
         relpath=make_relpath(self.path,docstore=self.docstore)
         changes.append((self.mycore.docpath,'docpath',relpath))
+       
+        #add field to indicate if meta only indexed
+        changes.append(('sb_meta_only','sb_meta_only',self.meta_only))
         
-
+        #add to text field to indicate no extracted content
+        if not indexed:
+            changes.append(('rawtext','rawtext',"Metadata only: No content extracted from file"))
         
         parsed_date=self.parse_date(self.solrid,self.last_modified,self.date_from_path,indexed=indexed)
         log.debug(f'parsed date: {parsed_date}')
@@ -637,7 +649,7 @@ class ExtractFile(ChildProcessor):
         self.post_result=updatestatus
         #log.debug(self.post_result)
         childresult=self.process_children()
-        log.debug(childresult)
+        #log.debug(childresult)
         if self.post_result and childresult:
             return True
         else:
@@ -651,9 +663,10 @@ class ExtractFile(ChildProcessor):
             return self.size
 
 class ExtractFileMeta(ExtractFile):
-    def __init__(self,path,mycore,hash_contents='',sourcetext='',docstore='',test=False):
+    def __init__(self,path,mycore,hash_contents='',sourcetext='',docstore='',test=False,meta_only=False):
         self.path=path
         self.ocr=False
+        self.meta_only=meta_only
         specs=file_utils.FileSpecs(path,scan_contents=False)###
         self.filename=specs.name
         self.size=specs.length
@@ -672,11 +685,12 @@ class ExtractFileMeta(ExtractFile):
 
 
 class ICIJ_Post_Processor(ExtractFile):
-    def __init__(self,path,mycore,hash_contents='',sourcetext='',docstore='',test=False):
+    def __init__(self,path,mycore,hash_contents='',sourcetext='',docstore='',test=False,meta_only=False):
         self.path=path
         specs=file_utils.FileSpecs(path,scan_contents=False)###
         self.filename=specs.name
         self.docstore=docstore
+        self.meta_only=meta_only
         self.sourcetext=sourcetext
         self.date_from_path,self.last_modified=changes.parse_date(specs)
         self.mycore=mycore

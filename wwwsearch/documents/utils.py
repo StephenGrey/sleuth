@@ -111,7 +111,7 @@ def copyfiles(files,destination): #take a list of file objects and copy actual f
 
 def listc():
     for collection in Collection.objects.all():
-        print((collection.id, collection.path,collection.indexedFlag,collection.core))
+        print((collection.id, collection.path,collection.live_update,collection.core))
 
 def makecollection(path):
     sc=SolrCore.objects.get(id='2')

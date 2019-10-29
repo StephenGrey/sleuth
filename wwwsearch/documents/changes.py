@@ -241,6 +241,7 @@ def changefile(file):
             #contents change, flag for index
             file.indexedSuccess=False
             file.hash_contents=newhash
+            file.indexMetaOnly=False
         #NB the solrid field is not cleared = the index checks it exists and deletes the old doc
         #otherwise if no change in hash and file already indexed, flag to correct meta only in solr 
         elif file.indexedSuccess:

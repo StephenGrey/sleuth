@@ -76,6 +76,7 @@ class SolrCore:
             self.docnamesourcefield=config[core]['docnamesource']
             self.docnamesourcefield2=config[core]['docnamesource2']
             self.datesourcefield=config[core]['datesourcefield']
+            self.meta_only=config[core]['meta_only']
             #optional:
             self.datesourcefield2=config[core].get('datesourcefield2')
             self.parenthashfield=config[core].get('parentpath_hash','')
@@ -652,7 +653,7 @@ def getcontents(docid,core):
     searchterm='{}:\"{}\"'.format(core.unique_id,docid)
     #print (searchterm,contentarguments)
     args=core.contentarguments
-    args="&fl=id,{},{},{},{},{},{},{},{},{},{},{}".format(core.unique_id,core.docpath,core.datefield,core.docnamefield,core.tags1field,core.sourcefield,core.usertags1field,core.rawtext,core.docsize,core.emailmeta)
+    args="&fl=id,{},{},{},{},{},{},{},{},{},{}".format(core.unique_id,core.docpath,core.datefield,core.docnamefield,core.tags1field,core.sourcefield,core.usertags1field,core.rawtext,core.docsizefield,core.emailmeta)
     jres=getJSolrResponse(searchterm,args,core=core)
 
     log.debug('{} {}'.format(args,jres))
@@ -668,6 +669,7 @@ def getmeta(docid,core):
     args+=","+core.nextfield if core.nextfield else ""
     args+=","+core.sequencefield if core.sequencefield else ""
     args+=","+core.sourcefield if core.sourcefield else ""
+    args+=","+core.meta_only if core.meta_only else ""
     jres=getJSolrResponse(searchterm,args,core=core)
     #log.debug(args,jres)
     res=getlist(jres,0,core=core)

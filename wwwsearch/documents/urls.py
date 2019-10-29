@@ -14,6 +14,7 @@ urlpatterns = [
     url(r'listcollections$', views.list_collections, name='list_collections'),
     url(r'^files/(?P<path>.*)$',views.file_display,name='listfiles'),
     url(r'^files',views.file_display,name='listfiles_base'),
+    url(r'^indexfile/(?P<folder_path>.*)&(?P<file_id>.*)$',views.index_file,name='index_file'),
     url(r'^api/changes/(?P<user_edit_id>.*)$',api.api_changes,name='api_changes'),
     url(r'^api/tasks/(?P<job>.*)$',api.api_task_progress,name='api_tasks'),
     url(r'^api/cleartasks$',api.api_clear_tasks,name='clear_tasks'),
