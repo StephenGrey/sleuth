@@ -341,18 +341,23 @@ def file_display(request,path=''):
          {'subfiles': c, 'rootpath':rootpath, 'tags':tags, 'form':page.form, 'path':path, 'check_index':page.check_index, 'results':page.results, 'job':page.job})
 
 @staff_member_required()
-def index_file(request,folder_path,file_id):
-    log.debug(f'Index {file_id}')
-    try:
-        _file=File.objects.get(id=int(file_id))
-        job_id=watch_dispatch.make_fileindex_job(file_id,_test=0,forceretry=True,ignore_filesize=True,use_ICIJ=False)
-        log.debug(f'storing {job_id}')
-        request.session['tasks']=job_id
-    
-    except Exception as e:
-        log.error(e)
-        log.debug('File not scanned')
-    
+def index_file(request,folder_path):
+    log.debug(request.POST)
+    if request.method == 'POST':
+        try:
+            file_id=request.POST.get('index_fileid')
+            if file_id:
+                _file=File.objects.get(id=int(file_id))
+                forceretry=True if request.POST.get('force-retry') else False
+                use_ICIJ=True if request.POST.get('use-ICIJ') else False
+                ignore_filesize=True if request.POST.get('ignore-filelimit') else False
+                log.debug(f'indexing {_file.filename} with options useICIJ:{use_ICIJ} forceretry:{forceretry} ignorefilelimit: {ignore_filesize}')
+                job_id=watch_dispatch.make_fileindex_job(file_id,_test=0,forceretry=forceretry,ignore_filesize=ignore_filesize,use_ICIJ=use_ICIJ)
+                log.debug(f'storing {job_id}')
+                request.session['tasks']=job_id
+        except Exception as e:
+            log.error(e)
+            log.debug('File not indexed')
     return redirect('listfiles', path=folder_path)
 
 

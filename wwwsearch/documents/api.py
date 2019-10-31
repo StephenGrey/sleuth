@@ -148,7 +148,7 @@ def api_task_progress(request,job):
         #log.debug(f'{job},{results}')
         #print(job,results)
         #{'counter':ext.counter,'skipped':ext.skipped,'failed':ext.failed,'failed_list':ext.failedlist})
-        jsonresponse={'error':False, 'results':results,'message':'done'}
+        jsonresponse={'error':False, 'results':results,'message':'Completed'}
     except Exception as e:
         log.debug(e)
         #print(f'Error {e}')
@@ -157,8 +157,16 @@ def api_task_progress(request,job):
 @staff_member_required()
 def api_clear_tasks(request):
     """clear task from session"""
-    log.debug('clearing tasks')
+    job_id=request.session.get('tasks')
+    job=f'SB_TASK.{job_id}'
+    log.debug(f'clearing task {job_id}')
+
     request.session['tasks']=''
+    log.debug(r.smembers('SEARCHBOX_JOBS'))
+    if job in r.smembers('SEARCHBOX_JOBS'):
+        r.sadd('JOBS_TO_KILL',job_id)
+        r.hmset(job,{'progress_str':'Task cancelled'})
+
     return JsonResponse({'error':False})
 
 @staff_member_required()

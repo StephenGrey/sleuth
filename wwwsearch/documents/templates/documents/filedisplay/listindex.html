@@ -113,12 +113,11 @@ function check_tasks()
         			else {
         				$("#results_list").html("<b>Indexing results:</b>&nbspTotal files: "+data.results.target_count+"&nbsp&nbspIndexed: "+data.results.counter+" &nbsp&nbspFailed: "+data.results.failed+" &nbsp&nbspSkipped: "+data.results.skipped+"&nbsp;&nbsp;&nbsp;");
         				};
-    				$("#summary_results").html(task_str+":&nbsp"+data.results.progress_str+"&nbsp&nbspCompleted");
+    				$("#summary_results").html(task_str+":&nbsp"+data.results.progress_str+"&nbsp&nbsp"+data.results.message);
         			}
         	else
         		{
-        		
-        		
+
         		$("#summary_results").html(task_str+":&nbsp"+data.results.progress_str);
         		//+"&nbsp&nbsp&nbspcurrently processing:&nbsp&nbsp "+working_file);	
         			};
@@ -140,7 +139,7 @@ $("#progress_cancel").click(function() {
 //  $("#task_wrap").css('visibility','hidden');
 //  $("#results_list").css('visibility','hidden');
   $("#results_panel").css('display','none'); 
-  $.get( "/documents/api/clearduptasks", function(data)
+  $.get( "/documents/api/cleartasks", function(data)
   	{
   	},"json")
   .fail(function(){ alert('Failed to clear task')});
@@ -184,16 +183,22 @@ $("#progress_cancel").click(function() {
 		  <ul class="menu-options">
 		    <li class="menu-option set-folder">Set Folder as Collection</li>
 		    <li class="menu-option remove-collection">Remove Collection</li>
-		    
-		    <!-- Default checked disabled -->
-			<div class="custom-control custom-checkbox index-options">
-  				<input type="checkbox" class="custom-control-input " id="force-retry" checked disabled>
-  				<label class="custom-control-label small" for="defaultCheckedDisabled2">Force index retry</label>
-<!--			</div>
-			<div class="custom-control custom-checkbox">-->
-  				<input type="checkbox" class="custom-control-input" id="ignore-filelimit" checked disabled>
-  				<label class="custom-control-label small" for="defaultCheckedDisabled2">Ignore filesize limit</label>
-			</div>
+		    <li class="menu-option index-file">Remove Collection</li>
+
+		    <form id='index-options_form' action="{% url 'index_file' folder_path=path%}" method ="post" >
+			{% csrf_token %}
+    			<div class="custom-control custom-checkbox index-options">
+      				<input type="checkbox" class="custom-control-input " name="force-retry" value=1 checked >
+      				<label class="custom-control-label small" for="defaultCheckedDisabled2">Force index retry</label>
+      				<input  type="hidden" id="index_fileid" name="index_fileid" value="">  
+    				<input type="checkbox" class="custom-control-input" name="ignore-filelimit" value=1 checked>
+      				<label class="custom-control-label small" for="defaultCheckedDisabled2">Ignore filesize limit</label>
+      				
+      				<input type="checkbox" class="custom-control-input ICIJcheck" value="1" name="use-ICIJ" unchecked>
+      				<label class="custom-control-label small" for="defaultChecked">Use ICIJ extract</label>
+  				
+				</div>
+			</form>
 
 <!--		    <label style="font-weight:normal" id="maxsize_label" for="maxsize" class="text-muted">Maxsize (Mb)<input type="text"  class="form-control-plaintext" name="maxsize" id="maxsize" value="{{page.maxsize}}"><small><span id="maxsize_edit" class="glyphicon glyphicon-cog"></span></small>
 		    </label>
@@ -214,7 +219,7 @@ $("#progress_cancel").click(function() {
 <script>
 
 const menu = document.querySelector(".menu");
-const filemenu = document.querySelector(".filemenu");
+//const filemenu = document.querySelector(".filemenu");
 
 let menuVisible = false;
 let clicked=false
@@ -285,6 +290,7 @@ $('.sb_file').contextmenu(function(event)
 		};
   clicked=this;
   var item_id = this.id;
+  var ICIJchecked = $('.ICIJcheck:checked').val();
   var hash_id= $(this).attr('src');
   var solr_id= $(this).attr('solrid');
   var indexed= $(this).attr('indexed');
@@ -293,12 +299,13 @@ $('.sb_file').contextmenu(function(event)
   var details="<p><b>Indexed:</b> "+indexed;
   $(".menu-path").html("<b>File ID:</b> "+clicked.id+" <b>Indexing fails:</b>"+fails);
   $(".menu-size").html("<b>  Size:</b> "+size);
-  
+  $("#index_fileid").attr("value",item_id);
+  $(".set-folder").hide();
   if (this.id!=="")
   	{
   	$(".index-options").show();
   	var url="/documents/indexfile/{{path}}&"+clicked.id;
-  	$(".set-folder").html("<a href=\""+url+"\"> Index/Re-Index </a>");
+  	$(".index-file").html("<a href=\""+url+"\"> Index/Re-Index </a>");
 	}
    else
    	{
@@ -327,25 +334,30 @@ $('.sb_file').contextmenu(function(event)
     menuVisible = true;
   });
 
+$('.index-file').click(function()
+	{
+	$("#index-options_form").submit();
+	event.preventDefault();
+	}
+	);
 
 $('.close').click(function(){
 toggleMenu('none');
 menuVisible= false;
 });
 
-$('.flip').click(function(e) {
-//    alert('clicked this')
-    var $this = $(this);
-    $this.next('div.subdir').slideToggle('fast');
-    $this.toggleClass('show');
-    if ($this.hasClass('show')) {
-        $this.html('<span style="font-size:12px">[hide}</span>');
-    } else {
-        $this.html(' +');
-			};
-
-		});
-
+//$('.flip').click(function(e) {
+////    alert('clicked this')
+//    var $this = $(this);
+//    $this.next('div.subdir').slideToggle('fast');
+//    $this.toggleClass('show');
+//    if ($this.hasClass('show')) {
+//        $this.html('<span style="font-size:12px">[hide}</span>');
+//    } else {
+//        $this.html(' +');
+//			};
+//
+//		});
 
 $(document).ready(function(){
     $("#checkindex_form").on("change", "input:checkbox", function(){

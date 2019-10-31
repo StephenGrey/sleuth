@@ -529,15 +529,26 @@ def index_file_job(job_id,job,task):
     ignore_filesize=True if r.hget(job,'ignore_filesize')=='1' else False
     file_id=r.hget(job,'file_id')
     r.hset(job,'status','started')
+    
     _test=True if r.hget(job,'test')=='True' else False
     log.info('This is a test') if _test else None
     log.info(f'indexing file {file_id} with forceretry={forceretry}, ignore_filesize={ignore_filesize}, useICIJ={useICIJ}' )
     docstore=indexSolr.DOCSTORE
     try:
         _file=file_from_id(file_id)
+        r.hset(job,'progress_str',_file.filename)
         ext=indexSolr.ExtractSingleFile(_file,forceretry=forceretry,useICIJ=useICIJ,ocr=ocr,docstore=docstore,ignore_filesize=ignore_filesize,job=job,meta_only=False)  
+        log.debug(ext.__dict__)
         r.hset(job,'status','completed')
-        r.hset(job,'message','Some message')
+        r.hset(job,'progress_str',_file.filename)
+        if ext.failed>0:
+            try:
+                message=ext.failedlist[0][1]
+            except:
+                message=""
+        else:
+            message=""
+        r.hset(job,'message',message)
     except updateSolr.s.SolrConnectionError as e:
         log.error(f'Solr Connection Error: {e}')
         r.hset(job,'status','error')
