@@ -584,6 +584,7 @@ class Counter():
             for entry in os.scandir(subfolder):
                 if entry.is_dir():
                     self.counter+=1
+                    log.info(f'{self.counter} folders counted') if self.counter%1000==0 else None
                     #print(entry.path)
                     try:
                         count_sub(entry.path)
@@ -825,7 +826,7 @@ class SqlFileIndex(sql_connect.SqlIndex,PathIndex):
       #check the root
       log.info(f'Checking {_root} for changes since {last_check_str}')
       self.total=Counter(self.folder_path).counter #len([p for p,s,f in os.walk(self.folder_path)])
-
+      log.info(f'{self.total} files found')
       if os.stat(_root).st_mtime > last_check:
           self.check_folder(_root)
 

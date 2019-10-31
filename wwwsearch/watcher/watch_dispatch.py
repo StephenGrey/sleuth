@@ -57,7 +57,7 @@ class Index_Dispatch:
         self.check_dupbase()
         self.process()
     def process(self):
-        #log.debug(f'EVENT: {self.event_type}  PATH: {self.sourcepath}  (DESTPATH: {self.destpath})') if not self.ignore else None
+        log.debug(f'EVENT: {self.event_type}  PATH: {self.sourcepath}  (DESTPATH: {self.destpath})') if not self.ignore else None
         if self.event_type=='created':
             self.create()
             self._index()
@@ -133,8 +133,8 @@ class Index_Dispatch:
                 deletefiles=[_file.filepath]
                 collection=_file.collection
                 updateSolr.removedeleted(deletefiles,collection) #docstore= use default in user settings
-        else:
-            log.debug(f'File not in database - nothing to delete')
+##        else:
+##            log.debug(f'File not in database - nothing to delete')
             
             
     def check_base(self):
