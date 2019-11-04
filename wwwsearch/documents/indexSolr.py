@@ -64,7 +64,6 @@ class PostFailure(Exception):
 class DuplicateRecords(Exception):
     pass
 
-
 class ExtractFolder():
     def __init__(self,corename,path='',collection='',collectionID='',job=None,ocr=False,docstore=DOCSTORE):
         

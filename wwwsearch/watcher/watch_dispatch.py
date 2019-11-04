@@ -71,7 +71,7 @@ class Index_Dispatch:
         self.check_base()
         self.check_dupbase()
         
-        log.info(f'EVENT: {self.event_type}  PATH: {self.sourcepath}  (DESTPATH: {self.destpath})') if not self.ignore else None
+        log.debug(f'EVENT: {self.event_type}  PATH: {self.sourcepath}  (DESTPATH: {self.destpath})') if not self.ignore else None
         if self.event_type=='created':
             self.dupbase_create()
             self.create()
@@ -235,11 +235,11 @@ class Index_Dispatch:
         """check if file in master dupindex"""
         if self.master_index:
             if file_utils.new_is_inside(self.sourcepath,self.master_index.folder_path):
-                log.info(f'sourcepath {self.sourcepath} inside master index folder')
+                #log.debug(f'sourcepath {self.sourcepath} inside master index folder')
                 self.master_source_changed=True
                 
                 self.master_source_entry=self.master_index.simple_check_path(self.sourcepath)
-                log.info(f'Source in master_index: {self.master_source_entry}')
+                #log.debug(f'Source in master_index: {self.master_source_entry}')
                 
             else:
                 self.master_source_changed=False
@@ -417,10 +417,10 @@ def task_dispatch(job_id):
             r.srem('SEARCHBOX_JOBS',job_id)
             return False
     except Exception as e:
-        log.info('Exception in searchbox task: removing job')
+        log.info('Exception in searchbox task ... removing job')
         log.debug(e)
         r.srem('SEARCHBOX_JOBS',job_id)
-        raise
+        #raise
 
 def scan_extract_job(job_id,job,task):
     ocr=0 if r.hget(job,'ocr')==0 else 1
@@ -495,6 +495,7 @@ def scan_job(job_id,job,task):
     collection_id=r.hget(job,'collection_id')
     log.info(f'scanning collection {collection_id}')
     scan_collection_id(job,collection_id)
+    log.debug(f'completed scanning {job_id}')
     r.srem('SEARCHBOX_JOBS',job_id)
     r.sadd('SEARCHBOX_JOBS_DONE',job_id)
     

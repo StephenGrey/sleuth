@@ -167,14 +167,14 @@ class PathIndex:
         log.debug(f'scanning ... {self.folder_path}')
         for dirName, subdirs, fileList in os.walk(self.folder_path): #go through every subfolder in a folder
             log.info(f'Scanning {dirName} ...')
-            log.debug(subdirs)
-            log.debug(fileList)
+            #log.debug(subdirs)
+            #log.debug(fileList)
             
             if self.job:
                 self.update_results()
                 
             for filename in fileList: #now through every file in the folder/subfolder
-                log.debug(filename)
+                #log.debug(filename)
                 try:
                     self.counter+=1
                     if self.ignore_pattern and filename.startswith(self.ignore_pattern):
@@ -995,6 +995,9 @@ class Index_Maker():
         
     @staticmethod
     def file_html(mfile,_stored,_indexed,dupcheck,relpath,path):	
+        log.debug(f' {mfile}STORED{_stored}INDEXED{_indexed}') 
+        if _indexed:
+            log.debug(_indexed[0].filename)
         try:
             meta_only=_indexed[0].indexMetaOnly
         except:
@@ -1104,8 +1107,6 @@ def changed(oldspecs):
     return False
 
 
-
-    
 
 def filespecs(parent_folder,specs_dict=False,scan_contents=True,job=None): #  
     specs=PathFileIndex(parent_folder,specs_dict=specs_dict,scan_contents=scan_contents,job=job)
@@ -1479,7 +1480,7 @@ def model_index(path,index_collections,hashcheck=False):
         return None,None
     
     stored=File.objects.filter(filepath=path, collection__in=index_collections)
-    #log.debug(stored)
+    log.debug(stored)
     if stored:
         indexed=stored.exclude(solrid='' )
             
