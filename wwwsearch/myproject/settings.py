@@ -161,6 +161,7 @@ LOGGING = {
             'class':'logging.handlers.RotatingFileHandler',
             'filename': os.path.join(BASE_DIR, 'logfile'),
             'maxBytes': 5000000,
+            'encoding':'utf8',
             'backupCount': 9, #number of backup files of old logs
             'formatter': 'standard',
         },

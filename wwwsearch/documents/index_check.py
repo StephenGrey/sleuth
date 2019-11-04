@@ -42,9 +42,10 @@ def index_check(collection,thiscore):
                 solrdata=indexpaths[relpath][0] #take the first of list of docs with this path
                 #print ('PATH :'+file.filepath+' found in Solr index', 'Solr \'id\': '+solrdata['id'])
                 file.indexMetaOnly=solrdata.data.get('sb_meta_only')
-                log.debug(f'Meta-only flagged for {file.filename}:{file.indexMetaOnly}')
+                #log.debug(f'Meta-only flagged for {file.filename}:{file.indexMetaOnly}')
                 if not file.indexMetaOnly:
                     file.indexedSuccess=True
+                    file.indexMetaOnly=False #turn a possible None into a False
                     
                 else:
                     file.indexedSuccess=False

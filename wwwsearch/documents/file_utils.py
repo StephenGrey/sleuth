@@ -818,10 +818,11 @@ class SqlFileIndex(sql_connect.SqlIndex,PathIndex):
       if last_mod_obj:
           last_check=last_mod_obj._int
       else:
-          last_check=0
+          last_check=100000 #minimum valid timestamp in 1970
           self.add_setting('last_mod',_int=last_check)
           self.save()
-          
+      
+      log.debug(last_check)
       last_check_str=time_utils.timestring(time_utils.timefromstamp(last_check))
       _root=self.folder_path
 
@@ -838,7 +839,7 @@ class SqlFileIndex(sql_connect.SqlIndex,PathIndex):
                     self.check_folder(path)
       
       last_check=time_start   #use start time, in case contents change during check
-      last_mod_obj._int=last_check
+      self.add_setting('last_mod',_int=last_check) #last_mod_obj._int=last_check
       duration=int(time.time())-time_start
       log.debug(f'checked in {duration} seconds')
       self.save()
@@ -860,6 +861,10 @@ class SqlFileIndex(sql_connect.SqlIndex,PathIndex):
                        _modified.append(_db_file)
                        log.debug(f'Modified {_db_file.name}: Previous {_db_file.last_modified}; LastMod: {os.stat(_db_file.path).st_mtime}')
                        self.update_record(_db_file.path,existing=_db_file)
+           except PermissionError as e:
+               log.error(e)
+               log.error(f'Permission error on : {_db_file}')
+               continue
            except ValueError:
                if _db_file.folder:
                    log.debug(f'Deleted folder: {_db_file.path}')
@@ -883,7 +888,7 @@ class SqlFileIndex(sql_connect.SqlIndex,PathIndex):
                        log.debug(f'Delete record failed for {deletedfile.path}')
                        log.debug(e)
                        raise
-       log.debug(f'New files {_files}') if _files else None
+       #log.debug(f'New files {_files}') if _files else None
        for _file in _files:
            filepath=os.path.join(path,_file)
            filepath=normalise(filepath) #convert long or malformed nt paths
@@ -1616,8 +1621,8 @@ class SqlDupCheck(DupCheck):
                         self.contents_hash=master_filespec.contents_hash
                         self.size=sizeof_fmt(master_filespec.length)
         if self.specs: 
-            log.debug(dir(self.specs))
-            log.debug(type(self.specs))
+            #log.debug(dir(self.specs))
+            #log.debug(type(self.specs))
             filespec=self.specs.lookup_path(self.filepath)
             self.local_scan=True if filespec else False
             if filespec:
