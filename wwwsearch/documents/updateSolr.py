@@ -26,12 +26,12 @@ class SolrdocNotFound(Exception):
 
 class Updater:
     """template to modify solr index"""
-    def __init__(self,mycore,searchterm='*'):
+    def __init__(self,mycore,searchterm='*',maxcount=100000):
         self.mycore=mycore
         self.searchterm=searchterm
         self.update_errors=False
         self.args=''
-        self.maxcount=100000
+        self.maxcount=maxcount
     
     def modify(self,result):
         pass
@@ -233,7 +233,7 @@ class SequenceByDate(Updater):
 
 
 def scandocs(collection,delete_on=True,docstore=DOCSTORE,job=None):
-    """SCAN AND MAKE UPDATES TO BOTH LOCAL FILE META DATABASE AND SOLR INDEX"""
+    """SCAN A COLLECTION AND MAKE UPDATES TO BOTH LOCAL FILE META DATABASE AND SOLR INDEX"""
     
     scanner=changes.Scanner(collection,job=job)  #get dictionary of changes to file collection (compare disk folder to meta database)
     

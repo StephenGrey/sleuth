@@ -467,6 +467,81 @@ class ICIJFolderTest(IndexTester):
         self.assertEquals(childdoc.docname,"image1.jpg")
         
         
+    def test_command_extract(self):
+        """test extract collection from the command line"""
+
+        #ERASE EVERYTHING FROM TESTS_ONLY 
+        res,status=updateSolr.delete_all(self.mycore)
+        self.assertTrue(status)
+        
+        #make a collection
+        scanner=updateSolr.scandocs(self.collection,job="jobid")
+        
+        #check if files already indexed
+        counter,skipped,failed=index_check.index_check(self.collection,self.mycore)
+        #print(f'counter:{counter},skipped: {skipped}, failed: {failed}')
+        self.assertEquals(skipped,7)  #nothing found in initial scan
+
+        
+        #run through the extractor
+        tester=indexSolr.solrICIJ.ICIJ_Tester()
+        tester.mycore=self.mycore
+        tester.path=self._path
+        tester.ocr=False
+        
+        tester.get_args()
+        tester.run_command(tester.args)
+        
+        self.assertTrue(tester.log_parser.success)
+        
+        #now commit it
+        tester.commit_args()
+        tester.run_command(tester.args)
+        
+#        indexSolr.Collection_Post_Processor(self.collection,self.mycore,docstore=self.docstore,_test=False,job="")
+        index_check.BASEDIR=self.docstore
+        counter,skipped,failed=index_check.index_check(self.collection,self.mycore)
+        #print(f'counter:{counter},skipped: {skipped}, failed: {failed}')
+        childdoc=solrJson.getmeta('c032fe1fbef76624f1ad09e46feb4c04ec4e37a27a6a3487abc3ef73c702d3f9',self.mycore)[0]
+        self.assertEquals(childdoc.docname,"image1.jpg")
+
+    def test_fixmeta_command(self):
+        #ERASE EVERYTHING FROM TESTS_ONLY 
+        res,status=updateSolr.delete_all(self.mycore)
+        self.assertTrue(status)
+        
+        #make a collection
+        scanner=updateSolr.scandocs(self.collection,job="jobid")
+        
+        #check if files already indexed
+        counter,skipped,failed=index_check.index_check(self.collection,self.mycore)
+        #print(f'counter:{counter},skipped: {skipped}, failed: {failed}')
+        self.assertEquals(skipped,7)  #nothing found in initial scan
+
+        
+        #run through the extractor
+        tester=indexSolr.solrICIJ.ICIJ_Tester()
+        tester.mycore=self.mycore
+        tester.path=self._path
+        tester.ocr=False
+        
+        tester.get_args()
+        tester.run_command(tester.args)
+        
+        self.assertTrue(tester.log_parser.success)
+        
+        #now commit it
+        tester.commit_args()
+        tester.run_command(tester.args)
+        
+        args = ['tests_only']
+        opts = {'docstore':self.docstore,'collectionID':self.collection.id}
+        call_command('fix_meta', *args, **opts)
+
+        childdoc=solrJson.getmeta('c032fe1fbef76624f1ad09e46feb4c04ec4e37a27a6a3487abc3ef73c702d3f9',self.mycore)[0]
+        self.assertEquals(childdoc.docname,"image1.jpg")
+        
+        
     def test_indexcheck(self):
         scanner=updateSolr.scandocs(self.collection,job="jobid")
         counter,skipped,failed=index_check.index_check(self.collection,self.mycore)
@@ -496,7 +571,8 @@ class ICIJFolderTest(IndexTester):
         childdoc=solrJson.getmeta('c032fe1fbef76624f1ad09e46feb4c04ec4e37a27a6a3487abc3ef73c702d3f9',self.mycore)[0]
         self.assertEquals(childdoc.docname,"image1.jpg")
         
-        
+
+
         
         
 class ICIJExtractTest(ExtractorTest):

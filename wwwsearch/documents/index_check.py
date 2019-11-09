@@ -1,7 +1,9 @@
 # -*- coding: utf-8 -*-
 import logging,os, configs
 from . import solrcursor
+from .indexSolr import UpdateMeta,ChildProcessor
 from .models import File,Collection
+from .updateSolr import get_source
 from ownsearch import solrJson as solr
 log = logging.getLogger('ownsearch.index_check')
 try:
@@ -11,7 +13,6 @@ except:
 
 #checking for what files in existing solrindex
 def index_check(collection,thiscore):
-
 
     log.debug(f'BASEDIR: {BASEDIR}')
     #first get solrindex ids and key fields
@@ -41,6 +42,10 @@ def index_check(collection,thiscore):
             if relpath in indexpaths:  #if the path in database in the solr index
                 solrdata=indexpaths[relpath][0] #take the first of list of docs with this path
                 #print ('PATH :'+file.filepath+' found in Solr index', 'Solr \'id\': '+solrdata['id'])
+                
+                log.debug('found index for doc - now checking meta')
+                meta_check(thiscore,file,solrdata)
+                                
                 file.indexMetaOnly=solrdata.data.get('sb_meta_only')
                 #log.debug(f'Meta-only flagged for {file.filename}:{file.indexMetaOnly}')
                 if not file.indexMetaOnly:
@@ -66,6 +71,7 @@ def index_check(collection,thiscore):
                     #log.debug('looking up hash : '+hash)
                     solrresult=solr.hashlookup(hash,thiscore).results
                     #log.debug(solrresult)
+                    
                 except Exception as e:
                     log.error(e)
                     solrresult=''
@@ -74,6 +80,9 @@ def index_check(collection,thiscore):
                     #if some files, take the first one
                     solrdata=solrresult[0]
                     log.debug('Data found in solr: {}'.format(vars(solrdata)))
+                    
+                    meta_check(thiscore,file,solrdata)
+                    
                     file.indexedSuccess=True
                     file.solrid=solrdata.id
                     file.save()
@@ -95,3 +104,12 @@ def index_check(collection,thiscore):
                     
         return counter,skipped,failed
 
+
+def meta_check(thiscore,file,solrdata):
+    #check the meta
+    log.debug('found index for doc - now checking meta')
+    meta_updater=UpdateMeta(thiscore,file,solrdata,docstore=BASEDIR,existing=True)
+    
+    c=ChildProcessor(file.filepath,thiscore,hash_contents=file.hash_contents,sourcetext=get_source(file),docstore=BASEDIR)
+    c.process_children()
+    

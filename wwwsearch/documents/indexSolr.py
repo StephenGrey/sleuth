@@ -64,7 +64,9 @@ class PostFailure(Exception):
 class DuplicateRecords(Exception):
     pass
 
+
 class ExtractFolder():
+    """extract entire collection folder to index with ICIJ extract and correct meta"""
     def __init__(self,corename,path='',collection='',collectionID='',job=None,ocr=False,docstore=DOCSTORE):
         
         self.job=job
@@ -120,6 +122,15 @@ class ExtractFolder():
         #now fix meta
         Collection_Post_Processor(self.collection,self.mycore,docstore=self.docstore,_test=False,job=self.job)
 
+
+class CorrectMeta(ExtractFolder):
+    def process(self):
+        #scan the collection
+        log.info(f"Scanning collection {self.collection}")
+        scanner=scandocs(self.collection,job=self.job)
+                
+        #now fix meta
+        Collection_Post_Processor(self.collection,self.mycore,docstore=self.docstore,_test=False,job=self.job)
         
 
 class Extractor():

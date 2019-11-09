@@ -128,21 +128,21 @@ class ICIJExtractor():
             log.error('Timed Out in ICIJ extractor')
             self.error_message='Timed out in ICIJ extractor'
         self.result= False  #if error return False
-
-    def tryextract(self):
+    
+    def get_args(self):
         try:
-            extractpath=config['Extract']['extractpath'] #get location of Extract java JAR
-            assert os.path.exists(extractpath)
+            self.extractpath=config['Extract']['extractpath'] #get location of Extract java JAR
+            assert os.path.exists(self.extractpath)
         except KeyError as e:
             raise s.MissingConfigData
         except AssertionError as e:
             raise s.MissingConfigData
         
-        solrurl=self.mycore.url
+        self.solrurl=self.mycore.url
         target=self.path
         #extract via ICIJ extract
-        args=["java","-jar", MEM_MIN_ARG,MEM_MAX_ARG, extractpath, "spew","-o", "solr", "-s"]
-        args.append(solrurl)
+        args=["java","-jar", MEM_MIN_ARG,MEM_MAX_ARG, self.extractpath, "spew","-o", "solr", "-s"]
+        args.append(self.solrurl)
         
         args.extend(["--metadataPrefix","\"\""])
 #        #try adding postfix to dates to fix error w old TIF files
@@ -151,14 +151,25 @@ class ICIJExtractor():
         if not self.ocr:
            args.extend(["--ocr","no"])
     
-        _user,_pass=authenticate()
-        if _user and _pass:
-            args.extend(["-U",_user,"-P",_pass])
+        self._user,self._pass=authenticate()
+        if self._user and self._pass:
+            args.extend(["-U",self._user,"-P",self._pass])
     
         args.append(target)
         log.debug('Extract args: {}'.format(args))
+        self.args=args
+        
+    def commit_args(self):
+        self.args=["java","-jar",self.extractpath,"commit","-s"]
+        self.args.append(self.solrurl) #tests - add deliberate error
+        if self._user and self._pass:
+            self.args.extend(["-U",self._user,"-P",self._pass])
+        
+    
+    def tryextract(self):
+        self.get_args()
 
-        self.run_command(args)
+        self.run_command(self.args)
         self.success=self.log_parser.success
         self.error_message=self.log_parser.error_message
         
@@ -166,11 +177,9 @@ class ICIJExtractor():
             log.info('Successful extract')
             #commit the results
             log.debug ('Committing ..')
-            args=["java","-jar",extractpath,"commit","-s"]
-            args.append(solrurl) #tests - add deliberate error
-    
-            if _user and _pass:
-                args.extend(["-U",_user,"-P",_pass])
+            
+            self.commit_args()
+            args=self.args
             
             try:
                 #result=subprocess.Popen(args, stderr=subprocess.PIPE, stdout=subprocess.PIPE,shell=False)
@@ -216,6 +225,11 @@ class ICIJExtractor():
         self.log_parser.output()
         rc = process.poll()
         self.rc=rc
+
+class ICIJ_Tester(ICIJExtractor):
+    def __init__(self):
+        pass
+
 
 
     
