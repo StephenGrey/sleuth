@@ -262,7 +262,9 @@ def get_content(request,doc_id,searchterm,tagedit='False'):
             return HttpResponseRedirect(page.preview_url) 
         
         if page.mimetype=='application/pdf':
-            page.pdf_url=static(os.path.join('files/',page.docpath))
+            #page.pdf_url=static(os.path.join('files/',page.docpath))
+            
+            page.pdf_url=f"/ownsearch/download={page.matchfile_id}&{page.hashfilename}"
             log.debug('PDF URL: {}'.format(page.pdf_url))
             #statdoc = finders.find(page.docpath)
             log.debug(settings.STATIC_ROOT)

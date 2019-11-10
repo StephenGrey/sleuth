@@ -54,3 +54,5 @@ wwwsearch/htmlcov/*
 wwwsearch/documents/.DS_Store
 solr/solr-7.2.0/bin/solr.in.sh
 solr/keys/*
+wwwsearch/documents/migrations/0027_auto_20180227_0615.py
+wwwsearch/documents/migrations/0028_merge_20180309_0814.py
