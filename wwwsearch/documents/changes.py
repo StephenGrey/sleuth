@@ -17,19 +17,24 @@ class ChangesError(Exception):
 
 class Scanner:
     def __init__(self,collection,test=False,job=None):
+        """scan and update collection for changes, live update progress to Redis job"""
         if not isinstance(collection, Collection):
             raise ChangesError('Not a valid collection')
         self.collection=collection
         self.test=test
         self.unchanged_files,self.changed_files,self.moved_files,self.new_files,self.deleted_files=[],[],[],[],[]
+        self.scanned_files=0
+        self.new_files_count,self.deleted_files_count,self.moved_files_count,self.unchanged_files_count,self.changed_files_count="","","","",""
         self.missing_files,self.new_files_hash={},{}
         self.scan_error=False
         self.job=job
-        
         self.total_files()
-        self.update_results()
-        self.process()
-        self.update_results()
+        if self.total:
+            self.update_results()
+            self.process()
+            self.update_results()
+        else:
+            pass
     
     
     def total_files(self):
@@ -41,17 +46,21 @@ class Scanner:
         self.find_on_disk()
         self.scan_new_files()
         self.new_or_missing()
+        #self.update_database()#HANDLE SEPARATELY
         self.count_changes()
-        log.info('NEWFILES>>>>>{}'.format(self.new_files))
-        log.info('DELETEDFILES>>>>>>>{}'.format(self.deleted_files))
-        log.info('MOVED>>>>:{}'.format(self.moved_files))
-        #print('NOCHANGE>>>',self.unchanged_files)
-        log.info('CHANGEDFILES>>>>>>{}'.format(self.changed_files))
+        log.info('NEWFILES>>>>>{}'.format(self.new_files_count))
+        log.info('DELETEDFILES>>>>>>>{}'.format(self.deleted_files_count))
+        log.info('MOVED>>>>:{}'.format(self.moved_files_count))
+        log.info(f'NOCHANGE>>> {self.unchanged_files_count}')
+        log.info('CHANGEDFILES>>>>>>{}'.format(self.changed_files_count))
           
     def scan(self):
         """1. scan all files in collection"""
+        self.update_progress('Scanning files on disk')
         self.files_in_database=File.objects.filter(collection=self.collection)
         self.files_on_disk=file_utils.filespecs(self.collection.path,job=self.job) #get dict of specs of files in disk folder(and subfolders)
+        #log.debug(self.files_in_database)
+        #log.debug(self.files_on_disk)
         self.total=len(self.files_on_disk)
         
     def find_on_disk(self):
@@ -67,11 +76,6 @@ class Scanner:
         """2a. For a database file found on disk - add to changed or unchanged list/dict"""
         file_meta=self.files_on_disk.pop(database_file.filepath)
         
-        #log.debug(file_meta)
-#        path_date=time_utils.timeaware(file_meta.date_from_path)
-#        if database_file.content_date != path_date:
-#            log.debug(f'Path date modified: database: {database_file.content_date} local: {path_date}')
-#        
         latest_lastmodified=time_utils.timestamp2aware(file_meta.last_modified)
 
         latestfilesize=file_meta.length
@@ -85,12 +89,16 @@ class Scanner:
 
     def scan_new_files(self):
         """3. make index of remaining files found on disk, using contents hash)"""
-        self.update_progress('Adding new files to database')
-        log.debug('Adding new files to database')
-        #time.sleep(10)
+        self.update_progress('Indexing new or moved files')
+        log.debug('Indexing new or moved files')
+        #time.sleep(10
+        self.counter=0
         for newpath in self.files_on_disk:
             if not self.files_on_disk[newpath].folder:
                 try:
+                    self.counter+=1
+                    if self.counter%100==0:
+                            log.debug(f'Indexing{self.counter} new or moved files)')
                     self.update_working_file(newpath)
                     newhash=file_utils.get_contents_hash(file_utils.normalise(newpath)) #normalise to adjust for windows quirks, e.g. cope with long paths
                     if newhash in self.new_files_hash:
@@ -131,14 +139,19 @@ class Scanner:
     def update_database(self):
         """update file database with changes"""
         filelist=File.objects.filter(collection=self.collection)
+        log.info('updating database with changes')
         if self.new_files:
             for path in self.new_files:
                 newfile(path,self.collection)
         if self.moved_files:
             #print((len(self.moved_files),' to move'))
+            self.counter=0
             for newpath,oldpath in self.moved_files:
                 #print(newpath,oldpath)
                 _files=filelist.filter(filepath=oldpath)
+                self.counter+=1
+                if self.counter%100==0:
+                    log.debug(f'updating moved or missing file {self.counter}')
                 for _file in _files:
                     movefile(_file,newpath)
                 
@@ -241,6 +254,7 @@ def changefile(file):
             #contents change, flag for index
             file.indexedSuccess=False
             file.hash_contents=newhash
+            file.indexMetaOnly=False
         #NB the solrid field is not cleared = the index checks it exists and deletes the old doc
         #otherwise if no change in hash and file already indexed, flag to correct meta only in solr 
         elif file.indexedSuccess:
@@ -253,7 +267,7 @@ def changefile(file):
 def updatefiledata(file,path,makehash=False):
     """calculate all the metadata and update database; default don't make hash"""
     try:
-        specs=file_utils.FileSpecs(file_utils.normalise(path))
+        specs=file_utils.FileSpecs(file_utils.normalise(path),scan_contents=makehash)
         file.filepath=path #
         file.hash_filename=specs.pathhash #get the HASH OF PATH
         file.filename=specs.name
@@ -272,7 +286,7 @@ def updatefiledata(file,path,makehash=False):
         raise ChangesError("Failed to update file database")
 
 
-def parse_date(specs):
+def parse_date(specs):	
     modTime = specs.last_modified
     last_modified=time_utils.timestamp2aware(modTime) #use GMT aware last modified
     pathdate=specs.date_from_path
@@ -287,4 +301,19 @@ def path_date_changed(file,existingdoc):
     log.debug(existingdoc.date)
     
     
+    
+class ManualScanner(Scanner):
+    def __init__(self,collection,test=False,job=None):
+        """TEST scan and update collection for changes, live update progress to Redis job"""
+        if not isinstance(collection, Collection):
+            raise ChangesError('Not a valid collection')
+        self.collection=collection
+        self.test=test
+        self.unchanged_files,self.changed_files,self.moved_files,self.new_files,self.deleted_files=[],[],[],[],[]
+        self.scanned_files=0
+        self.new_files_count,self.deleted_files_count,self.moved_files_count,self.unchanged_files_count,self.changed_files_count="","","","",""
+        self.missing_files,self.new_files_hash={},{}
+        self.scan_error=False
+        self.job=job
+        self.total_files()
     

@@ -1,18 +1,19 @@
 {% extends "base.html" %}
 
  {% block sidebar %}
+ 
+ 
 	<form id='checkindex_form' action="{% url 'listfiles' path=path %}" method ="post">
-	{% csrf_token %}
-	<input type="hidden" name="checkindex_form" value="True">
+		{% csrf_token %}
+		<input type="hidden" name="checkindex_form" value="True">
 	<div class="form-check">
-  <input class="form-check-input" type="checkbox" name="check_index" value="True" {% if check_index%}checked{% endif%} id="checkindex">
-  <label class="form-check-label" for="checkindex">
+  		<input class="form-check-input" type="checkbox" name="check_index" value="True" {% if check_index%}checked{% endif%} id="checkindex">
+  		<label class="form-check-label" for="checkindex">
     Check Index
-  </label>
-</div>
-
+  		</label>
+	</div>
+	</form>
 {%if check_index %}
-</form>
 	
 	<ul class="sidebar-nav">
 		<form action="{% url 'listfiles' path=path %}" method ="post">
@@ -21,11 +22,20 @@
 
 		</form>
 	</ul>
-	<p><p>
-	<div class="panel panel-default">
+	<p>
+{% endif %}
+
+
+
+
+{%if check_index %}	
 	
+	<p><p><p>
+	<div class="panel panel-default">
+	<p><p>	
 	Key
 	<p><span style="color:green;">Indexed File</span>
+	<p><span style="color:orange;">Indexed Metadata only</span>
 	<p><span style="color:red;">Not-Indexed File</span>
 	<p><span style="color:blue;" ">Folder</span>
 	<p><span class="collection-folder ">Collection folder</span>
@@ -33,6 +43,117 @@
 
 	</div>
 {% endif %}
+
+{% if results %}
+<div id="results_panel" class="panel panel-default" > 
+<div class="panel-heading">
+		<span id="summary_results">Indexing: &nbsp{{ results.progress_str }}</span>
+</div>
+<div class="progress">
+  <div id="task_bar" class="progress-bar" role="progressbar" style="width: {{results.progress}}%" aria-valuemin="0" aria-valuemax="100">
+  </div>
+</div>
+  <span id="results_list" {% ifnotequal results.progress '100' %} style="visibility:hidden"{%endifnotequal%}>		
+  </span>
+
+<button id="progress_cancel" class="btn btn-default pull-left">Cancel Task</button>
+</div>
+
+<script>
+
+function check_tasks() 
+{
+	var task_url = '/documents/api/tasks/'+'{{job}}';
+	$.get( task_url, function(data) 
+		{
+    	if (data.error==true){
+    		console.log(data.message);
+    		}
+    	else
+    		{
+    		//alert(data.results.progress);
+    		console.log(data);
+//    		console.log(data.results.progress);
+//    		console.log(data.results.progress_str);
+    		var job=data.results.job;
+    		var task=data.results.task;
+    		var task_str="";
+    		var working_file =data.results.working_file;
+    		var label=data.results.label;
+    		if (label=='local')
+    			{
+    		    task_str="Scanning Scan Folder"; 
+    		    }
+    		else if (label=='indexfile')
+    			{
+    			task_str="Indexing Single File";
+    			}
+    		else
+    			{
+    			task_str="Scanning Master Folder";
+    			};
+        	$("#task_bar").html(data.results.progress+"%");
+        	$("#task_bar").css("width", data.results.progress+"%");
+        	if (data.results.status=='error'){
+        			$("#task_bar").removeClass("progress-bar-warning").addClass("progress-bar-danger");
+        			$("#summary_results").html('Error: '+data.results.message);
+        			};
+        	if (data.results.status=='completed')
+        			{
+//        			console.log('done');
+        			clearInterval(timerID); //stop checking; unless this is a subtask 
+        			$("#task_bar").removeClass("progress-bar-warning").addClass("progress-bar-success");
+        			$("#main-panel").css('display','inline'); 
+        			$("#results_list").css("visibility","visible");
+        			//document.getElementById("task_bar").style.color="green"
+        			if (task=data.results.task=="dupscan")
+        			{ 
+        			$("#results_list").html("<b>Scan results:</b>&nbspTotal folders: "+data.results.total+"&nbsp&nbspNew files: "+data.results.new+" &nbsp&nbspChanged files: "+data.results.changed+"&nbsp&nbspDeleted files: "+data.results.deleted+"<p><p>");    			
+        			}
+        			else {
+        				$("#results_list").html("<b>Indexing results:</b>&nbspTotal files: "+data.results.target_count+"&nbsp&nbspIndexed: "+data.results.counter+" &nbsp&nbspFailed: "+data.results.failed+" &nbsp&nbspSkipped: "+data.results.skipped+"&nbsp;&nbsp;&nbsp;");
+        				};
+    				$("#summary_results").html(task_str+":&nbsp"+data.results.progress_str+"&nbsp&nbsp"+data.results.message);
+        			}
+        	else
+        		{
+
+        		$("#summary_results").html(task_str+":&nbsp"+data.results.progress_str);
+        		//+"&nbsp&nbsp&nbspcurrently processing:&nbsp&nbsp "+working_file);	
+        			};
+    		
+    	};
+     },
+     'json' // I expect a JSON response
+     );
+};
+
+
+check_tasks();
+var timerID = setInterval(check_tasks, 2*1000); //checking every 2 seconds
+
+$("#progress_cancel").click(function() {
+  event.preventDefault();
+  console.log('remove task bar');
+  clearInterval(timerID);
+//  $("#task_wrap").css('visibility','hidden');
+//  $("#results_list").css('visibility','hidden');
+  $("#results_panel").css('display','none'); 
+  $.get( "/documents/api/cleartasks", function(data)
+  	{
+  	},"json")
+  .fail(function(){ alert('Failed to clear task')});
+//	{if (data.error==true){console.log("task cancel failed");};
+});
+
+
+</script>
+
+{%endif %}
+
+
+
+
 {% endblock %}
 
 {% block body_content %}
@@ -56,18 +177,40 @@
 		</div>
 
 		<div class="menu">
-		  <span class="menu-path"></span>
+		  <span class="menu-path"></span><span class="menu-size">somesize</span>
+		  <span class="menu-details"></span>
+		  
 		  <ul class="menu-options">
 		    <li class="menu-option set-folder">Set Folder as Collection</li>
 		    <li class="menu-option remove-collection">Remove Collection</li>
+		    <li class="menu-option index-file">Remove Collection</li>
+
+		    <form id='index-options_form' action="{% url 'index_file' folder_path=path%}" method ="post" >
+			{% csrf_token %}
+    			<div class="custom-control custom-checkbox index-options">
+      				<input type="checkbox" class="custom-control-input " name="force-retry" value=1 checked >
+      				<label class="custom-control-label small" for="defaultCheckedDisabled2">Force index retry</label>
+      				<input  type="hidden" id="index_fileid" name="index_fileid" value="">  
+    				<input type="checkbox" class="custom-control-input" name="ignore-filelimit" value=1 checked>
+      				<label class="custom-control-label small" for="defaultCheckedDisabled2">Ignore filesize limit</label>
+      				
+      				<input type="checkbox" class="custom-control-input ICIJcheck" value="1" name="use-ICIJ" unchecked>
+      				<label class="custom-control-label small" for="defaultChecked">Use ICIJ extract</label>
+  				
+				</div>
+			</form>
+
+<!--		    <label style="font-weight:normal" id="maxsize_label" for="maxsize" class="text-muted">Maxsize (Mb)<input type="text"  class="form-control-plaintext" name="maxsize" id="maxsize" value="{{page.maxsize}}"><small><span id="maxsize_edit" class="glyphicon glyphicon-cog"></span></small>
+		    </label>
+-->		    
 		    
 		  </ul>
 		    <button type="button" class="close" aria-label="Close">
  				 <span aria-hidden="true">&times;</span>
 			</button>
-
 		</div>
-		
+
+
 
 {% endblock %}
 
@@ -76,11 +219,13 @@
 <script>
 
 const menu = document.querySelector(".menu");
+//const filemenu = document.querySelector(".filemenu");
 
 let menuVisible = false;
 let clicked=false
 
 menu.style.display="none"
+
 
 const toggleMenu = command => {
 //  var menu=document.getElementById('foo')
@@ -91,7 +236,7 @@ const toggleMenu = command => {
 const setPosition = ({ top, left }) => {
 //  console.log(left)
 //  console.log(`${top}px`)
-  menu.style.left = `${left-30}px`;
+  menu.style.left = `300px`;// `${left-300}px`;
   menu.style.top = `${top-80}px`;
   toggleMenu('show');
 };
@@ -103,6 +248,7 @@ $('.sbfolder').contextmenu(function(event)
     clicked.style.fontWeight="normal"; //clear previous highlight
 		};
   clicked=this
+  $(".index-options").hide()
   var item_id = this.id;
   var hash_id= $(this).attr('src');
   var size=$(this).attr('size');
@@ -137,35 +283,81 @@ $('.sbfolder').contextmenu(function(event)
     menuVisible = true;
   });
 
+$('.sb_file').contextmenu(function(event)
+	{
+	if(clicked){
+    clicked.style.fontWeight="normal"; //clear previous highlight
+		};
+  clicked=this;
+  var item_id = this.id;
+  var ICIJchecked = $('.ICIJcheck:checked').val();
+  var hash_id= $(this).attr('src');
+  var solr_id= $(this).attr('solrid');
+  var indexed= $(this).attr('indexed');
+  var fails=$(this).attr('fails');
+  var size=$(this).attr('filesize');
+  var details="<p><b>Indexed:</b> "+indexed;
+  $(".menu-path").html("<b>File ID:</b> "+clicked.id+" <b>Indexing fails:</b>"+fails);
+  $(".menu-size").html("<b>  Size:</b> "+size);
+  $("#index_fileid").attr("value",item_id);
+  $(".set-folder").hide();
+  if (this.id!=="")
+  	{
+  	$(".index-options").show();
+  	var url="/documents/indexfile/{{path}}&"+clicked.id;
+  	$(".index-file").html("<a href=\""+url+"\"> Index/Re-Index </a>");
+	}
+   else
+   	{
+	$(".index-options").hide()
+	$(".set-folder").html("");
+	};	
+  if (solr_id!=="")
+  	{ 
+  	details=details+"  <b>Contents hash:</b> "+solr_id+" ...";
+	};
+   $(".menu-details").html(details);
+	//$(".menu-hash").html('<b>Hash:</b>...'+hash_id.substring(50));
+	this.style.fontWeight="bold";
+	var _path="{{path}}"
+	
+	$(".remove-collection").hide()	
+	var rect = clicked.getBoundingClientRect();
+  event.preventDefault();
+  event.stopPropagation();
+//  alert('context');
+  const origin = {
+  	left: rect.right,
+  	top: rect.top+window.scrollY
+  };
+    setPosition(origin);
+    menuVisible = true;
+  });
+
+$('.index-file').click(function()
+	{
+	$("#index-options_form").submit();
+	event.preventDefault();
+	}
+	);
+
 $('.close').click(function(){
 toggleMenu('none');
 menuVisible= false;
 });
 
-$('.flip').click(function(e) {
-//    alert('clicked this')
-    var $this = $(this);
-    $this.next('div.subdir').slideToggle('fast');
-    $this.toggleClass('show');
-    if ($this.hasClass('show')) {
-        $this.html('<span style="font-size:12px">[hide}</span>');
-    } else {
-        $this.html(' +');
-			};
-
-		});
-
-/*$('.SeeMore2').click(function(){
-		var $this = $(this);
-		$this.next('div.subdir').slideToggle('fast');
-		$this.toggleClass('SeeMore2');
-		if($this.hasClass('SeeMore2')){
-			$this.text('See More');			
-		} else {
-			$this.text('See Less');
-		};
-
-	});*/
+//$('.flip').click(function(e) {
+////    alert('clicked this')
+//    var $this = $(this);
+//    $this.next('div.subdir').slideToggle('fast');
+//    $this.toggleClass('show');
+//    if ($this.hasClass('show')) {
+//        $this.html('<span style="font-size:12px">[hide}</span>');
+//    } else {
+//        $this.html(' +');
+//			};
+//
+//		});
 
 $(document).ready(function(){
     $("#checkindex_form").on("change", "input:checkbox", function(){
@@ -173,7 +365,29 @@ $(document).ready(function(){
     });
 });
 
-
 </script>
-{% endblock %}
+
+
+
+<!--{% endblock %}
+
+const copyToClipboard = str => {
+  const el = document.createElement('textarea');  // Create a <textarea> element
+  el.value = str;                                 // Set its value to the string that you want copied
+  el.setAttribute('readonly', '');                // Make it readonly to be tamper-proof
+  el.style.position = 'absolute';                 
+  el.style.left = '-9999px';                      // Move outside the screen to make it invisible
+  document.body.appendChild(el);                  // Append the <textarea> element to the HTML document
+  const selected =            
+    document.getSelection().rangeCount > 0        // Check if there is any content selected previously
+      ? document.getSelection().getRangeAt(0)     // Store selection if found
+      : false;                                    // Mark as false to know no selection existed before
+  el.select();                                    // Select the <textarea> content
+  document.execCommand('copy');                   // Copy - only works as a result of a user action (e.g. click events)
+  document.body.removeChild(el);                  // Remove the <textarea> element
+  if (selected) {                                 // If a selection existed before copying
+    document.getSelection().removeAllRanges();    // Unselect everything on the HTML document
+    document.getSelection().addRange(selected);   // Restore the original selection
+  }
+};-->
 

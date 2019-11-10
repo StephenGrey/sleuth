@@ -300,7 +300,19 @@ def file_display(request,path=''):
     log.debug(path)
     #get the core , or set the the default    
     page=documentpage.FilesPage(path=normpath)
-    log.debug(request.POST)
+    #log.debug(request.POST)
+    job_id=request.session.get('tasks')
+    log.info(f'Stored jobs: {job_id}')                
+    if job_id:
+        job=f'SB_TASK.{job_id}'
+        log.debug(f'job: {job}')
+        page.results=watch_dispatch.get_extract_results(job)
+        #log.debug(f'task results: {page.results}')
+        page.job=job
+    else:
+        page.results=None
+        page.job=None
+    
     page.getcores(request.user,request.session.get('mycore')) #arguments: user, storedcore
     page.check_index=True if request.session.get('check_index') else False
     page.chooseindexes(request.method,request_postdata=request.POST)
@@ -326,7 +338,27 @@ def file_display(request,path=''):
         rootpath=""
         tags=None
     return render(request,'documents/filedisplay/listindex.html',
-         {'subfiles': c, 'rootpath':rootpath, 'tags':tags, 'form':page.form, 'path':path, 'check_index':page.check_index})
+         {'subfiles': c, 'rootpath':rootpath, 'tags':tags, 'form':page.form, 'path':path, 'check_index':page.check_index, 'results':page.results, 'job':page.job})
+
+@staff_member_required()
+def index_file(request,folder_path):
+    log.debug(request.POST)
+    if request.method == 'POST':
+        try:
+            file_id=request.POST.get('index_fileid')
+            if file_id:
+                _file=File.objects.get(id=int(file_id))
+                forceretry=True if request.POST.get('force-retry') else False
+                use_ICIJ=True if request.POST.get('use-ICIJ') else False
+                ignore_filesize=True if request.POST.get('ignore-filelimit') else False
+                log.debug(f'indexing {_file.filename} with options useICIJ:{use_ICIJ} forceretry:{forceretry} ignorefilelimit: {ignore_filesize}')
+                job_id=watch_dispatch.make_fileindex_job(file_id,_test=0,forceretry=forceretry,ignore_filesize=ignore_filesize,use_ICIJ=use_ICIJ)
+                log.debug(f'storing {job_id}')
+                request.session['tasks']=job_id
+        except Exception as e:
+            log.error(e)
+            log.debug('File not indexed')
+    return redirect('listfiles', path=folder_path)
 
 
 @staff_member_required()

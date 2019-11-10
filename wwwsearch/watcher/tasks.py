@@ -221,6 +221,8 @@ class DocProcessor(StoppableThread):
 
                 #check for new un-assigned task 
                 put_tasks(self.taskq)
+                
+                #check if modified files need re-indexing
                 watch_dispatch.modify_check(self.modify_delay)
                 
                 if self.taskq.is_alive():
@@ -255,10 +257,12 @@ def start_taskqueue():
     return tq
 
 def put_tasks(tq):
+    """send a new task to the task queue"""
     for task in watch_dispatch.r.smembers('SEARCHBOX_JOBS'):
         if task not in TASKS_UNDERWAY:
             TASKS_UNDERWAY.add(task)
             log.debug(f'New task from redis jobs -- {task} -- added to processing set')
+            log.debug(f'TASKSUNDERWAY: {TASKS_UNDERWAY}')
             tq.process_q.put(task)
             if task=="poison_pill":
                 TASKS_UNDERWAY.remove(task)

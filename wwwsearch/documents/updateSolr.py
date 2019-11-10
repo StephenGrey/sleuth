@@ -26,12 +26,12 @@ class SolrdocNotFound(Exception):
 
 class Updater:
     """template to modify solr index"""
-    def __init__(self,mycore,searchterm='*'):
+    def __init__(self,mycore,searchterm='*',maxcount=100000):
         self.mycore=mycore
         self.searchterm=searchterm
         self.update_errors=False
         self.args=''
-        self.maxcount=100000
+        self.maxcount=maxcount
     
     def modify(self,result):
         pass
@@ -233,30 +233,32 @@ class SequenceByDate(Updater):
 
 
 def scandocs(collection,delete_on=True,docstore=DOCSTORE,job=None):
-    """SCAN AND MAKE UPDATES TO BOTH LOCAL FILE META DATABASE AND SOLR INDEX"""
+    """SCAN A COLLECTION AND MAKE UPDATES TO BOTH LOCAL FILE META DATABASE AND SOLR INDEX"""
     
     scanner=changes.Scanner(collection,job=job)  #get dictionary of changes to file collection (compare disk folder to meta database)
     
-    try:
-        #make any changes to local file database
-        scanner.update_database()        
-    except Exception as e:
-        log.error('Failed to make updates to file database')
-        log.error(f'Error: {e}')
-        scanner.scan_error=True
-        return scanner
-
-    #remove deleted files from the index
-    #(only remove from database when successfully removed from solrindex, so if solr is down won't lose sync)
-    if delete_on and scanner.deleted_files:
+    if scanner.total:
         try:
-            removedeleted(scanner.deleted_files,collection,docstore=docstore)
+            #make any changes to local file database
+            scanner.update_database()        
         except Exception as e:
-            log.debug('Failed to remove deleted files from solr index. Error: {}'.format(e)) 
-
-    #alters meta in the the solr index (via an atomic update)
-    metaupdate(collection) 
-
+            log.error('Failed to make updates to file database')
+            log.error(f'Error: {e}')
+            scanner.scan_error=True
+            return scanner
+    
+        #remove deleted files from the index
+        #(only remove from database when successfully removed from solrindex, so if solr is down won't lose sync)
+        if delete_on and scanner.deleted_files:
+            try:
+                removedeleted(scanner.deleted_files,collection,docstore=docstore)
+            except Exception as e:
+                log.debug('Failed to remove deleted files from solr index. Error: {}'.format(e)) 
+    
+        #alters meta in the the solr index (via an atomic update)
+        metaupdate(collection) 
+    else:
+        log.debug('no files found')
     return scanner
     
 
@@ -476,19 +478,21 @@ def checkupdate(id,changes,mycore):
     if len(res)>0: #check there are solr docs returned
         doc=res[0]
         for sourcefield, resultfield,value in changes:
+            if sourcefield=='rawtext':
+                continue
             #print('Change',sourcefield,resultfield,value)
             solrfield=resultfield            
             newvalue=doc.__dict__.get(solrfield,doc.data.get(solrfield,''))
             if not newvalue:
                 solrfield=mycore.__dict__.get(resultfield,resultfield)
                 newvalue=doc.__dict__.get(solrfield,doc.data.get(solrfield,''))
-            #log.debug(f'Solrdoc.data {doc.data} solrfield: {solrfield} newvalue={newvalue} targetvalue={value}')
-#            log.debug(doc.__dict__)
+#            log.debug(f'Solrdoc.data {doc.data} solrfield: {solrfield} newvalue={newvalue} targetvalue={value}')
+##            log.debug(doc.__dict__)
 #            log.debug(type(newvalue))
 #            log.debug(newvalue)
             
             
-            if newvalue:
+            if newvalue != None:
                 #print(newvalue,type(newvalue))
                 if isinstance(newvalue,int):
                     try:
