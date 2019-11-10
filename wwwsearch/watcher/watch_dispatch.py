@@ -44,10 +44,17 @@ class TaskError(Exception):
 
 class HeartBeat:
     def tick(self):
-        r.set('SB_heartbeat','tick')
+        try:
+            r.set('SB_heartbeat','tick')
+        except Exception as e:
+            log.debug(e)
+            
     def tock(self):
-        r.set('SB_heartbeat','tock')
-
+        try:
+            r.set('SB_heartbeat','tock')
+        except Exception as e:
+            log.debug(e)
+    
     @property
     def alive(self):
         if r.get('SB_heartbeat') == 'tock':
@@ -70,7 +77,7 @@ class Index_Dispatch:
         self.destpath=destpath
         self.check_base()
         self.check_dupbase()        
-        log.debug(f'EVENT: {self.event_type}  PATH: {self.sourcepath}  (DESTPATH: {self.destpath})') if not self.ignore else None
+        #log.debug(f'EVENT: {self.event_type}  PATH: {self.sourcepath}  (DESTPATH: {self.destpath})') if not self.ignore else None
         if self.event_type=='created':
             self.dupbase_create()
             self.create()
@@ -174,7 +181,7 @@ class Index_Dispatch:
     def dupbase_create(self):
         """add a new file to masterindex"""
         #no ignore list in dupbase
-        log.info('Adding new file to masterindex')
+        #log.info('Adding new file to masterindex')
         if self.master_source_changed and not self.master_source_entry:
             self.master_index.add_new_file(self.sourcepath)
             self.master_index.save()

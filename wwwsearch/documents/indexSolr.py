@@ -461,11 +461,14 @@ class Extractor():
             #log.debug(self.failedlist)
             failed_json=json.dumps(self.failedlist)
             #log.debug(failed_json)
-            r.hmset(self.job,{'progress':progress,'progress_str':progress_str,'target_count':self.target_count,'counter':self.counter,'skipped':self.skipped,'failed':self.failed,
+            try:
+            	r.hmset(self.job,{'progress':progress,'progress_str':progress_str,'target_count':self.target_count,'counter':self.counter,'skipped':self.skipped,'failed':self.failed,
             	'path':self.collection.path,
             	'failed_list': failed_json, 
             	'skipped_list':json.dumps(self.skippedlist)
             		})
+            except Exception as e:
+            	log.error(e)
 
 class UpdateMeta(Extractor):
     """extract a single file with meta only"""

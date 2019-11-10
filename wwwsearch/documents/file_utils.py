@@ -918,7 +918,7 @@ class SqlFileIndex(sql_connect.SqlIndex,PathIndex):
                    
                    deleted_ids=[_id for hash,_id in self.files_inside(_db_file.path,limit=1000000)]
                    deleted_files=self.lookup_id_list(deleted_ids)
-                   log.debug(f'Files inside to purge: {[f.path for f in deleted_files]}')
+                   log.debug(f'Files inside to purge: {len([f.path for f in deleted_files])}')
                    for _file in deleted_files:
                        try:
                            self.delete_file(_file)
