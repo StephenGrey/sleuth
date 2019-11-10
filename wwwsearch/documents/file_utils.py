@@ -594,6 +594,25 @@ class HashIndex(PathIndex):
         self.ignore_pattern=ignore_pattern
         pass
 
+class Counter():
+    def __init__(self,root):
+
+        self.counter=0
+        def count_sub(subfolder):
+            for entry in os.scandir(subfolder):
+                if entry.is_dir():
+                    self.counter+=1
+                    #print(entry.path)
+                    try:
+                        count_sub(entry.path)
+                    except Exception as e:
+                        try:
+                            count_sub(normalise(entry.path))
+                        except Exception as e:
+                            print(e)
+                            pass
+        count_sub(root)
+
 class SqlFileIndex(sql_connect.SqlIndex,PathIndex):
    def __init__(self,folder_path,job=None,ignore_pattern='X-',rescan=False,label=None):
       """index of file objects using sqlite and sqlalchemy"""
@@ -714,10 +733,13 @@ class SqlFileIndex(sql_connect.SqlIndex,PathIndex):
    
    def add_new_file(self,path):
        try:            
+           path.encode('utf-8') # trip exception to check it is savable in sql
            if os.path.isdir(path):
                self.update_folder(path)
            else:
                self.update_record(path)
+       except UnicodeEncodeError as e:
+           log.info(f'Unicode error:  Failed to add {slugify(path)}(cleaned) which contains non utf-8 characters in filename: {e}')
        except DoesNotExist:
            log.info(f'Failed to add {path}: does not exist / no access')
        except PermissionError:
@@ -813,6 +835,8 @@ class SqlFileIndex(sql_connect.SqlIndex,PathIndex):
             
    def rescan(self):
       """rescan only directories modified since last check"""
+      self.counter,self.newfiles,self.changed_files_count,self.deleted_files_count=0,0,0,0
+      
       time_start=int(time.time())
       last_mod_obj=self.lookup_setting('last_mod')
       if last_mod_obj:
@@ -821,27 +845,42 @@ class SqlFileIndex(sql_connect.SqlIndex,PathIndex):
           last_check=100000 #minimum valid timestamp in 1970
           self.add_setting('last_mod',_int=last_check)
           self.save()
-      
+          last_check=946684800 #default year 2000
+          self.add_setting('last_mod',_int=last_check)
+          self.save()
       log.debug(last_check)
       last_check_str=time_utils.timestring(time_utils.timefromstamp(last_check))
       _root=self.folder_path
 
       #check the root
-      log.debug(f'Checking {_root} for changes since {last_check_str}')
+      log.info(f'Checking {_root} for changes since {last_check_str}')
+      self.total=Counter(self.folder_path).counter #len([p for p,s,f in os.walk(self.folder_path)])
+
       if os.stat(_root).st_mtime > last_check:
           self.check_folder(_root)
 
       #check subfolders
       for _folder,sub_dirs,file_names in os.walk(_root):
-            for sub in sub_dirs:
-                path=normalise(os.path.join(_folder,sub))
-                if os.stat(path).st_mtime > last_check:
-                    self.check_folder(path)
+          self.counter+=1
+          #log.debug(f'checking {folder_path}')
+          self.update_results()
+          self.check_reset()
+          if self.counter%100==0:
+              log.info(f'checking folder #{self.counter} out of {self.total}')
+          if self.counter>1000:
+              self.save()          
+          if self.ignore_pattern and os.path.basename(_folder).startswith(self.ignore_pattern):
+              continue
+          for sub in sub_dirs:
+              path=normalise(os.path.join(_folder,sub))
+              if os.stat(path).st_mtime > last_check:
+                  self.check_folder(path)
       
       last_check=time_start   #use start time, in case contents change during check
       self.add_setting('last_mod',_int=last_check) #last_mod_obj._int=last_check
       duration=int(time.time())-time_start
-      log.debug(f'checked in {duration} seconds')
+      log.info(f'checked in {duration} seconds')
+      
       self.save()
 
    def check_folder(self,path):
@@ -850,22 +889,30 @@ class SqlFileIndex(sql_connect.SqlIndex,PathIndex):
        except PermissionError as e:
            log.error(e)
            _files=[]
+       except FileNotFoundError as e:
+           log.error(e)
+           _files=[]
        _modified=[]
+           
        #log.debug(f'Files in {path}: {_files}')
        #log.debug(_index.lookup_parent_hash(pathHash(path)))
+       
+       #check files in database
        for _db_file in self.lookup_parent_hash((pathHash(path))):
            try:
                _files.remove(_db_file.name)
                if not _db_file.folder: #ignore modified folders; folder mod not stored in db
-                   if _db_file.last_modified != os.stat(_db_file.path).st_mtime:
+                   filemod=os.stat(_db_file.path).st_mtime
+                   if _db_file.last_modified != filemod:
                        _modified.append(_db_file)
                        log.debug(f'Modified {_db_file.name}: Previous {_db_file.last_modified}; LastMod: {os.stat(_db_file.path).st_mtime}')
+                       self.changed_files_count+=1
                        self.update_record(_db_file.path,existing=_db_file)
            except PermissionError as e:
                log.error(e)
                log.error(f'Permission error on : {_db_file}')
                continue
-           except ValueError:
+           except ValueError: #file in database not on disk
                if _db_file.folder:
                    log.debug(f'Deleted folder: {_db_file.path}')
                    
@@ -875,6 +922,7 @@ class SqlFileIndex(sql_connect.SqlIndex,PathIndex):
                    for _file in deleted_files:
                        try:
                            self.delete_file(_file)
+                           self.deleted_files_count+=1
                        except Exception as e:
                            log.debug(f'Delete record failed for {deletedfile.path}')
                            log.debug(e)
@@ -884,6 +932,7 @@ class SqlFileIndex(sql_connect.SqlIndex,PathIndex):
                    log.debug(f'Deleted file: {_db_file.path}')
                    try:
                        self.delete_file(_db_file)
+                       self.deleted_files_count+=1
                    except Exception as e:
                        log.debug(f'Delete record failed for {deletedfile.path}')
                        log.debug(e)
@@ -894,14 +943,17 @@ class SqlFileIndex(sql_connect.SqlIndex,PathIndex):
            filepath=normalise(filepath) #convert long or malformed nt paths
            log.debug(f'Adding {filepath} to database')
            self.add_new_file(filepath)
+           self.newfiles+=1
        log.debug(f'Modified: {[f.path for f in _modified]}') if _modified else None
        self.save()
        
 
+
 def sql_dupscan(folder_path,label=None,job=None):
     log.debug(f'Creating new sql file scanner connection, with job: {job} on folder {folder_path}')
-    specs=SqlFileIndex(folder_path,label=label,job=job)
+    specs=None
     try:
+        specs=SqlFileIndex(folder_path,label=label,job=job)
         specs.scan_or_rescan()
         specs.session.commit()
         return specs
@@ -910,7 +962,10 @@ def sql_dupscan(folder_path,label=None,job=None):
         specs.session.rollback()
         raise
     finally:
-        specs.session.close()
+        if specs:
+            specs.session.close()
+
+
 
 class Index_Maker():
 #index_maker
@@ -932,7 +987,8 @@ class Index_Maker():
                         relpath=t
                     else:
                         relpath=os.path.relpath(t,rootpath)
-
+                    
+                    t=normalise(t)  #deal with NT filepaths too long
 
                     #log.debug(f'FILE/DIR: {t} MFILE:{mfile}')
                     if self.isdir(t,is_windows_drivelist):    
@@ -1606,6 +1662,7 @@ class SqlDupCheck(DupCheck):
     def check(self):
         self.contents_hash=''
         if not os.path.exists(self.filepath):
+            log.debug(f'Path does not exist: {self.filepath}')
             raise DoesNotExist("Checking nonexistent file")
         if self.masterindex:
             #print(f'FILES: {masterindex.files}')

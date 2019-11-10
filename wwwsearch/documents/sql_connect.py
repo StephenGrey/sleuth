@@ -37,14 +37,15 @@ class SqlIndex():
 #        except sqlite3.InvalidRequestError as e:
 #            log.error(f'InvalidReqError: {e}') 
         except Exception as e:
-            log.error(e)         
+            log.error(e)
+            self.session.rollback()         
       
     def sync(self):
         try:
             self.session.commit()
         except Exception as e:
             log.error(e)
-            
+            self.session.rollback()
       
     def map_record(self,docspec,existing=None):
         if existing:
@@ -120,7 +121,9 @@ class SqlIndex():
     def lookup_path(self,path):
         #log.debug(path)
         try:
+            path.encode('utf-8') #trip up bad paths
             return self.session.query(File).filter(File.path==path).first()
+        
         except Exception as e:
             log.error(e)
             self.session.rollback()
@@ -163,6 +166,7 @@ class SqlIndex():
             return [f for f in self.session.query(File).filter(File.parent_hash==_hash)]
         except Exception as e:
             log.error(e)
+            self.session.rollback()
             return []
 
 

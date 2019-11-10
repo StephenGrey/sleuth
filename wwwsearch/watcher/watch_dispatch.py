@@ -69,8 +69,7 @@ class Index_Dispatch:
         self.ignore=True if indexSolr.ignorefile(self.sourcepath) else False
         self.destpath=destpath
         self.check_base()
-        self.check_dupbase()
-        
+        self.check_dupbase()        
         log.debug(f'EVENT: {self.event_type}  PATH: {self.sourcepath}  (DESTPATH: {self.destpath})') if not self.ignore else None
         if self.event_type=='created':
             self.dupbase_create()
@@ -111,7 +110,7 @@ class Index_Dispatch:
     
     def modify(self):
         if os.path.isdir(self.sourcepath):
-            log.debug(f'Ignore directory modified')
+            #log.debug(f'Ignore directory modified')
             pass
         elif indexSolr.ignorefile(self.sourcepath):
             #log.debug(f'Modification ignored - filename on ignore list')
@@ -631,6 +630,8 @@ def dupscan_folder(job,folder_path,label=None):
         _index=file_utils.sql_dupscan(folder_path,label=label,job=job)
         return _index
     except Exception as e:
+        exc_type, exc_value, exc_traceback = sys.exc_info()
+        traceback.print_exc(limit=2, file=sys.stdout)
         log.error(f'Error scanning {e}')
         r.hset(job,{'message':'Scan Error','f':'Scan terminated'})
         

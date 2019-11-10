@@ -13,7 +13,7 @@ class MySyncHandler(FileSystemEventHandler):
     def on_any_event(self,event):
         #log.debug(event.event_type)
         #log.debug(f'{event.__dict__} at {time.time()}')
-        
+
         if event.event_type=='created':
             DISPATCHER.process('created',event._src_path,None)
 
@@ -26,9 +26,6 @@ class MySyncHandler(FileSystemEventHandler):
         elif event.event_type=='modified':        
             DISPATCHER.process('modified',event._src_path,None)
         
-
-
-
 def launch(path):
     observer = Observer()
     observer.schedule(MySyncHandler(), path, recursive=True)

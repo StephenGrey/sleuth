@@ -207,7 +207,10 @@ class Scanner:
 
 def movefile(_file,newpath):
     oldpath=_file.filepath
-    updatefiledata(_file,newpath) #check all metadata;except contentsHash
+    try:
+        updatefiledata(_file,newpath) #check all metadata;except contentsHash
+    except Exception as e:
+        log.error(e)   
     #if the file has been already indexed, flag to correct solr index meta
     if _file.indexedSuccess:
         add_oldpaths(_file,oldpath) #store old filepath to delete from solr
