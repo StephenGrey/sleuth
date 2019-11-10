@@ -190,25 +190,28 @@ class Extractor():
                 if existing_doc and not file.indexMetaOnly:
                     #UPDATE META ONLY
                     result=self.update_existing_meta(file,existing_doc)
-#                    if self.skip_extract(file):
-#                        file.indexMetaOnly=True
-#                        file.save()
+                    if self.skip_extract(file): 
+                        file.indexMetaOnly=True
+                        file.save()
                 
                 elif self.skip_extract(file):
                     #INDEX META ONLY
+                    #log.debug('INDEX META ONLY')
                     try:
                         ext=ExtractFileMeta(file.filepath,self.mycore,hash_contents=file.hash_contents,sourcetext='',docstore=self.docstore,meta_only=True)
                         result=ext.post_process(indexed=False)
                     except (s.SolrCoreNotFound,s.SolrConnectionError,requests.exceptions.RequestException) as e:
-                            raise ExtractInterruption(self.interrupt_message())
+                        raise ExtractInterruption(self.interrupt_message())
+                    #log.debug(result)
                     if result:
                         file.solrid=file.hash_contents
                         file.indexMetaOnly=True
                         file.save()
-                    
+                        #log.debug(file.__dict__)
                 else:
                 #now try the extract
                     file.indexedTry=True  #set flag to say we've tried
+                    file.indexMetaOnly=False
                     file.save()
                     if self.useICIJ:
                         log.info('using ICIJ extract method..')
@@ -260,9 +263,10 @@ class Extractor():
                 file.indexedSuccess=True
                 file.indexFails=0
                 file.error_message=''
-                file.indexMetaOnly=False
+                
+                #log.debug(file.__dict__)
                 #now delete previous solr doc of moved file(if any): THIS IS ONLY NECESSARY IF ID CHANGES  
-                log.info('Old ID: '+oldsolrid+' New ID: '+file.solrid)
+                #log.info('Old ID: '+oldsolrid+' New ID: '+file.solrid)
                 
                 if oldsolrid and oldsolrid!=file.solrid:
                     log.info('now delete or update old solr doc'+str(oldsolrid))

@@ -24,9 +24,9 @@ class Dups(IndexTester):
         print(i)
         _ind=[x for x in file_utils.Index_Maker(self.testdups_path,index_collections)._index]
         #options IndexMaker(path,index_collections,specs=None,masterindex=None, rootpath=DOCSTORE, hidden_files=False,max_depth=1,check_index=True,next_url=''
-        #print(_ind)
-        self.assertEquals(_ind[0],'<li class="du">\n\n<span style="color:red;">HilaryEmailC05793347.pdf</span>\n\n</li>')
-
+        #print(_ind[0])
+        
+        self.assertEquals(_ind[0],'<li class="du">\n\n<span class="sb_file" id="" filename="" indexed="no"  fails="" solrid="" style="color:red;">HilaryEmailC05793347.pdf</span>\n\n\n\n\n\n</li>')
         
     def remove_bfindex(self):
         try:
@@ -79,7 +79,7 @@ class Dups(IndexTester):
         
     def test_sql_dups(self):
         specs=file_utils.SqlFolderIndex(self.testdups_path)
-        print(specs)
+        #print(specs)
         
     
     def test_stored_dups(self):

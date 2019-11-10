@@ -381,6 +381,7 @@ class ExtractorTest(ExtractTest):
             self.assertEquals(updater.skipped,1)
             self.assertTrue(skip)
             updater.extract_file(_newfile)
+            #print(_newfile.__dict__)
             self.assertTrue(_newfile.indexMetaOnly)
             
     def test_fail_file(self):
@@ -393,7 +394,7 @@ class ExtractorTest(ExtractTest):
             path=os.path.join(testfolders_path,filename)
             _newfile=changes.newfile(path,self.sample_collection)
             ext=indexSolr.ExtractSingleFile(_newfile,forceretry=False,useICIJ=False,ocr=True,docstore=self.docstore,job=None)
-            print(ext.counter,ext.skipped,ext.failed)
+            #print(ext.counter,ext.skipped,ext.failed)
             if ext.failed==1:
                 self.assertEquals(_newfile.indexFails,1)
             
@@ -415,7 +416,7 @@ class ExtractorTest(ExtractTest):
         meta_result=ext.post_process(indexed=False)
         doc=solrJson.getcontents(_id,self.mycore)
         self.assertEquals('Metadata only: No content extracted from file',doc[0].data['rawtext'])
-        print(doc[0].data)
+        #print(doc[0].data)
         
 class ICIJFolderTest(IndexTester):
     def setUp(self):
