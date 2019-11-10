@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 import logging, re,json,requests,getpass
-log = logging.getLogger('documents.api')
+log = logging.getLogger('ownsearch.docs.api')
 from django.contrib.admin.views.decorators import staff_member_required
 from .models import UserEdit,SyncStatus
 from django.http import JsonResponse, HttpResponse
@@ -145,10 +145,10 @@ def api_task_progress(request,job):
             results.update({'master_task_status':watch_dispatch.r.hget(job,'status')})
         else:
             results=watch_dispatch.r.hgetall(job)
-        log.debug(f'{job},{results}')
+        #log.debug(f'{job},{results}')
         #print(job,results)
         #{'counter':ext.counter,'skipped':ext.skipped,'failed':ext.failed,'failed_list':ext.failedlist})
-        jsonresponse={'error':False, 'results':results,'message':'done'}
+        jsonresponse={'error':False, 'results':results,'message':'Completed'}
     except Exception as e:
         log.debug(e)
         #print(f'Error {e}')
@@ -157,8 +157,16 @@ def api_task_progress(request,job):
 @staff_member_required()
 def api_clear_tasks(request):
     """clear task from session"""
-    log.debug('clearing tasks')
+    job_id=request.session.get('tasks')
+    job=f'SB_TASK.{job_id}'
+    log.debug(f'clearing task {job_id}')
+
     request.session['tasks']=''
+    log.debug(r.smembers('SEARCHBOX_JOBS'))
+    if job in r.smembers('SEARCHBOX_JOBS'):
+        r.sadd('JOBS_TO_KILL',job_id)
+        r.hmset(job,{'progress_str':'Task cancelled'})
+
     return JsonResponse({'error':False})
 
 @staff_member_required()
@@ -173,7 +181,6 @@ def api_clear_dup_tasks(request):
         r.sadd('JOBS_TO_KILL',job_id)
         r.hmset(job,{'progress_str':'Scan cancelled'})
     return JsonResponse({'error':False})
-
 
 @staff_member_required()
 def api_check_redis(request):

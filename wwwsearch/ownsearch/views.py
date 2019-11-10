@@ -36,7 +36,8 @@ from . import pages,solrJson,authorise
 log = logging.getLogger('ownsearch.views')
 DOCBASEPATH=config['Models']['collectionbasepath']
 RESULTS_PER_PAGE=10
-MIMETYPES_THAT_EMBED=['application/pdf','image/jpeg']
+MIMETYPES_THAT_EMBED=['application/pdf','image/jpeg','image/svg+xml','image/x-icon','image/bmp','image/png','image/tiff','image/gif',]
+#,'application/vnd.openxmlformats-officedocument.wordprocessingml.document','image/vnd.adobe.photoshop']
 #max size of preview text to return (to avoid loading up full text of huge document in browser)
 try:
    CONTENTSMAX=int(config['Display']['maxcontents'])

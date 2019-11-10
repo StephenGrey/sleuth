@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-import sys,datetime,time, logging, redis, sys,traceback,os
+import sys,datetime,time, logging, redis, sys,traceback,os, configs
 
 from tools import wwwsearch_connect #Connect to Django project
 from django.conf import settings
@@ -13,6 +13,13 @@ log = logging.getLogger('ownsearch.watch_dispatch')
 r=redis_cache.redis_connection
 #redis.Redis(charset="utf-8", decode_responses=True)
 log.info('initialising watcher')
+
+dupsconfig=configs.config.get('Dups')
+MASTER_RELPATH=dupsconfig.get('masterindex_path') if dupsconfig else None
+MEDIAROOT=dupsconfig.get('rootpath') if dupsconfig else None
+MASTER_FULLPATH=os.path.join(MEDIAROOT,MASTER_RELPATH)
+#SQL connection inside Index_Dispatch object if os.path.exists(MASTER_FULLPATH):
+#    master_index=file_utils.SqlFileIndex(MASTER_FULLPATH)
 
 """
 
@@ -31,13 +38,23 @@ worker thread: take action on fileevents
 MODIFIED_FILES={}
 MODIFIED_TIMES={}
 
+class TaskError(Exception):
+    pass
+
 
 class HeartBeat:
     def tick(self):
-        r.set('SB_heartbeat','tick')
+        try:
+            r.set('SB_heartbeat','tick')
+        except Exception as e:
+            log.debug(e)
+            
     def tock(self):
-        r.set('SB_heartbeat','tock')
-
+        try:
+            r.set('SB_heartbeat','tock')
+        except Exception as e:
+            log.debug(e)
+    
     @property
     def alive(self):
         if r.get('SB_heartbeat') == 'tock':
@@ -46,9 +63,14 @@ class HeartBeat:
         return True
 
 
-
 class Index_Dispatch:
-    def __init__(self,event_type,sourcepath,destpath):
+    """React to file events: add to Solr index if in collection; put modified files into queue for update after delay
+       Delete, move, and create on dupbase masterindex - ignore modified
+    """
+    def __init__(self,):
+        self.setup_dupbase_watch()
+    
+    def process(self,event_type,sourcepath,destpath):
         self.event_type=event_type
         self.sourcepath=sourcepath
         self.ignore=True if indexSolr.ignorefile(self.sourcepath) else False
@@ -57,13 +79,15 @@ class Index_Dispatch:
         self.check_dupbase()
         self.process()
     def process(self):
-        log.debug(f'EVENT: {self.event_type}  PATH: {self.sourcepath}  (DESTPATH: {self.destpath})') if not self.ignore else None
+        #log.debug(f'EVENT: {self.event_type}  PATH: {self.sourcepath}  (DESTPATH: {self.destpath})') if not self.ignore else None
         if self.event_type=='created':
+            self.dupbase_create()
             self.create()
             self._index()
         elif self.event_type=='modified':
             self.modify()
         elif self.event_type=='delete':
+            self.delete_dupbase()
             self.delete()
         elif self.event_type=='moved':
             self.moved()
@@ -72,6 +96,8 @@ class Index_Dispatch:
         #log.debug(f'Modification queues: {MODIFIED_FILES}, TIMES: {MODIFIED_TIMES}')
         
     def create(self):
+
+        
         if indexSolr.ignorefile(self.sourcepath):
             #log.debug(f'Create file ignored - filename on ignore list')
             return
@@ -112,6 +138,8 @@ class Index_Dispatch:
             self.create()
 
     def moved(self):
+        log.debug('move event')
+        self.moved_dupbase()
         if self.dest_in_database and self.source_in_database:
             self.delete() #delete the origin - the destination will be picked up with move event
         elif self.dest_in_database and not self.source_in_database:
@@ -122,7 +150,45 @@ class Index_Dispatch:
         else:
             self.sourcepath=self.destpath #send new location to source path to create file record
             self.create() #create if within a collection
-    
+
+    def moved_dupbase(self):
+        """ move file inside master dupbase"""
+        if self.master_source_entry and self.master_dest_entry:
+            log.info('delete origin')
+            #delete the origin - the destination will be picked up as modified event
+            try:
+                self.master_index.delete_file(self.master_source_entry)
+            except Exception as e:
+                log.info(f'Delete record failed for {deletedfile.path}')
+                log.error(e)
+                raise
+        elif self.master_dest_entry and not self.master_source_entry:
+            log.info('ignored overwrite')
+            pass #ignore as overwrite - will be picked up as modified event
+        elif self.master_source_entry and not self.master_dest_entry:
+            #for _file in self.master_source_changed:
+            log.info('dupbase move event (correct path of existing entry)')
+            self.master_index.move_path(self.sourcepath,self.destpath)
+            self.master_index.save()
+            #changes.movefile(_file,self.destpath)
+        else:
+            self.sourcepath=self.destpath #send new location to source path to create file record
+            #create if within a collection
+            log.info('CREATE IF WITHIN MASTERINDEX')
+            if self.master_dest_changed:
+                self.master_index.add_new_file(self.destpath)
+                self.master_index.save()
+                log.info('added file')
+
+    def dupbase_create(self):
+        """add a new file to masterindex"""
+        #no ignore list in dupbase
+        #log.info('Adding new file to masterindex')
+        if self.master_source_changed and not self.master_source_entry:
+            self.master_index.add_new_file(self.sourcepath)
+            self.master_index.save()
+            log.info('added file')            
+            
     def delete(self):
         """delete both from database and solr index, if indexed"""
         if indexSolr.ignorefile(self.sourcepath):
@@ -137,6 +203,20 @@ class Index_Dispatch:
 ##            log.debug(f'File not in database - nothing to delete')
             
             
+    def delete_dupbase(self):
+        """delete from dupbase masterindex"""
+        if self.master_source_entry:
+            try:
+                log.info(f'Deleting entry in masterindex for {self.master_source_entry}')
+                self.master_index.delete_file(self.master_source_entry)
+                self.master_index.save()
+            except Exception as e:
+                log.info(f'Delete record failed for {deletedfile.path}')
+                log.error(e)
+                self.master_index.rollback()
+
+            
+    
     def check_base(self):
         _database_files=file_utils.find_live_files(self.sourcepath)
         #log.debug(f'Existing files found: {_database_files}')
@@ -153,8 +233,39 @@ class Index_Dispatch:
             else:
                 self.dest_in_database=None            
     
+    def setup_dupbase_watch(self):
+        if os.path.exists(MASTER_FULLPATH):
+            self.master_index=file_utils.SqlFileIndex(MASTER_FULLPATH)
+        else:
+            self.master_index=None
+    
     def check_dupbase(self):
-        pass
+        """check if file in master dupindex"""
+        if self.master_index:
+            if file_utils.new_is_inside(self.sourcepath,self.master_index.folder_path):
+                #log.debug(f'sourcepath {self.sourcepath} inside master index folder')
+                self.master_source_changed=True
+                
+                self.master_source_entry=self.master_index.simple_check_path(self.sourcepath)
+                #log.debug(f'Source in master_index: {self.master_source_entry}')
+                
+            else:
+                self.master_source_changed=False
+                self.master_source_entry=None
+            if self.destpath:
+                if file_utils.new_is_inside(self.destpath,self.master_index.folder_path):
+                    log.info(f'destpath {self.destpath} inside master index')
+                    self.master_dest_changed=True
+                    
+                    self.master_dest_entry=self.master_index.simple_check_path(self.destpath)
+                    log.info(f'Destination in master_index:  {self.master_dest_entry}')
+                    
+                else:
+                    self.master_dest_changed=False
+                    self.master_dest_entry=None
+            else:
+                self.master_dest_changed=False
+                self.master_dest_entry=None
         
     def _index(self):
         for _file in self.source_in_database:
@@ -175,9 +286,6 @@ def index_file(_file):
     else:
         log.debug('Extraction failed')
         return False
-
-def index_file2(_file):
-    pass
 
 
 def make_scan_and_index_job(collection_id,_test=0,force_retry=False,use_icij=False,ocr=True):
@@ -223,6 +331,7 @@ def make_index_job(collection_id,_test=0,force_retry=False,use_icij=False,ocr=Tr
 def make_scan_job(collection_id,_test=0):
     job_id=f'CollectionScan.{collection_id}'
     makejob=r.sadd('SEARCHBOX_JOBS',job_id)
+
     if not makejob:
         log.info('task exists already')
         return False
@@ -232,6 +341,27 @@ def make_scan_job(collection_id,_test=0):
         r.hset(job,'collection_id',collection_id)
         r.hset(job,'status','queued')
         r.hset(job,'test',_test)
+        r.hset(job,'job',job)
+        r.hmset(job,{'show_taskbar':1,'progress':0,'progress_str':"",'target_count':"",'moved':"",'new':"",'deleted':"",'unchanged':""})
+        return job_id
+
+def make_fileindex_job(file_id,_test=0,forceretry=False,ignore_filesize=False,use_ICIJ=False,ocr=True):	
+    job_id=f'FileIndex.{file_id}'
+    makejob=r.sadd('SEARCHBOX_JOBS',job_id)
+    if not makejob:
+        log.info('task exists already')
+        return False
+    else:
+        job=f'SB_TASK.{job_id}'
+        r.hset(job,'task','file_index')
+        r.hset(job,'file_id',file_id)
+        r.hset(job,'ocr',1) if ocr else r.hset(job,'ocr',0)
+        r.hset(job,'ignore_filesize',1) if ignore_filesize else r.hset(job,'ignore_filesize',0)
+        r.hset(job,'forceretry',1) if forceretry else r.hset(job,'forceretry',0)
+        r.hset(job,'use_ICIJ',1) if use_ICIJ else r.hset(job,'use_ICIJ',0)
+        r.hset(job,'status','queued')
+        r.hset(job,'test',_test)
+        r.hset(job,'label','indexfile')
         r.hset(job,'job',job)
         r.hmset(job,{'show_taskbar':1,'progress':0,'progress_str':"",'target_count':"",'moved':"",'new':"",'deleted':"",'unchanged':""})
         return job_id
@@ -283,6 +413,8 @@ def task_dispatch(job_id):
                 scan_extract_job(job_id,job,task)                    
             elif task=='dupscan':
                 dupscan_job(job_id,job,task)
+            elif task=='file_index':
+                index_file_job(job_id,job,task)
             else:
                 log.info(f'no task defined .. killing job')
                 r.delete(job)
@@ -292,62 +424,86 @@ def task_dispatch(job_id):
             log.info(f'Job \"{job_id}\" does not exist in queue')
             r.srem('SEARCHBOX_JOBS',job_id)
             return False
-    except:
-        log.info('Exception in searchbox task: removing job')
+    except Exception as e:
+        log.info('Exception in searchbox task ... removing job')
+        log.debug(e)
         r.srem('SEARCHBOX_JOBS',job_id)
-        raise
+        #raise
 
 def scan_extract_job(job_id,job,task):
-    sub_job_id=r.hget(job,'sub_job_id')
-    sub_job='SB_TASK.'+sub_job_id if sub_job_id else None
-    status=r.hget(job,'status')
     ocr=0 if r.hget(job,'ocr')==0 else 1
     collection_id=r.hget(job,'collection_id')
     force_retry = True if 'force_retry' in task else False
     use_icij = True if 'icij' in task else False
-    log.debug(f'ocr: {ocr}, force_retry: {force_retry}, icij {use_icij}, sub_id: {sub_job}')
-    if status=='queued':
-        log.info('making scan job')
-        sub_job_id=make_scan_job(collection_id,_test=0)
-        r.hset(job,'status','scanning')
-        if sub_job_id:
-            r.hset(job,'sub_job_id',sub_job_id)
-    elif status=='scan_complete':
-        pass
-    elif status =='scanning' and not sub_job:
-         log.info('no active sub-job put back in queue')
-         r.hset(job,'status','queued')
-    elif status=='scanning':
-        sub_status=r.hget(sub_job,'status')
-        if sub_status =='completed':
-            log.debug('now index')   
-            sub_job_id=make_index_job(collection_id,_test=0,force_retry=False,use_icij=False,ocr=1)
-            r.hset(job,'status','indexing')
-            r.hset(job,'sub_job_id',sub_job_id)
-        else:
-            log.debug('still scanning')
-    elif status=='indexing':
-        sub_status=r.hget(sub_job,'status')
-        if sub_status =='completed':
-            r.hset(job,'status','completed')
-            r.srem('SEARCHBOX_JOBS',job_id)
-            r.sadd('SEARCHBOX_JOBS_DONE',job_id)
-            log.debug('scan and index complete')
-        elif sub_status =='error':
-            r.hset(job,'status','completed')
-            r.srem('SEARCHBOX_JOBS',job_id)
-            r.sadd('SEARCHBOX_JOBS_DONE',job_id)
-            log.debug('scan and index shutdown on error')
-        else:
-            log.debug('still indexing')
-    else: 
-        pass   
-
+    #log.debug(f'ScanExtractJob: ocr: {ocr}, force_retry: {force_retry}, icij {use_icij}')
+    
+    try:
+        while True:
+            status=r.hget(job,'status')
+            sub_job_id=r.hget(job,'sub_job_id')
+            sub_job='SB_TASK.'+sub_job_id if sub_job_id else None
+            #log.debug(f'Scan-Extract loop: sub_id= {sub_job}')
+            if status=='queued':
+                log.info('making scan job')
+                sub_job_id=make_scan_job(collection_id,_test=0)
+                r.hset(job,'status','scanning')
+                if sub_job_id:
+                    r.hset(job,'sub_job_id',sub_job_id)
+            elif status=='scan_complete':
+                pass
+            elif status =='scanning' and not sub_job:
+                 log.info('no active sub-job put back in queue')
+                 r.hset(job,'status','queued')
+            elif status=='scanning':
+                sub_status=r.hget(sub_job,'status')
+                if sub_status =='completed':
+                    total=r.hget(sub_job,'total')
+                    #log.debug(total)
+                    if int(total)==0:
+                        log.debug('No files to Extract : no need to index')
+                        raise TaskError
+                    log.debug('now index')   
+                    sub_job_id=make_index_job(collection_id,_test=0,force_retry=False,use_icij=False,ocr=1)
+                    r.hset(job,'status','indexing')
+                    r.hset(job,'sub_job_id',sub_job_id)
+                elif sub_status == 'queued':
+                    #check it is still operational
+                    all_tasks=r.smembers('SEARCHBOX_JOBS')
+                    if sub_job_id in all_tasks:
+                        log.debug('Waiting for scan to start')
+                    else:
+                        log.debug('Scan job not present - abort Scan and Extract')
+                        raise TaskError
+                else:
+                    log.debug('still scanning')
+            elif status=='indexing':
+                sub_status=r.hget(sub_job,'status')
+                if sub_status =='completed':
+                    r.hset(job,'status','completed')
+                    r.srem('SEARCHBOX_JOBS',job_id)
+                    r.sadd('SEARCHBOX_JOBS_DONE',job_id)
+                    log.debug('scan and index complete')
+                    break
+                elif sub_status =='error':
+                    log.debug('scan and index shutdown on error')
+                    raise TaskError
+                else:
+                    #log.debug('still indexing')
+                    pass
+            else: 
+                pass   
+            time.sleep(1)
+    except TaskError:
+        r.hset(job,'status','completed')
+        r.srem('SEARCHBOX_JOBS',job_id)
+        r.sadd('SEARCHBOX_JOBS_DONE',job_id)            
+    log.debug('terminating ScanExtract loop')
 
 def scan_job(job_id,job,task):
     collection_id=r.hget(job,'collection_id')
     log.info(f'scanning collection {collection_id}')
     scan_collection_id(job,collection_id)
+    log.debug(f'completed scanning {job_id}')
     r.srem('SEARCHBOX_JOBS',job_id)
     r.sadd('SEARCHBOX_JOBS_DONE',job_id)
     
@@ -373,6 +529,49 @@ def dupscan_process(job,folder,label):
         'unchanged':"",
         'changed':_index.changed_files_count
         })
+
+def index_file_job(job_id,job,task):
+    ocr_raw=r.hget(job,'ocr')
+    ocr=False if ocr_raw==0 else True
+    useICIJ= True if r.hget(job,'use_ICIJ')=='1' else False
+    forceretry= True if r.hget(job,'forceretry')=='1' else False
+    ignore_filesize=True if r.hget(job,'ignore_filesize')=='1' else False
+    file_id=r.hget(job,'file_id')
+    r.hset(job,'status','started')
+    
+    _test=True if r.hget(job,'test')=='True' else False
+    log.info('This is a test') if _test else None
+    log.info(f'indexing file {file_id} with forceretry={forceretry}, ignore_filesize={ignore_filesize}, useICIJ={useICIJ}' )
+    docstore=indexSolr.DOCSTORE
+    try:
+        _file=file_from_id(file_id)
+        r.hset(job,'progress_str',_file.filename)
+        ext=indexSolr.ExtractSingleFile(_file,forceretry=forceretry,useICIJ=useICIJ,ocr=ocr,docstore=docstore,ignore_filesize=ignore_filesize,job=job,meta_only=False)  
+        log.debug(ext.__dict__)
+        r.hset(job,'status','completed')
+        r.hset(job,'progress_str',_file.filename)
+        if ext.failed>0:
+            try:
+                message=ext.failedlist[0][1]
+            except:
+                message=""
+        else:
+            message=""
+        r.hset(job,'message',message)
+    except updateSolr.s.SolrConnectionError as e:
+        log.error(f'Solr Connection Error: {e}')
+        r.hset(job,'status','error')
+        r.hset(job,'message','Solr connection error')
+        raise
+    except updateSolr.s.MissingConfigData as e:
+        log.error(f'Missing Config Data: {e}')
+        r.hset(job,'status','error')
+        r.hset(job,'message','Missing config data')
+        
+    finally:
+        r.srem('SEARCHBOX_JOBS',job_id)
+        log.info(f'Removed job {job_id}')
+        r.sadd('SEARCHBOX_JOBS_DONE',job_id)
 
 
 def index_job(job_id,job,task):
@@ -415,8 +614,7 @@ def index_job(job_id,job,task):
         r.srem('SEARCHBOX_JOBS',job_id)
         log.info(f'Removed job {job_id}')
         r.sadd('SEARCHBOX_JOBS_DONE',job_id)
-   
-    
+       
 
 def scan_collection_id(job,collection_id,_test=False):
     _collection,_mycore=collection_from_id(collection_id)
@@ -444,7 +642,7 @@ def dupscan_folder(job,folder_path,label=None):
         exc_type, exc_value, exc_traceback = sys.exc_info()
         traceback.print_exc(limit=2, file=sys.stdout)
         log.error(f'Error scanning {e}')
-        r.hset(job,{'message':'Scan Error','progress_str':'Scan terminated'})
+        r.hset(job,{'message':'Scan Error','f':'Scan terminated'})
         
         return None
     
