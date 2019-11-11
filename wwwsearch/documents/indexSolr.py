@@ -164,7 +164,8 @@ class Extractor():
         """extract single file to solr index"""
         
         if self.skip_file(file): #don't index at all
-            log.debug('Skipping {}'.format(file))
+            #log.debug('Skipping {}'.format(file))
+            pass
         else:
             log.info('Attempting index of {}'.format(file.filepath))
             self.update_working_file(file.filepath) #update redis output
@@ -389,7 +390,7 @@ class Extractor():
         """test if file should be skipped entirely from index or extract"""
         if file.indexedSuccess:
             file.error_message='Already indexed'
-            log.debug(f'Skipped {file.error_message} path: {file.filename}')
+            #log.debug(f'Skipped {file.error_message} path: {file.filename}')
             #skip this file: it's already indexed
         elif file.indexedTry and not self.forceretry:
             #skip this file, tried before and not forcing retry
@@ -457,7 +458,7 @@ class Extractor():
             except ZeroDivisionError:
                 progress=f'100'
             progress_str=f"{processed} of {self.target_count} files" #0- replace 0 for decimal places
-            log.debug(f'Progress: {progress_str}')
+            #log.debug(f'Progress: {progress_str}')
             #log.debug(self.failedlist)
             failed_json=json.dumps(self.failedlist)
             #log.debug(failed_json)
@@ -519,11 +520,12 @@ class ChildProcessor():
         #add source info to the extracted document
             log.debug(solrdoc.__dict__)
             _path=solrdoc.data.get('docpath')[0]
+            _source=solrdoc.data.get(self.mycore.sourcefield)
             date_from_path=None
-            
 
             if not solrdoc.docname: #no stored filename
-                filename=solrdoc.data[self.mycore.docnamesourcefield2]
+                log.debug('no stored filename')
+                filename=solrdoc.data.get(self.mycore.docnamesourcefield2)
                 if filename:
                     date_from_path=file_utils.FileSpecs(filename,scan_contents=False).date_from_path
                     result=updatetags(solrdoc.id,self.mycore,value=filename,field_to_update='docnamefield',newfield=False)
@@ -543,12 +545,13 @@ class ChildProcessor():
                 except Exception as e:
                     log.error(e)
                     return False
-            
                     
             changes=[]
             #check_the_date
             parsed_date=self.parse_date(solrdoc.id,None,date_from_path)
+            log.debug(parsed_date)
             changes.append((self.mycore.datesourcefield,'date',parsed_date)) if parsed_date else None
+            log.debug(changes)
             
             file_size=s.getfield(solrdoc.id,'file_size',self.mycore)
             if file_size:
@@ -556,14 +559,21 @@ class ChildProcessor():
                 log.debug(f'Size parsed: {size}')
                 changes.append((self.mycore.docsizesourcefield1,'solrdocsize',size)) if size else None
             
-            #extract a relative path from the docstore root
-            _relpath=make_relpath(_path,docstore=self.docstore) if _path else None
-            log.debug(_relpath)
-            if _relpath:
-                changes.append((self.mycore.docpath,'docpath',_relpath))
-                if self.mycore.parenthashfield:
-                    parenthash=file_utils.parent_hash(_relpath)
-                    changes.append((self.mycore.parenthashfield,self.mycore.parenthashfield,parenthash))
+            #check if path needs changing:
+            if self.path:
+                correct_path=make_relpath(self.path,docstore=self.docstore) if self.path else None
+                if correct_path ==_path:
+                    log.debug('Path OK - no need to change')
+                    pass
+                else:
+                #extract a relative path from the docstore root
+                    _relpath=make_relpath(self.path,docstore=self.docstore) if self.path else None
+                    log.debug(_relpath)
+                    if _relpath:
+                        changes.append((self.mycore.docpath,'docpath',_relpath))
+                        if self.mycore.parenthashfield:
+                            parenthash=file_utils.parent_hash(_relpath)
+                            changes.append((self.mycore.parenthashfield,self.mycore.parenthashfield,parenthash))
             if changes:
                 log.debug(changes)
                 response,updatestatus=update_meta(solrdoc.id,changes,self.mycore)

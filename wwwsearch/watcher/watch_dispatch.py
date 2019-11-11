@@ -77,9 +77,7 @@ class Index_Dispatch:
         self.destpath=destpath
         self.check_base()
         self.check_dupbase()
-        self.process()
-    def process(self):
-        #log.debug(f'EVENT: {self.event_type}  PATH: {self.sourcepath}  (DESTPATH: {self.destpath})') if not self.ignore else None
+        log.debug(f'EVENT: {self.event_type}  PATH: {self.sourcepath}  (DESTPATH: {self.destpath})') if not self.ignore else None
         if self.event_type=='created':
             self.dupbase_create()
             self.create()
@@ -138,7 +136,7 @@ class Index_Dispatch:
             self.create()
 
     def moved(self):
-        log.debug('move event')
+        #log.debug('move event')
         self.moved_dupbase()
         if self.dest_in_database and self.source_in_database:
             self.delete() #delete the origin - the destination will be picked up with move event
@@ -174,7 +172,7 @@ class Index_Dispatch:
         else:
             self.sourcepath=self.destpath #send new location to source path to create file record
             #create if within a collection
-            log.info('CREATE IF WITHIN MASTERINDEX')
+            #log.info('CREATE IF WITHIN MASTERINDEX')
             if self.master_dest_changed:
                 self.master_index.add_new_file(self.destpath)
                 self.master_index.save()

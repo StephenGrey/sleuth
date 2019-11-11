@@ -13,7 +13,7 @@ except:
 
 #checking for what files in existing solrindex
 def index_check(collection,thiscore):
-
+    log.debug(f'Checking index {thiscore} with collection: {collection}')
     log.debug(f'BASEDIR: {BASEDIR}')
     #first get solrindex ids and key fields
     try:#make a dictionary of filepaths from solr index
@@ -57,6 +57,8 @@ def index_check(collection,thiscore):
                 file.solrid=solrdata.id
                 file.save()
                 counter+=1
+                if counter%500==0:
+                    log.debug('checking file number {counter}')
                 continue
         #INDEX CHECK: METHOD TWO: CHECK IF FILE STORED IN SOLR INDEX UNDER CONTENTS HASH
             elif not file.is_folder:
@@ -110,6 +112,7 @@ def meta_check(thiscore,file,solrdata):
     log.debug('found index for doc - now checking meta')
     meta_updater=UpdateMeta(thiscore,file,solrdata,docstore=BASEDIR,existing=True)
     
-    c=ChildProcessor(file.filepath,thiscore,hash_contents=file.hash_contents,sourcetext=get_source(file),docstore=BASEDIR)
-    c.process_children()
+    if not file.is_folder:
+        c=ChildProcessor(file.filepath,thiscore,hash_contents=file.hash_contents,sourcetext=get_source(file),docstore=BASEDIR)
+        c.process_children()
     
