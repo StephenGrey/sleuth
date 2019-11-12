@@ -308,51 +308,54 @@ class Extractor():
     def update_existing_meta(self,file,existing_doc):
         """update meta of existing solr doc"""
         result=True
-        file.solrid=existing_doc.id
-        log.debug('Existing docpath: {}'.format(existing_doc.data.get('docpath')))
-        log.debug('Existing parent path hashes: {}'.format(existing_doc.data.get(self.mycore.parenthashfield)))
-        log.debug(f'Existing source: {existing_doc.data.get(self.mycore.sourcefield)}')
-        
-        
-        
-        #add a source if no source
-        solr_source=existing_doc.data.get(self.mycore.sourcefield)
-        if not solr_source:
-            file_source=get_source(file)
-            if file_source:
-                log.debug(f'Adding missing source {file_source}')
-                result=updatetags(file.solrid,self.mycore,value=file_source,field_to_update='sourcefield',newfield=False,test=False)
-                if not result:
-                    log.error('Failed to add source field')
-        
-        if file.content_date: #only modify date if date from path changes
-            date_from_path=time_utils.timestringGMT(file.content_date)
-            log.debug(f'Existing date: {existing_doc.date}')
-            log.debug(f'Date from path {date_from_path}')
-            if existing_doc.date != date_from_path:
-                log.debug('Date from path altered; update in index')
-                if not clear_date(file.solrid,self.mycore):
-                    log.error('Failed to clear previous date')
-                result=updatetags(file.solrid,self.mycore,value=date_from_path,field_to_update='datesourcefield',newfield=False,test=False)
-                if not result:
-                    log.error('Failed in updating date from path')
-            else:
-                log.debug('Date from path unchanged')
-
-        #check paths
-        paths_are_missing,paths,parent_hashes=check_paths(existing_doc,file,self.mycore,docstore=self.docstore)
-        if paths_are_missing:
-            log.debug('Updating doc \"{}\" to append the old and new filepath {} to make {}'.format(file.solrid,file.filepath,paths))
-            result=updatetags(file.solrid,self.mycore,field_to_update='docpath',value=paths)
-            if result:
-                result=updatetags(file.solrid,self.mycore,field_to_update=self.mycore.parenthashfield,value=parent_hashes)
-        
-        if existing_doc.docname != file.filename:
-            log.debug(f'Existing filename {existing_doc.docname} to replace with {file.filename}')
-            result=updatetags(file.solrid,self.mycore,field_to_update=self.mycore.docnamesourcefield,value=file.filename)
-        
-        file.save()
-        
+        try:
+            file.solrid=existing_doc.id
+            log.debug('Existing docpath: {}'.format(existing_doc.data.get('docpath')))
+            log.debug('Existing parent path hashes: {}'.format(existing_doc.data.get(self.mycore.parenthashfield)))
+            log.debug(f'Existing source: {existing_doc.data.get(self.mycore.sourcefield)}')
+            
+            
+            
+            #add a source if no source
+            solr_source=existing_doc.data.get(self.mycore.sourcefield)
+            if not solr_source:
+                file_source=get_source(file)
+                if file_source:
+                    log.debug(f'Adding missing source {file_source}')
+                    result=updatetags(file.solrid,self.mycore,value=file_source,field_to_update='sourcefield',newfield=False,test=False,check=False)
+                    if not result:
+                        log.error('Failed to add source field')
+            
+            if file.content_date: #only modify date if date from path changes
+                date_from_path=time_utils.timestringGMT(file.content_date)
+                log.debug(f'Existing date: {existing_doc.date}')
+                log.debug(f'Date from path {date_from_path}')
+                if existing_doc.date != date_from_path:
+                    log.debug('Date from path altered; update in index')
+                    if not clear_date(file.solrid,self.mycore):
+                        log.error('Failed to clear previous date')
+                    result=updatetags(file.solrid,self.mycore,value=date_from_path,field_to_update='datesourcefield',newfield=False,test=False,check=False)
+                    if not result:
+                        log.error('Failed in updating date from path')
+                else:
+                    log.debug('Date from path unchanged')
+    
+            #check paths
+            paths_are_missing,paths,parent_hashes=check_paths(existing_doc,file,self.mycore,docstore=self.docstore)
+            if paths_are_missing:
+                log.info('Updating doc \"{}\" to append the old and new filepath {} to make {}'.format(file.solrid,file.filepath,paths))
+                result=updatetags(file.solrid,self.mycore,field_to_update='docpath',value=paths,check=False)
+                if result:
+                    result=updatetags(file.solrid,self.mycore,field_to_update=self.mycore.parenthashfield,value=parent_hashes,check=False)
+            
+            if existing_doc.docname != file.filename:
+                log.info(f'Existing filename {existing_doc.docname} to replace with {file.filename}')
+                result=updatetags(file.solrid,self.mycore,field_to_update=self.mycore.docnamesourcefield,value=file.filename,check=False)
+            
+            file.save()
+        except Exception as e:
+            log.error(e)
+            result=False
         return result
     
     def index_meta(self,file):
@@ -520,76 +523,85 @@ class ChildProcessor():
         
         log.debug(f'Processing children; checks:{self.check}')
         result=True
-        solr_result=s.hashlookup(self.hash_contents, self.mycore,children=True)
-        for solrdoc in solr_result.results:
-        #add source info to the extracted document
-            log.debug(solrdoc.__dict__)
-            _path=solrdoc.data.get('docpath')[0]
-            _source=solrdoc.data.get(self.mycore.sourcefield)
-            log.debug(_source)
-            date_from_path=None
-            changes=[]
+        try:
+            	
+            solr_result=s.hashlookup(self.hash_contents, self.mycore,children=True)
             
-            if not solrdoc.docname: #no stored filename and therefore no parse of raw extract
-                log.debug('no stored filename')
-                filename=solrdoc.data.get(self.mycore.docnamesourcefield2)
-                if not filename:
-                    filename='File Attachment'
-                date_from_path=file_utils.FileSpecs(filename,scan_contents=False).date_from_path
-                result=updatetags(solrdoc.id,self.mycore,value=filename,field_to_update='docnamefield',newfield=False,check=self.check)
-                if self.check:
-                    if result:
-                        log.debug(f'added filename \'{filename}\' to child doc')
-                    else:
-                        log.debug(f'failed to add filename \'{filename}\' to child doc')
-                        return False
-                #check_the_date
-                parsed_date=self.parse_date(solrdoc.id,None,date_from_path)
-                log.debug(f'Parsed date: {parsed_date}')
-                changes.append((self.mycore.datesourcefield,'date',parsed_date)) if parsed_date else None
-                #log.debug(changes)
+            for solrdoc in solr_result.results:
+            #add source info to the extracted document
+                log.debug(solrdoc.__dict__)
+                _path=solrdoc.data.get('docpath')[0]
+                _source=solrdoc.data.get(self.mycore.sourcefield)
+                log.debug(_source)
+                date_from_path=None
+                changes=[]
                 
-                file_size=s.getfield(solrdoc.id,'file_size',self.mycore)
-                if file_size:
-                    size=re.match(r"\d+",file_size)[0]
-                    log.debug(f'Size parsed: {size}')
-                    changes.append((self.mycore.docsizesourcefield1,'solrdocsize',size)) if size else None
-                
-            if self.sourcetext and _source!=self.sourcetext:
-                try:
-                    result=updatetags(solrdoc.id,self.mycore,value=self.sourcetext,field_to_update='sourcefield',newfield=False,check=self.check)
+                if not solrdoc.docname: #no stored filename and therefore no parse of raw extract
+                    log.debug('no stored filename')
+                    filename=solrdoc.data.get(self.mycore.docnamesourcefield2)
+                    if not filename:
+                        filename='File Attachment'
+                    date_from_path=file_utils.FileSpecs(filename,scan_contents=False).date_from_path
+                    result=updatetags(solrdoc.id,self.mycore,value=filename,field_to_update='docnamefield',newfield=False,check=self.check)
                     if self.check:
-                        if result==True:
-                            log.info('Added source \"{}\" to child-document \"{}\", id {}'.format(self.sourcetext,solrdoc.docname,solrdoc.id))
+                        if result:
+                            log.debug(f'added filename \'{filename}\' to child doc')
                         else:
-                            log.error('Failed to add source to child document id: {}'.format(solrdoc.id))
+                            log.debug(f'failed to add filename \'{filename}\' to child doc')
                             return False
-                except Exception as e:
-                    log.error(e)
-                    return False
+                    #check_the_date
+                    parsed_date=self.parse_date(solrdoc.id,None,date_from_path)
+                    log.debug(f'Parsed date: {parsed_date}')
+                    changes.append((self.mycore.datesourcefield,'date',parsed_date)) if parsed_date else None
+                    #log.debug(changes)
                     
-            
-            #check if path needs changing:
-            if self.path:
-                correct_path=make_relpath(self.path,docstore=self.docstore) if self.path else None
-                if correct_path ==_path:
-                    log.debug('Path OK - no need to change')
-                    pass
-                else:
-                #extract a relative path from the docstore root
-                    _relpath=make_relpath(self.path,docstore=self.docstore) if self.path else None
-                    log.debug(_relpath)
-                    if _relpath:
-                        changes.append((self.mycore.docpath,'docpath',_relpath))
-                        if self.mycore.parenthashfield:
-                            parenthash=file_utils.parent_hash(_relpath)
-                            changes.append((self.mycore.parenthashfield,self.mycore.parenthashfield,parenthash))
-            if changes:
-                log.debug(changes)
-                response,updatestatus=update_meta(solrdoc.id,changes,self.mycore,check=self.check)
-                if not updatestatus:
-                    return False
-        return True
+                    file_size=s.getfield(solrdoc.id,'file_size',self.mycore)
+                    if file_size:
+                        size=re.match(r"\d+",file_size)[0]
+                        log.debug(f'Size parsed: {size}')
+                        changes.append((self.mycore.docsizesourcefield1,'solrdocsize',size)) if size else None
+                    
+                if self.sourcetext and _source!=self.sourcetext:
+                    try:
+                        result=updatetags(solrdoc.id,self.mycore,value=self.sourcetext,field_to_update='sourcefield',newfield=False,check=self.check)
+                        if self.check:
+                            if result==True:
+                                log.info('Added source \"{}\" to child-document \"{}\", id {}'.format(self.sourcetext,solrdoc.docname,solrdoc.id))
+                            else:
+                                log.error('Failed to add source to child document id: {}'.format(solrdoc.id))
+                                return False
+                    except Exception as e:
+                        log.error(e)
+                        return False
+                        
+                
+                #check if path needs changing:
+                if self.path:
+                    correct_path=make_relpath(self.path,docstore=self.docstore) if self.path else None
+                    if correct_path ==_path:
+                        log.debug('Path OK - no need to change')
+                        pass
+                    else:
+                    #extract a relative path from the docstore root
+                        _relpath=make_relpath(self.path,docstore=self.docstore) if self.path else None
+                        log.debug(_relpath)
+                        if _relpath:
+                            changes.append((self.mycore.docpath,'docpath',_relpath))
+                            if self.mycore.parenthashfield:
+                                parenthash=file_utils.parent_hash(_relpath)
+                                changes.append((self.mycore.parenthashfield,self.mycore.parenthashfield,parenthash))
+                if changes:
+                    log.debug(changes)
+                    response,updatestatus=update_meta(solrdoc.id,changes,self.mycore,check=self.check)
+                    if not updatestatus:
+                        return False
+            return True
+        except Exception as e:
+            log.error(e)
+            try:
+                self.mycore.commit()
+            except:
+                pass
 
     def parse_date(self,solrid,last_modified,date_from_path,indexed=True):
         """evaluate the best display date from alternative sources"""

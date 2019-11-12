@@ -37,6 +37,9 @@ def index_check(collection,thiscore):
             hash=file.hash_contents #get the stored hash of the file contents
             #print (file.filepath,relpath,file.id,hash)
             file.indexFails=0 #reset the indexing tries
+            counter+=1
+            if counter%500==0:
+                log.info(f'checking file number {counter}')
 
 	#INDEX CHECK: METHOD ONE : IF RELATIVE PATHS STORED MATCH
             if relpath in indexpaths:  #if the path in database in the solr index
@@ -56,9 +59,7 @@ def index_check(collection,thiscore):
                     file.indexedSuccess=False
                 file.solrid=solrdata.id
                 file.save()
-                counter+=1
-                if counter%500==0:
-                    log.debug('checking file number {counter}')
+
                 continue
         #INDEX CHECK: METHOD TWO: CHECK IF FILE STORED IN SOLR INDEX UNDER CONTENTS HASH
             elif not file.is_folder:
@@ -113,6 +114,6 @@ def meta_check(thiscore,file,solrdata):
     meta_updater=UpdateMeta(thiscore,file,solrdata,docstore=BASEDIR,existing=True)
     
     if not file.is_folder:
-        c=ChildProcessor(file.filepath,thiscore,hash_contents=file.hash_contents,sourcetext=get_source(file),docstore=BASEDIR)
+        c=ChildProcessor(file.filepath,thiscore,hash_contents=file.hash_contents,sourcetext=get_source(file),docstore=BASEDIR,check=False)
         c.process_children()
     

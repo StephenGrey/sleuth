@@ -7,6 +7,8 @@ from django.conf import settings
 logging.config.dictConfig(settings.LOGGING)
 log = logging.getLogger('ownsearch.watch_filesystem')
 
+DISPATCHER=watch_dispatch.Index_Dispatch()
+
 # handles sync event actions, only modified 
 class MySyncHandler(FileSystemEventHandler):
 	
@@ -30,8 +32,8 @@ def launch(path):
     observer = Observer()
     observer.schedule(MySyncHandler(), path, recursive=True)
     observer.start()
-    global DISPATCHER
-    DISPATCHER=watch_dispatch.Index_Dispatch()
+#    global DISPATCHER
+#    DISPATCHER=watch_dispatch.Index_Dispatch()
     return observer
 
 if __name__ == "__main__":
