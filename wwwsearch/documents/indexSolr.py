@@ -135,13 +135,14 @@ class CorrectMeta(ExtractFolder):
 
 class Extractor():
     """extract a collection of docs into solr"""
-    def __init__(self,collection,mycore,forceretry=False,useICIJ=False,ignore_filesize=False,ocr=True,docstore=DOCSTORE,job=None):
+    def __init__(self,collection,mycore,forceretry=False,useICIJ=False,ignore_filesize=False,ocr=True,docstore=DOCSTORE,job=None,check=True):
         
         if not isinstance(mycore,s.SolrCore) or not isinstance(collection,Collection):
             raise BadParameters("Bad parameters for extraction")
         self.collection=collection
         self.ignore_filesize=ignore_filesize
         self.mycore=mycore
+        self.check=check
         self.forceretry=forceretry
         self.useICIJ=useICIJ
         self.ocr=ocr
@@ -237,7 +238,7 @@ class Extractor():
                                 sourcetext=''
 
                             try:
-                                ext=ICIJ_Post_Processor(file.filepath,self.mycore,hash_contents=file.solrid, sourcetext=sourcetext,docstore=self.docstore,test=False)
+                                ext=ICIJ_Post_Processor(file.filepath,self.mycore,hash_contents=file.solrid, sourcetext=sourcetext,docstore=self.docstore,test=False,check=self.check)
                             except Exception as e:
                                 log.error(f'Cannot add meta data to solrdoc: {new_id}, error: {e}')
                             
@@ -473,10 +474,11 @@ class Extractor():
 
 class UpdateMeta(Extractor):
     """extract a single file with meta only"""
-    def __init__(self,mycore,file,existing_doc,docstore=DOCSTORE,existing=True):
+    def __init__(self,mycore,file,existing_doc,docstore=DOCSTORE,existing=True,check=True):
         if not isinstance(mycore,s.SolrCore):
             raise BadParameters("Bad parameters for extraction")
         self.mycore=mycore
+        self.check=check
         self.ignore_filesize=False
         self.docstore=docstore
         if existing:
@@ -484,9 +486,10 @@ class UpdateMeta(Extractor):
 
 class ExtractSingleFile(Extractor):
     """extract a single doc into solr"""
-    def __init__(self,_file,forceretry=False,useICIJ=False,ocr=True,docstore=DOCSTORE,job=None,meta_only=False,ignore_filesize=False):        
+    def __init__(self,_file,forceretry=False,useICIJ=False,ocr=True,docstore=DOCSTORE,job=None,meta_only=False,ignore_filesize=False,check=True):        
         cores=s.getcores() #fetch dictionary of installed solr indexes (cores)
         self.mycore=cores[_file.collection.core.id]
+        self.check=check
         self.collection=_file.collection
         if not isinstance(self.mycore,s.SolrCore) or not isinstance(self.collection,Collection):
             raise BadParameters("Bad parameters for extraction")
@@ -504,8 +507,9 @@ class ExtractSingleFile(Extractor):
         self.extract()
 
 class ChildProcessor():
-    def __init__(self,path,mycore,hash_contents='',sourcetext='',docstore=''):
+    def __init__(self,path,mycore,hash_contents='',sourcetext='',docstore='',check=True):
         self.path=path
+        self.check=check
         self.mycore=mycore
         self.sourcetext=sourcetext
         self.hash_contents = hash_contents if hash_contents else file_utils.get_contents_hash(self.path)
@@ -514,6 +518,7 @@ class ChildProcessor():
 
     def process_children(self):
         
+        log.debug(f'Processing children; checks:{self.check}')
         result=True
         solr_result=s.hashlookup(self.hash_contents, self.mycore,children=True)
         for solrdoc in solr_result.results:
@@ -521,43 +526,48 @@ class ChildProcessor():
             log.debug(solrdoc.__dict__)
             _path=solrdoc.data.get('docpath')[0]
             _source=solrdoc.data.get(self.mycore.sourcefield)
+            log.debug(_source)
             date_from_path=None
-
-            if not solrdoc.docname: #no stored filename
+            changes=[]
+            
+            if not solrdoc.docname: #no stored filename and therefore no parse of raw extract
                 log.debug('no stored filename')
                 filename=solrdoc.data.get(self.mycore.docnamesourcefield2)
-                if filename:
-                    date_from_path=file_utils.FileSpecs(filename,scan_contents=False).date_from_path
-                    result=updatetags(solrdoc.id,self.mycore,value=filename,field_to_update='docnamefield',newfield=False)
+                if not filename:
+                    filename='File Attachment'
+                date_from_path=file_utils.FileSpecs(filename,scan_contents=False).date_from_path
+                result=updatetags(solrdoc.id,self.mycore,value=filename,field_to_update='docnamefield',newfield=False,check=self.check)
+                if self.check:
                     if result:
                         log.debug(f'added filename \'{filename}\' to child doc')
                     else:
                         log.debug(f'failed to add filename \'{filename}\' to child doc')
                         return False
-            if self.sourcetext:
+                #check_the_date
+                parsed_date=self.parse_date(solrdoc.id,None,date_from_path)
+                log.debug(f'Parsed date: {parsed_date}')
+                changes.append((self.mycore.datesourcefield,'date',parsed_date)) if parsed_date else None
+                #log.debug(changes)
+                
+                file_size=s.getfield(solrdoc.id,'file_size',self.mycore)
+                if file_size:
+                    size=re.match(r"\d+",file_size)[0]
+                    log.debug(f'Size parsed: {size}')
+                    changes.append((self.mycore.docsizesourcefield1,'solrdocsize',size)) if size else None
+                
+            if self.sourcetext and _source!=self.sourcetext:
                 try:
-                    result=updatetags(solrdoc.id,self.mycore,value=self.sourcetext,field_to_update='sourcefield',newfield=False)
-                    if result==True:
-                        log.info('Added source \"{}\" to child-document \"{}\", id {}'.format(self.sourcetext,solrdoc.docname,solrdoc.id))
-                    else:
-                        log.error('Failed to add source to child document id: {}'.format(solrdoc.id))
-                        return False
+                    result=updatetags(solrdoc.id,self.mycore,value=self.sourcetext,field_to_update='sourcefield',newfield=False,check=self.check)
+                    if self.check:
+                        if result==True:
+                            log.info('Added source \"{}\" to child-document \"{}\", id {}'.format(self.sourcetext,solrdoc.docname,solrdoc.id))
+                        else:
+                            log.error('Failed to add source to child document id: {}'.format(solrdoc.id))
+                            return False
                 except Exception as e:
                     log.error(e)
                     return False
                     
-            changes=[]
-            #check_the_date
-            parsed_date=self.parse_date(solrdoc.id,None,date_from_path)
-            log.debug(parsed_date)
-            changes.append((self.mycore.datesourcefield,'date',parsed_date)) if parsed_date else None
-            log.debug(changes)
-            
-            file_size=s.getfield(solrdoc.id,'file_size',self.mycore)
-            if file_size:
-                size=re.match(r"\d+",file_size)[0]
-                log.debug(f'Size parsed: {size}')
-                changes.append((self.mycore.docsizesourcefield1,'solrdocsize',size)) if size else None
             
             #check if path needs changing:
             if self.path:
@@ -576,7 +586,7 @@ class ChildProcessor():
                             changes.append((self.mycore.parenthashfield,self.mycore.parenthashfield,parenthash))
             if changes:
                 log.debug(changes)
-                response,updatestatus=update_meta(solrdoc.id,changes,self.mycore)
+                response,updatestatus=update_meta(solrdoc.id,changes,self.mycore,check=self.check)
                 if not updatestatus:
                     return False
         return True
@@ -615,9 +625,10 @@ class ChildProcessor():
 
 
 class ExtractFile(ChildProcessor):
-    def __init__(self,path,mycore,hash_contents='',sourcetext='',docstore='',test=False,ocr=True,meta_only=False):
+    def __init__(self,path,mycore,hash_contents='',sourcetext='',docstore='',test=False,ocr=True,meta_only=False,check=True):
         self.path=path
         self.ocr=ocr
+        self.check=check
         specs=file_utils.FileSpecs(path,scan_contents=False)###
         self.filename=specs.name
         self.size=specs.length
@@ -670,13 +681,13 @@ class ExtractFile(ChildProcessor):
 
         log.debug(f'CHANGES: {changes}')
         
-        response,updatestatus=update_meta(self.solrid,changes,self.mycore)
+        response,updatestatus=update_meta(self.solrid,changes,self.mycore,check=self.check)
         #log.debug(response)
         
         self.post_result=updatestatus
         #log.debug(self.post_result)
         childresult=self.process_children()
-        #log.debug(childresult)
+        log.debug(f'Child process result: {childresult}')
         if self.post_result and childresult:
             return True
         else:
@@ -712,8 +723,9 @@ class ExtractFileMeta(ExtractFile):
 
 
 class ICIJ_Post_Processor(ExtractFile):
-    def __init__(self,path,mycore,hash_contents='',sourcetext='',docstore='',test=False,meta_only=False):
+    def __init__(self,path,mycore,hash_contents='',sourcetext='',docstore='',test=False,meta_only=False,check=True):
         self.path=path
+        self.check=check
         specs=file_utils.FileSpecs(path,scan_contents=False)###
         self.filename=specs.name
         self.docstore=docstore

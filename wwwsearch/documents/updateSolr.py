@@ -410,12 +410,12 @@ Methods to handle a list of defined changes: [[(sourcefield, resultfield, value)
 	the "resultfield" is an attribute of the SolrDoc object 
  
 """
-def update(id,changes,mycore,_test=False):  #solrid, list of changes [(sourcefield, resultfield, value),(f1,f2,value)..],core
+def update(id,changes,mycore,_test=False,check=True):  #solrid, list of changes [(sourcefield, resultfield, value),(f1,f2,value)..],core
     """update solr index with list of atomic changes"""
     data=makejson(id,changes,mycore)
-    response,poststatus=post_jsonupdate(data,mycore,test=_test)
+    response,poststatus=post_jsonupdate(data,mycore,test=_test,check=check)
     log.debug('Response: {} PostStatus: {}'.format(response,poststatus))
-    if not _test:
+    if not _test and check:
         updatestatus=checkupdate(id,changes,mycore)
         if updatestatus:
             log.debug('solr successfully updated')
@@ -521,9 +521,12 @@ def checkupdate(id,changes,mycore):
     return status
 
 
-def post_jsonupdate(data,mycore,timeout=10,test=False):
+def post_jsonupdate(data,mycore,timeout=10,test=False,check=True):
     """ I/O with Solr API """
-    updateurl=mycore.url+'/update/json?commit=true'
+    if check:
+        updateurl=mycore.url+'/update/json?commit=true'
+    else:
+        updateurl=mycore.url+'/update/json'
     url=updateurl
     log.debug(data)
     headers={'Content-type': 'application/json'}
@@ -754,7 +757,7 @@ def listmeta(id=2):
 
 #POST EXTRACTION PROCESSING
 
-def updatetags(solrid,mycore,value=['test','anothertest'],field_to_update='usertags1field',newfield=False,test=False):
+def updatetags(solrid,mycore,value=['test','anothertest'],field_to_update='usertags1field',newfield=False,test=False,check=True):
     """ADD ADDITIONAL METADATA TO SOLR RECORDS """
     #check the parameters
     field=mycore.__dict__.get(field_to_update,field_to_update) #decode the standard field, or use the name'as is'.
@@ -773,7 +776,7 @@ def updatetags(solrid,mycore,value=['test','anothertest'],field_to_update='usert
     log.debug(f'Json to post to index \"{mycore}\": {jsondoc}')
 
     #post the update
-    result,status=post_jsonupdate(jsondoc,mycore,timeout=10,test=test)
+    result,status=post_jsonupdate(jsondoc,mycore,timeout=10,test=test,check=check)
     
     #check the result
     log.debug('Solr doc update: result: {}, status: {}'.format(result,status))

@@ -106,6 +106,13 @@ class SolrCore:
     def solr_session(self):
         return SolrSession()
     
+    def commit(self):
+        try:
+           res=self.solr_session().get(self.url+'/update/json?commit=true')
+           log.debug(f'Committed \'{self.name}\' solr core, with result {res}')
+        except Exception as e:
+           log.error(e)
+    
     def ping(self):
         try:
             res=self.solr_session().get(self.url+'/admin/ping')

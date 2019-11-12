@@ -604,6 +604,63 @@ class ICIJExtractTest(ExtractorTest):
         self.assertEquals(doc.docname,'C05769606.pdf')
 
     
+    def test_no_commit(self):
+        _id2='28b00a45819a9307fa1f1a34fc729efb6d7e3378591e9d6b99f210b0b989f29c'
+        
+        #with commit
+        updateSolr.delete(_id2,self.mycore)        
+        updateSolr.updatetags(_id2,self.mycore)
+        doc=indexSolr.check_hash_in_solrdata(_id2,self.mycore)
+        
+        print(doc.__dict__)
+        self.assertTrue(doc.data.get('sb_usertags1')==['test', 'anothertest'])
+        
+        #no commit
+        updateSolr.delete(_id2,self.mycore)        
+        updateSolr.updatetags(_id2,self.mycore,check=False)
+        doc=indexSolr.check_hash_in_solrdata(_id2,self.mycore)
+        
+        self.assertFalse(doc)
+        
+        #now commit
+        self.mycore.commit()
+        doc=indexSolr.check_hash_in_solrdata(_id2,self.mycore)        
+        self.assertTrue(doc.data.get('sb_usertags1')==['test', 'anothertest'])
+
+        
+#        if doc:
+#            print(doc.__dict__)        
+#        self.assertFalse(doc.data.get('sb_usertags1')==['test', 'anothertest'])
+
+        
+    
+    def test_childprocess(self):
+#        #ERASE EVERYTHING FROM TESTS_ONLY 
+#        res,status=updateSolr.delete_all(self.mycore)
+#        self.assertTrue(status)
+        
+        
+        _id2='28b00a45819a9307fa1f1a34fc729efb6d7e3378591e9d6b99f210b0b989f29c'
+        updateSolr.delete(_id2,self.mycore)
+        _id='c032fe1fbef76624f1ad09e46feb4c04ec4e37a27a6a3487abc3ef73c702d3f9'
+        updateSolr.delete(_id,self.mycore)
+        
+        _relpath="mixed_folder/2013-03-10 Labour claims largest majority ever in post.docx"
+        path=os.path.abspath(os.path.join(os.path.dirname(__file__), '../tests/testdocs', _relpath))
+
+        _newfile=changes.newfile(path,self.sample_collection)
+        print(_newfile)
+        ext=indexSolr.ExtractSingleFile(_newfile,forceretry=False,useICIJ=True,ocr=True,docstore=self.docstore,job=None,check=False)
+            #print(ext.counter,ext.skipped,ext.failed)
+        self.mycore.commit()
+        doc=indexSolr.check_hash_in_solrdata(_id2,self.mycore)        
+        print(doc.__dict__)
+
+        self.assertEquals(doc.data.get('sb_source'),'Test source')
+        #running it a second time 
+        ch=indexSolr.ChildProcessor(path,self.mycore,docstore=self.docstore)
+        ch.process_children()
+    
 
     def test_ICIJfail(self):
         _id="fed766bc65fd9415917f0ded164a435011aab5247b2ee393929ec92bd96ffe74"
