@@ -106,6 +106,27 @@ class SolrCore:
     def solr_session(self):
         return SolrSession()
     
+    def backup(self,location=None,check=None):
+        self.ping()#check the solr core exists and is up- raises exception
+        PARAMS = {}
+        try:
+            if check:
+                backup_url="/replication?command=details" 
+            else:
+                backup_url="/replication?command=backup"
+                if location:
+                    assert os.path.exists(location)
+                    PARAMS = {'location':location}
+                    backup_url=f"/replication?command=backup "
+            log.info(backup_url)
+            res=self.solr_session().get(self.url+backup_url,params=PARAMS)
+            log.info(f'Back up command issued to solr with result: {res}')
+            log.info(res.content)
+            return res
+        except Exception as e:
+            log.error(e)
+            return False
+        
     def commit(self):
         try:
            res=self.solr_session().get(self.url+'/update/json?commit=true')

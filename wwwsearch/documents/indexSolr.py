@@ -793,8 +793,8 @@ class Collection_Post_Processor(Extractor):
                     existing_doc=check_file_in_solrdata(_file,self.mycore) #searches by hashcontents, not solrid
                     if existing_doc:
                     #FIX META ONLY
-                        result=self.update_existing_meta(_file,existing_doc)
-                        c=ChildProcessor(_file.filepath,self.mycore,hash_contents=_file.hash_contents,sourcetext=self.sourcetext,docstore=self.docstore)
+                        result=self.update_existing_meta(_file,existing_doc,check=False)
+                        c=ChildProcessor(_file.filepath,self.mycore,hash_contents=_file.hash_contents,sourcetext=self.sourcetext,docstore=self.docstore,check=False)
                         c.process_children()
                         _file.solrid=_file.hash_contents
                         _file.indexedSuccess=True
