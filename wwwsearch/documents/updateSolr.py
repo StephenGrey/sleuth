@@ -523,6 +523,7 @@ def checkupdate(id,changes,mycore):
 
 def post_jsonupdate(data,mycore,timeout=10,test=False,check=True):
     """ I/O with Solr API """
+    log.debug(f'Check: {check}')
     if check:
         updateurl=mycore.url+'/update/json?commit=true'
     else:

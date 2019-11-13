@@ -191,7 +191,7 @@ class Extractor():
                 existing_doc=check_file_in_solrdata(file,self.mycore) #searches by hashcontents, not solrid
                 if existing_doc and not file.indexMetaOnly:
                     #UPDATE META ONLY
-                    result=self.update_existing_meta(file,existing_doc)
+                    result=self.update_existing_meta(file,existing_doc,check=self.check)
                     if self.skip_extract(file): 
                         file.indexMetaOnly=True
                         file.save()
@@ -245,7 +245,7 @@ class Extractor():
                     else:
                         try:
                             #extract contents of file using inbuilt solr tika
-                            extractor=ExtractFile(file.filepath,self.mycore,hash_contents=file.hash_contents,sourcetext=sourcetext,docstore=self.docstore,test=False,ocr=self.ocr)
+                            extractor=ExtractFile(file.filepath,self.mycore,hash_contents=file.hash_contents,sourcetext=sourcetext,docstore=self.docstore,test=False,ocr=self.ocr,check=self.check)
                             result=extractor.result
                             if result:
                                 extractor.post_process()
@@ -282,7 +282,7 @@ class Extractor():
                 #Try to index meta despite the extract failure
                 log.debug(f'try to index the meta only')
                 try:
-                    ext=ExtractFileMeta(file.filepath,self.mycore,hash_contents=file.hash_contents,sourcetext='',docstore=self.docstore,meta_only=True)
+                    ext=ExtractFileMeta(file.filepath,self.mycore,hash_contents=file.hash_contents,sourcetext='',docstore=self.docstore,meta_only=True,check=self.check)
                     meta_result=ext.post_process(indexed=False)
                 except (s.SolrCoreNotFound,s.SolrConnectionError,requests.exceptions.RequestException) as e:
                     raise ExtractInterruption(self.interrupt_message())
@@ -305,7 +305,7 @@ class Extractor():
                 _file.save()
                 raise e
 
-    def update_existing_meta(self,file,existing_doc):
+    def update_existing_meta(self,file,existing_doc,check=False):
         """update meta of existing solr doc"""
         result=True
         try:
@@ -322,7 +322,7 @@ class Extractor():
                 file_source=get_source(file)
                 if file_source:
                     log.debug(f'Adding missing source {file_source}')
-                    result=updatetags(file.solrid,self.mycore,value=file_source,field_to_update='sourcefield',newfield=False,test=False,check=False)
+                    result=updatetags(file.solrid,self.mycore,value=file_source,field_to_update='sourcefield',newfield=False,test=False,check=check)
                     if not result:
                         log.error('Failed to add source field')
             
@@ -334,7 +334,7 @@ class Extractor():
                     log.debug('Date from path altered; update in index')
                     if not clear_date(file.solrid,self.mycore):
                         log.error('Failed to clear previous date')
-                    result=updatetags(file.solrid,self.mycore,value=date_from_path,field_to_update='datesourcefield',newfield=False,test=False,check=False)
+                    result=updatetags(file.solrid,self.mycore,value=date_from_path,field_to_update='datesourcefield',newfield=False,test=False,check=check)
                     if not result:
                         log.error('Failed in updating date from path')
                 else:
@@ -346,11 +346,11 @@ class Extractor():
                 log.info('Updating doc \"{}\" to append the old and new filepath {} to make {}'.format(file.solrid,file.filepath,paths))
                 result=updatetags(file.solrid,self.mycore,field_to_update='docpath',value=paths,check=False)
                 if result:
-                    result=updatetags(file.solrid,self.mycore,field_to_update=self.mycore.parenthashfield,value=parent_hashes,check=False)
+                    result=updatetags(file.solrid,self.mycore,field_to_update=self.mycore.parenthashfield,value=parent_hashes,check=check)
             
             if existing_doc.docname != file.filename:
                 log.info(f'Existing filename {existing_doc.docname} to replace with {file.filename}')
-                result=updatetags(file.solrid,self.mycore,field_to_update=self.mycore.docnamesourcefield,value=file.filename,check=False)
+                result=updatetags(file.solrid,self.mycore,field_to_update=self.mycore.docnamesourcefield,value=file.filename,check=check)
             
             file.save()
         except Exception as e:
@@ -485,7 +485,7 @@ class UpdateMeta(Extractor):
         self.ignore_filesize=False
         self.docstore=docstore
         if existing:
-            self.update_existing_meta(file,existing_doc)   
+            self.update_existing_meta(file,existing_doc,check=check)   
 
 class ExtractSingleFile(Extractor):
     """extract a single doc into solr"""
@@ -713,8 +713,9 @@ class ExtractFile(ChildProcessor):
             return self.size
 
 class ExtractFileMeta(ExtractFile):
-    def __init__(self,path,mycore,hash_contents='',sourcetext='',docstore='',test=False,meta_only=False):
+    def __init__(self,path,mycore,hash_contents='',sourcetext='',docstore='',test=False,meta_only=False,check=False):
         self.path=path
+        self.check=check
         self.ocr=False
         self.meta_only=meta_only
         specs=file_utils.FileSpecs(path,scan_contents=False)###
@@ -756,12 +757,13 @@ class ICIJ_Post_Processor(ExtractFile):
         
 
 class Collection_Post_Processor(Extractor):
-    def __init__(self,collection,mycore,docstore=DOCSTORE,_test=False,job=None):
+    def __init__(self,collection,mycore,docstore=DOCSTORE,_test=False,job=None,check=True):
         """check meta in solr index for collection"""
         #forceretry=False,useICIJ=False,ocr=True,docstore=DOCSTORE,job=None):        
         if not isinstance(mycore,s.SolrCore) or not isinstance(collection,Collection):
             raise BadParameters("Bad parameters for extraction")
         self.collection=collection
+        self.check=check
         self.mycore=mycore
         self.docstore=docstore
         self.job=job
@@ -793,8 +795,8 @@ class Collection_Post_Processor(Extractor):
                     existing_doc=check_file_in_solrdata(_file,self.mycore) #searches by hashcontents, not solrid
                     if existing_doc:
                     #FIX META ONLY
-                        result=self.update_existing_meta(_file,existing_doc,check=False)
-                        c=ChildProcessor(_file.filepath,self.mycore,hash_contents=_file.hash_contents,sourcetext=self.sourcetext,docstore=self.docstore,check=False)
+                        result=self.update_existing_meta(_file,existing_doc,check=self.check)
+                        c=ChildProcessor(_file.filepath,self.mycore,hash_contents=_file.hash_contents,sourcetext=self.sourcetext,docstore=self.docstore,check=self.check)
                         c.process_children()
                         _file.solrid=_file.hash_contents
                         _file.indexedSuccess=True

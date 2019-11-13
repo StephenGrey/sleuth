@@ -169,11 +169,13 @@ class ExtractorTest(ExtractTest):
         #NOW SCAN THE COLLECTION
         scanfiles=updateSolr.scandocs(collectiondups,docstore=self.docstore) 
         ext=indexSolr.Extractor(collectiondups,mycore,docstore=self.docstore,useICIJ=self.icij_extract)
-        
+        self.mycore.commit()
         updated_doc=indexSolr.check_hash_in_solrdata("6d50ecaf0fb1fc3d59fd83f8e9ef962cf91eb14e547b2231e18abb12f6cfa809",mycore)
         updatedlist=updated_doc.data['docpath']
         expectedlist=[os.path.join('dups','HilaryEmailC05793347.pdf'), os.path.join('dups','HilaryEmailC05793347 copy.pdf'), os.path.join('dups','dup_in_folder','HilaryEmailC05793347 copy.pdf')]
-        #print(expectedlist)
+        
+#        print(expectedlist)
+#        print(updatedlist)
         for path in expectedlist:
             updatedlist.remove(path)
         self.assertEquals(updatedlist,[])
@@ -350,7 +352,7 @@ class ExtractorTest(ExtractTest):
             if existing_doc:
                 indexSolr.UpdateMeta(mycore,_newfile,existing_doc,docstore=self.docstore)
             else:
-                ext=indexSolr.ExtractFileMeta(path,mycore,hash_contents='',sourcetext='',docstore=self.docstore,test=True)
+                ext=indexSolr.ExtractFileMeta(path,mycore,hash_contents='',sourcetext='',docstore=self.docstore,test=True,check=True)
                 ext.post_process(indexed=False)
         #check results
         doc=solrJson.getmeta(_id,self.mycore)[0]
@@ -394,13 +396,13 @@ class ExtractorTest(ExtractTest):
             path=os.path.join(testfolders_path,filename)
             _newfile=changes.newfile(path,self.sample_collection)
             ext=indexSolr.ExtractSingleFile(_newfile,forceretry=False,useICIJ=False,ocr=True,docstore=self.docstore,job=None)
-            #print(ext.counter,ext.skipped,ext.failed)
+            print(ext.counter,ext.skipped,ext.failed)
             if ext.failed==1:
                 self.assertEquals(_newfile.indexFails,1)
             
         doc=solrJson.getmeta(_id,self.mycore)
-        #print(doc[0].data)
-        #print(self.mycore.meta_only)
+        print(doc[0].data)
+        print(self.mycore.meta_only)
         meta_result=doc[0].data.get(self.mycore.meta_only)
         self.assertTrue(meta_result)
         
@@ -412,7 +414,7 @@ class ExtractorTest(ExtractTest):
         filename="65865.TIF"
         filepath=os.path.join(testfolders_path,filename)
         
-        ext=indexSolr.ExtractFileMeta(filepath,self.mycore,hash_contents=_id,sourcetext='',docstore=self.docstore,meta_only=True)
+        ext=indexSolr.ExtractFileMeta(filepath,self.mycore,hash_contents=_id,sourcetext='',docstore=self.docstore,meta_only=True,check=True)
         meta_result=ext.post_process(indexed=False)
         doc=solrJson.getcontents(_id,self.mycore)
         self.assertEquals('Metadata only: No content extracted from file',doc[0].data['rawtext'])
