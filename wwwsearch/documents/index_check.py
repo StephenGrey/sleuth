@@ -13,8 +13,16 @@ except:
 
 #checking for what files in existing solrindex
 def index_check(collection,thiscore):
-    log.debug(f'Checking index {thiscore} with collection: {collection}')
+    log.info(f'Checking index {thiscore} with collection: {collection}')
     log.debug(f'BASEDIR: {BASEDIR}')
+    
+    filelist=File.objects.filter(collection=collection)
+    counter,skipped,failed=mainchecks(collection,filelist,thiscore)
+    meta_loop(collection,thiscore,filelist=filelist)
+    
+
+
+def main_checks(collection,filelist,thiscore):
     #first get solrindex ids and key fields
     try:#make a dictionary of filepaths from solr index
         indexpaths=solrcursor.cursor(thiscore)
@@ -29,9 +37,7 @@ def index_check(collection,thiscore):
         skipped=0
         failed=0
         #print(collection)
-        filelist=File.objects.filter(collection=collection)
-
-        #main loop - go through files in the collection
+    #main loop - go through files in the collection
         for file in filelist:
             relpath=os.path.relpath(file.filepath,start=BASEDIR) #extract the relative path from the docstore
             hash=file.hash_contents #get the stored hash of the file contents
@@ -45,21 +51,16 @@ def index_check(collection,thiscore):
             if relpath in indexpaths:  #if the path in database in the solr index
                 solrdata=indexpaths[relpath][0] #take the first of list of docs with this path
                 #print ('PATH :'+file.filepath+' found in Solr index', 'Solr \'id\': '+solrdata['id'])
-                
-                log.debug('found index for doc - now checking meta')
-                meta_check(thiscore,file,solrdata)
-                                
                 file.indexMetaOnly=solrdata.data.get('sb_meta_only')
                 #log.debug(f'Meta-only flagged for {file.filename}:{file.indexMetaOnly}')
                 if not file.indexMetaOnly:
                     file.indexedSuccess=True
                     file.indexMetaOnly=False #turn a possible None into a False
-                    
                 else:
                     file.indexedSuccess=False
                 file.solrid=solrdata.id
                 file.save()
-
+                
                 continue
         #INDEX CHECK: METHOD TWO: CHECK IF FILE STORED IN SOLR INDEX UNDER CONTENTS HASH
             elif not file.is_folder:
@@ -84,7 +85,7 @@ def index_check(collection,thiscore):
                     solrdata=solrresult[0]
                     log.debug('Data found in solr: {}'.format(vars(solrdata)))
                     
-                    meta_check(thiscore,file,solrdata)
+                    #meta_check(thiscore,file,solrdata)
                     
                     file.indexedSuccess=True
                     file.solrid=solrdata.id
@@ -94,26 +95,44 @@ def index_check(collection,thiscore):
                     
                     continue
                     
-            #NO MATCHES< RETURN FAILURE
-
-            log.info(f'\"{file.filepath}\" not found in Solr index')
-            file.indexedSuccess=False
-            file.indexedTry=False #reset indexing try flag
-            file.indexMetaOnly=False #reset flag for index only
-            file.solrid='' #wipe any stored solr id; DEBUG: this wipes also oldsolr ids scheduled for delete
-            file.save()
-            skipped+=1
-                
-                    
+                #NO MATCHES< RETURN FAILURE
+                log.info(f'\"{file.filepath}\" not found in Solr index')
+                file.indexedSuccess=False
+                file.indexedTry=False #reset indexing try flag
+                file.indexMetaOnly=False #reset flag for index only
+                file.solrid='' #wipe any stored solr id; DEBUG: this wipes also oldsolr ids scheduled for delete
+                file.save()
+                skipped+=1
         return counter,skipped,failed
-
+        
+def meta_loop(collection,thiscore,filelist=None)
+    if not filelist:
+        filelist=File.objects.filter(collection=collection
+    #now check meta
+    counter=0
+    log.info('now checking meta')
+    for _file in filelist:
+         counter+=1
+         if _file.solrid and not _file.is_folder:
+             #log.debug('found index for doc - now checking meta'
+           
+             solrresult= solr.getmeta(_file.solrid,thiscore)
+             solrdata=solrresult[0]
+             meta_check(thiscore,_file,solrdata)
+         if counter%500==0:
+             log.info('committing changes')
+             thiscore.commit()
+    
+    thiscore.commit()
+    return
 
 def meta_check(thiscore,file,solrdata):
     #check the meta
     log.debug('found index for doc - now checking meta')
-    meta_updater=UpdateMeta(thiscore,file,solrdata,docstore=BASEDIR,existing=True)
+    meta_updater=UpdateMeta(thiscore,file,solrdata,docstore=BASEDIR,existing=True,check=False)
     
     if not file.is_folder:
         c=ChildProcessor(file.filepath,thiscore,hash_contents=file.hash_contents,sourcetext=get_source(file),docstore=BASEDIR,check=False)
         c.process_children()
-    
+
+
