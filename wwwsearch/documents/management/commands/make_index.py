@@ -21,9 +21,9 @@ class Command(BaseCommand):
         print('\nThis command will install a new empty index\n')
         
         if setup.answer_yes('Add new index to the solr server? (y/n)'):
-            indexname,displayname=setup.make_new_index()
+            indexname=setup.make_new_index()
         
-        print()
+
         missing=get_existing_index()
         if missing and setup.answer_yes('Register a solr index to Searchbox users? (y/n)'):
             while True:          

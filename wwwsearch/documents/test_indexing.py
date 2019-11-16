@@ -396,13 +396,13 @@ class ExtractorTest(ExtractTest):
             path=os.path.join(testfolders_path,filename)
             _newfile=changes.newfile(path,self.sample_collection)
             ext=indexSolr.ExtractSingleFile(_newfile,forceretry=False,useICIJ=False,ocr=True,docstore=self.docstore,job=None)
-            print(ext.counter,ext.skipped,ext.failed)
+            #print(ext.counter,ext.skipped,ext.failed)
             if ext.failed==1:
                 self.assertEquals(_newfile.indexFails,1)
             
         doc=solrJson.getmeta(_id,self.mycore)
-        print(doc[0].data)
-        print(self.mycore.meta_only)
+        #print(doc[0].data)
+        #print(self.mycore.meta_only)
         meta_result=doc[0].data.get(self.mycore.meta_only)
         self.assertTrue(meta_result)
         
@@ -614,7 +614,7 @@ class ICIJExtractTest(ExtractorTest):
         updateSolr.updatetags(_id2,self.mycore)
         doc=indexSolr.check_hash_in_solrdata(_id2,self.mycore)
         
-        print(doc.__dict__)
+        #print(doc.__dict__)
         self.assertTrue(doc.data.get('sb_usertags1')==['test', 'anothertest'])
         
         #no commit
@@ -651,12 +651,12 @@ class ICIJExtractTest(ExtractorTest):
         path=os.path.abspath(os.path.join(os.path.dirname(__file__), '../tests/testdocs', _relpath))
 
         _newfile=changes.newfile(path,self.sample_collection)
-        print(_newfile)
+        #print(_newfile)
         ext=indexSolr.ExtractSingleFile(_newfile,forceretry=False,useICIJ=True,ocr=True,docstore=self.docstore,job=None,check=False)
             #print(ext.counter,ext.skipped,ext.failed)
         self.mycore.commit()
         doc=indexSolr.check_hash_in_solrdata(_id2,self.mycore)        
-        print(doc.__dict__)
+        #print(doc.__dict__)
 
         self.assertEquals(doc.data.get('sb_source'),'Test source')
         #running it a second time 

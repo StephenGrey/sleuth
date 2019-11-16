@@ -72,6 +72,29 @@ class Updater:
         except s.SolrConnectionError:
             log.debug('Solr connection error: failed after {} records'.format(counter))        
 
+class RemoveNoContent(Updater):
+    """remove entries with no content"""
+    def modify(self,result):
+        #log.debug(result.docname)
+        if result:
+            if not result.folder:
+                try:
+                    if not result.data.get('rawtext') and not result.data.get('extract_level'):
+                        #log.debug('empty file')
+                        #log.debug(result.id)
+                        #log.debug(result.data.get('docpath'))
+                        assert not result.data.get('content_type')
+                        
+                        delete(result.id,self.mycore)
+                except Exception as e:
+                    log.error(e)
+                    log.debug(result.__dict__)
+        else:
+            if not result.data.get('extract_level'):
+                log.debug(result.__dict__)
+            log.debug(result.data.get('extract_level'))
+        
+
 class PurgeField(Updater):
     """remove all contents of a single field"""
     def __init__(self,mycore,field):
@@ -537,7 +560,7 @@ def post_jsonupdate(data,mycore,timeout=10,test=False,check=True):
             res=ses.post(url, data=data, headers=headers,timeout=timeout)
             jres=res.json()
             status=jres['responseHeader']['status']
-            log.debug(jres)
+            #log.debug(jres)
         else:
             log.info('TEST ONLY: simulate post to {}, with data {} and headers {}'.format(url,data,headers))
             status=0
@@ -663,14 +686,22 @@ def check_paths(solr_result,_file,mycore,docstore=DOCSTORE):
         return path_changes(_file.filepath,paths,docstore=docstore)
 
 def path_changes(filepath,existing_paths,docstore=DOCSTORE):
+    #log.debug(f'{existing_paths}, {filepath}')
     relpath=make_relpath(filepath,docstore=docstore)       
-    if relpath in existing_paths:
-        log.debug('Correct relative filepath already stored in doc')
-        return False,None,None
-    elif filepath in existing_paths:#replace full path with relative path
+    if '' in existing_paths and relpath in existing_paths:
+        existing_paths.remove('')
+        p_hashes=parent_hashes(existing_paths)
+        return True,existing_paths,p_hashes
+    elif relpath in existing_paths:
+        #log.debug('Correct relative filepath already stored in doc')
+        return False,existing_paths,None
+    if filepath in existing_paths:#replace full path with relative path
         existing_paths.remove(filepath)
+    if '' in existing_paths:
+        existing_paths.remove('')
     existing_paths.append(relpath)
     p_hashes=parent_hashes(existing_paths)
+    
     return True,existing_paths,p_hashes
 
 
