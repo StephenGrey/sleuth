@@ -21,6 +21,7 @@ class SqlIndex():
         if not self.folder_path:
             self.engine = create_engine('sqlite:///:memory:', echo=False)
         else:
+            self.sqlfilename=os.path.join(self.folder_path,ARCH_FILENAME)
             self.engine = create_engine(f'sqlite:///{os.path.join(self.folder_path,ARCH_FILENAME)}', echo=False,
             connect_args={'check_same_thread': False}
             )
@@ -128,6 +129,17 @@ class SqlIndex():
             log.error(e)
             self.session.rollback()
             raise
+    
+    def filter_path(self,pattern):
+        """search for a filepath pattern in the index, returning list of files"""
+        try:
+            return self.session.query(File).filter(File.path.like(pattern)).all()
+        
+        except Exception as e:
+            log.error(e)
+            self.session.rollback()
+            raise
+    
     
     def lookup_id_list(self,id_list):
         try:
