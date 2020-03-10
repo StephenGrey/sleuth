@@ -757,20 +757,22 @@ class SqlFileIndex(sql_connect.SqlIndex,PathIndex):
    
    def move_path(self,oldpath,newpath):
        log.debug(f'Adjusting index for move from {oldpath} to {newpath}')
-       spec=self.lookup_path(oldpath)
-       moved_inside=new_is_inside(newpath,self.folder_path)
-       if spec:
-           if moved_inside:
-               log.debug('alter filepath')
-               spec.path=newpath
-           else:
-               self.delete_record(oldpath)
-               log.debug('removed from database')
-       elif moved_inside:
-               self.update_record(newpath) #add it
-               log.debug(f'added new entry inside Index:{self.folder_path}')
-   	    
-               
+       try:
+           spec=self.lookup_path(oldpath)
+           moved_inside=new_is_inside(newpath,self.folder_path)
+           if spec:
+               if moved_inside:
+                   log.debug('alter filepath')
+                   spec.path=newpath
+               else:
+                   self.delete_record(oldpath)
+                   log.debug('removed from database')
+           elif moved_inside:
+                   self.update_record(newpath) #add it
+                   log.debug(f'added new entry inside Index:{self.folder_path}')
+       except Exception as e:
+           log.info(f'Failed to adjust index for from {oldpath} to {newpath}')
+           log.info(f'Exception {e}')
    def update_changed(self):
       """#update changed files"""
       self.check_reset()
