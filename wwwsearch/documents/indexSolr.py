@@ -165,7 +165,7 @@ class Extractor():
         """extract single file to solr index"""
         
         if self.skip_file(file): #don't index at all
-            #log.debug('Skipping {}'.format(file))
+            log.debug('Skipping {}'.format(file))
             pass
         else:
             log.info('Attempting index of {}'.format(file.filepath))
@@ -189,8 +189,10 @@ class Extractor():
                 
                 #check by hash of contents if doc exists already in solr index
                 existing_doc=check_file_in_solrdata(file,self.mycore) #searches by hashcontents, not solrid
-                if existing_doc and not file.indexMetaOnly:
+                log.debug(existing_doc.__dict__) if existing_doc else None
+                if existing_doc and not file.indexMetaOnly and not self.forceretry:
                     #UPDATE META ONLY
+                    log.debug('exists already - updating meta')
                     result=self.update_existing_meta(file,existing_doc,check=self.check)
                     if self.skip_extract(file): 
                         file.indexMetaOnly=True
@@ -198,7 +200,7 @@ class Extractor():
                 
                 elif self.skip_extract(file):
                     #INDEX META ONLY
-                    #log.debug('INDEX META ONLY')
+                    log.debug('INDEX META ONLY')
                     try:
                         ext=ExtractFileMeta(file.filepath,self.mycore,hash_contents=file.hash_contents,sourcetext='',docstore=self.docstore,meta_only=True)
                         result=ext.post_process(indexed=False)
@@ -248,8 +250,11 @@ class Extractor():
                             extractor=ExtractFile(file.filepath,self.mycore,hash_contents=file.hash_contents,sourcetext=sourcetext,docstore=self.docstore,test=False,ocr=self.ocr,check=self.check)
                             result=extractor.result
                             if result:
+                                log.debug('now post process')
                                 extractor.post_process()
                                 result=extractor.post_result
+                                log.debug(f'post process result {result}')
+                                
                             else:
                                 file.error_message=extractor.error_message
                         except (s.SolrCoreNotFound,s.SolrConnectionError,requests.exceptions.RequestException) as e:
@@ -459,7 +464,7 @@ class Extractor():
         """test if file should be skipped entirely from index or extract"""
         if file.indexedSuccess:
             file.error_message='Already indexed'
-            #log.debug(f'Skipped {file.error_message} path: {file.filename}')
+            log.debug(f'Skipped {file.error_message} filename: {file.filename}')
             #skip this file: it's already indexed
         elif file.indexedTry and not self.forceretry:
             #skip this file, tried before and not forcing retry

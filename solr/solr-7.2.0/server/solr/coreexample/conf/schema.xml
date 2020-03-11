@@ -429,6 +429,7 @@
   <field name="stream_size" type="plongs" stored="true"/>
   <field name="content_length" type="plongs" stored="true"/>
   <field name="sb_before" type="string" multiValued="false" stored="true"/>
+  <field name="sb_meta_only" type="boolean"/>
   <field name="sb_next" type="string" multiValued="false" stored="true"/>
   <field name="sb_parentpath_hash" type="string" multiValued="true" indexed="true" stored="true"/>
   <field name="sb_preview_url" type="string" multiValued="false" stored="true"/>

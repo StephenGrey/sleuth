@@ -1057,9 +1057,9 @@ class Index_Maker():
         
     @staticmethod
     def file_html(mfile,_stored,_indexed,dupcheck,relpath,path):	
-        log.debug(f' {mfile}STORED{_stored}INDEXED{_indexed}') 
-        if _indexed:
-            log.debug(_indexed[0].filename)
+        #log.debug(f' {mfile}STORED{_stored}INDEXED{_indexed}') 
+#        if _indexed:
+#            log.debug(_indexed[0].filename)
         try:
             meta_only=_indexed[0].indexMetaOnly
         except:
@@ -1542,7 +1542,7 @@ def model_index(path,index_collections,hashcheck=False):
         return None,None
     
     stored=File.objects.filter(filepath=path, collection__in=index_collections)
-    log.debug(stored)
+    #log.debug(stored)
     if stored:
         indexed=stored.exclude(solrid='' )
             

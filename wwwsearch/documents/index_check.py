@@ -21,7 +21,7 @@ def index_check(collection,thiscore):
     filelist=File.objects.filter(collection=collection)
     counter,skipped,failed=main_checks(collection,filelist,thiscore)
     meta_loop(collection,thiscore,filelist=filelist)
-    
+    return counter,skipped,failed
 
 
 def main_checks(collection,filelist,thiscore):
@@ -66,12 +66,13 @@ def main_checks(collection,filelist,thiscore):
         #INDEX CHECK: METHOD TWO: CHECK IF FILE STORED IN SOLR INDEX UNDER CONTENTS HASH
             elif not file.is_folder:
                 try:
-                    log.debug(f'searching by hash for {file.filepath}')
+                    
                     #is there a stored hash, if not get one
                     if not hash:
                         hash=hexfile(file.filepath)
                         file.hash_contents=hash
                         file.save()
+                    log.debug(f'searching by hash {hash} for {file.filepath}')
                     #now lookup hash in solr index
                     #log.debug('looking up hash : '+hash)
                     solrresult=solr.hashlookup(hash,thiscore).results
