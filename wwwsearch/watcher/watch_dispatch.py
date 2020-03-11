@@ -78,7 +78,9 @@ class Index_Dispatch:
         self.check_base()
         self.check_dupbase()
         log.debug(f'EVENT: {self.event_type}  PATH: {self.sourcepath}  (DESTPATH: {self.destpath})') if not self.ignore else None
-        if self.event_type=='created':
+        if self.master_index.sqlfilename==self.sourcepath or self.master_index.sqlfilename+"-journal"==self.sourcepath :
+             log.debug('ignore master database file')
+        elif self.event_type=='created':
             self.dupbase_create()
             self.create()
             self._index()
@@ -183,9 +185,9 @@ class Index_Dispatch:
         #no ignore list in dupbase
         #log.info('Adding new file to masterindex')
         if self.master_source_changed and not self.master_source_entry:
+            log.info(f'adding file {self.sourcepath} to file index')
             self.master_index.add_new_file(self.sourcepath)
             self.master_index.save()
-            log.info('added file')            
             
     def delete(self):
         """delete both from database and solr index, if indexed"""
@@ -252,11 +254,11 @@ class Index_Dispatch:
                 self.master_source_entry=None
             if self.destpath:
                 if file_utils.new_is_inside(self.destpath,self.master_index.folder_path):
-                    log.info(f'destpath {self.destpath} inside master index')
+                    log.debug(f'destpath {self.destpath} inside master index')
                     self.master_dest_changed=True
                     
                     self.master_dest_entry=self.master_index.simple_check_path(self.destpath)
-                    log.info(f'Destination in master_index:  {self.master_dest_entry}')
+                    log.debug(f'Destination in master_index:  {self.master_dest_entry}')
                     
                 else:
                     self.master_dest_changed=False
