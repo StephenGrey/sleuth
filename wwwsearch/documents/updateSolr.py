@@ -460,27 +460,26 @@ def makejson(solrid,changes,mycore):   #the changes use standard fields (e.g. 'd
     return data
 
 def clear_date(solrid,mycore):
-    doc=s.getmeta(solrid,mycore)[0]
-    if doc.date:
-        data=make_remove_json(mycore,solrid,mycore.datesourcefield,doc.date)
-        response,poststatus=post_jsonupdate(data,mycore)
-        doc=s.getmeta(solrid,mycore)[0]
-#        
-#        if doc.date and mycore.datesourcefield2:
-#            data=make_remove_json(mycore,solrid,mycore.datesourcefield2,doc.date)
-#            response,poststatus=post_jsonupdate(data,mycore)
-#            doc=s.getmeta(solrid,mycore)[0]
-#            if not doc.date:
-#                return True
-#            else:
-#                return False
-#        else:
+    docs=s.getmeta(solrid,mycore)
+    if docs:
+        doc=docs[0]
         if doc.date:
-            return False
-        else:
-            return True
-    else:
-        return True
+            data=make_remove_json(mycore,solrid,mycore.datesourcefield,doc.date)
+            response,poststatus=post_jsonupdate(data,mycore)
+            doc=s.getmeta(solrid,mycore)[0]
+    #        
+    #        if doc.date and mycore.datesourcefield2:
+    #            data=make_remove_json(mycore,solrid,mycore.datesourcefield2,doc.date)
+    #            response,poststatus=post_jsonupdate(data,mycore)
+    #            doc=s.getmeta(solrid,mycore)[0]
+    #            if not doc.date:
+    #                return True
+    #            else:
+    #                return False
+    #        else:
+            if doc.date:
+                return False
+    return True
 
 
 def make_remove_json(mycore,solrid,field,value):

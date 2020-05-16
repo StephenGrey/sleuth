@@ -6,7 +6,7 @@ from django.core.management import call_command
 from django.db.models.query import QuerySet
 from django.urls import reverse
 from documents import documentpage,solrcursor,updateSolr,api,indexSolr,file_utils,changes,check_pdf,time_utils, views as views_docs, index_check, correct_paths
-from documents.indexSolr import BadParameters
+from documents.indexSolr import BadParameters, ExtractFileMeta
 from documents.management.commands import setup
 from documents.management.commands.setup import make_admin_or_login
 from documents.models import  Index, Collection, Source, UserEdit,File
@@ -386,6 +386,23 @@ class ExtractorTest(ExtractTest):
             #print(_newfile.__dict__)
             self.assertTrue(_newfile.indexMetaOnly)
             
+            
+    def test_meta_only_date(self):
+        """index meta only date"""
+        _id='e46df5747edd25174f7d61aa2d333f81e8435029faf1ebcebc5a51e1d535ab8b'
+        path=os.path.abspath(os.path.join(os.path.dirname(__file__), '..','tests','testdocs','pdfs','4meta_date','2019-12-01 doc.mov'))
+        self.assertTrue(os.path.exists(path))
+        mycore=self.mycore
+        updateSolr.delete(_id,self.mycore)
+        
+        
+        ext=ExtractFileMeta(path,self.mycore,hash_contents=_id,sourcetext='',docstore=self.docstore,meta_only=True,check=True)
+        result=ext.post_process(indexed=False)
+        
+        doc=solrJson.getmeta(_id,self.mycore)
+        
+        self.assertTrue(doc[0].data.get('sb_meta_only'))
+    
     def test_fail_file(self):
         testfolders_path=os.path.abspath(os.path.join(os.path.dirname(__file__), '..','tests','testdocs','fails2'))
         mycore=self.mycore
@@ -456,7 +473,7 @@ class ICIJFolderTest(IndexTester):
         doc=solrJson.getmeta('6d50ecaf0fb1fc3d59fd83f8e9ef962cf91eb14e547b2231e18abb12f6cfa809',self.mycore)[0]
         self.assertEquals(doc.data.get('docpath'),["mixed_folder/HilaryEmailC05793347.pdf",
           "mixed_folder/HilaryEmailC05793347 copy.pdf"])
-        self.assertEquals(doc.docname,'HilaryEmailC05793347 copy.pdf')
+        self.assertEquals(doc.docname,'HilaryEmailC05793347.pdf')
         
 #        #NOW RECOGNISE FOLDER IN THE DATA - NOT NECESSARY
 #        counter,skipped,failed=.index_check(self.collection,self.mycore)
@@ -569,7 +586,7 @@ class ICIJFolderTest(IndexTester):
         doc=solrJson.getmeta('6d50ecaf0fb1fc3d59fd83f8e9ef962cf91eb14e547b2231e18abb12f6cfa809',self.mycore)[0]
         self.assertEquals(doc.data.get('docpath'),["mixed_folder/HilaryEmailC05793347.pdf",
           "mixed_folder/HilaryEmailC05793347 copy.pdf"])
-        self.assertEquals(doc.docname,'HilaryEmailC05793347 copy.pdf')
+        self.assertEquals(doc.docname,'HilaryEmailC05793347.pdf')
         
         childdoc=solrJson.getmeta('c032fe1fbef76624f1ad09e46feb4c04ec4e37a27a6a3487abc3ef73c702d3f9',self.mycore)[0]
         self.assertEquals(childdoc.docname,"image1.jpg")
@@ -969,9 +986,10 @@ class ExtractFileTest(ExtractTest):
 
         
         doc=updateSolr.check_hash_in_solrdata(_id,self.mycore)
-        #print(doc.__dict__)
+        print(doc.__dict__)
         self.assertEquals(doc.data['message_to'],"'Adele Fulton'; Paul J. Brown")
         self.assertEquals(doc.data['message_from'],'Wood, Tracy')
+        self.assertEquals(doc.data['message_raw_header_message_id'],'<B7EE98A869777C49ACF006A8AA90665C63B8A2@HZNGRANMAIL1.granite.nhroot.int>')
         self.assertEquals(doc.date,'2015-07-29T17:58:40Z')
         self.assertEquals(doc.data['title'], 'Newport Adimistrative Order by Consent (AOC) Status')
         

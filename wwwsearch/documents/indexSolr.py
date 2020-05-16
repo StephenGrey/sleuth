@@ -3,7 +3,7 @@ from __future__ import unicode_literals
 from __future__ import print_function
 #from bs4 import BeautifulSoup as BS
 from django.conf import settings
-import requests, os, logging, json, urllib, re
+import requests, os, logging, json, urllib, re, sys, traceback
 import ownsearch.hashScan as dup
 import hashlib  #routines for calculating hash
 from .models import Collection,File,Index
@@ -201,6 +201,7 @@ class Extractor():
                 elif self.skip_extract(file):
                     #INDEX META ONLY
                     log.debug('INDEX META ONLY')
+                    
                     try:
                         ext=ExtractFileMeta(file.filepath,self.mycore,hash_contents=file.hash_contents,sourcetext='',docstore=self.docstore,meta_only=True)
                         result=ext.post_process(indexed=False)
@@ -308,6 +309,8 @@ class Extractor():
                 log.info(f'PATH : {_file.filepath} indexing failed, with exception {e}')
                 _file.indexedTry=True  #set flag to say we've tried
                 _file.save()
+                exc_type, exc_value, exc_traceback = sys.exc_info()
+                traceback.print_exc(limit=2, file=sys.stdout)
                 raise e
 
     def update_existing_meta(self,_file,existing_doc,check=False):
@@ -728,46 +731,53 @@ class ExtractFile(ChildProcessor):
         
     def post_process(self,indexed=True):
         self.indexed=indexed
-        changes=[]
-        changes.append((self.mycore.docnamesourcefield,'docname',self.filename))
-        #extract a relative path from the docstore root
-        relpath=make_relpath(self.path,docstore=self.docstore)
-        changes.append((self.mycore.docpath,'docpath',relpath))
-       
-        #add field to indicate if meta only indexed
-        changes.append(('sb_meta_only','sb_meta_only',self.meta_only))
+        try:
+            changes=[]
+            changes.append((self.mycore.docnamesourcefield,'docname',self.filename))
+            #extract a relative path from the docstore root
+            relpath=make_relpath(self.path,docstore=self.docstore)
+            changes.append((self.mycore.docpath,'docpath',relpath))
+           
+            #add field to indicate if meta only indexed
+            changes.append(('sb_meta_only','sb_meta_only',self.meta_only))
+            
+            #add to text field to indicate no extracted content
+            if not indexed:
+                changes.append(('rawtext','rawtext',"Metadata only: No content extracted from file"))
+            
+            parsed_date=self.parse_date(self.solrid,self.last_modified,self.date_from_path,indexed=indexed)
+            log.debug(f'parsed date: {parsed_date}')
+            changes.append((self.mycore.datesourcefield,'date',parsed_date)) if parsed_date else None
+            
+            
+            #pick up alternate filesize, else use docsize
+            parsed_filesize=self.parse_filesize()
+            changes.append((self.mycore.docsizesourcefield1,'solrdocsize',parsed_filesize)) if parsed_filesize else None
+    
+            
+            #if sourcefield is defined and sourcetext is not empty string, add that to the arguments
+            #make the sourcetext args safe, for example inserting %20 for spaces 
+            if self.mycore.sourcefield and self.sourcetext:
+                changes.append((self.mycore.sourcefield,self.mycore.sourcefield,self.sourcetext))
+    
+            #add hash of parent relative path
+            if self.mycore.parenthashfield:
+                parenthash=file_utils.parent_hash(relpath)
+                changes.append((self.mycore.parenthashfield,self.mycore.parenthashfield,parenthash))
+    
+            log.debug(f'CHANGES: {changes}')
+        except Exception as e:
+            exc_type, exc_value, exc_traceback = sys.exc_info()
+            traceback.print_exc(limit=4, file=sys.stdout)
+            raise
+            
         
-        #add to text field to indicate no extracted content
-        if not indexed:
-            changes.append(('rawtext','rawtext',"Metadata only: No content extracted from file"))
-        
-        parsed_date=self.parse_date(self.solrid,self.last_modified,self.date_from_path,indexed=indexed)
-        log.debug(f'parsed date: {parsed_date}')
-        changes.append((self.mycore.datesourcefield,'date',parsed_date)) if parsed_date else None
-        
-        
-        #pick up alternate filesize, else use docsize
-        parsed_filesize=self.parse_filesize()
-        changes.append((self.mycore.docsizesourcefield1,'solrdocsize',parsed_filesize)) if parsed_filesize else None
-
-        
-        #if sourcefield is defined and sourcetext is not empty string, add that to the arguments
-        #make the sourcetext args safe, for example inserting %20 for spaces 
-        if self.mycore.sourcefield and self.sourcetext:
-            changes.append((self.mycore.sourcefield,self.mycore.sourcefield,self.sourcetext))
-
-        #add hash of parent relative path
-        if self.mycore.parenthashfield:
-            parenthash=file_utils.parent_hash(relpath)
-            changes.append((self.mycore.parenthashfield,self.mycore.parenthashfield,parenthash))
-
-        log.debug(f'CHANGES: {changes}')
         
         response,updatestatus=update_meta(self.solrid,changes,self.mycore,check=self.check)
-        #log.debug(response)
+        log.debug(response)
         
         self.post_result=updatestatus
-        #log.debug(self.post_result)
+        log.debug(self.post_result)
         childresult=self.process_children()
         log.debug(f'Child process result: {childresult}')
         if self.post_result and childresult:

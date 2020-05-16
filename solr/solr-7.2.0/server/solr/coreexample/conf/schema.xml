@@ -472,6 +472,12 @@
   <field name="message_bcc_email" type="text_general" multiValued="true"/>
   <field name="title" type="text_general"/>
   <field name="subject" type="text_general"/>
+
+
+<!--MORE email fields --> 
+  <field name="message_raw_header_thread_index" type="text_general" multiValued="false"/>
+  <field name="message_raw_header_message_id" type="text_general" multiValued="false"/>
+  <field name="message_raw_header_x_originating_ip" type="text_general" multiValued="false"/>
   
 <!--  <field name="a" type="text_general"/>
   <field name="character_count" type="plongs"/>
