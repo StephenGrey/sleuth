@@ -986,7 +986,7 @@ class ExtractFileTest(ExtractTest):
 
         
         doc=updateSolr.check_hash_in_solrdata(_id,self.mycore)
-        print(doc.__dict__)
+        #print(doc.__dict__)
         self.assertEquals(doc.data['message_to'],"'Adele Fulton'; Paul J. Brown")
         self.assertEquals(doc.data['message_from'],'Wood, Tracy')
         self.assertEquals(doc.data['message_raw_header_message_id'],'<B7EE98A869777C49ACF006A8AA90665C63B8A2@HZNGRANMAIL1.granite.nhroot.int>')
