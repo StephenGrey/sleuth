@@ -848,9 +848,9 @@ class SqlFileIndex(sql_connect.SqlIndex,PathIndex):
           last_check=100000 #minimum valid timestamp in 1970
           self.add_setting('last_mod',_int=last_check)
           self.save()
-          last_check=946684800 #default year 2000
-          self.add_setting('last_mod',_int=last_check)
-          self.save()
+#          last_check=946684800 #default year 2000
+#          self.add_setting('last_mod',_int=last_check)
+#          self.save()
       log.debug(last_check)
       last_check_str=time_utils.timestring(time_utils.timefromstamp(last_check))
       _root=self.folder_path
@@ -858,8 +858,10 @@ class SqlFileIndex(sql_connect.SqlIndex,PathIndex):
       #check the root
       log.info(f'Checking {_root} for changes since {last_check_str}')
       self.total=Counter(self.folder_path).counter #len([p for p,s,f in os.walk(self.folder_path)])
-      log.info(f'{self.total} files found')
+      log.info(f'{self.total} subfolders found')
+      log.debug(f'  {os.stat(_root).st_mtime} {last_check}')
       if os.stat(_root).st_mtime > last_check:
+          log.debug(f'checking {_root}')
           self.check_folder(_root)
 
       #check subfolders
@@ -897,8 +899,8 @@ class SqlFileIndex(sql_connect.SqlIndex,PathIndex):
            _files=[]
        _modified=[]
            
-       #log.debug(f'Files in {path}: {_files}')
-       #log.debug(_index.lookup_parent_hash(pathHash(path)))
+       log.debug(f'Files in {path}: {_files}')
+       log.debug(self.lookup_parent_hash(pathHash(path)))
        
        #check files in database
        for _db_file in self.lookup_parent_hash((pathHash(path))):
