@@ -1,0 +1,6 @@
+<li class="folder-item" id="{{filepath}}">
+<a href="/dups/folder/{{filepath}}">{{file}}</a>{% if subfiles %}<span class="flip"> +</span>{% endif %}
+<div class="subdir" style="display:none;">
+		  <ul>{% for f in subfiles %}{{ f }}{% endfor %}</ul>
+</div>
+</li>

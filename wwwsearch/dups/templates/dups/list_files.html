@@ -1,0 +1,76 @@
+{% extends "dups/listindex.html" %}
+
+
+{% block body_content %}
+
+<h2>Duplicate files</h2>
+<div class='nav-container'>		
+		<ol class="breadcrumb bread1" id="{{path}}">
+		  <li><a href="/dups">Home</a></li>
+		</ol>
+
+</div>
+{% if page.return_url %}
+<a href="{{page.return_url}}">Back</a><p>
+{% endif%}
+<h4>Hash of contents:</h4>{{page.hash}}
+<p>
+
+		<div class="panel-group" id="accordion" aria-multiselectable="true">
+		  <div class="panel panel-default">
+				
+				<form method ="post" id="duplicates-form">
+				{% csrf_token %}
+				<ul>
+				{% if not files_master and not files_local%}
+				No files indexed with this hash
+				
+				{% else %}
+				<div class="checkbox">
+					<label><input type="checkbox" id="select_all" name="checked" value="">Select All</label>
+				</div>	
+				{% endif %}
+				
+				{% if files_master %}
+				<div style="color:white;background-color:red">INSIDE MASTER ARCHIVE </div>
+				{% endif %}
+				 
+				{% for f in files_master %}
+				
+				<div class="checkbox">
+					<label><input type="checkbox" name="checked" value="{{f}}">{{ f }}</label>
+				</div>			
+				{% endfor %}
+				<p>
+				{% if files_local %}
+				<div style="color:white;background-color:blue">INSIDE SCAN FOLDER </div>
+				{% endif %}
+				{% for f in files_local %}
+				
+				<div class="checkbox">
+					<label><input type="checkbox" name="checked" value="{{f}}">{{ f }}</label>
+				</div>			
+				{% endfor %}				
+				</ul>
+				{% if files_master or files_local%}
+				
+				<input type="submit" name="delete-button"  class="btn btn-info" value="Delete">	
+				<input type="submit" id="move-button" name="move-button"  class="btn btn-info move-button" value="Move">
+				{% endif %}
+				
+				<input type="hidden" class="hash-value" name="hash-value" id="hash-value" value="{{page.hash}}">
+				<input type="hidden" class="destination" name="destination" id="destination" value="something">
+				<input type="hidden" id="to-do" name="action" value="">
+				</form>
+			</div>
+		</div>
+{% endblock %}
+
+
+{% block javascript %}
+{% load static %}
+<script src="{% static 'js/dups.js' %}">
+</script>
+
+{% endblock %}
+

@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block body_content %}
+
+<button onclick="goBack()" class="btn btn-warning">Go Back</button>
+
+<script>
+function goBack() {
+    window.history.back();
+}
+</script>
+<p><p>
+
+<!--
+<p>
+{{results}}
+-->
+<br>
+{% ifequal results.task  'check_index' %}
+<h3><b class='tag'>INDEXCHECK
+<p><p>COLLECTION: {{results.path}}</b></h3>s
+<p>
+<h4>
+Indexed: {{results.indexed}}<p><p>
+Not Found: {{results.not_found}}<p>
+Failed: : {{results.errors}}<p> 
+</h4>
+{% endifequal%}
+ 
+{% ifequal results.task  'scan_collection' %}
+<h3><b class='tag'>SCAN OF COLLECTION{{results.path}}</b></h3>
+<p>
+Completed scan of {{results.progress_str}}
+<p>
+<h4>Moved: {{results.moved}}<p>
+Deleted: {{results.deleted}}<p>
+<p>
+Modified: {{results.changed}}<p>
+Unchanged: {{results.unchanged}}<p>
+New: {{results.new}}<p>
+Total: {{results.total}}
+</h4>
+{% endifequal%} 
+
+{% if results.task == 'extract_collection' or results.task == 'extract_collection_force_retry' or results.task == 'extract_collection_force_retry_icij' or results.task == 'extract_collection_icij' %}
+
+<!--or if results.task =='extract_collection_force_retry_icij'-->
+<h3><b>Indexing collection: {{results.path}}</b></h3>
+<p>
+<h4>Status: {{results.status}} <p><p>
+Progress: {{results.progress_str}}<p>
+Skipped: {{results.skipped}}<p>
+Indexed: {{results.counter}}<p>
+Failed: {{results.failed}}<p>
+</h4><p><p>
+{% ifnotequal results.failed '0' %}
+	<p><h4>Failed to index: </h4><p>
+		{%for failure,message in results.failed_list%}
+		{{failure}}&nbsp;&nbsp;<span class="meta" >{{message}}</span><p>
+		{% endfor %}
+<p><p>
+{% endifnotequal%}
+<p>
+{% ifnotequal results.skipped '0' %}
+	<p><h4>Skipped:</h4> <p>
+		{%for skipped,message in results.skipped_list%}
+		{{skipped}}&nbsp;&nbsp;   <span class="meta" >{{message}}</span><p>
+		{% endfor %}
+{% endifnotequal%}
+
+{% endif%} 
+
+{% endblock %}

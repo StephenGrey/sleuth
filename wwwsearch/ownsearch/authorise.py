@@ -11,7 +11,7 @@ from . import solrJson
 from documents.models import File,Index,Collection
 import logging,os
 log = logging.getLogger('ownsearch.authorise')
-from usersettings import userconfig as config
+from configs import config
 
 try:
     DEFAULTCORE=config['Solr']['defaultcore']
@@ -30,7 +30,7 @@ class AuthorisedCores:
            self.mycoreID=getcore(self.cores,storedcore,self.defaultcore)
            self.mycore=self.cores[self.mycoreID]
         except Exception as e:
-           log.debug('Error: {}'.format(e))
+           log.debug('Error: {}'.format(e.__dict__))
         log.debug('authcores: {}'.format(self.__dict__))
 
 ##set up solr indexes

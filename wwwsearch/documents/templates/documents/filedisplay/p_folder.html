@@ -1,0 +1,13 @@
+<li>
+{% if is_collection_root%}
+<a class="collection-folder sbfolder" id="{{file}}" href="/documents/files/{{filepath}}">{{file}}</a>
+{% elif is_inside_collection%}
+<a class="collection-inside sbfolder" id="{{file}}" href="/documents/files/{{filepath}}">{{file}}</a>
+{% else %}
+<a class="sbfolder" id="{{file}}" href="/documents/files/{{filepath}}">{{file}}</a>
+{%endif%}
+{% if subfiles %}<span class="flip"> +</span>{% endif %}
+<div class="subdir" style="display:none;">
+		  <ul>{% for f in subfiles %}{{ f }}{% endfor %}</ul>
+</div>
+</li>

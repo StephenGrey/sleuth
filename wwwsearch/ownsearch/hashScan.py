@@ -49,7 +49,7 @@ def findDup(parentFolder):  #check duplicates in a file folder  MAIN ROUTINE FOR
     dups = {}  #dictionary of dups
     lendups = {} #the length of the files
     for dirName, subdirs, fileList in os.walk(parentFolder): #go through every subfolder in a folder
-        print('Scanning %s...' % dirName)
+        log.info('Scanning %s...' % dirName)
         for filename in fileList: #now through every file in the folder/subfolder
             # Get the path to the file
             path = os.path.join(dirName, filename)
@@ -73,7 +73,7 @@ def HexFolderTable(parentFolder):
     deetdict = {}  #dictionary of dups
     for dirName, subdirs, fileList in os.walk(parentFolder): #go through every subfolder in a folder
         try:
-            print('Scanning %s...' % dirName)
+            log.info('Scanning %s...' % dirName)
         except: # catch errors printing
             e=sys.exc_info()[0]
             print(('Error in printing foldername:',e))

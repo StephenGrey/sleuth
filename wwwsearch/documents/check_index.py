@@ -5,8 +5,8 @@ from builtins import str #backwards to 2.X
 import os
 from . import solrcursor
 from .updateSolr import remove_filepath_or_delete_solrrecord
-from usersettings import userconfig
-DOCSTORE=userconfig['Models']['collectionbasepath'] #get base path of the docstore
+from configs import config
+DOCSTORE=config['Models']['collectionbasepath'] #get base path of the docstore
 
 class IndexChecker:
     def __init__(self,mycore,test=False):

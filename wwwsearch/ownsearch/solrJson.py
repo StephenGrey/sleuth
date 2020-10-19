@@ -4,16 +4,22 @@ from __future__ import print_function
 from builtins import str #backwards to 2.X
 #from bs4 import BeautifulSoup as BS
 import requests, requests.exceptions
+from requests.exceptions import ConnectionError, RequestException, ConnectTimeout, ReadTimeout
 import os, logging
 import re, json
 from documents.models import File,Collection
+from documents.file_utils import slugify
 from documents.models import Index as sc
 from django.db.utils import OperationalError
-from usersettings import userconfig as config
+from configs import config
 from django.utils import timezone
 import pytz, iso8601 #support localising the timezone
 from datetime import datetime, timedelta
-
+try:
+    from urllib.parse import quote_plus #python3
+except ImportError:
+    from urllib import quote_plus #python2
+ 
 
 class MissingConfigData(Exception): 
     pass
@@ -62,11 +68,15 @@ class SolrCore:
             self.rawtext=config[core]['rawtext']
             self.cursorargs=config[core]['cursorargs']
             self.docsizefield=config[core]['docsize']
+            self.docsizesourcefield1=config[core]['docsizesourcefield1']
+            self.docsizesourcefield2=config[core]['docsizesourcefield2']
             self.hashcontentsfield=config[core]['hashcontents']
             self.pathhashfield=config[core]['hashpath']
             self.datefield=config[core]['datefield']
             self.docnamesourcefield=config[core]['docnamesource']
+            self.docnamesourcefield2=config[core]['docnamesource2']
             self.datesourcefield=config[core]['datesourcefield']
+            self.meta_only=config[core]['meta_only']
             #optional:
             self.datesourcefield2=config[core].get('datesourcefield2')
             self.parenthashfield=config[core].get('parentpath_hash','')
@@ -82,7 +92,7 @@ class SolrCore:
                 if not fieldexists(self.tags1field,self): #check if the tag field is defined in index
                     self.tags1field=''
         except KeyError:
-            raise MissingConfigData
+            raise MissingConfigData('Missing configuration data')
 
     def __repr__(self):
         return "SolrCore object: \'{}\'".format(self.name)
@@ -105,12 +115,12 @@ class SolrCore:
                 raise SolrAuthenticationError('Need to log-in')
             #jres=json.loads(res.content)
             jres=res.json()
-            if jres['status']=='OK':
+            if jres.get('status')=='OK':
                 return True
             else:
                 log.debug('Core status: '+str(jres))
                 return False
-        except requests.exceptions.ConnectionError as e:
+        except ConnectionError as e:
             log.debug(e)
 #            print('no connection to solr server')
             raise SolrConnectionError('Solr Connection Error')
@@ -159,6 +169,11 @@ class Solrdoc:
             #give the KEY ATTRIBS standard names
             self.id=self.data.get(core.unique_id,'') #leave copy in data
             self.docname=self.data.pop(core.docnamefield,'')
+            
+            self.content_type_raw=self.data.pop('content_type','')
+            
+            self.content_type='email' if self.content_type_raw=='application/vnd.ms-outlook' else self.content_type_raw
+            
             if self.docname.startswith('Folder:'):
                 self.folder=True
             else:
@@ -188,10 +203,14 @@ class Solrdoc:
                             
             self.data['hashcontents']=self.data.pop(core.hashcontentsfield,'')
             self.data['tags1']=self.data.pop(core.tags1field,'')
+            if self.data['tags1']:
+                if isinstance(self.data['tags1'], str):
+                    tag=self.data['tags1']
+                    self.data['tags1']=[(tag,quote_plus(tag))]
+                else:
+                    self.data['tags1']=[(tag,quote_plus(tag)) for tag in self.data['tags1']]
+                    log.debug("tags1: {}".format(self.data['tags1']))
             self.data['preview_url']=self.data.pop(core.preview_url,'')
-            
-            if isinstance(self.data['tags1'], str):
-                self.data['tags1']=[self.data['tags1']]
             self.next_id=self.data.get(core.nextfield,'')
             self.before_id=self.data.get(core.beforefield,'')
             self.sequence=self.data.get(core.sequencefield,'')
@@ -382,10 +401,13 @@ except:
 
 def pagesearch(page):
     page.results,page.resultcount,page.facets,page.facets2,page.facets3=solrSearch(page.searchterm,page.sorttype,page.startnumber,page.mycore,filters=page.filters,faceting=page.faceting,start_date=page.start_date,end_date=page.end_date)
+    page.make_facets_safe()
+
     return
 
-#MAIN SEARCH METHOD  (q is search term)
+
 def solrSearch(q,sorttype,startnumber,core,filters={},faceting=False,start_date=None,end_date=None):
+    """ #MAIN SEARCH METHOD  (q is search term)  """
     core.ping()
 
     #make date filter
@@ -439,7 +461,7 @@ def solrSearch(q,sorttype,startnumber,core,filters={},faceting=False,start_date=
         #print(soup.prettify())    
 
         res=getlist(jres,startnumber,core=core)
-    except requests.exceptions.RequestException as e:
+    except RequestException as e:
         reslist=[]
         numbers=-2
         if jres:
@@ -468,19 +490,19 @@ def resGet(url,timeout=10):
             
         else:
             return res
-    except requests.exceptions.ConnectTimeout as e:
-        log.debug('url{} error:{}'.format(url,e))
+    except ConnectTimeout as e:
+        log.error('url{} error:{}'.format(url,e))
         raise SolrTimeOut
-    except requests.exceptions.ConnectionError as e:
-        log.debug('url{} error:{}'.format(url,e))
+    except ConnectionError as e:
+        log.error('url{} error:{}'.format(url,e))
 #            print('no connection to solr server')
         raise SolrConnectionError('Solr Connection Error')
 
 def resPostfile(url,path,timeout=1):
     #python3: use bytes object for filepath
     bytes_path=path.encode('utf-8')
-    simplefilename=os.path.basename(path)
-
+    simplefilename=slugify(os.path.basename(path))
+    
 #needed for python2
 #    try:
 #        simplefilename=os.path.basename(path).encode('ascii','ignore')
@@ -500,19 +522,30 @@ def resPostfile(url,path,timeout=1):
             elif resstatus==200:
                 return res       
             else:
-                log.debug('Post result {}'.format(res.content))
+                logresult(res.content)                
                 raise PostFailure(resstatus)
-    except requests.exceptions.ConnectTimeout as e:
+    except ConnectTimeout as e:
         raise SolrTimeOut
-    except requests.exceptions.ReadTimeout as e:
+    except ReadTimeout as e:
         raise SolrTimeOut
-    except requests.exceptions.RequestException as e:
+    except RequestException as e:
         log.debug('Exception in postSolr: {}{}'.format(str(e),e))
         raise PostFailure
     except ValueError as e:
         log.error(str(e))
         log.debug('Post result {}'.format(res.content))
         raise PostFailure
+
+def logresult(logmessage):
+    """decode logmessage in bytes format and then log"""
+    try:
+        logmessage=logmessage.decode('utf-8')
+    except AttributeError:
+        pass
+    log.debug('Post result {}'.format(logmessage))
+    
+    
+
 
 def fieldexists(field,core):
     try:
@@ -534,7 +567,7 @@ def gettrimcontents(docid,core,maxlength):
     searchterm='{}:\"{}\"'.format(core.unique_id,docid)
     
     #MAKE ARGUMENTS FOR TRIMMED CONTENTS
-    fieldargs='&fl={},{},{},{},{},{},{},{},{},{},{},{},{},{},{}'.format(core.unique_id,core.docnamefield,core.docsizefield,core.hashcontentsfield,core.docpath,core.tags1field, core.preview_url,core.usertags1field,core.sourcefield,'extract_base_type','preview_html','SBdata_ID',core.datefield,core.emailmeta,core.parenthashfield)
+    fieldargs='&fl={},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}'.format(core.unique_id,core.docnamefield,core.docsizefield,core.hashcontentsfield,core.docpath,core.tags1field, core.preview_url,core.usertags1field,core.sourcefield,'extract_base_type','content_type','preview_html','SBdata_ID',core.datefield,core.emailmeta,core.parenthashfield)
     fieldargs+=","+core.beforefield if core.beforefield else ""
     fieldargs+=","+core.nextfield if core.nextfield else ""
     fieldargs+=","+core.sequencefield if core.sequencefield else ""
@@ -554,8 +587,9 @@ def gettrimcontents(docid,core,maxlength):
 #    log.debug('{}'.format(SR.results[0].__dict__))
     return SR
 
-#GET CONTENTS OF LARGE DOCUMENT
+#
 def bighighlights(docid,core,q,contentsmax):
+    """GET CONTENTS OF LARGE DOCUMENT"""
     #contents max = max length of snippet to avoid loading up huge file
     searchterm=r'{}:{}'.format(core.unique_id,docid)
     #make snippets of max length 5000 with searchterm highlighted; if searchterm not found, return maxlength sample
@@ -569,7 +603,7 @@ def bighighlights(docid,core,q,contentsmax):
     return SR
 
 def getlist(jres,counter,core,linebreaks=False,big=False):
- #this parses the list of results, starting at 'counter'
+    """this parses the list of results, starting at 'counter'"""
     SR=SolrResult(jres,core,startcount=counter)
 #    log.debug([doc.data['resultnumber'] for doc in SR.results])
     SR.addstoredmeta()
@@ -619,7 +653,7 @@ def getcontents(docid,core):
     searchterm='{}:\"{}\"'.format(core.unique_id,docid)
     #print (searchterm,contentarguments)
     args=core.contentarguments
-    args="&fl=id,{},{},{},{},{},{},{},{},{},{},{}".format(core.unique_id,core.docpath,core.datefield,core.docnamefield,core.tags1field,core.sourcefield,core.usertags1field,core.rawtext,core.docsize,core.emailmeta)
+    args="&fl=id,{},{},{},{},{},{},{},{},{},{}".format(core.unique_id,core.docpath,core.datefield,core.docnamefield,core.tags1field,core.sourcefield,core.usertags1field,core.rawtext,core.docsizefield,core.emailmeta)
     jres=getJSolrResponse(searchterm,args,core=core)
 
     log.debug('{} {}'.format(args,jres))
@@ -630,16 +664,19 @@ def getmeta(docid,core):
     searchterm='{}:\"{}\"'.format(core.unique_id,docid)
     args='&fl={}'.format(core.unique_id)
     args+=","+core.docpath+","+core.datefield+","+core.docsizefield+","+core.datefield+","+core.docnamefield
+    args+=","+core.parenthashfield if core.parenthashfield else ""
     args+=","+core.beforefield if core.beforefield else ""
     args+=","+core.nextfield if core.nextfield else ""
     args+=","+core.sequencefield if core.sequencefield else ""
+    args+=","+core.sourcefield if core.sourcefield else ""
+    args+=","+core.meta_only if core.meta_only else ""
     jres=getJSolrResponse(searchterm,args,core=core)
     #log.debug(args,jres)
     res=getlist(jres,0,core=core)
     return res.results
     
 
-def getfield(docid,field,core):
+def getfield(docid,field,core,resultfield=''):
     """return contents of single field in solr doc"""
     searchterm='{}:\"{}\"'.format(core.unique_id,docid)
     args='&fl={}'.format(field)
@@ -653,8 +690,12 @@ def getfield(docid,field,core):
             if field in result.data:
                 return result.data[field]
             else:
-                log.debug('Field {} not found in solrdoc {}'.format(field,docid))
-                return None
+                field_text=getattr(result,field,None)
+                if field_text:
+                    return field_text
+                else:
+                    log.debug('Field {} not found in solrdoc {}'.format(field,docid))
+                    return None
         else:
             log.debug('Solrdoc {} not found on index {}'.format(docid,core.name))
             raise SolrDocNotFound
@@ -722,9 +763,22 @@ def getcores():
         pass
     return cores
 
+def core_from_collection(_collection):
+    return SolrCore(_collection.core.corename)
+    
+
+def getSortAttrib(sorttype,core):
+    if sorttype == 'documentID':
+        sortattrib = core.docsort
+    elif sorttype == 'last_modified':
+        sortattrib = core.datesort
+    else: #this is the default - sort by relevance
+        sortattrib = ''
+    return sortattrib
 
 
-##TIME FUNCTIONS
+
+##TIME FUNCTIONS  >>> COPIED TO TIME_UTILS.PY
 
 def make_datefilter(start_date,end_date):
     assert isinstance(start_date,datetime) or not start_date
@@ -751,14 +805,6 @@ def timestring(timeobject):
 def timestringGMT(timeobject):
     return timeobject.strftime("%Y-%m-%dT%H:%M:%SZ")
     
-def getSortAttrib(sorttype,core):
-    if sorttype == 'documentID':
-        sortattrib = core.docsort
-    elif sorttype == 'last_modified':
-        sortattrib = core.datesort
-    else: #this is the default - sort by relevance
-        sortattrib = ''
-    return sortattrib
 
 def ISOtimestring(timeobject_aware):
     return timeobject_aware.astimezone(pytz.utc).isoformat()[:19]+'Z'
@@ -768,3 +814,5 @@ def easydate(timeobject):
 
 def parseISO(timestring):
     return iso8601.parse_date(timestring)
+    
+    

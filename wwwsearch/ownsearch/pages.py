@@ -2,6 +2,7 @@
 from __future__ import unicode_literals
 from datetime import datetime
 from django.urls import reverse
+from django.contrib.staticfiles.templatetags.staticfiles import static
 try:
     from urllib.parse import unquote_plus
 except ImportError:
@@ -15,13 +16,16 @@ import os,logging
 log = logging.getLogger('ownsearch.pages')
 from .forms import TagForm
 from documents import file_utils
+import mimetypes
+MIMETYPES={
+}
+
 
 try:
-    from usersettings import userconfig as config
+    from configs import config
     BASEDIR=config['Models']['collectionbasepath'] #get base path of the docstore
 except:
     BASEDIR=None
-
 
 class Page(object):
     def __init__(self,searchterm=''):
@@ -67,6 +71,20 @@ class Page(object):
         self.start_date=parse_digitstring(self.start_date_raw)
         self.end_date=parse_digitstring(self.end_date_raw)
         
+    def static_check(self):
+        print(static('glyphicons-halflings-regular.woff2'))
+        
+    def make_facets_safe(self):
+        if self.facets:
+            self.facets=self.safe_list(self.facets)
+        if self.facets2:
+            self.facets2=self.safe_list(self.facets2)
+        if self.facets3:
+            self.facets3=self.safe_list(self.facets3)
+    
+    def safe_list(self,unsafelist):
+        return [(item,counter,quote_plus(item)) for item,counter in unsafelist]
+
 
 class SearchPage(Page):
     def __init__(self,searchurl='',page_number=0,searchterm='',direction='',pagemax=0,sorttype='relevance',tag1field='',tag1='',tag2field='',tag2='',tag3field='',tag3='',start_date='',end_date=''):
@@ -193,33 +211,36 @@ class ContentPage(Page):
         #if multivalued, take the first one
         if isinstance(self.data_ID,list):
             page.data_ID=data_ID[0]
-        self.tags1=self.result.data.get('tags1',[False])[0]
-        if self.tags1=='':
+        self.tags1=self.result.data.get('tags1')
+        if self.tags1=='' or not self.tags1:
             self.tags1=False
         self.html=self.result.data.get('preview_html','')
         self.preview_url=self.result.data.get('preview_url','')
-        self.get_mimetype(self)
         
-#        self.next_id=result.data.get('hashcontents')
-#        self.before_id=result.data.get('hashcontents')
     
-    def get_mimetype(self):
+    @property
+    def mimetype(self):
         mimetype=self.result.data.get('extract_base_type')
         if not mimetype:
-            self.mimetype=self.result.data.get('content_type')
+            mimetype=self.result.data.get('content_type')
+        if not mimetype and self.docname.startswith('Folder:'):
+            mimetype='folder'	
         if not mimetype:
-            if self.docname.startswith('http:') or self.docname.startswith('www.') or self.docname.startswith('www.'):
-                mimetype='html'
-            else:
-                root,ext=os.path.splitext(self.docname)
-                print(ext)
-        self.mimetype=mimetype
+            mimetype,self.encoding=mimetypes.guess_type(os.path.basename(self.docpath), strict=False)
+        if not mimetype:
+            if self.docpath.startswith('http:') or self.docpath.startswith('www.') or self.docpath.startswith('https:'):
+                mimetype='text/html'
+        if not mimetype:
+            root,ext=os.path.splitext(os.path.basename(self.docpath))
+            mimetype=MIMETYPES.get(ext)
+        return mimetype
     
     def tagform(self):
         self.initialtags=self.result.data.get(self.mycore.usertags1field,'')
-        if not isinstance(self.initialtags,list):
+        if not isinstance(self.initialtags,list) and self.initialtags:
             self.initialtags=[self.initialtags]
         self.tagstring=','.join(map(str, self.initialtags))
+        #log.debug(f'{self.tagstring},{self.initialtags}')
         return TagForm(self.tagstring)
        
 

@@ -3,7 +3,7 @@ from __future__ import unicode_literals
 from builtins import str #backwards to py 2.X
 from bs4 import BeautifulSoup as BS
 import logging, collections
-from usersettings import userconfig as config
+from configs import config
 from ownsearch import solrJson
 log = logging.getLogger('ownsearch.solrcursor')
 

@@ -6,9 +6,10 @@ try:
 except ImportError:
     from django.urls import reverse,resolve,NoReverseMatch
 from documents.models import Index,Source
-from ownsearch import solrJson,pages,solr_indexes
+from ownsearch import solrJson,pages,solr_indexes,checks
 from documents.management.commands import setup
 from documents.management.commands.setup import make_admin_or_login
+from documents import solrcursor
 from django.test.client import Client
 import logging,re,os
 log = logging.getLogger('ownsearch.tests')
@@ -34,6 +35,12 @@ class DocumentsTest(TestCase):
         # You'll need to log him in before you can send requests through the client
         self.client.login(username=my_admin.username, password=password)
         
+
+    def test_check_solr(self):
+        """checking solr check api"""
+        self.client.login(username='myuser', password=password)
+        response=self.client.get(reverse('check_solr_api')) 
+        #print(response.__dict__)
 
     def test_indexes(self):
         """check access to solrindex """
@@ -155,27 +162,49 @@ class SolrIndexesTest(TestCase):
         
 
 
+
 class UrlsTest(TestCase):
     def setUp(self):
 #        print('Tests: disable logging')
         logging.disable(logging.CRITICAL)
         
     def test_simplesearch(self):        
-         res=resolve("/ownsearch/searchterm=%252A&page=1&sorttype=relevance&filters=tag1=Donald Trump")
-         #print(res.__dict__)
-         self.assertEquals(res.kwargs,{'searchterm': '%252A', 'page_number': '1', 'sorttype': 'relevance', 'tag1field': 'tag1', 'tag1': 'Donald Trump', 'tag2field': None, 'tag2': None, 'tag3field': None, 'tag3': None,'start_date': None, 'end_date': None})
+        res=resolve("/ownsearch/searchterm=%252A&page=1&sorttype=relevance&filters=tag1=Donald Trump")
+        #print(res.__dict__)
+        self.assertEquals(res.kwargs,{'searchterm': '%252A', 'page_number': '1', 'sorttype': 'relevance', 'tag1field': 'tag1', 'tag1': 'Donald Trump', 'tag2field': None, 'tag2': None, 'tag3field': None, 'tag3': None,'start_date': None, 'end_date': None})
     def tests_tagsearch(self):
-         params={'page_number':1,'sorttype':'relevance','searchterm':'test'}
-         params.update({'tag1field':'tag1','tag1':'sometag'})
-         rev=reverse('searchpagefilters',kwargs=params)
-         self.assertEquals(rev,"/ownsearch/searchterm=test&page=1&sorttype=relevance&filters=tag1=sometag")
-         params.update({'start_date':'01012000'})
-         rev=reverse('searchpagefilters',kwargs=params)
-         self.assertEquals(rev,"/ownsearch/searchterm=test&page=1&sorttype=relevance&filters=tag1=sometag&start_date=01012000")
-         params.update({'tag2field': 'secondfield', 'tag2': 'secondvalue'})
-         rev=reverse('searchpagefilters',kwargs=params)
-         self.assertEquals(rev,"/ownsearch/searchterm=test&page=1&sorttype=relevance&filters=tag1=sometag&tag=secondfield=secondvalue&start_date=01012000")
+        params={'page_number':1,'sorttype':'relevance','searchterm':'test'}
+        params.update({'tag1field':'tag1','tag1':'sometag'})
+        rev=reverse('searchpagefilters',kwargs=params)
+        self.assertEquals(rev,"/ownsearch/searchterm=test&page=1&sorttype=relevance&filters=tag1=sometag")
+        params.update({'start_date':'01012000'})
+        rev=reverse('searchpagefilters',kwargs=params)
+        self.assertEquals(rev,"/ownsearch/searchterm=test&page=1&sorttype=relevance&filters=tag1=sometag&start_date=01012000")
+        params.update({'tag2field': 'secondfield', 'tag2': 'secondvalue'})
+        rev=reverse('searchpagefilters',kwargs=params)
+        self.assertEquals(rev,"/ownsearch/searchterm=test&page=1&sorttype=relevance&filters=tag1=sometag&tag=secondfield=secondvalue&start_date=01012000")
          
-         res=resolve("/ownsearch/searchterm=test&page=1&sorttype=relevance&filters=tag1=sometag&tag=secondfield=secondvalue&start_date=01012000")
-         self.assertEquals(res.kwargs,{'searchterm': 'test', 'page_number': '1', 'sorttype': 'relevance', 'tag1field': 'tag1', 'tag1': 'sometag', 'tag2field': 'secondfield', 'tag2': 'secondvalue', 'start_date': '01012000', 'end_date': None,'tag3field': None, 'tag3': None})
+        res=resolve("/ownsearch/searchterm=test&page=1&sorttype=relevance&filters=tag1=sometag&tag=secondfield=secondvalue&start_date=01012000")
+        self.assertEquals(res.kwargs,{'searchterm': 'test', 'page_number': '1', 'sorttype': 'relevance', 'tag1field': 'tag1', 'tag1': 'sometag', 'tag2field': 'secondfield', 'tag2': 'secondvalue', 'start_date': '01012000', 'end_date': None,'tag3field': None, 'tag3': None})
          
+    def test_strangekeywords(self):
+        res=resolve("/ownsearch/searchterm=pdf&page=1&sorttype=relevance&filters=tag1=Donald Trump")
+        #print(res.__dict__)
+        self.assertEquals(res._func_path,'ownsearch.views.do_search')
+        
+        #add ampersand
+        res=resolve("/ownsearch/searchterm=pdf&page=1&sorttype=relevance&filters=tag1=Donald&Trump")
+        #print(res.__dict__)
+        self.assertEquals(res._func_path,'ownsearch.views.do_search')
+
+
+        
+         
+class ContentTest(TestCase):
+    def setUp(self):        
+        self.mycore=solrcursor.solrJson.SolrCore('tests_only')
+        logging.disable(logging.CRITICAL)
+    def test_mimetype(self):
+        tester=checks.SolrIndexTests()
+        self.assertEquals(tester.mime_check(self.mycore),0)
+        

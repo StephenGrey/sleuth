@@ -1,0 +1,237 @@
+{% extends "base.html" %}
+
+{% block stylesheet %}
+{% load static %}
+<link rel="stylesheet" type="text/css" href="{% static 'css/dups.css' %}" />
+{% endblock%}
+
+	
+{% block sidebar %}
+
+<p><p>
+	<div class="panel panel-default">
+		<h4><b>Master Archive Folder:</b></h4>
+		{% if page.masterindex_path %}
+		
+		<form action="/dups/folder/{{path}}" method ="post" id="master-folder-form">
+		{% csrf_token %}
+		<p>
+			<div class="master-url">
+			<a href="{{page.masterpath_url}}">{{page.masterindex_path}}</a>
+		</div>
+		<p>
+		<p>
+		<button type="submit" class="btn btn-info btn-block" name="masterscan"> Scan Master</button>
+    <p><p>
+		</form>
+		{% endif %} 
+	</div>
+	<div class="panel panel-default">
+		<p><p><p><p>
+			<form action="/dups/folder/{{path}}" method ="post" name="scan-folder-form" id="scan-folder-form">
+			{% csrf_token %}
+			<h4><b>Scan Folder:</b></h4>
+			<div class="local-url">
+			<a href="/dups/folder/{{page.scanpath}}">{{page.scanpath}}</a>
+			</div>
+			{% if not page.inside_master %}
+					 <input type="hidden" id="local-path" name="local-path" value="{{page.scanpath}}">
+  					<button type="submit" name="scan" class="btn btn-success btn-block">Scan Folder</button>
+			{% endif %} 
+			</form>
+	</div>
+
+{% if page.results %}
+<div id="results_panel" class="panel panel-default" > 
+<div class="panel-heading">
+		<span id="summary_results">Scanning: &nbsp{{ page.results.progress_str }}</span>
+</div>
+<div class="progress">
+  <div id="task_bar" class="progress-bar" role="progressbar" style="width: {{page.results.progress}}%" aria-valuemin="0" aria-valuemax="100">
+  </div>
+</div>
+  <span id="results_list" {% ifnotequal page.results.progress '100' %} style="visibility:hidden"{%endifnotequal%}>
+		
+  </span>
+
+<button id="progress_cancel" class="btn btn-default pull-left">Cancel scan</button>
+</div>
+
+<script>
+
+function check_tasks() 
+{
+	var task_url = '/documents/api/tasks/'+'{{page.job}}';
+	$.get( task_url, function(data) 
+		{
+    	if (data.error==true){
+    		console.log(data.message);
+    		}
+    	else
+    		{
+    		//alert(data.results.progress);
+    		console.log(data);
+//    		console.log(data.results.progress);
+//    		console.log(data.results.progress_str);
+    		var job=data.results.job;
+    		var task=data.results.task;
+    		var task_str="";
+    		var working_file =data.results.working_file;
+    		var label=data.results.label;
+    		if (label=='local')
+    			{
+    		    task_str="Scanning Scan Folder"; 
+    		    }
+    		else
+    			{
+    			task_str="Scanning Master Folder";
+    			};
+        	$("#task_bar").html(data.results.progress+"%");
+        	$("#task_bar").css("width", data.results.progress+"%");
+        	if (data.results.status=='error'){
+        			$("#task_bar").removeClass("progress-bar-warning").addClass("progress-bar-danger");
+        			$("#summary_results").html('Error: '+data.results.message);
+        			};
+        	if (data.results.status=='completed')
+        			{
+//        			console.log('done');
+        			clearInterval(timerID); //stop checking; unless this is a subtask 
+        			$("#task_bar").removeClass("progress-bar-warning").addClass("progress-bar-success");
+        			$("#main-panel").css('display','inline'); 
+        			$("#results_list").css("visibility","visible");
+        			//document.getElementById("task_bar").style.color="green"
+        			if (task=data.results.task=="dupscan")
+        			{ 
+        			$("#results_list").html("<b>Scan results:</b>&nbspTotal folders: "+data.results.total+"&nbsp&nbspNew files: "+data.results.new+" &nbsp&nbspChanged files: "+data.results.changed+"&nbsp&nbspDeleted files: "+data.results.deleted+"<p><p>");    			
+        			}
+        			else {
+        				$("#results_list").html("<b>Indexing results:</b>&nbspTotal files: "+data.results.target_count+"&nbsp&nbspIndexed: "+data.results.counter+" &nbsp&nbspFailed: "+data.results.failed+" &nbsp&nbspSkipped: "+data.results.skipped+"&nbsp;&nbsp;&nbsp;");
+        				};
+    				$("#summary_results").html(task_str+":&nbsp"+data.results.progress_str+"&nbsp&nbspCompleted");
+        			}
+        	else
+        		{
+        		
+        		
+        		$("#summary_results").html(task_str+":&nbsp"+data.results.progress_str);
+        		//+"&nbsp&nbsp&nbspcurrently processing:&nbsp&nbsp "+working_file);	
+        			};
+    		
+    	};
+     },
+     'json' // I expect a JSON response
+     );
+};
+
+
+check_tasks();
+var timerID = setInterval(check_tasks, 2*1000); //checking every 2 seconds
+
+$("#progress_cancel").click(function() {
+  event.preventDefault();
+  console.log('remove task bar');
+  clearInterval(timerID);
+//  $("#task_wrap").css('visibility','hidden');
+//  $("#results_list").css('visibility','hidden');
+  $("#results_panel").css('display','none'); 
+  $.get( "/documents/api/clearduptasks", function(data)
+  	{
+  	},"json")
+  .fail(function(){ alert('Failed to clear task')});
+//	{if (data.error==true){console.log("task cancel failed");};
+});
+
+
+</script>
+
+
+
+{%endif %}
+	
+{% endblock %}
+
+{% block body_content %}
+	{% if page.inside_master %}
+<div style="color:white;background-color:red">INSIDE MASTER ARCHIVE </div>
+
+
+
+{% endif %}
+<p>
+<a href="{% url "dups_index" path=path %}">Display All</a> &nbsp;&nbsp; 
+<a href="{% url "dups_index_dups" path=path %}">List Duplicates</a>
+{% if not page.inside_master %}&nbsp;&nbsp;
+<a href="{% url "dups_index_orphans" path=path %}">List Orphans</a>
+{% else%}&nbsp;&nbsp;
+<a href="{% url "dups_index_orphans" path=path %}">List Folder-Orphans</a>
+
+{% endif %}
+<div class='nav-container'>		
+		<ol class="breadcrumb bread1" id="{{path}}">
+		  <li><a href="/dups">Home</a></li>
+		{% for fullpath,relpath,basename,hash in tags %}  
+		  <li><a href="/dups/folder/{{fullpath}}">{{basename}}</a></li>
+		{% endfor %} 
+		</ol>
+
+</div>
+		<p>
+		<div class="panel-group" id="accordion" role="tablist" aria-multiselectable="true">
+		  <div class="panel panel-default">
+				<form method ="post" id="duplicates-form">
+				{% csrf_token %}
+				<ul>
+				{% if not subfiles%}
+				Empty folder
+				{% endif %}
+				<div class="checkbox">
+					<label><input type="checkbox" id="select_all" name="checked" value="">Select All</label>
+				</div>	
+				
+				{% for f in subfiles %}
+					{{f}}
+				{% endfor %}
+				
+				<p>{{warning}}
+				</ul>	
+				<input type="submit" name="delete-button"  class="btn btn-info" value="Delete">	
+				<input type="submit" id="move-button" name="move-button"  class="btn btn-info move-button" value="Move">
+				<input type="hidden" class="destination" name="destination" id="destination" value="something">
+				<input type="hidden" id="to-do" name="action" value="">
+						</form>
+			</div>
+		</div>
+
+				<div class="menu" id="foo" data-id="somepath">
+		  		<span class="menu-path"></span>
+		  		<p><span class="menu-hash">somehash</span>
+ 		  			<span class="menu-size">somehash</span>
+ 		  			<span class="menu-scans">info</span>
+ 		  			<span class="menu-localscans">info</span>
+		  		
+		  		<ul class="menu-options">
+		    		<li class="menu-option scan-folder"><u>Set as Scan Folder</u></li>
+		    		<li class="menu-option master-folder"><u>Set as Master Folder</u></li>
+		  		
+		  		</ul>
+				</div>	
+
+{% endblock %}
+
+
+{% block javascript %}
+{% load static %}
+<script src="{% static 'js/dups.js' %}">
+</script>
+
+<!--<script>
+const menu = document.querySelector(".menu");
+menu.style.left = 0;
+menu.style.top = 50;
+
+
+
+</script>
+-->
+{% endblock %}
+

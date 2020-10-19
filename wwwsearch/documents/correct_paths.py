@@ -5,61 +5,69 @@ from __future__ import absolute_import
 import os, logging
 log = logging.getLogger('ownsearch.correctpaths')
 from . import solrcursor,updateSolr
-from usersettings import userconfig as config
+from configs import config
 from ownsearch import solrJson
 from .models import Collection,File,Index
 from . import file_utils
+from .updateSolr import path_changes
 
-DOCSTORE=file_utils.BASEDIR
+DOCSTORE=file_utils.DOCSTORE
 
-def check_solrpaths(mycore,collection):
+def check_solrpaths(mycore,collection,docstore=DOCSTORE):
     #print((mycore,collection))            
     #get the basefilepath
     #docstore=config['Models']['collectionbasepath'] #get base path of the docstore
     #now compare file list with solrindex
+    _result=True
     if True:
         filelist=File.objects.filter(collection=collection)
         #main loop - go through files in the collection
-        for file in filelist:
-            relpath=os.path.relpath(file.filepath,start=DOCSTORE) #extract the relative path from the docstore
-            hash=file.hash_contents #get the stored hash of the file contents
+        for _file in filelist:
+            #hash=_file.hash_contents #get the stored hash of the file contents
             #print (file.filepath,relpath,file.id,hash)
-            check_path(file,mycore)
+            if not check_path(_file,mycore,docstore=docstore):
+                _result=False
+    return _result
                 
-def check_path(file,mycore):
-    solrdocs=solrJson.getmeta(file.solrid,mycore)
+def check_path(_file,mycore,docstore=DOCSTORE):
+    solrdocs=solrJson.getmeta(_file.solrid,mycore)
+    _success=True
     if not solrdocs:
-        print('solrdoc {} does not exists'.format(file.solrid))
+        print('solrdoc {} does not exists'.format(_file.solrid))
+        _success=False
     for solrdoc in solrdocs:        
-        docpathes_in_solr=solrdoc.data.get('docpath')
-        docpath_in_database=file.filepath
+        docpaths_in_solr=solrdoc.data.get('docpath')
+        docpath_in_database=_file.filepath
         
-        assert type(docpathes_in_solr) == list       
-        if docpath_in_database in docpathes_in_solr:
+        assert type(docpaths_in_solr) == list       
+        if docpath_in_database in docpaths_in_solr:
             #found full path
-            log.debug(f'Path in database: {docpath_in_database} Paths in solr:{docpathes_in_solr}')
+            log.debug(f'Path in database: {docpath_in_database} Paths in solr:{docpaths_in_solr}')
             print('Found full path to correct: {}'.format(docpath_in_database))
             
             #remove the fullpath
+            docpaths_in_solr.remove(docpath_in_database)
             
-            #add relative path
+            #relpath=file_utils.make_relpath(docpath_in_database)
+            paths_are_missing,paths,p_hashes=path_changes(docpath_in_database,docpaths_in_solr,docstore=docstore)
+                        
+            if paths_are_missing:
+                log.debug(f'Updating paths to: {paths}') 
+                changes=[] 
+                changes.append(('docpath','docpath',paths))
+                changes.append((mycore.parenthashfield,mycore.parenthashfield,p_hashes))
             
-#        if docpath!=relpath:
-#            changes=[('docpath',relpath)]
-#        else:
-#            changes=None
-#        if changes:
-#            #make changes to the solr index
-#            json2post=updateSolr.makejson(solrdoc.id,changes,mycore)
-#            log.debug('{}'.format(json2post)) 
-#            #response,updatestatus=updateSolr.post_jsonupdate(json2post,mycore)
-#            print((response,updatestatus))
-#            if updateSolr.checkupdate(solrdoc.id,changes,mycore):
-#                print('solr successfully updated')
-#            else:
-#                print('solr changes not successful')
-        else:
-            pass
-            #print('Nothing to update!')
-
+            #make changes to the solr index
+                json2post=updateSolr.makejson(solrdoc.id,changes,mycore)
+                log.debug('{}'.format(json2post)) 
+                response,updatestatus=updateSolr.post_jsonupdate(json2post,mycore)
+                log.debug('Response: {response}, UpdateStatus: {updatestatus}')
+                if updateSolr.checkupdate(solrdoc.id,changes,mycore):
+                    log.debug('solr successfully updated')
+                else:
+                    log.debug('solr changes not successful')
+                    _success=False
+            else:
+                log.debug('No paths to update!')
+        return _success
 

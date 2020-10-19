@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+
+{% block sidebar %}
+	
+	<ul class="sidebar-nav">
+		<form action="{% url 'list_collections' %}" method ="post">
+		{% csrf_token %}
+		Index:{{page.form.corechoice}}
+
+		</form>
+	</ul>
+
+{% endblock %}
+
+{% block body_content %}
+		<h4>Collections Explorer</h4>
+		<p>
+		<p>
+		<form id="coll-form" method="post">
+		{% csrf_token %}
+		<div class="panel-group" id="accordion" role="tablist" aria-multiselectable="true">
+		  <div class="panel panel-default">
+				<ul>
+		{% for collection in page.authorised_collections %}  
+		
+				<div class="checkbox">
+					<label><input type="checkbox" name="checked" value="{{collection.id}}">{{ collection }} (ID:{{collection.id}})</label>
+				{% if collection.live_update %}<span class="glyphicon glyphicon-fire" style="color:red;">Live!</span>{% endif %}
+				</div>	
+		
+		
+		{% endfor %}
+				</ul><p>
+		<input type="submit" name="live-button"  class="btn btn-info btn-sm" value="Make Live">	
+		<input type="submit" name="unlive-button"  class="btn btn-info btn-sm" value="Unmake Live">	
+		<input type="submit" id="delete-button" name="delete-button"  class="btn btn-info btn-sm" value="Delete">	
+			</div>
+		</div>
+		
+		</form>
+
+
+<div id="wrapper" title="Delete Collection Confirmation">
+  <p><span class="ui-icon ui-icon-alert" style="float:left; margin:12px 12px 20px 0;"></span>
+  	These collections and their files will be permanently deleted and cannot be recovered. Are you sure?</p>
+</div>
+		
+{% endblock %}
+
+
+{% block javascript %}
+<script>
+
+$('#wrapper').dialog({
+    closeText: "",
+    autoOpen: false,
+    title: 'Delete collections - confirmation',
+    resizable: false,
+      	height: "auto",
+      	width: 400,
+      	modal: true,
+    buttons: {
+        	"Delete selected collections": function() 
+        		{
+         	 	$( this ).dialog( "close" );
+        		//$('form#coll-form').submit();//let delete go ahead
+        		$('#coll-form').append('<input type="text" name="delete-button" value="Delete" />');
+        		document.getElementById("coll-form").submit();
+        		},
+        	Cancel: function() {
+          	$( this ).dialog( "close" );
+        	
+        	
+        	},
+        },
+    
+	});
+
+
+    //$('#wrapper').dialog('open');
+    //e.preventDefault();
+    //alert(answer);
+//     $('form#coll-form').submit();
+
+var go_ahead=false
+
+
+$(document).ready(function(){
+     //using standard javascript
+     //return false from a click function also prevents the default behaviour
+//     $('#delete-button').click(function(e) {
+//    var answer=confirm('Are you sure you want to delete these collections?');
+//    if(answer){
+//     alert('Deleted');
+//     go_ahead=true;
+//     return true
+//    }
+//    else{
+//        alert('Not Deleted');
+//        go_ahead=false;
+//        return false      
+//    };
+//	};)
+     
+    $('#dialogue-confirm').dialog({
+    autoOpen: false,
+    title: 'Basic Dialog'
+	});
+         
+    $('#delete-button').click(function(e) {
+    //e.preventDefault();	
+    $('#wrapper').dialog('open');
+    //alert(go_ahead);
+    return false;
+
+	});
+    
+});
+//$('#opener').click(function() {
+//    $('#wrapper').dialog('open');
+//    return false;
+//});
+
+</script>
+{% endblock %}
+

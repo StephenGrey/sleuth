@@ -1,21 +1,167 @@
 {% extends "base.html" %}
+
+
+{% block sidebar %}
+{% endblock %}
 {% block body_content %}
 
-<h3>Document Collections</h3>
+<h3>Document Collections <small> <a id="sophie-cog" href="/documents/listcollections" style="color:grey" class="glyphicon glyphicon-cog glyphicon-small"></a></small></h3>
 
 <form action="{% url 'docs_index'%}" method ="post">
 {% csrf_token %}
-Index:{{form.corechoice}}<p>
+Index:{{page.form.corechoice}}<p>
 </form>
 
 <form action="{% url 'listfiles'%}" method ="post">
 {% csrf_token %}
-
-{% for collection in latest_collection_list %}
-    <input type="radio" name="choice" id="choice{{ forloop.counter }}" value="{{ collection.id }}" />
-    <label for="choice{{ forloop.counter }}">{{ collection.path }}</label><br />
+{% for collection_path,collection_id,live_update in page.authorised_collections_relpaths %}
+    <input type="radio" name="choice" id="choice{{collection_id}}" value="{{ collection_id }}" />
+    <label for="choice{{collection_id}}">{{collection_path }} 
+    {%if live_update%}<span style="color:red" class="glyphicon glyphicon-fire"></span>{%endif%}
+    	</label>
+    	
+    	<br />
 {% endfor %}
 <p>
+
+{% if page.results %}
+
+<div id="results_panel" class="panel panel-default" > 
+	<div class="panel-heading">
+		<span id="summary_results">Indexing:&nbsp{{ page.results.progress_str }}</span>
+	</div>
+	<div class="panel-body" id='main-panel'>
+
+		<div class="progress" >
+  			<div id="task_bar" class="progress-bar {% ifnotequal page.results.progress '100' %}progress-bar-warning{%else%}progress-bar-success{%endifnotequal%}" role="progressbar" aria-valuenow="{{page.results.progress}}" aria-valuemin="0" aria-valuemax="100">
+    			{{ page.results.progress_str }} 
+  			</div>
+		</div>
+
+
+		<span id="results_list" {% ifnotequal page.results.progress '100' %}style="visibility:hidden"{%endifnotequal%}>
+		<b>Results:</b>&nbspTotal files: &nbsp&nbspIndexed: {{page.results.counter}} &nbsp&nbspFailed: {{page.results.failed}} &nbsp&nbspSkipped: {{page.results.skipped}}</span>
+		<a id="results_url" href='/documents/results/{{page.job}}'>Details</a><button id="progress_cancel" class="btn btn-default pull-right">Done</button>
+	</div>
+<p><p>
+</div>
+<script>
+
+function check_tasks() 
+{
+	var task_url = '/documents/api/tasks/'+'{{page.job}}';
+	$.get( task_url, function(data) 
+		{
+    	if (data.error==true){
+    		console.log(data.message);
+    		}
+    	else
+    		{
+    		//alert(data.results.progress);
+    		console.log(data);
+//    		console.log(data.results.progress);
+//    		console.log(data.results.progress_str);
+    		var job=data.results.job;
+    		var task=data.results.task;
+    		var master_task=data.results.master_task
+    		var master_task_status=data.results.master_task_status
+    		var task_str="Indexing";
+    		var working_file =data.results.working_file;
+//    		console.log(task);
+    		$("#results_url").attr("href", "/documents/results/"+job)
+    		if (master_task_status=='completed')
+    			{
+        		clearInterval(timerID); //stop checking;
+    			};
+
+        		if (task=="extract_collection_force_retry")
+        			{ task_str="Indexing (force retry)"; 
+        			}
+        		else if (task=="scan_collection")
+        			{ task_str="Scanning";
+//        			  working_file='' 
+        			};
+        		if (data.results.show_taskbar=='False'){
+        			$("#main-panel").css('display','none');
+        			//('visibility','hidden'); 
+        			}
+        			else{
+        			$("#main-panel").css('display','inline'); 
+        		    };
+    
+        		$("#task_bar").html(data.results.progress+"%");
+        		$("#task_bar").css("width", data.results.progress+"%");
+        		if (data.results.status=='error'){
+        			$("#task_bar").removeClass("progress-bar-warning").addClass("progress-bar-danger");
+        			$("#summary_results").html('Error: '+data.results.message);
+        			};
+        		
+        		if (data.results.status=='completed')
+        			{
+//        			console.log('done');
+        			if (master_task){
+//        				console.log('master task exists')
+        				}
+        			else {
+        				clearInterval(timerID); //stop checking; unless this is a subtask 
+        			};
+        			
+        			$("#task_bar").removeClass("progress-bar-warning").addClass("progress-bar-success");
+        			$("#main-panel").css('display','inline'); 
+        			$("#results_list").css("visibility","visible");
+        			//document.getElementById("task_bar").style.color="green"
+        			if (task=data.results.task=="scan_collection")
+        			{ 
+        			$("#results_list").html("<b>Scan results:</b>&nbspTotal files: "+data.results.total+"&nbsp&nbspMoved: "+data.results.moved+"&nbsp&nbspNew: "+data.results.new+" &nbsp&nbspUnchanged: "+data.results.unchanged+" &nbsp&nbspChanged: "+data.results.changed+"&nbsp&nbspDeleted: "+data.results.deleted+"<p><p>");    			
+        			}
+        			else {
+        				$("#results_list").html("<b>Indexing results:</b>&nbspTotal files: "+data.results.target_count+"&nbsp&nbspIndexed: "+data.results.counter+" &nbsp&nbspFailed: "+data.results.failed+" &nbsp&nbspSkipped: "+data.results.skipped+"&nbsp;&nbsp;&nbsp;");
+        				};
+    				$("#summary_results").html(task_str+":&nbsp"+data.results.progress_str+"&nbsp&nbspCompleted");
+        			}
+        		else
+        			{
+        			$("#summary_results").html(task_str+":&nbsp"+data.results.progress_str+"&nbsp&nbsp&nbspcurrently processing:&nbsp&nbsp "+working_file);	
+        			};
+    		
+    	};
+     },
+     'json' // I expect a JSON response
+     );
+};
+
+
+check_tasks();
+var timerID = setInterval(check_tasks, 2*1000); //checking every 2 seconds
+
+$("#progress_cancel").click(function() {
+  event.preventDefault();
+  console.log('remove task bar');
+  clearInterval(timerID);
+//  $("#task_wrap").css('visibility','hidden');
+//  $("#results_list").css('visibility','hidden');
+  $("#results_panel").css('display','none'); 
+  $.get( "/documents/api/cleartasks", function(data)
+  	{
+  	},"json")
+  .fail(function(){ alert('Failed to clear task')});
+//	{if (data.error==true){console.log("task cancel failed");};
+});
+
+
+</script>
+{% endif %}
+<script>
+radiobtn = document.getElementById("choice{{page.selected_collection}}");
+radiobtn.checked = true;
+
+
+</script>
+<p>
+
+<input type="submit" name="scan_extract" class="btn-lg btn-warning	" value="Scan & Index" /> Scan folder and index<p>
+<p>
+	
 <input type="submit" name="list" value="List Files" /> lists files stored in database<p>
 
 File database functions:<p>
@@ -24,14 +170,51 @@ File database functions:<p>
 <p>
 Extract data:
 <p>
-<input type="submit" name="index" value="Index Files" />  simple file extract into solr index<p>
-<input type="submit" name="indexICIJ" value="Index Files w ICIJ 'Extract' tool (force retry)" /><p>
-<input type="submit" name="indexICIJ_NO_OCR" value="Index Files w 'Extract' tool (no OCR / force retry)" />
+<div class="form-row">
+<!--	 <div class="col-xs-2 col-sm-2">-->
+		 <div class="checkbox">
+  			<label><input type="checkbox" name="ocr" checked="checked" value="yes">OCR</label>
+  			<label><input type="checkbox" name="force_retry" value="yes">ForceRetry</label>
+		</div>
+		<div form-control-inline>
+			<label style="font-weight:normal" id="maxsize_label" for="maxsize" class="text-muted">Maxsize (Mb)<input type="text"  class="form-control-plaintext" name="maxsize" id="maxsize" value="{{page.maxsize}}"><small><span id="maxsize_edit" class="glyphicon glyphicon-cog"></span></small></label>
+
+			<label style="font-weight:normal" id="timeout_label" for="timeout" class="text-muted">Timeout (secs)<input type="text"  class="form-control-plaintext" name="timeout" id="timeout" value="{{page.timeout}}"><small><span id="timeout_edit" class="glyphicon glyphicon-cog"></span></small></label>
+
+		</div>
+
+</div>
+<script>
+maxsize= document.getElementById("maxsize");
+maxsize.setAttribute("disabled","disabled");
+$("#maxsize_edit").click(function() 
+	{
+	$('#maxsize_edit').removeClass("glyphicon-cog");
+	$('#maxsize_label').removeClass("text-muted");
+	$('#maxsize').prop('disabled', false);
+	});
+	
+timeout= document.getElementById("timeout");
+timeout.setAttribute("disabled","disabled");
+$("#timeout_edit").click(function() 
+	{
+	$('#timeout_edit').removeClass("glyphicon-cog");
+	$('#timeout_label').removeClass("text-muted");
+	$('#timeout').prop('disabled', false);
+	});
+
+
+</script>
+
+<p><p>
+<input type="submit" name="index" value="Index Files" />  simple file extract into solr index<p><p>
+<input type="submit" name="indexICIJ" value="Index Files w ICIJ 'Extract' tool" /><p>
 <p><p><p>
 More Functions:<p>
 <p>
 <input type="submit" name="dupscan" value="Scan for and remove duplicates" />
 <input type="submit" name="path-check" value="Convert paths to relatives links" />
+
 </form>
 
 {% endblock %}

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from __future__ import unicode_literals
 from django.db import models
-from usersettings import userconfig as config
+from configs import config
 from django.contrib.auth.models import Group, User
 
 # Create your models here.
@@ -9,7 +9,7 @@ collectionbasepath=config['Models']['collectionbasepath']
 
 class Collection(models.Model):
     path = models.FilePathField('File path',path=collectionbasepath, allow_files=False,allow_folders=True,recursive=True, max_length=150)
-    indexedFlag = models.BooleanField('Indexed')
+    live_update = models.BooleanField('Live update')
     core = models.ForeignKey(
         'Index',
         on_delete=models.CASCADE,
@@ -45,15 +45,22 @@ class File(models.Model):
     indexedSuccess = models.BooleanField('IndexedOK',default=False)
     indexedTry=models.BooleanField('IndexedTry',default=False)
     indexUpdateMeta=models.BooleanField('UpdateMeta',default=False)
+    OCRdone=models.BooleanField('OCRdone',default=False)
+    OCRfile=models.CharField('OCRfile',max_length=200,default='')
+    indexMetaOnly=models.BooleanField('indexMetaOnly',default=False)
+    indexFails=models.IntegerField('IndexFails',default=0)
     is_folder=models.BooleanField('IsFolder',default=False)
     hash_contents = models.CharField('Hash contents',max_length=200,default='')
     hash_filename = models.CharField('Hash doc name',max_length=200,default='')
-    filename=models.CharField('Filename',max_length=100,default='')
+    error_message = models.TextField('Error Message',blank=True,null=True)
+    filename=models.CharField('Filename',max_length=300,default='')
     fileext=models.CharField('File Extension',max_length=10,default='')
     filesize = models.IntegerField('Filesize',default=0)
     last_modified=models.DateTimeField('date modified',blank=True)
+    content_date=models.DateTimeField('content date',blank=True,null=True)
     solrid=models.CharField('Solr ID',max_length=100,default='',blank=True)
     child=models.BooleanField('Child document',default=False) #if an extracted child doc (e.g. attachment or embedded image)
+    oldpaths_to_delete=models.TextField('Old paths',blank=True,null=True)
 
     def __str__(self):
         return self.filepath

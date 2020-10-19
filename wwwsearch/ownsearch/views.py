@@ -9,17 +9,19 @@ from __future__ import absolute_import
 from builtins import str
 from .forms import SearchForm,TagForm
 from documents.models import File,Collection,Index,UserEdit
+from documents.file_utils import slugify,make_download,make_file,DoesNotExist
 from django.shortcuts import render
 from django.contrib.auth.decorators import login_required
-from django.http import HttpResponse
-from django.http import HttpResponseRedirect
+from django.http import HttpResponse, HttpResponseRedirect,Http404,JsonResponse
 from django.urls import reverse
 from django.db.models.base import ObjectDoesNotExist
 from django.contrib.staticfiles.templatetags.staticfiles import static #returns static url
 from django.contrib.staticfiles import finders #locates static file
 from django.conf import settings #to access settings constants
-import re, os, logging, unicodedata
+from documents.management.commands import setup
+import re, os, logging, unicodedata, json
 from . import markup
+from watcher import watch_dispatch
 
 try:
     from urllib.parse import quote_plus #python3
@@ -27,13 +29,15 @@ except ImportError:
     from urllib import quote_plus #python2
 from documents import solrcursor,updateSolr
 from datetime import datetime
-from usersettings import userconfig as config
+from configs import config
 from . import pages,solrJson,authorise
 
 
 log = logging.getLogger('ownsearch.views')
 DOCBASEPATH=config['Models']['collectionbasepath']
 RESULTS_PER_PAGE=10
+MIMETYPES_THAT_EMBED=['application/pdf','image/jpeg','image/svg+xml','image/x-icon','image/bmp','image/png','image/tiff','image/gif',]
+#,'application/vnd.openxmlformats-officedocument.wordprocessingml.document','image/vnd.adobe.photoshop']
 #max size of preview text to return (to avoid loading up full text of huge document in browser)
 try:
    CONTENTSMAX=int(config['Display']['maxcontents'])
@@ -46,7 +50,7 @@ def do_search(request,page_number=0,**kwargs):
 #    log.debug(request.__dict__)
     path_info=request.META.get('PATH_INFO')
     request.session['lastsearch']=path_info
-
+    log.debug(request.session.get('lastsearch'))
     page=pages.SearchPage(page_number=page_number,searchurl=path_info, **kwargs)
     
     #log.debug('SESSION CACHE: '+str(vars(request.session)))
@@ -58,7 +62,7 @@ def do_search(request,page_number=0,**kwargs):
     #GET AUTHORISED CORES AND DEFAULT
         thisuser=request.user
         storedcoreID=request.session.get('mycore','')
-        #log.debug('Stored core: {}'.format(storedcoreID))
+        log.debug('Stored core: {}'.format(storedcoreID))
         
         try:
             authcores=authorise.AuthorisedCores(thisuser,storedcore=storedcoreID)
@@ -144,10 +148,45 @@ def do_search(request,page_number=0,**kwargs):
         log.error(e)
         return HttpResponse('No response from solr server : try again or check network connection, solr status')
 
+
+@login_required
+def embed(request,doc_id,hashfilename,mimetype):
+    """return document to embed"""
+    log.debug(f'Embed of doc_id: {doc_id} hashfilename: {hashfilename} with mimetype: {mimetype}')
+        #check file exists in database and hash matches
+    if mimetype not in MIMETYPES_THAT_EMBED:
+        log.warning('Embedding document that cannot embed')
+        return None
+    try:
+        thisfile=File.objects.get(id=doc_id)
+        log.info('User: '+request.user.username+' embedding file: '+thisfile.filename)
+        assert thisfile.hash_filename==hashfilename
+    except AssertionError:
+        log.warning('Embed failed because of hash mismatch')
+        return None
+    except ObjectDoesNotExist:
+        log.warning('Embed failed as file ID not found in database')
+        return None
+        #check user authorised to download
+    if authorise.authid(request,thisfile) is False:
+        log.warning(thisfile.filename+' not authorised or not present')
+        return None
+
+    file_path = thisfile.filepath
+    try:
+        return make_file(file_path,mimetype)
+    except DoesNotExist:
+        log.error('DoesNotExist error in download embed: {}'.format(e))
+    except Exception as e:
+        log.error('Error in download embed: {}'.format(e))
+    return None
+
+    
 @login_required
 def download(request,doc_id,hashfilename):
     """download a document from the docstore"""
     log.debug('Download of doc_id:'+doc_id+' hashfilename:'+hashfilename)
+
     #MAKE CHECKS BEFORE DOWNLOAD
     #check file exists in database and hash matches
     try:
@@ -160,37 +199,35 @@ def download(request,doc_id,hashfilename):
     except ObjectDoesNotExist:
         log.warning('Download failed as file ID not found in database')
         return HttpResponse('File not stored on server')
+
     #check user authorised to download
     if authorise.authid(request,thisfile) is False:
         log.warning(thisfile.filename+' not authorised or not present')
         return HttpResponse('File NOT authorised for download')    
 
     file_path = thisfile.filepath
-    if os.path.exists(file_path):
-        cleanfilename=slugify(os.path.basename(file_path))
-        with open(file_path, 'rb') as thisfile:
-            response=HttpResponse(thisfile.read(), content_type='application/force-download')
-            response['Content-Disposition'] = 'inline; filename=' + cleanfilename
-            log.info('DOWNLOAD User: '+str(request.user)+' Filepath: '+file_path)
-            return response
-        raise Http404
-    else:
+    try:
+        log.info(f'DOWNLOAD by user: {request.user} of File: {file_path}')
+        return make_download(file_path)
+    except DoesNotExist:
         return HttpResponse('File not stored on server')
-
+    except Exception as e:
+        log.error('Error in download: {}'.format(e))
+        raise Http404
+    
 
 @login_required
 def get_content(request,doc_id,searchterm,tagedit='False'): 
     """make a page showing the extracted text, highlighting searchterm """
     
-    log.debug('Get content for doc id: {} from search term {}'.format(doc_id,searchterm))
-    #log.debug('Request session : {}'.format(request.session.__dict__))
+    log.info('User \'{}\' fetch content for doc id: \'{}\' from search term \'{}\''.format(request.user,doc_id,searchterm))
+    log.debug('Request session : {}'.format(request.session.__dict__))
     
     page=pages.ContentPage(doc_id=doc_id,searchterm=searchterm,tagedit='False')
     page.safe_searchterm()
     page.searchurl=request.session.get('lastsearch','/ownsearch') #store the return page
-    
-
-    
+    log.debug(type(page.searchurl))
+    log.debug(request.META.get('PATH_INFO'))
     #GET INDEX
     #only show content if index defined in session:
     if request.session.get('mycore') is None:
@@ -202,52 +239,54 @@ def get_content(request,doc_id,searchterm,tagedit='False'):
     corelist,DEFAULTCOREID,choice_list=authorise.authcores(page.this_user)
     page.mycore=corelist[page.coreID]
 
-    #HANDLE EDITS OF USER TAGS
-    useredit_str=request.session.get('useredit','')
-    log.debug('useredit: {}'.format(useredit_str))
-    if useredit_str=='True':
-        page.useredit=True	
-    else:
-        page.useredit= False
-    if request.method == 'POST': #if data posted from form
-        # create a form instance and populate it with data from the request:
-        form = TagForm('',request.POST)
-        log.debug('Tags data posted: {} Form all: {}'.format(request.POST,form.__dict__))
-            # check whether it's valid:
-        if request.POST.get('edit','')=='Edit':
-            log.debug('Editing user tags')
-            request.session['useredit']='True'
-            return HttpResponseRedirect("/ownsearch/doc={}&searchterm={}".format(page.doc_id,page.searchterm))
-        elif request.POST.get('cancel','')=='Cancel':
-            log.debug('Cancel edit user tags')
-            request.session['useredit']='False'
-            return HttpResponseRedirect("/ownsearch/doc={}&searchterm={}".format(page.doc_id,page.searchterm))            
-        elif request.POST.get('save','')=='Save':
-            log.debug('Save user tags')
-            request.session['useredit']=''
-            if form.is_valid():
-                # process the data in form.cleaned_data as required
-                keywords=form.cleaned_data['keywords']
-                log.debug('Keywords from form: {}, type{}'.format([(word,type(word)) for word in keywords],type(keywords)))
-                """Permit only alphanumeric and numbers as user tags - support Cyrillic in Py3""" 
-                keyclean=[re.sub(r'[^\w, ]','',item) for item in keywords]
-                updateresult=updateSolr.updatetags(page.doc_id,page.mycore,keyclean)
-                if updateresult:
-                    log.info('Update success of user tags: {} in solrdoc: {} by user {}'.format(keyclean,page.doc_id,request.user.username))
-                    update_user_edits(page,keyclean,request.user.username)
-                else:
-                    log.debug('Update failed of user tags: {} in solrdoc: {}'.format(keyclean,page.doc_id))
-            return HttpResponseRedirect("/ownsearch/doc={}&searchterm={}".format(page.doc_id,page.searchterm))
-    else:
+#    #HANDLE EDITS OF USER TAGS
+#    useredit_str=request.session.get('useredit','')
+#    log.debug('useredit: {}'.format(useredit_str))
+#    if useredit_str=='True':
+#        page.useredit=True	
+#    else:
+#        page.useredit= False
+#    if request.method == 'POST': #if data posted from form
+#        # create a form instance and populate it with data from the request:
+#        form = TagForm('',request.POST)
+#        log.debug('Tags data posted: {} Form all: {}'.format(request.POST,form.__dict__))
+#            # check whether it's valid:
+#        if request.POST.get('edit','')=='Edit':
+#            log.debug('Editing user tags')
+#            request.session['useredit']='True'
+#            return HttpResponseRedirect("/ownsearch/doc={}&searchterm={}".format(page.doc_id,page.searchterm))
+#        elif request.POST.get('cancel','')=='Cancel':
+#            log.debug('Cancel edit user tags')
+#            request.session['useredit']='False'
+#            return HttpResponseRedirect("/ownsearch/doc={}&searchterm={}".format(page.doc_id,page.searchterm))            
+#        elif request.POST.get('save','')=='Save':
+#            log.debug('Save user tags')
+#            request.session['useredit']=''
+#            if form.is_valid():
+#                # process the data in form.cleaned_data as required
+#                keywords=form.cleaned_data['keywords']
+#                log.debug('Keywords from form: {}, type{}'.format([(word,type(word)) for word in keywords],type(keywords)))
+#                """Permit only alphanumeric and numbers as user tags - support Cyrillic in Py3""" 
+#                keyclean=[re.sub(r'[^\w, ]','',item) for item in keywords]
+#                updateresult=updateSolr.updatetags(page.doc_id,page.mycore,keyclean)
+#                if updateresult:
+#                    log.info('Update success of user tags: {} in solrdoc: {} by user {}'.format(keyclean,page.doc_id,request.user.username))
+#                    update_user_edits(page,keyclean,request.user.username)
+#                else:
+#                    log.debug('Update failed of user tags: {} in solrdoc: {}'.format(keyclean,page.doc_id))
+#            return HttpResponseRedirect("/ownsearch/doc={}&searchterm={}".format(page.doc_id,page.searchterm))
+    if True:
 
         #get a document content - up to max size characters
-        page.results=solrJson.gettrimcontents(page.doc_id,page.mycore,CONTENTSMAX).results  #returns SolrResult object
         try:
+            page.results=solrJson.gettrimcontents(page.doc_id,page.mycore,CONTENTSMAX).results  #returns SolrResult object
             result=page.results[0]
             #log.debug(vars(result))
         except IndexError as e:
             log.error('Error: {}'.format(e))
             return HttpResponse('Can\'t find document with ID {} COREID: {}'.format(page.doc_id,page.coreID))
+        except solrJson.SolrConnectionError:
+            return HttpResponse('No connection to solr index')
         except Exception as e:
             log.error('Error: {}'.format(e))
             return HttpResponse('Error fetching document with ID {} COREID: {}'.format(page.doc_id,page.coreID))
@@ -256,8 +295,12 @@ def get_content(request,doc_id,searchterm,tagedit='False'):
         page.process_result(result)
         log.debug('Data ID: {}'.format(page.data_ID)) 
         
+        #        #check if file is registered and authorised to download
+        page.authflag,page.matchfile_id,page.hashfilename=authorise.authfile(request,page.hashcontents,page.docname)
+
+        
         #REDIRECT IF PREVIEW URL DEFINED
-        log.debug('Preview: {}'.format(page.preview_url))
+        log.debug('Stored preview html: {}'.format(page.preview_url))
         if page.preview_url:
             return HttpResponseRedirect(page.preview_url) 
         
@@ -272,9 +315,13 @@ def get_content(request,doc_id,searchterm,tagedit='False'):
             log.debug('statpath: {}'.format(statpath))
             if os.path.exists(statpath):
                 log.debug('File exists in static: {}'.format(statpath))
+        if page.mimetype in MIMETYPES_THAT_EMBED:
+            if page.matchfile_id:
+                log.debug('Embed authorised')
                 page.embed=True
             else:
                 page.embed=False
+#            log.debug('PDF URL: {}'.format(page.pdf_url))
         else:
             page.embed=False
 
@@ -294,8 +341,6 @@ def get_content(request,doc_id,searchterm,tagedit='False'):
         if len(page.highlight)==CONTENTSMAX:
            #go get large highlights instead
            return get_bigcontent(request,page)
-#        #check if file is registered and authorised to download
-        page.authflag,page.matchfile_id,page.hashfilename=authorise.authfile(request,page.hashcontents,page.docname)
 
         #clean up and prepare the preview text for display
         page.splittext,page.last_snippet,page.cleanterm=cleanup(page.searchterm,page.highlight)
@@ -304,9 +349,9 @@ def get_content(request,doc_id,searchterm,tagedit='False'):
         return render(request, 'content_small.html', {'form':form,'page':page})
 
 
-def update_user_edits(page,keyclean,username):
+def update_user_edits(doc_id,mycore,keyclean,username):
      #log.debug('{}{}'.format(keyclean,type(keyclean)))
-     edit=UserEdit(solrid=page.doc_id,usertags=keyclean,corename=page.mycore.name)
+     edit=UserEdit(solrid=doc_id,usertags=keyclean,corename=mycore.name)
      edit.username=username
      edit.time_modified=solrJson.timeaware(datetime.now())
      edit.save()
@@ -353,17 +398,118 @@ def cleanup(searchterm,highlight):
 #    print('STRINGCLEANED'+repr(cleaned[:400]))
     cleaned=markup.urls(cleaned) #add links to text
     
-    cleansearchterm=cleansterm(searchterm)
-    log.debug(cleansearchterm)
-    lastscrap=''
-    try:
-        splittext=re.split(cleansearchterm,cleaned,flags=re.IGNORECASE) #make a list of text scraps, removing search term
-        if len(splittext) > 1:
-            lastscrap=splittext.pop() #remove last entry if more than one, as this last is NOT followed by searchterm
-    except:
-        splittext=[cleaned]
-    return splittext,lastscrap,cleansearchterm
+    if searchterm:
+        cleansearchterm=cleansterm(searchterm)
+        log.debug(f'Searchterm cleaned: {cleansearchterm}')
+        lastscrap=''
+        try:
+            splittext=re.split(cleansearchterm,cleaned,flags=re.IGNORECASE) #make a list of text scraps, removing search term
+            if len(splittext) > 1:
+                lastscrap=splittext.pop() #remove last entry if more than one, as this last is NOT followed by searchterm
+        except:
+            splittext=[cleaned]
+        return splittext,lastscrap,cleansearchterm
+    else:
+    	   return [cleaned],'',''
+
+
+@login_required
+def check_solr(request):
+    """API to check solr index is up"""
+    jsonresponse={'error':True, 'solr_up':False,'message':'Unknown error checking solr index'}
     
+
+    try:
+        server=setup.check_solr(verbose=False) 
+        if server.server_up:
+            jsonresponse={'error':False, 'solr_up':True,'message': None}
+    except Exception as e:
+        pass
+    
+    return JsonResponse(jsonresponse)
+
+@login_required
+def check_bot(request):
+    """API to check watcher threads are running"""
+    jsonresponse={'error':True, 'sleuth_bot':False,'message':'Unknown error checking bot heartbeat'}
+
+    try:
+        heartbeat=watch_dispatch.HeartBeat().alive
+        #log.debug(f'Heartbeat: {heartbeat}')
+        if heartbeat:
+            jsonresponse={'error':False, 'sleuth_bot':True,'message':''}
+        else:
+            jsonresponse.update({'error':False,'message':''})
+    except Exception as e:
+        log.debug(e)
+        pass
+    return JsonResponse(jsonresponse)
+
+
+@login_required
+def post_usertags(request):
+    """API to update usertags from content page"""
+    jsonresponse={'saved':False, 'valid_form':False,'message':'Unknown error saving usertag'}
+    
+    #GET AUTHORISED CORES AND DEFAULT
+    try:
+        thisuser=request.user
+        storedcoreID=request.session.get('mycore','')
+        authcores=authorise.AuthorisedCores(thisuser,storedcore=storedcoreID)
+        #log.debug('Authcores: {}'.format(authcores.__dict__))
+        mycore=authcores.mycore	
+        if not request.is_ajax():
+            return HttpResponse('API call: Not Ajax')
+        else:
+            if request.method == 'POST':
+                log.debug('Raw Data: {}'.format( request.body))
+                response_json = json.dumps(request.POST)
+                data = json.loads(response_json)
+                log.debug ("Json data: {}.".format(data))
+                postdata=request.POST
+                jsonresponse=update_usertags(data,thisuser.username,postdata,mycore)
+                log.debug('Json response:{}'.format(jsonresponse))
+            else:
+                log.debug('Error: Get to API')
+    except Exception as e:
+        pass
+    return JsonResponse(jsonresponse)
+
+
+def update_usertags(data,username,postdata,mycore):
+    log.info(f'User {username} updating usertags in index {mycore} with {data}') 
+    try:
+        form=TagForm('',postdata)
+        #log.debug('Form data: {}'.format(form.__dict__))
+        log.debug('Data posted: {} Form all: {}'.format(postdata,form.__dict__))
+        if form.is_valid():
+            # process the data in form.cleaned_data as required
+            keywords=form.cleaned_data['keywords']
+            log.debug('Keywords from form: {}'.format(keywords))
+            #, type{}'.format([(word,type(word)) for word in keywords],type(keywords)))
+            if keywords != [form.fields['keywords'].label]: #eliminate default
+
+                """Permit only alphanumeric and numbers as user tags - support Cyrillic in Py3""" 
+                keyclean=[re.sub(r'[^\w, ]','',item) for item in keywords]
+                doc_id=form.cleaned_data['doc_id']
+                log.debug(doc_id)
+                if updateSolr.updatetags(doc_id,mycore,keyclean):
+                    log.info('Update success of user tags: {} in solrdoc: {} by user {}'.format(keyclean,doc_id,username))
+                    update_user_edits(doc_id,mycore,keyclean,username)
+                    return {'saved':True, 'verified':True,'message':None}
+                else:
+                    log.debug('Update failed of user tags: {} in solrdoc: {}'.format(keyclean,doc_id))
+                    return {'saved':False, 'verified':True,'message':'Update to index failed'}
+            else:
+                return {'saved':False, 'valid_form':False,'message':'Invalid tag'}
+        else:
+            log.debug('form not valid; errors: {}'.format(form.errors))
+            return {'saved':False, 'verified':False,'message':'Invalid tag'}
+            	  
+    except Exception as e:
+        log.error("Failed to edit usertags with data {} and error {}".format(postdata,e))
+        return {'saved':False, 'valid_form':True,'message':'Unknown error saving usertags'}
+
 
 @login_required
 def testsearch(request,doc_id,searchterm):
@@ -385,21 +531,5 @@ def testsearch(request,doc_id,searchterm):
     else:
         return HttpResponseRedirect('/')        
         
-
-def slugify(value):
-    """
-    Normalizes string, converts to lowercase, removes non-alpha characters,
-    and converts spaces to hyphens.
-    """
-    shortName, fileExt = os.path.splitext(value)
-    originalvalue=value
-    try:
-        value = unicodedata.normalize('NFKD', value).encode('ascii', 'ignore')        
-        value = unicode(re.sub('[^\w\s-]', '', value).strip().lower())
-        value = unicode(re.sub('[-\s]+', '-', value))
-    except NameError:
-        value = re.sub('[^\w\s-]', '', originalvalue).strip().lower()
-        value = re.sub('[-\s]+', '-', value)      
-    return value+fileExt
 
 

@@ -11,7 +11,7 @@ https://docs.djangoproject.com/en/1.11/ref/settings/
 """
 
 import os
-from usersettings import userconfig as config
+from configs import config
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -45,6 +45,8 @@ INSTALLED_APPS = [
     'notes',
     'ownsearch',
     'whatsapp',
+    'dups',
+    'pickfile',
     'documents.apps.DocumentsConfig',
     'scraper.apps.ScraperConfig',
 ]
@@ -138,7 +140,7 @@ try:
     logfile_loglevel=config['Django']['logfile_loglevel']
 except:
     console_loglevel='INFO'
-    logfile_loglevel='DEBUG'
+    logfile_loglevel='WARN'
 
 LOGGING = {
     'version': 1,
@@ -158,10 +160,19 @@ LOGGING = {
             'level': logfile_loglevel,
             'class':'logging.handlers.RotatingFileHandler',
             'filename': os.path.join(BASE_DIR, 'logfile'),
-            'maxBytes': 500000,
+            'maxBytes': 5000000,
+            'encoding':'utf8',
             'backupCount': 9, #number of backup files of old logs
             'formatter': 'standard',
         },
+#        'logfile_watch': {
+#            'level': logfile_loglevel,
+#            'class':'logging.handlers.RotatingFileHandler',
+#            'filename': os.path.join(BASE_DIR, 'logfile_watch'),
+#            'maxBytes': 500000,
+#            'backupCount': 9, #number of backup files of old logs
+#            'formatter': 'standard',
+#        },
         'console':{
             'level': console_loglevel,
             'class':'logging.StreamHandler',
@@ -183,5 +194,10 @@ LOGGING = {
             'handlers': ['console', 'logfile'],
             'level': 'DEBUG', #ROOT LOG LEVEL -  CAN"T GO LOWER - 
         },
+#        'watcher': {
+#            'handlers': ['console', 'logfile_watch'],
+#            'level': 'DEBUG', #ROOT LOG LEVEL -  CAN"T GO LOWER - 
+#        },
+
     }
 }

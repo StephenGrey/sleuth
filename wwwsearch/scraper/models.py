@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from __future__ import unicode_literals
 from django.db import models
-from usersettings import userconfig as config
+from configs import config
 from django.contrib.auth.models import Group
 from documents.models import Source
 # Create your models here.

@@ -3,95 +3,266 @@ from __future__ import unicode_literals, print_function
 from builtins import str
 from ownsearch import solrJson as s
 from documents import updateSolr as u
-from usersettings import userconfig as config
-import subprocess, logging, os
+from documents import file_utils
+from configs import config
+import subprocess, logging, os,shlex, time, re
 log = logging.getLogger('ownsearch.solrICIJ')
+
+
+try:
+    TIMEOUT=int(config['Solr']['solrtimeout'])
+except:
+    log.info('No timeout value stored in configs')
+    TIMEOUT=600 #seconds
+
+try:
+    MEM_MIN=int(config['Extract']['memory_min'])
+    MEM_MAX=int(config['Extract']['memory_max'])
+except:
+    log.info('No memory max-min values stored in configs')
+    MEM_MIN=512
+    MEM_MAX=1024
+
+MEM_MIN_ARG=f"-Xms{MEM_MIN}m"
+MEM_MAX_ARG=f"-Xmx{MEM_MAX}m"
 
 class AuthenticationError(Exception):
     pass
 
+class NotFound(Exception):
+    pass
+
+class TimedOut(Exception):
+    pass
 
 #EXTRACT A FILE TO SOLR INDEX (defined in mycore (instance of solrSoup.SolrCore))
 #returns solrSoup.MissingConfigData error if path missing to extract.jar
-def ICIJextract(path,mycore,ocr=True):
-    try:
-        mycore.ping() #checks the connection is alive
-        if os.path.exists(path) == False:
-            raise IOError
-        result=tryextract(path,mycore,ocr=ocr)
-        return result #return True on success
-    except IOError as e:
-        log.error('File cannot be opened')
-    except s.SolrConnectionError as e:
-        log.error('Connection error')
-    return False  #if error return False
 
-def tryextract(path,mycore,ocr=True):
-    try:
-        extractpath=config['Extract']['extractpath'] #get location of Extract java JAR
-    except KeyError as e:
-        raise s.MissingConfigData
-    solrurl=mycore.url
-    target=path
-    #extract via ICIJ extract
-    if ocr==True:
-        args=["java","-jar", extractpath, "spew","-o", "solr", "-s"]
-    else:
-        args=["java","-jar", extractpath, "spew","--ocr","no","-o", "solr", "-s"]
-    log.debug('Extract args: {}'.format(args))
-    args.append(solrurl)
-    args.append(target)
-    result=subprocess.Popen(args, stderr=subprocess.PIPE, stdout=subprocess.PIPE,shell=False)
-    output,success=parse_out(result)
-#    print(output) #DEBUG : LOG IT instead
-    for mtype,message in output:
-        if mtype=='SEVERE':  #PRINT OUT ONLY SEVERE MESSAGES
-            log.debug(f'Message type:{mtype},Message:{message}')
-            if "Expected mime type application/octet-stream but got text/html" in message:
-                log.debug('Unexpected response')
-                if "<title>Error 401 require authentication</title>" in message:
-                    log.debug('Authentication error')
-                    raise AuthenticationError
-    if success == True:
-        print ('Successful extract')
-        #commit the results
-        print ('Committing ..')
-        args=["java","-jar",extractpath,"commit","-s"]
-        args.append(solrurl) #tests - add deliberate error
-#        print (args)
-        result=subprocess.Popen(args, stderr=subprocess.PIPE, stdout=subprocess.PIPE,shell=False)
-#        print (result, vars(result)) #
-        commitout,ignore=parse_out(result)
-        if commitout==[]:
-            print ('No errors from commit')
-            return True 
-    return False
+
+class OutParser():
+    def __init__(self):
+        self._message=''
+        self.log_message=''
+        self.success=False
+        self.error_message=''
+        
+    def process(self,_line):
+        #log.debug(_line)
+        if self.is_time(_line):
+            #log.debug('date registered')
+            self.output() #new log message, output previous
+            self._message=''
+            self.log_message=''
+        self.logger(_line)
+        self._message+=_line+'\t'
+        
+    def output(self):
+        if self._message:
+            #log.debug(self.log_message)
+            #log.debug(self._message)
+            self.parse()
+            self.log_out()
+                
+    def parse(self):
+        if 'Document added to Solr' in self._message:
+            self.success=True
+            self.log_message='WARNING'
+        elif 'Error 401' in self._message:
+            raise AuthenticationError
+        elif 'Error 404' in self._message:
+            raise NotFound
+        elif "not a valid OOXML (Office Open XML) file" in self._message:
+            self.error_message='ICIJ ext: not valid OOXML file'
+        
+        elif 'The tikaDocument could not be parsed' in self._message:
+            self.error_message='ICIJ ext: parse failure'
+        elif 'The extraction result could not be outputted' in self._message:
+            self.error_message='ICIJ ext: Solr output fail' 
+            
+    
+    def logger(self,_text):
+        try:
+            error=re.match('[A-Z]*:',_text[:10])[0][:-1]
+            if error in ('INFO', 'WARNING','ERROR','SEVERE','CRITICAL','WARNING','WARN','DEBUG','FATAL','TRACE'):
+                self.log_message=error
+        except:
+            pass
+    
+    def log_out(self):
+        if self.log_message:
+            if self.log_message=='ERROR' or self.log_message=='FATAL' or self.log_message=='SEVERE':
+               log.error(f'Extract log: {self._message}')
+            elif self.log_message=='DEBUG' or self.log_message=='INFO':
+               log.debug(f'Extract log: {self._message}')
+            else:
+               log.info(f'Extract log: {self._message}')
+               
+
+    @staticmethod
+    def is_time(_text):
+        return re.match(r'.*,*.\d:\d\d?:\d\d? (AM|PM)',_text[:25])
+
+
+class ICIJExtractor():
+    def __init__(self,path,mycore,ocr=True):
+        self.path=path
+        self.mycore=mycore
+        self.ocr=ocr
+        self.error_message=''
+        
+        try:
+            self.mycore.ping() #checks the connection is alive
+            if os.path.exists(self.path) == False:
+                raise IOError
+            self.tryextract()
+            if not self.success and not self.error_message:
+                self.error_message='ICIJ extract fail'
+            return #return True on success
+        except IOError as e:
+            log.error('File cannot be opened')
+            self.error_message='Error opening file'
+        except s.SolrConnectionError as e:
+            log.error('Connection error')
+            self.error_message='Connection error'
+        except TimedOut:
+            log.error('Timed Out in ICIJ extractor')
+            self.error_message='Timed out in ICIJ extractor'
+        self.result= False  #if error return False
+    
+    def get_args(self):
+        try:
+            self.extractpath=config['Extract']['extractpath'] #get location of Extract java JAR
+            assert os.path.exists(self.extractpath)
+        except KeyError as e:
+            raise s.MissingConfigData
+        except AssertionError as e:
+            raise s.MissingConfigData
+        
+        self.solrurl=self.mycore.url
+        target=self.path
+        #extract via ICIJ extract
+        args=["java","-jar", MEM_MIN_ARG,MEM_MAX_ARG, self.extractpath, "spew","-o", "solr", "-s"]
+        args.append(self.solrurl)
+        
+        args.extend(["--metadataPrefix","\"\""])
+#        #try adding postfix to dates to fix error w old TIF files
+#        args.extend(["--metadataISODatePostfix","\"Z\""])
+#        
+        if not self.ocr:
+           args.extend(["--ocr","no"])
+    
+        self._user,self._pass=authenticate()
+        if self._user and self._pass:
+            args.extend(["-U",self._user,"-P",self._pass])
+    
+        args.append(target)
+        log.debug('Extract args: {}'.format(args))
+        self.args=args
+        
+    def commit_args(self):
+        self.args=["java","-jar",self.extractpath,"commit","-s"]
+        self.args.append(self.solrurl) #tests - add deliberate error
+        if self._user and self._pass:
+            self.args.extend(["-U",self._user,"-P",self._pass])
+        
+    
+    def tryextract(self):
+        self.get_args()
+
+        self.run_command(self.args)
+        self.success=self.log_parser.success
+        self.error_message=self.log_parser.error_message
+        
+        if self.success == True:
+            log.info('Successful extract')
+            #commit the results
+            log.debug ('Committing ..')
+            
+            self.commit_args()
+            args=self.args
+            
+            try:
+                #result=subprocess.Popen(args, stderr=subprocess.PIPE, stdout=subprocess.PIPE,shell=False)
+                #commitout,ignore,message=parse_out(result)
+                self.run_command(args)
+                log.debug('No errors from commit')
+                self.result=True
+                return
+            except AuthenticationError:
+                log.debug('Authentication error')
+                self.error_message='Authentication error'
+            except NotFound:
+                log.debug('Error 404 : Not Found')
+                self.error_message='Error 404'
+            except Exception as e:
+                log.debug(e)
+                self.error_message=f'Unknown error: {e}'
+        self.result=False
+        
+    def run_command(self,args):
+        process = subprocess.Popen(args,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+        #shlex.split(command) TODO
+        _timeout=time.time()+TIMEOUT
+        self.log_parser=OutParser()
+        while True:
+            output = process.stderr.readline()
+            _poll=process.poll()
+            #log.debug(output)
+#            log.debug(_poll)
+            if not _poll:
+                time.sleep(0.05) #if nothing going on, spare the CPU
+            if output == '' and _poll is not None:
+                break
+            elif output == b'' and _poll ==0:
+                break
+            if output:
+                line=output.decode().strip() #convert bytes to string; strip white space
+                #log.debug(line)
+                self.log_parser.process(line)
+            if time.time()>_timeout:
+                process.kill()
+                raise TimedOut('Extract process killed after TimeOut')
+        self.log_parser.output()
+        rc = process.poll()
+        self.rc=rc
+
+class ICIJ_Tester(ICIJExtractor):
+    def __init__(self):
+        pass
+
+
+
     
 def parse_out(result):
     #calling a java app produces no stdout -- but for debug, output it if any
-    log.debug(result.__dict__)
+    #log.debug(result.__dict__)
     if result.stdout:
        sout=bytes(result.stdout.read()).decode()
        if sout != '':
-           print('STDOUT from Java process: {}'.format(sout))
+           log.debug('STDOUT from Java process: {}'.format(sout))
     output=[]
     message=''
+    error_message=''
     ltype=''
     postsolr = False
     while True:
         line = bytes(result.stderr.readline()).decode()
-        #print(line)
+        log.debug(f'{line}')
         if line != '':
             linestrip=line.rstrip()
             #print (linestrip)
+            if 'Error 401' in message:
+                raise AuthenticationError
+            elif 'Error 404' in message:
+                raise NotFound
             if line[:5]=='INFO:':
                 
                 #dump previous message
                 if message:
                     output.append((ltype,message))
                 message=line[5:]
-                log.info(message)
-                if message[:23]==' Document added to Solr':
+                log.info(f'\"{message}\"')
+                if 'Document added to Solr' in message:
                     postsolr = True
                 ltype='INFO'
             elif line[:8]=='WARNING:':
@@ -108,6 +279,7 @@ def parse_out(result):
                 ltype='SEVERE'
                 message=line[7:]
                 log.error(message)
+                error_message=message
             else: #NOT A HEADER
                 message+=line
 #            print ("test:", line.rstrip())
@@ -116,19 +288,21 @@ def parse_out(result):
 #    print (vars(result))
 #    print (output)
 
-    return output, postsolr
+    return output, postsolr,error_message
 
-def postprocess(solrid,sourcetext,hashcontents, core):
-    """ADD ADDITIONAL META NOT ADDED AUTOMATICALLY BY THE EXTRACT METHOD"""
-    #add source info to the extracted document
-    result=u.updatetags(solrid,core,value=sourcetext,standardfield='sourcefield',newfield=False)
-    if result == False:
-        print('Update failed for solrID: {}'.format(solrid))
-        return False
-    #now add source to any children
-    result=childprocess(hashcontents,sourcetext,core)
-    return result
-    
+#def add_source(solrid,sourcetext,hashcontents, core):
+#    """ADD ADDITIONAL META NOT ADDED AUTOMATICALLY BY THE EXTRACT METHOD"""
+#    #add source info to the extracted document
+#    result=u.updatetags(solrid,core,value=sourcetext,field_to_update='sourcefield',newfield=False)
+#    if result == False:
+#        print('Update failed for solrID: {}'.format(solrid))
+#        return False
+#    
+#
+#    #now add source to any children
+#    result=childprocess(hashcontents,sourcetext,core)
+#    return result
+#    
     
 def childprocess(hashcontents,sourcetext,core):
     #also add source to child documents created
@@ -146,3 +320,11 @@ def childprocess(hashcontents,sourcetext,core):
             print(e)
             return False
     return True
+    
+    
+def authenticate():
+    try:
+        return s.SOLR_USER, s.SOLR_PASSWORD
+    except:
+        return Null, Null
+        

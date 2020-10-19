@@ -1,20 +1,22 @@
 # -*- coding: utf-8 -*-
 import logging, re,json,requests,getpass
-log = logging.getLogger('documents.api')
+log = logging.getLogger('ownsearch.docs.api')
 from django.contrib.admin.views.decorators import staff_member_required
 from .models import UserEdit,SyncStatus
 from django.http import JsonResponse, HttpResponse
 from django.core import serializers
 from django.urls import reverse
-from documents import updateSolr
+from documents import updateSolr, redis_cache
 from ownsearch import solrJson
-from usersettings import userconfig
+from configs import config as userconfig
+r=redis_cache.redis_connection
+
 
 LOGIN_URL="/admin/login/"
 API_URL="/documents/api/changes/"
 
 log.info('launching API')
-
+from watcher import watch_dispatch
 
 try:
     REMOTE_URL=userconfig['Remote']['remote_url']
@@ -64,7 +66,7 @@ class Updater():
             #print(posturl)
             response=self.session.post(posturl,data={'username':self.remote_user,'password':self.remote_password},headers=headers)
             #print(response.__dict__)
-            assert response.url=='https://zerobeach.ddns.net/documents/api/changes/1'
+            assert response.url=='{}/documents/api/changes/1'.format(REMOTE_URL)
             assert response.status_code==200
             self.logged_in=True        
         except Exception as e:
@@ -124,8 +126,87 @@ def api_changes_json(user_edit_id=1):
     return jsondata
 
 
+@staff_member_required()
+def api_task_progress(request,job):
+    """API to check progress of task"""
+    jsonresponse={'error':True, 'results':None,'message':f'Unknown error checking task {job}'}    
+    try:
+        if job.startswith('SB_TASK.CollectionScanAndExtract.'):
+            #print(job)
+            #print(watch_dispatch.r.hget(job,'sub_job_id'))
+            sub_job_id=watch_dispatch.r.hget(job,'sub_job_id')
+            if sub_job_id:
+                sub_job='SB_TASK.'+sub_job_id
+                results=watch_dispatch.r.hgetall(sub_job)
+                results.update({'master_job': job})
+            else:
+                results=watch_dispatch.r.hgetall(job)
+            results.update({'master_task':'scan_and_extract'})
+            results.update({'master_task_status':watch_dispatch.r.hget(job,'status')})
+        else:
+            results=watch_dispatch.r.hgetall(job)
+        #log.debug(f'{job},{results}')
+        #print(job,results)
+        #{'counter':ext.counter,'skipped':ext.skipped,'failed':ext.failed,'failed_list':ext.failedlist})
+        jsonresponse={'error':False, 'results':results,'message':'Completed'}
+    except Exception as e:
+        log.debug(e)
+        #print(f'Error {e}')
+    return JsonResponse(jsonresponse)
 
+@staff_member_required()
+def api_clear_tasks(request):
+    """clear task from session"""
+    job_id=request.session.get('tasks')
+    job=f'SB_TASK.{job_id}'
+    log.debug(f'clearing task {job_id}')
 
+    request.session['tasks']=''
+    log.debug(r.smembers('SEARCHBOX_JOBS'))
+    if job in r.smembers('SEARCHBOX_JOBS'):
+        r.sadd('JOBS_TO_KILL',job_id)
+        r.hmset(job,{'progress_str':'Task cancelled'})
+
+    return JsonResponse({'error':False})
+
+@staff_member_required()
+def api_clear_dup_tasks(request):
+    """clear dup tasks from session"""
+    job_id=request.session.get('dup_tasks')
+    log.debug(f'clearing dup task {job_id}')
+    request.session['dup_tasks']=''
+    job=f'SB_TASK.{job_id}'
+    log.debug(r.smembers('SEARCHBOX_JOBS'))
+    if job in r.smembers('SEARCHBOX_JOBS'):
+        r.sadd('JOBS_TO_KILL',job_id)
+        r.hmset(job,{'progress_str':'Scan cancelled'})
+    return JsonResponse({'error':False})
+
+@staff_member_required()
+def api_check_redis(request):
+    jsonresponse={'error':False}
+    try:
+        return JsonResponse({'redis_alive':redis_check()})
+    except Exception as e:
+        log.error(e)
+        return JsonResponse({'redis_alive':'error'})
+
+def redis_check():
+    return watch_dispatch.r.ping()
+    
+    
+@staff_member_required()
+def api_check_taskmanager(request):
+    pass
+    
+def taskmanager_check():
+    return watch_dispatch.HBEAT.alive
+    
+    
+    
+	
+	
+	
 #RECEIVE FROM API
 
 def get_remotechanges(test=False,remote_startid=''):

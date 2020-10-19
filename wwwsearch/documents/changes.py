@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
+import json,time
 from .models import File,Collection
-from documents import file_utils
+from documents import file_utils,time_utils
 #from ownsearch.hashScan import FileSpecTable as filetable
 #from ownsearch.hashScan import hashfile256 as hexfile
 #from ownsearch.hashScan import pathHash
@@ -8,42 +9,63 @@ from ownsearch import solrJson
 import logging,os
 log = logging.getLogger('ownsearch.docs.changes')
 
+from .redis_cache import redis_connection as r
+
+
 class ChangesError(Exception):
     pass
 
 class Scanner:
-    def __init__(self,collection,test=False):
+    def __init__(self,collection,test=False,job=None):
+        """scan and update collection for changes, live update progress to Redis job"""
         if not isinstance(collection, Collection):
             raise ChangesError('Not a valid collection')
         self.collection=collection
         self.test=test
         self.unchanged_files,self.changed_files,self.moved_files,self.new_files,self.deleted_files=[],[],[],[],[]
+        self.scanned_files=0
+        self.new_files_count,self.deleted_files_count,self.moved_files_count,self.unchanged_files_count,self.changed_files_count="","","","",""
         self.missing_files,self.new_files_hash={},{}
         self.scan_error=False
-        self.process()
-
+        self.job=job
+        self.total_files()
+        if self.total:
+            self.update_results()
+            self.process()
+            self.update_results()
+        else:
+            pass
+    
+    
+    def total_files(self):
+        self.total= sum([len(subdir)+len(files) for r, subdir, files in os.walk(self.collection.path)])
+        log.debug(f'Total files counted: {self.total}')
     
     def process(self):
         self.scan()
         self.find_on_disk()
         self.scan_new_files()
         self.new_or_missing()
+        #self.update_database()#HANDLE SEPARATELY
         self.count_changes()
-        log.info('NEWFILES>>>>>{}'.format(self.new_files))
-        log.info('DELETEDFILES>>>>>>>{}'.format(self.deleted_files))
-        log.info('MOVED>>>>:{}'.format(self.moved_files))
-        #print('NOCHANGE>>>',self.unchanged_files)
-        log.info('CHANGEDFILES>>>>>>{}'.format(self.changed_files))
+        log.info('NEWFILES>>>>>{}'.format(self.new_files_count))
+        log.info('DELETEDFILES>>>>>>>{}'.format(self.deleted_files_count))
+        log.info('MOVED>>>>:{}'.format(self.moved_files_count))
+        log.info(f'NOCHANGE>>> {self.unchanged_files_count}')
+        log.info('CHANGEDFILES>>>>>>{}'.format(self.changed_files_count))
           
     def scan(self):
         """1. scan all files in collection"""
-        
-        self.files_on_disk=file_utils.filespecs(self.collection.path) #get dict of specs of files in disk folder(and subfolders)
+        self.update_progress('Scanning files on disk')
         self.files_in_database=File.objects.filter(collection=self.collection)
+        self.files_on_disk=file_utils.filespecs(self.collection.path,job=self.job) #get dict of specs of files in disk folder(and subfolders)
+        #log.debug(self.files_in_database)
+        #log.debug(self.files_on_disk)
+        self.total=len(self.files_on_disk)
         
-
     def find_on_disk(self):
         """2. loop through files in the database"""
+        self.update_progress('Comparing files on disk with database')
         for database_file in self.files_in_database:
             if database_file.filepath in self.files_on_disk:
                 self.find_unchanged(database_file)
@@ -54,7 +76,8 @@ class Scanner:
         """2a. For a database file found on disk - add to changed or unchanged list/dict"""
         file_meta=self.files_on_disk.pop(database_file.filepath)
         
-        latest_lastmodified=solrJson.timestamp2aware(file_meta.last_modified) #gets last modified info as stamp, makes GMT time object
+        latest_lastmodified=time_utils.timestamp2aware(file_meta.last_modified)
+
         latestfilesize=file_meta.length
         if database_file.last_modified==latest_lastmodified and latestfilesize==database_file.filesize:
             #print(path+' hasnt changed')
@@ -66,19 +89,33 @@ class Scanner:
 
     def scan_new_files(self):
         """3. make index of remaining files found on disk, using contents hash)"""
+        self.update_progress('Indexing new or moved files')
+        log.debug('Indexing new or moved files')
+        #time.sleep(10
+        self.counter=0
         for newpath in self.files_on_disk:
             if not self.files_on_disk[newpath].folder:
-                newhash=file_utils.get_contents_hash(newpath)
-                if newhash in self.new_files_hash:
-                    self.new_files_hash[newhash].append(newpath)
-                else:
-                    self.new_files_hash[newhash]=[newpath]
+                try:
+                    self.counter+=1
+                    if self.counter%100==0:
+                            log.debug(f'Indexing{self.counter} new or moved files)')
+                    self.update_working_file(newpath)
+                    newhash=file_utils.get_contents_hash(file_utils.normalise(newpath)) #normalise to adjust for windows quirks, e.g. cope with long paths
+                    if newhash in self.new_files_hash:
+                        self.new_files_hash[newhash].append(newpath)
+                    else:
+                        self.new_files_hash[newhash]=[newpath]
+                except Exception as e:
+                    log.error(e) 
             else:
                 #print('New folder found: {}'.format(newpath))
                 self.new_files.append(newpath)
+        self.update_working_file('')
 
     def new_or_missing(self):        
         """4. now work out which new files have been moved """
+        self.update_progress('Identifying moved files')
+        log.debug('Identifying moved files')
         for missingfilepath in self.missing_files:
             missinghash=self.missing_files[missingfilepath]
             
@@ -102,52 +139,29 @@ class Scanner:
     def update_database(self):
         """update file database with changes"""
         filelist=File.objects.filter(collection=self.collection)
+        log.info('updating database with changes')
         if self.new_files:
             for path in self.new_files:
-                if os.path.exists(path)==True: #check file exists
-                    #now create new entry in File database
-                    newfile=File(collection=self.collection)
-                    updatefiledata(newfile,path,makehash=True)
-                    newfile.indexedSuccess=False #NEEDS TO BE INDEXED IN SOLR
-                    newfile.save()
-                else:
-                    log.error(('ERROR: ',path,' does not exist'))
-
+                newfile(path,self.collection)
         if self.moved_files:
             #print((len(self.moved_files),' to move'))
+            self.counter=0
             for newpath,oldpath in self.moved_files:
                 #print(newpath,oldpath)
-    
-                #get the old file and then update it
-                file=filelist.get(filepath=oldpath)
-                updatefiledata(file,newpath) #check all metadata;except contentsHash
-                #if the file has been already indexed, flag to correct solr index meta
-                if file.indexedSuccess:
-                    file.indexUpdateMeta=True  #flag to correct solrindex
-                    #print('update meta')
-                file.save()
+                _files=filelist.filter(filepath=oldpath)
+                self.counter+=1
+                if self.counter%100==0:
+                    log.debug(f'updating moved or missing file {self.counter}')
+                for _file in _files:
+                    movefile(_file,newpath)
                 
         if self.changed_files:
             log.debug('{} changed file(s) '.format(len(self.changed_files)))
             for filepath in self.changed_files:
                 log.debug('Changed file: {}'.format(filepath))
-                file=filelist.get(filepath=filepath)
-                updatesuccess=updatefiledata(file,filepath)
-    
-                #check if contents have changed and solr index needs changing
-                oldhash=file.hash_contents
-                newhash=file_utils.get_contents_hash(filepath)
-                if newhash!=oldhash:
-                    #contents change, flag for index
-                    file.indexedSuccess=False
-                    file.hash_contents=newhash
-    #                file.indexUpdateMeta=True  #flag to correct solrindex
-                #NB the solrid field is not cleared = the index checks it exists and deletes the old doc
-                #else-if the file has been already indexed, flag to correct solr index meta
-                elif file.indexedSuccess==True:
-                    file.indexUpdateMeta=True  #flag to correct solrindex
-                #else no change in contents - no need to flag for index
-                file.save()
+                _files=filelist.filter(filepath=filepath)
+                for _file in _files:
+                    changefile(_file)
 
     def count_changes(self):
         self.new_files_count=len(self.new_files)
@@ -156,36 +170,150 @@ class Scanner:
         self.unchanged_files_count=len(self.unchanged_files)
         self.changed_files_count=len(self.changed_files)
         self.scanned_files=self.new_files_count+self.deleted_files_count+self.moved_files_count+self.unchanged_files_count+self.changed_files_count
+        
+        
+    def update_progress(self,message):
+        if self.job:
+            progress_str=f"{message}"
+            r.hmset(self.job,{
+            'progress_str':progress_str,
+            'show_taskbar': 0,
+            })
+    
+    def update_working_file(self,_filename):
+        if self.job:
+            r.hset(self.job,'working_file',_filename)
+        
+    def update_results(self):
+        if self.job:
+            self.count_changes()
+            #log.debug(f'scanned files: {self.scanned_files}')
+            progress=f'{((self.scanned_files/self.total)*100):.0f}'
+            progress_str=f"{self.scanned_files} of {self.total} files" #0- replace 0 for decimal places
+            log.debug(f'Progress: {progress_str}')
+            r.hmset(self.job,{
+            'progress':progress,
+            'progress_str':progress_str,
+            'total':self.scanned_files,
+            'new':self.new_files_count,
+            'deleted':self.deleted_files_count,
+            'moved':self.moved_files_count,
+            'unchanged':self.unchanged_files_count,
+            'changed':self.changed_files_count
+            })
+        else:
+            log.debug('No redis job defined')
+
+
+def movefile(_file,newpath):
+    oldpath=_file.filepath
+    try:
+        updatefiledata(_file,newpath) #check all metadata;except contentsHash
+    except Exception as e:
+        log.error(e)   
+    #if the file has been already indexed, flag to correct solr index meta
+    if _file.indexedSuccess:
+        add_oldpaths(_file,oldpath) #store old filepath to delete from solr
+        _file.indexUpdateMeta=True  #flag to correct solrindex
+        _file.save()
+
+def add_oldpaths(_file,oldpath):
+    existing_oldpaths_raw=_file.oldpaths_to_delete
+    oldpaths=json.loads(existing_oldpaths_raw) if existing_oldpaths_raw else []
+    if oldpath not in oldpaths:
+        oldpaths.append(oldpath)
+        oldpaths_raw=json.dumps(oldpaths)
+        _file.oldpaths_to_delete=oldpaths_raw
+        _file.save()
+
+def newfile(path,collection):
+    if os.path.exists(file_utils.normalise(path))==True: #check file exists
+        #now create new entry in File database
+        try:
+            _newfile=File(collection=collection)
+            updatefiledata(_newfile,path,makehash=True)
+            _newfile.indexedSuccess=False #NEEDS TO BE INDEXED IN SOLR
+            _newfile.save()
+            return _newfile
+        except Exception as e:
+            print(e)
+            return None
+    else:
+        log.error(('ERROR: ',path,' does not exist'))
+
+def changefile(file):
+    updatesuccess=updatefiledata(file,file.filepath)
+    if file.is_folder:
+        if file.indexedSuccess: #if already indexed in solr
+            file.indexUpdateMeta=True  #flag to correct meta only in
+    else:
+        #check if contents have changed and solr index needs changing
+        oldhash=file.hash_contents
+        newhash=file_utils.get_contents_hash(file.filepath)
+        if newhash!=oldhash:
+            #contents change, flag for index
+            file.indexedSuccess=False
+            file.hash_contents=newhash
+            file.indexMetaOnly=False
+        #NB the solrid field is not cleared = the index checks it exists and deletes the old doc
+        #otherwise if no change in hash and file already indexed, flag to correct meta only in solr 
+        elif file.indexedSuccess:
+            file.indexUpdateMeta=True  #flag to correct solrindex
+        #else no change in contents - no need to flag for index
+    file.save()
+    return True
 
 
 def updatefiledata(file,path,makehash=False):
     """calculate all the metadata and update database; default don't make hash"""
-    if True:
+    try:
+        specs=file_utils.FileSpecs(file_utils.normalise(path),scan_contents=makehash)
         file.filepath=path #
-        file.hash_filename=file_utils.pathHash(path) #get the HASH OF PATH
-        filename=os.path.basename(path)
-        file.filename=filename
-        shortName, fileExt = os.path.splitext(filename)
-        file.fileext=fileExt    
-        modTime = os.path.getmtime(path) #last modified time
-        file.last_modified=solrJson.timestamp2aware(modTime)
-        if os.path.isdir(path):
-            file.is_folder=True
-        else:
-            file.is_folder=False
-            if makehash:
-                hash=file_utils.get_contents_hash(path) #GET THE HASH OF FULL CONTENTS
-                file.hash_contents=hash
-        file.filesize=os.path.getsize(path) #get file length
+        file.hash_filename=specs.pathhash #get the HASH OF PATH
+        file.filename=specs.name
+        shortName, fileExt = specs.shortname, specs.ext
+        file.fileext=fileExt   
+        file.content_date,file.last_modified=parse_date(specs)
+        file.is_folder=specs.folder
+        if not file.is_folder and makehash:
+            file.hash_contents=specs.contents_hash
+        file.filesize=specs.length
         file.save()
         return True
-#    except Exception as e:
-#        print(('Failed to update file database data for ',path))
-#        print(('Error in updatefiledata(): ',str(e)))
-#        raise ChangesError("Failed to update file database")
+    except Exception as e:
+        log.debug(f'Failed to update file database data for {path}')
+        log.debug(f'Error in updatefiledata ({e}): ')
+        raise ChangesError("Failed to update file database")
+
+
+def parse_date(specs):	
+    modTime = specs.last_modified
+    last_modified=time_utils.timestamp2aware(modTime) #use GMT aware last modified
+    pathdate=specs.date_from_path
+    content_date=time_utils.timeaware(pathdate) if pathdate else None
+    return content_date,last_modified
 
 
 def countchanges(changes):
     return [len(changes['newfiles']),len(changes['deletedfiles']),len(changes['movedfiles']),len(changes['unchanged']),len(changes['changedfiles'])]
 
-
+def path_date_changed(file,existingdoc):
+    log.debug(existingdoc.date)
+    
+    
+    
+class ManualScanner(Scanner):
+    def __init__(self,collection,test=False,job=None):
+        """TEST scan and update collection for changes, live update progress to Redis job"""
+        if not isinstance(collection, Collection):
+            raise ChangesError('Not a valid collection')
+        self.collection=collection
+        self.test=test
+        self.unchanged_files,self.changed_files,self.moved_files,self.new_files,self.deleted_files=[],[],[],[],[]
+        self.scanned_files=0
+        self.new_files_count,self.deleted_files_count,self.moved_files_count,self.unchanged_files_count,self.changed_files_count="","","","",""
+        self.missing_files,self.new_files_hash={},{}
+        self.scan_error=False
+        self.job=job
+        self.total_files()
+    

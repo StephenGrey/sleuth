@@ -6,3 +6,7 @@ from django.apps import AppConfig
 
 class DocumentsConfig(AppConfig):
     name = 'documents'
+#    def ready(self):
+#        print('start up code here in documents app')
+        
+        

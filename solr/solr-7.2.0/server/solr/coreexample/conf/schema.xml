@@ -414,232 +414,20 @@
       <tokenizer class="solr.WhitespaceTokenizerFactory"/>
     </analyzer>
   </fieldType>
-  <field name="OCCRP_blogpost_ID" type="text_general"/>
-  <field name="SBdata_ID"  type="text_general"/>
+
   <field name="_root_" type="string" docValues="false" indexed="true" stored="false"/>
   <field name="_text_" type="text_general" multiValued="true" indexed="true" stored="false"/>
-  <field name="_version_" type="plong" indexed="false" stored="false"/>
-  <field name="a" type="text_general"/>
-  <field name="access_permission_assemble_document" type="booleans"/>
-  <field name="access_permission_can_modify" type="booleans"/>
-  <field name="access_permission_can_print" type="booleans"/>
-  <field name="access_permission_can_print_degraded" type="booleans"/>
-  <field name="access_permission_extract_content" type="booleans"/>
-  <field name="access_permission_extract_for_accessibility" type="booleans"/>
-  <field name="access_permission_fill_in_form" type="booleans"/>
-  <field name="access_permission_modify_annotations" type="booleans"/>
-  <field name="aperture_value" type="text_general"/>
-  <field name="application_name" type="text_general"/>
-  <field name="application_notes" type="text_general"/>
-  <field name="application_version" type="pdoubles"/>
-  <field name="author" type="text_general"/>
-  <field name="bits_per_sample" type="text_general"/>
-  <field name="blockquote" type="text_general"/>
-  <field name="brightness_value" type="text_general"/>
-  <field name="button" type="text_general"/>
-  <field name="character_count" type="plongs"/>
-  <field name="character_count_with_spaces" type="plongs"/>
-  <field name="color_space" type="text_general"/>
-  <field name="company" type="text_general"/>
-  <field name="component_1" type="text_general"/>
-  <field name="component_2" type="text_general"/>
-  <field name="component_3" type="text_general"/>
-  <field name="components_configuration" type="text_general"/>
-  <field name="compression" type="text_general"/>
-  <field name="compression_type" type="text_general"/>
-  <field name="content_encoding" type="text_general"/>
-  <field name="content_type" type="text_general"/>
-  <field name="content_type_hint" type="text_general"/>
-  <field name="cp_revision" type="plongs"/>
-  <field name="created" type="text_general"/>
-  <field name="creation_date" type="pdates"/>
-  <field name="creator" type="text_general"/>
-  <field name="creator_tool" type="text_general"/>
-  <field name="data_precision" type="text_general"/>
-  <field name="database_originalID" type="plongs"/>
-  <field name="date" type="pdates"/>
-  <field name="date_time" type="text_general"/>
-  <field name="date_time_digitized" type="text_general"/>
-  <field name="date_time_original" type="text_general"/>
-  <field name="dc_creator" type="text_general"/>
-  <field name="dc_description" type="text_general"/>
-  <field name="dc_format" type="text_general"/>
-  <field name="dc_publisher" type="text_general"/>
-  <field name="dc_title" type="text_general"/>
-  <field name="dcterms_created" type="pdates"/>
-  <field name="dcterms_modified" type="pdates"/>
-  <field name="div" type="text_general"/>
-  <field name="edit_time" type="plongs"/>
-  <field name="exif_datetimeoriginal" type="pdates"/>
-  <field name="exif_exposuretime" type="pdoubles"/>
-  <field name="exif_flash" type="booleans"/>
-  <field name="exif_fnumber" type="pdoubles"/>
-  <field name="exif_focallength" type="pdoubles"/>
-  <field name="exif_image_height" type="text_general"/>
-  <field name="exif_image_width" type="text_general"/>
-  <field name="exif_isospeedratings" type="plongs"/>
-  <field name="exif_version" type="pdoubles"/>
-  <field name="exposure_bias_value" type="text_general"/>
-  <field name="exposure_mode" type="text_general"/>
-  <field name="exposure_program" type="text_general"/>
-  <field name="exposure_time" type="text_general"/>
-  <field name="extended_properties_application" type="text_general"/>
-  <field name="extended_properties_appversion" type="pdoubles"/>
-  <field name="extended_properties_company" type="text_general"/>
-  <field name="extended_properties_template" type="text_general"/>
-  <field name="extended_properties_totaltime" type="plongs"/>
-  <field name="extract_base_type" type="text_general"/>
+  <field name="_version_" type="plong" indexed="true" stored="true"/>
   <field name="extract_id" type="string"/>
+
+
+  <field name="OCCRP_blogpost_ID" type="text_general"/>
+  <field name="SBdata_ID"  type="text_general"/>
   <field name="sb_pathhash" type="string"/>  
-  <field name="extract_level" type="string" multiValued="true" indexed="true" stored="true"/>
-  <field name="extract_parent_id" type="text_general"/>
-  <field name="extract_parent_paths" type="text_general"/>
-  <field name="extract_paths" type="text_general"/>
-  <field name="extract_root" type="string" multiValued="true" indexed="true" stored="true"/>
-  <field name="f_number" type="text_general"/>
-  <field name="file_modified_date" type="text_general"/>
-  <field name="file_name" type="text_general"/>
-  <field name="file_size" type="text_general"/>
-  <field name="flash" type="text_general"/>
-  <field name="flashpix_version" type="pdoubles"/>
-  <field name="focal_length" type="text_general"/>
-  <field name="focal_length_35" type="text_general"/>
-  <field name="font" type="text_general"/>
-  <field name="form" type="text_general"/>
-  <field name="geo_lat" type="pdoubles"/>
-  <field name="geo_long" type="pdoubles"/>
-  <field name="gps_altitude" type="text_general"/>
-  <field name="gps_altitude_ref" type="text_general"/>
-  <field name="gps_date_stamp" type="text_general"/>
-  <field name="gps_dest_bearing" type="text_general"/>
-  <field name="gps_dest_bearing_ref" type="text_general"/>
-  <field name="gps_img_direction" type="text_general"/>
-  <field name="gps_img_direction_ref" type="text_general"/>
-  <field name="gps_latitude" type="text_general"/>
-  <field name="gps_latitude_ref" type="text_general"/>
-  <field name="gps_longitude" type="text_general"/>
-  <field name="gps_longitude_ref" type="text_general"/>
-  <field name="gps_speed" type="pdoubles"/>
-  <field name="gps_speed_ref" type="text_general"/>
-  <field name="gps_time_stamp" type="text_general"/>
-  <field name="h1" type="text_general"/>
-  <field name="h3" type="text_general"/>
-  <field name="h5" type="text_general"/>
-  <field name="hr" type="text_general"/>
-  <field name="id" type="string" multiValued="false" indexed="true" stored="true"/>
-  <field name="iframe" type="text_general"/>
-  <field name="ignored_" type="text_general"/>
-  <field name="image_height" type="text_general"/>
-  <field name="image_width" type="text_general"/>
-  <field name="img" type="text_general"/>
-  <field name="input" type="text_general"/>
-  <field name="ins" type="text_general"/>
-  <field name="iso_speed_ratings" type="plongs"/>
-  <field name="label" type="text_general"/>
-  <field name="last_author" type="text_general"/>
-  <field name="last_modified" type="pdates" multiValued="true" stored="true"/>
-  <field name="last_save_date" type="pdates"/>
-  <field name="lens_make" type="text_general"/>
-  <field name="lens_model" type="text_general"/>
-  <field name="lens_specification" type="text_general"/>
-  <field name="li" type="text_general"/>
-  <field name="line_count" type="plongs"/>
-  <field name="link" type="text_general"/>
-  <field name="make" type="text_general"/>
-  <field name="makernote" type="text_general"/>
-  <field name="maximum_sample_value" type="plongs"/>
-  <field name="message_cc" type="text_general"/>
-  <field name="message_cc_display_name" type="text_general"/>
-  <field name="message_cc_email" type="text_general"/>
-  <field name="message_from" type="text_general"/>
-  <field name="message_from_email" type="text_general"/>
-  <field name="message_from_name" type="text_general"/>
-  <field name="message_raw_header_accept_language" type="text_general"/>
-  <field name="message_raw_header_cc" type="text_general"/>
-  <field name="message_raw_header_content_disposition" type="text_general"/>
-  <field name="message_raw_header_content_language" type="text_general"/>
-  <field name="message_raw_header_content_transfer_encoding" type="text_general"/>
-  <field name="message_raw_header_content_type" type="text_general"/>
-  <field name="message_raw_header_date" type="text_general"/>
-  <field name="message_raw_header_from" type="text_general"/>
-  <field name="message_raw_header_in_reply_to" type="text_general"/>
-  <field name="message_raw_header_message_id" type="text_general"/>
-  <field name="message_raw_header_mime_version" type="pdoubles"/>
-  <field name="message_raw_header_received" type="text_general"/>
-  <field name="message_raw_header_references" type="text_general"/>
-  <field name="message_raw_header_reply_to" type="text_general"/>
-  <field name="message_raw_header_return_path" type="text_general"/>
-  <field name="message_raw_header_subject" type="text_general"/>
-  <field name="message_raw_header_thread_index" type="text_general"/>
-  <field name="message_raw_header_to" type="text_general"/>
-  <field name="message_raw_header_x_gfime_maspam" type="text_general"/>
-  <field name="message_raw_header_x_mailer" type="text_general"/>
-  <field name="message_raw_header_x_mimeole" type="text_general"/>
-  <field name="message_raw_header_x_ms_exchange_organization_scl" type="plongs"/>
-  <field name="message_raw_header_x_ms_has_attach" type="text_general"/>
-  <field name="message_raw_header_x_ms_tnef_correlator" type="text_general"/>
-  <field name="message_raw_header_x_msmail_priority" type="text_general"/>
-  <field name="message_raw_header_x_nai_spam_checker_version" type="text_general"/>
-  <field name="message_raw_header_x_nai_spam_flag" type="text_general"/>
-  <field name="message_raw_header_x_nai_spam_rules" type="text_general"/>
-  <field name="message_raw_header_x_nai_spam_score" type="pdoubles"/>
-  <field name="message_raw_header_x_nai_spam_threshold" type="plongs"/>
-  <field name="message_raw_header_x_originalarrivaltime" type="text_general"/>
-  <field name="message_raw_header_x_priority" type="text_general"/>
-  <field name="message_recipient_address" type="text_general"/>
-  <field name="message_to" type="text_general"/>
-  <field name="message_to_display_name" type="text_general"/>
-  <field name="message_to_email" type="text_general"/>
-  <field name="message_to_name" type="text_general"/>
-  <field name="meta_author" type="text_general"/>
-  <field name="meta_character_count" type="plongs"/>
-  <field name="meta_character_count_with_spaces" type="plongs"/>
-  <field name="meta_creation_date" type="pdates"/>
-  <field name="meta_last_author" type="text_general"/>
-  <field name="meta_line_count" type="plongs"/>
-  <field name="meta_mapi_from_representing_email" type="text_general"/>
-  <field name="meta_mapi_from_representing_name" type="text_general"/>
-  <field name="meta_mapi_message_class" type="text_general"/>
-  <field name="meta_mapi_sent_by_server_type" type="text_general"/>
-  <field name="meta_page_count" type="plongs"/>
-  <field name="meta_paragraph_count" type="plongs"/>
-  <field name="meta_save_date" type="pdates"/>
-  <field name="meta_word_count" type="plongs"/>
-  <field name="metering_mode" type="text_general"/>
-  <field name="minimum_sample_value" type="plongs"/>
-  <field name="model" type="text_general"/>
-  <field name="modified" type="pdates"/>
-  <field name="new_subfile_type" type="text_general"/>
-  <field name="number_of_components" type="plongs"/>
-  <field name="object" type="text_general"/>
-  <field name="ol" type="text_general"/>
-  <field name="option" type="text_general"/>
-  <field name="orientation" type="text_general"/>
-  <field name="p" type="text_general"/>
-  <field name="padding" type="text_general"/>
-  <field name="page_count" type="plongs"/>
-  <field name="paragraph_count" type="plongs"/>
-  <field name="pdf_docinfo_created" type="pdates"/>
-  <field name="pdf_docinfo_creator" type="text_general"/>
-  <field name="pdf_docinfo_creator_tool" type="text_general"/>
-  <field name="pdf_docinfo_custom_id" type="text_general"/>
-  <field name="pdf_docinfo_modified" type="pdates"/>
-  <field name="pdf_docinfo_producer" type="text_general"/>
-  <field name="pdf_docinfo_title" type="text_general"/>
-  <field name="pdf_docinfo_trapped" type="booleans"/>
-  <field name="pdf_encrypted" type="booleans"/>
-  <field name="pdf_pdfversion" type="pdoubles"/>
-  <field name="photometric_interpretation" type="text_general"/>
-  <field name="predictor" type="plongs"/>
-  <field name="preview_html" type="text_general"/>
-  <field name="producer" type="text_general"/>
-  <field name="publisher" type="text_general"/>
-  <field name="resolution_unit" type="text_general"/>
-  <field name="resolution_units" type="text_general"/>
-  <field name="revision_number" type="plongs"/>
-  <field name="rows_per_strip" type="text_general"/>
-  <field name="samples_per_pixel" type="text_general"/>
-  <field name="sb_filename" type="string" multiValued="false" stored="false"/>
+  <field name="sb_filename" type="string" multiValued="false" stored="true"/>
+  <field name="sb_size" type="plongs" multiValued="false" stored="false"/>
+  <field name="stream_size" type="plongs" stored="true"/>
+  <field name="content_length" type="plongs" stored="true"/>
   <field name="sb_before" type="string" multiValued="false" stored="true"/>
   <field name="sb_next" type="string" multiValued="false" stored="true"/>
   <field name="sb_parentpath_hash" type="string" multiValued="true" indexed="true" stored="true"/>
@@ -651,428 +439,91 @@
   <field name="sb_taglist2" type="strings" indexed="true" stored="true"/>
   <field name="sb_taglist3" type="strings" indexed="true" stored="true"/>
   <field name="sb_usertags1" type="string" multiValued="true" indexed="true" stored="true"/>
-  <field name="scene_capture_type" type="text_general"/>
-  <field name="scene_type" type="text_general"/>
-  <field name="script" type="text_general"/>
-  <field name="select" type="text_general"/>
-  <field name="sensing_method" type="text_general"/>
-  <field name="shutter_speed_value" type="text_general"/>
-  <field name="software" type="text_general"/>
-  <field name="span" type="text_general"/>
-  <field name="stream_name" type="text_general"/>
-  <field name="stream_size" type="plongs"/>
-  <field name="stream_source_info" type="text_general"/>
-  <field name="strip_byte_counts" type="text_general"/>
-  <field name="strip_offsets" type="text_general"/>
-  <field name="sub_sec_time_digitized" type="plongs"/>
-  <field name="sub_sec_time_original" type="plongs"/>
-  <field name="subject" type="text_general"/>
-  <field name="subject_location" type="text_general"/>
-  <field name="table" type="text_general"/>
-  <field name="td" type="text_general"/>
-  <field name="template" type="text_general"/>
-  <field name="textarea" type="text_general"/>
-  <field name="thumbnail_height_pixels" type="plongs"/>
-  <field name="thumbnail_length" type="text_general"/>
-  <field name="thumbnail_offset" type="text_general"/>
-  <field name="thumbnail_width_pixels" type="plongs"/>
-  <field name="thumbnailurl" type="text_general"/>
-  <field name="tiff_bitspersample" type="plongs"/>
-  <field name="tiff_imagelength" type="plongs"/>
-  <field name="tiff_imagewidth" type="plongs"/>
-  <field name="tiff_make" type="text_general"/>
-  <field name="tiff_model" type="text_general"/>
-  <field name="tiff_orientation" type="plongs"/>
-  <field name="tiff_resolutionunit" type="text_general"/>
-  <field name="tiff_samplesperpixel" type="plongs"/>
-  <field name="tiff_software" type="text_general"/>
-  <field name="tiff_xresolution" type="pdoubles"/>
-  <field name="tiff_yresolution" type="pdoubles"/>
   <field name="tika_content" type="text_general" indexed="false" stored="true"/>
-  <field name="tika_metadata_access_permission_assemble_document" type="booleans"/>
-  <field name="tika_metadata_access_permission_can_modify" type="booleans"/>
-  <field name="tika_metadata_access_permission_can_print" type="booleans"/>
-  <field name="tika_metadata_access_permission_can_print_degraded" type="booleans"/>
-  <field name="tika_metadata_access_permission_extract_content" type="booleans"/>
-  <field name="tika_metadata_access_permission_extract_for_accessibility" type="booleans"/>
-  <field name="tika_metadata_access_permission_fill_in_form" type="booleans"/>
-  <field name="tika_metadata_access_permission_modify_annotations" type="booleans"/>
-  <field name="tika_metadata_apple_multi_language_profile_name" type="text_general"/>
-  <field name="tika_metadata_application_name" type="text_general"/>
-  <field name="tika_metadata_application_record_version" type="plongs"/>
-  <field name="tika_metadata_application_version" type="pdoubles"/>
-  <field name="tika_metadata_artist" type="text_general"/>
-  <field name="tika_metadata_author" type="text_general"/>
-  <field name="tika_metadata_bits_per_sample" type="text_general"/>
-  <field name="tika_metadata_bkgd_bkgd_palette" type="plongs"/>
-  <field name="tika_metadata_bkgd_bkgd_rgb" type="text_general"/>
-  <field name="tika_metadata_blue_colorant" type="text_general"/>
-  <field name="tika_metadata_blue_trc" type="pdoubles"/>
-  <field name="tika_metadata_by_line" type="text_general"/>
-  <field name="tika_metadata_caption_abstract" type="text_general"/>
-  <field name="tika_metadata_caption_digest" type="text_general"/>
-  <field name="tika_metadata_caption_writer_editor" type="text_general"/>
-  <field name="tika_metadata_character_count" type="plongs"/>
-  <field name="tika_metadata_character_count_with_spaces" type="plongs"/>
-  <field name="tika_metadata_chrm" type="text_general"/>
-  <field name="tika_metadata_chroma_backgroundcolor" type="text_general"/>
-  <field name="tika_metadata_chroma_backgroundindex" type="plongs"/>
-  <field name="tika_metadata_chroma_blackiszero" type="booleans"/>
-  <field name="tika_metadata_chroma_colorspacetype" type="text_general"/>
-  <field name="tika_metadata_chroma_gamma" type="pdoubles"/>
-  <field name="tika_metadata_chroma_numchannels" type="plongs"/>
-  <field name="tika_metadata_chroma_palette_paletteentry" type="text_general"/>
-  <field name="tika_metadata_chromatic_adaptation" type="text_general"/>
-  <field name="tika_metadata_chromaticity" type="text_general"/>
-  <field name="tika_metadata_city" type="text_general"/>
-  <field name="tika_metadata_class" type="text_general"/>
-  <field name="tika_metadata_cmm_type" type="text_general"/>
-  <field name="tika_metadata_coded_character_set" type="text_general"/>
-  <field name="tika_metadata_color_halftoning_information" type="text_general"/>
-  <field name="tika_metadata_color_space" type="text_general"/>
-  <field name="tika_metadata_color_transfer_functions" type="text_general"/>
-  <field name="tika_metadata_color_transform" type="text_general"/>
-  <field name="tika_metadata_comment" type="text_general"/>
-  <field name="tika_metadata_comments" type="text_general"/>
-  <field name="tika_metadata_company" type="text_general"/>
-  <field name="tika_metadata_component_1" type="text_general"/>
-  <field name="tika_metadata_component_2" type="text_general"/>
-  <field name="tika_metadata_component_3" type="text_general"/>
-  <field name="tika_metadata_compression" type="text_general"/>
-  <field name="tika_metadata_compression_compressiontypename" type="text_general"/>
-  <field name="tika_metadata_compression_lossless" type="booleans"/>
-  <field name="tika_metadata_compression_numprogressivescans" type="plongs"/>
-  <field name="tika_metadata_compression_type" type="text_general"/>
-  <field name="tika_metadata_content_encoding" type="text_general"/>
-  <field name="tika_metadata_content_length" type="plongs"/>
-  <field name="tika_metadata_content_type" type="text_general"/>
-  <field name="tika_metadata_content_type_hint" type="text_general"/>
-  <field name="tika_metadata_copyright" type="text_general"/>
-  <field name="tika_metadata_country_primary_location_code" type="text_general"/>
-  <field name="tika_metadata_country_primary_location_name" type="text_general"/>
-  <field name="tika_metadata_cp_revision" type="plongs"/>
-  <field name="tika_metadata_create_date" type="pdates"/>
-  <field name="tika_metadata_created" type="text_general"/>
-  <field name="tika_metadata_creation_date" type="pdates"/>
-  <field name="tika_metadata_creation_date_iso8601" type="pdates"/>
-  <field name="tika_metadata_creator" type="text_general"/>
-  <field name="tika_metadata_creator_tool" type="text_general"/>
-  <field name="tika_metadata_credit" type="text_general"/>
-  <field name="tika_metadata_data_bitspersample" type="text_general"/>
-  <field name="tika_metadata_data_planarconfiguration" type="text_general"/>
-  <field name="tika_metadata_data_precision" type="text_general"/>
-  <field name="tika_metadata_data_sampleformat" type="text_general"/>
-  <field name="tika_metadata_date" type="pdates"/>
-  <field name="tika_metadata_date_created" type="text_general"/>
-  <field name="tika_metadata_date_iso8601" type="pdates"/>
-  <field name="tika_metadata_date_sent" type="text_general"/>
-  <field name="tika_metadata_date_time" type="text_general"/>
-  <field name="tika_metadata_dc_creator" type="text_general"/>
-  <field name="tika_metadata_dc_description" type="text_general"/>
-  <field name="tika_metadata_dc_format" type="text_general"/>
-  <field name="tika_metadata_dc_publisher" type="text_general"/>
-  <field name="tika_metadata_dc_title" type="text_general"/>
-  <field name="tika_metadata_dct_encode_version" type="plongs"/>
-  <field name="tika_metadata_dcterms_created" type="pdates"/>
-  <field name="tika_metadata_dcterms_created_iso8601" type="pdates"/>
-  <field name="tika_metadata_dcterms_modified" type="pdates"/>
-  <field name="tika_metadata_dcterms_modified_iso8601" type="pdates"/>
-  <field name="tika_metadata_description" type="text_general"/>
-  <field name="tika_metadata_destination" type="text_general"/>
-  <field name="tika_metadata_device_manufacturer" type="text_general"/>
-  <field name="tika_metadata_dimension_horizontalpixeloffset" type="plongs"/>
-  <field name="tika_metadata_dimension_horizontalpixelsize" type="pdoubles"/>
-  <field name="tika_metadata_dimension_imageorientation" type="text_general"/>
-  <field name="tika_metadata_dimension_pixelaspectratio" type="pdoubles"/>
-  <field name="tika_metadata_dimension_verticalpixeloffset" type="plongs"/>
-  <field name="tika_metadata_dimension_verticalpixelsize" type="pdoubles"/>
-  <field name="tika_metadata_document_imagemodificationtime" type="text_general"/>
-  <field name="tika_metadata_edit_status" type="text_general"/>
-  <field name="tika_metadata_edit_time" type="plongs"/>
-  <field name="tika_metadata_embeddedrelationshipid" type="text_general"/>
-  <field name="tika_metadata_envelope_number" type="plongs"/>
-  <field name="tika_metadata_envelope_priority" type="plongs"/>
-  <field name="tika_metadata_enveloped_record_version" type="plongs"/>
-  <field name="tika_metadata_exif_image_height" type="text_general"/>
-  <field name="tika_metadata_exif_image_width" type="text_general"/>
-  <field name="tika_metadata_exif_version" type="pdoubles"/>
-  <field name="tika_metadata_extended_properties_application" type="text_general"/>
-  <field name="tika_metadata_extended_properties_appversion" type="pdoubles"/>
-  <field name="tika_metadata_extended_properties_company" type="text_general"/>
-  <field name="tika_metadata_extended_properties_template" type="text_general"/>
-  <field name="tika_metadata_extended_properties_totaltime" type="plongs"/>
-  <field name="tika_metadata_file_format" type="text_general"/>
-  <field name="tika_metadata_file_modified_date" type="text_general"/>
-  <field name="tika_metadata_file_name" type="text_general"/>
-  <field name="tika_metadata_file_size" type="text_general"/>
-  <field name="tika_metadata_file_version" type="plongs"/>
-  <field name="tika_metadata_fixture_identifier" type="text_general"/>
-  <field name="tika_metadata_flags_0" type="plongs"/>
-  <field name="tika_metadata_flags_1" type="plongs"/>
-  <field name="tika_metadata_gama" type="plongs"/>
-  <field name="tika_metadata_global_altitude" type="plongs"/>
-  <field name="tika_metadata_global_angle" type="plongs"/>
-  <field name="tika_metadata_graphiccontrolextension" type="text_general"/>
-  <field name="tika_metadata_green_colorant" type="text_general"/>
-  <field name="tika_metadata_green_trc" type="pdoubles"/>
-  <field name="tika_metadata_grid_and_guides_information" type="text_general"/>
-  <field name="tika_metadata_headline" type="text_general"/>
-  <field name="tika_metadata_height" type="plongs"/>
-  <field name="tika_metadata_id" type="text_general"/>
-  <field name="tika_metadata_ihdr" type="text_general"/>
-  <field name="tika_metadata_image_description" type="text_general"/>
-  <field name="tika_metadata_image_height" type="text_general"/>
-  <field name="tika_metadata_image_width" type="text_general"/>
-  <field name="tika_metadata_imagedescriptor" type="text_general"/>
-  <field name="tika_metadata_itxt_itxtentry" type="text_general"/>
-  <field name="tika_metadata_jpeg_comment" type="text_general"/>
-  <field name="tika_metadata_jpeg_quality" type="text_general"/>
-  <field name="tika_metadata_language_identifier" type="text_general"/>
-  <field name="tika_metadata_last_author" type="text_general"/>
-  <field name="tika_metadata_last_modified" type="pdates" multiValued="false" stored="true"/>
-  <field name="tika_metadata_last_modified_iso8601" type="pdates"/>
-  <field name="tika_metadata_last_save_date" type="pdates"/>
-  <field name="tika_metadata_last_save_date_iso8601" type="pdates"/>
-  <field name="tika_metadata_line_count" type="plongs"/>
-  <field name="tika_metadata_message_from" type="text_general"/>
-  <field name="tika_metadata_message_from_email" type="text_general"/>
-  <field name="tika_metadata_message_from_name" type="text_general"/>
-  <field name="tika_metadata_message_raw_header_content_transfer_encoding" type="text_general"/>
-  <field name="tika_metadata_message_raw_header_content_type" type="text_general"/>
-  <field name="tika_metadata_message_raw_header_date" type="text_general"/>
-  <field name="tika_metadata_message_raw_header_from" type="text_general"/>
-  <field name="tika_metadata_message_raw_header_in_reply_to" type="text_general"/>
-  <field name="tika_metadata_message_raw_header_message_id" type="text_general"/>
-  <field name="tika_metadata_message_raw_header_mime_version" type="pdoubles"/>
-  <field name="tika_metadata_message_raw_header_received" type="text_general"/>
-  <field name="tika_metadata_message_raw_header_references" type="text_general"/>
-  <field name="tika_metadata_message_raw_header_return_path" type="text_general"/>
-  <field name="tika_metadata_message_raw_header_sent" type="text_general"/>
-  <field name="tika_metadata_message_raw_header_subject" type="text_general"/>
-  <field name="tika_metadata_message_raw_header_to" type="text_general"/>
-  <field name="tika_metadata_message_raw_header_x_mailer" type="text_general"/>
-  <field name="tika_metadata_message_raw_header_x_mimeole" type="text_general"/>
-  <field name="tika_metadata_message_raw_header_x_msmail_priority" type="text_general"/>
-  <field name="tika_metadata_message_raw_header_x_nai_spam_checker_version" type="text_general"/>
-  <field name="tika_metadata_message_raw_header_x_nai_spam_flag" type="text_general"/>
-  <field name="tika_metadata_message_raw_header_x_nai_spam_rules" type="text_general"/>
-  <field name="tika_metadata_message_raw_header_x_nai_spam_score" type="pdoubles"/>
-  <field name="tika_metadata_message_raw_header_x_nai_spam_threshold" type="plongs"/>
-  <field name="tika_metadata_message_raw_header_x_originalarrivaltime" type="text_general"/>
-  <field name="tika_metadata_message_raw_header_x_priority" type="text_general"/>
-  <field name="tika_metadata_message_recipient_address" type="text_general"/>
-  <field name="tika_metadata_message_to" type="text_general"/>
-  <field name="tika_metadata_message_to_display_name" type="text_general"/>
-  <field name="tika_metadata_message_to_email" type="text_general"/>
-  <field name="tika_metadata_meta_author" type="text_general"/>
-  <field name="tika_metadata_meta_character_count" type="plongs"/>
-  <field name="tika_metadata_meta_character_count_with_spaces" type="plongs"/>
-  <field name="tika_metadata_meta_creation_date" type="pdates"/>
-  <field name="tika_metadata_meta_creation_date_iso8601" type="pdates"/>
-  <field name="tika_metadata_meta_last_author" type="text_general"/>
-  <field name="tika_metadata_meta_line_count" type="plongs"/>
-  <field name="tika_metadata_meta_mapi_from_representing_email" type="text_general"/>
-  <field name="tika_metadata_meta_mapi_from_representing_name" type="text_general"/>
-  <field name="tika_metadata_meta_mapi_message_class" type="text_general"/>
-  <field name="tika_metadata_meta_mapi_sent_by_server_type" type="text_general"/>
-  <field name="tika_metadata_meta_page_count" type="plongs"/>
-  <field name="tika_metadata_meta_paragraph_count" type="plongs"/>
-  <field name="tika_metadata_meta_save_date" type="pdates"/>
-  <field name="tika_metadata_meta_save_date_iso8601" type="pdates"/>
-  <field name="tika_metadata_meta_word_count" type="plongs"/>
-  <field name="tika_metadata_metadata_date" type="pdates"/>
-  <field name="tika_metadata_modified" type="pdates"/>
-  <field name="tika_metadata_modified_iso8601" type="pdates"/>
-  <field name="tika_metadata_modify_date" type="pdates"/>
-  <field name="tika_metadata_number_of_components" type="plongs"/>
-  <field name="tika_metadata_object_name" type="text_general"/>
-  <field name="tika_metadata_orientation" type="text_general"/>
-  <field name="tika_metadata_original_transmission_reference" type="text_general"/>
-  <field name="tika_metadata_originating_program" type="text_general"/>
-  <field name="tika_metadata_page_count" type="plongs"/>
-  <field name="tika_metadata_paragraph_count" type="plongs"/>
-  <field name="tika_metadata_pdf_docinfo_created" type="pdates"/>
-  <field name="tika_metadata_pdf_docinfo_created_iso8601" type="pdates"/>
-  <field name="tika_metadata_pdf_docinfo_creator" type="text_general"/>
-  <field name="tika_metadata_pdf_docinfo_creator_tool" type="text_general"/>
-  <field name="tika_metadata_pdf_docinfo_custom_id" type="text_general"/>
-  <field name="tika_metadata_pdf_docinfo_modified" type="pdates"/>
-  <field name="tika_metadata_pdf_docinfo_modified_iso8601" type="pdates"/>
-  <field name="tika_metadata_pdf_docinfo_producer" type="text_general"/>
-  <field name="tika_metadata_pdf_docinfo_title" type="text_general"/>
-  <field name="tika_metadata_pdf_docinfo_trapped" type="booleans"/>
-  <field name="tika_metadata_pdf_encrypted" type="booleans"/>
-  <field name="tika_metadata_pdf_pdfversion" type="pdoubles"/>
-  <field name="tika_metadata_photometric_interpretation" type="text_general"/>
-  <field name="tika_metadata_phys" type="text_general"/>
-  <field name="tika_metadata_pixel_aspect_ratio" type="pdoubles"/>
-  <field name="tika_metadata_plte_plteentry" type="text_general"/>
-  <field name="tika_metadata_primary_platform" type="text_general"/>
-  <field name="tika_metadata_print_flags" type="text_general"/>
-  <field name="tika_metadata_print_flags_information" type="text_general"/>
-  <field name="tika_metadata_print_info_2" type="text_general"/>
-  <field name="tika_metadata_print_scale" type="text_general"/>
-  <field name="tika_metadata_print_style" type="text_general"/>
-  <field name="tika_metadata_producer" type="text_general"/>
-  <field name="tika_metadata_product_identifier" type="text_general"/>
-  <field name="tika_metadata_profile_connection_space" type="text_general"/>
-  <field name="tika_metadata_profile_date_time" type="text_general"/>
-  <field name="tika_metadata_profile_description" type="text_general"/>
-  <field name="tika_metadata_profile_size" type="plongs"/>
-  <field name="tika_metadata_program_version" type="plongs"/>
-  <field name="tika_metadata_publisher" type="text_general"/>
-  <field name="tika_metadata_quality" type="plongs"/>
-  <field name="tika_metadata_red_colorant" type="text_general"/>
-  <field name="tika_metadata_red_trc" type="pdoubles"/>
-  <field name="tika_metadata_resolution_info" type="text_general"/>
-  <field name="tika_metadata_resolution_unit" type="text_general"/>
-  <field name="tika_metadata_resolution_units" type="text_general"/>
-  <field name="tika_metadata_resourcename" type="text_general"/>
-  <field name="tika_metadata_revision_number" type="plongs"/>
-  <field name="tika_metadata_samples_per_pixel" type="text_general"/>
-  <field name="tika_metadata_seed_number" type="plongs"/>
-  <field name="tika_metadata_service_identifier" type="text_general"/>
-  <field name="tika_metadata_signature" type="text_general"/>
-  <field name="tika_metadata_slices" type="text_general"/>
-  <field name="tika_metadata_software" type="text_general"/>
-  <field name="tika_metadata_source" type="text_general"/>
-  <field name="tika_metadata_srgb" type="text_general"/>
-  <field name="tika_metadata_subject" type="text_general"/>
-  <field name="tika_metadata_supplemental_category_s_" type="text_general"/>
-  <field name="tika_metadata_tag_count" type="plongs"/>
-  <field name="tika_metadata_template" type="text_general"/>
-  <field name="tika_metadata_text_textentry" type="text_general"/>
-  <field name="tika_metadata_thumbnail_data" type="text_general"/>
-  <field name="tika_metadata_thumbnail_height_pixels" type="plongs"/>
-  <field name="tika_metadata_thumbnail_length" type="text_general"/>
-  <field name="tika_metadata_thumbnail_offset" type="text_general"/>
-  <field name="tika_metadata_thumbnail_width_pixels" type="plongs"/>
-  <field name="tika_metadata_tiff_bitspersample" type="text_general"/>
-  <field name="tika_metadata_tiff_imagelength" type="plongs"/>
-  <field name="tika_metadata_tiff_imagewidth" type="plongs"/>
-  <field name="tika_metadata_tiff_orientation" type="plongs"/>
-  <field name="tika_metadata_tiff_resolutionunit" type="text_general"/>
-  <field name="tika_metadata_tiff_samplesperpixel" type="plongs"/>
-  <field name="tika_metadata_tiff_software" type="text_general"/>
-  <field name="tika_metadata_tiff_xresolution" type="pdoubles"/>
-  <field name="tika_metadata_tiff_yresolution" type="pdoubles"/>
-  <field name="tika_metadata_tika_mime_file" type="text_general"/>
-  <field name="tika_metadata_time" type="text_general"/>
-  <field name="tika_metadata_time_created" type="text_general"/>
-  <field name="tika_metadata_time_sent" type="text_general"/>
-  <field name="tika_metadata_title" type="text_general"/>
-  <field name="tika_metadata_total_time" type="plongs"/>
-  <field name="tika_metadata_transparency_alpha" type="text_general"/>
-  <field name="tika_metadata_trapped" type="booleans"/>
-  <field name="tika_metadata_unknown_tag__0x0714_" type="text_general"/>
-  <field name="tika_metadata_unknown_tag__0x075a_" type="text_general"/>
-  <field name="tika_metadata_urgency" type="plongs"/>
-  <field name="tika_metadata_url_list" type="plongs"/>
-  <field name="tika_metadata_version_info" type="text_general"/>
-  <field name="tika_metadata_viewport" type="text_general"/>
-  <field name="tika_metadata_w_comments" type="text_general"/>
-  <field name="tika_metadata_width" type="plongs"/>
-  <field name="tika_metadata_word_count" type="plongs"/>
-  <field name="tika_metadata_x_parsed_by" type="text_general"/>
-  <field name="tika_metadata_x_resolution" type="text_general"/>
-  <field name="tika_metadata_x_tika_digest_sha256" type="text_general"/>
-  <field name="tika_metadata_x_ua_compatible" type="text_general"/>
-  <field name="tika_metadata_xmp_creatortool" type="text_general"/>
-  <field name="tika_metadata_xmp_value_count" type="plongs"/>
-  <field name="tika_metadata_xmpmm_documentid" type="text_general"/>
-  <field name="tika_metadata_xmptpg_npages" type="plongs"/>
-  <field name="tika_metadata_xyz_values" type="text_general"/>
-  <field name="tika_metadata_y_resolution" type="text_general"/>
+  <field name="extract_paths" type="text_general"/>
+  <field name="resourcename"  type="text_general" multiValued="true" stored="true"/>
+
+  <field name="last_modified" type="text_general" multiValued="true" stored="true"/>
+  <field name="last_modified_iso8601" type="pdates" multiValued="true" stored="true"/>
+
+
+  <field name="content_type" type="text_general"/>
+  
+  <field name="extract_level" type="string" multiValued="true" indexed="true" stored="true"/>
+  <field name="extract_parent_id" type="text_general"/>
+  <field name="extract_parent_paths" type="text_general"/>
+  <field name="extract_base_type" type="text_general"/>
+  <field name="extract_root" type="string" multiValued="true" indexed="true" stored="true"/>
+  <field name="file_size" type="text_general"/>
+
+
+<!--email fields -->  
+  <field name="author" type="text_general"/>
+  <field name="message_from" type="text_general" multiValued="false" stored="true"/>
+  <field name="message_from_email" type="text_general" multiValued="false"/>
+  <field name="message_from_display_name" type="text_general" multiValued="false" stored="true"/>
+  <field name="message_to" type="text_general" multiValued="true" stored="true" />
+  <field name="message_to_display_name" type="text_general" multiValued="true" stored="true" />
+  <field name="message_to_email" type="text_general" multiValued="true" stored="true" />  
+  <field name="message_cc" type="text_general" multiValued="true"/>
+  <field name="message_cc_email" type="text_general" multiValued="true"/>
+  <field name="message_bcc" type="text_general" multiValued="true"/>
+  <field name="message_bcc_email" type="text_general" multiValued="true"/>
   <field name="title" type="text_general"/>
-  <field name="total_time" type="plongs"/>
-  <field name="trapped" type="booleans"/>
-  <field name="ul" type="text_general"/>
-  <field name="unknown_tag__0x001f_" type="plongs"/>
-  <field name="unknown_tag__0x0129_" type="text_general"/>
-  <field name="unknown_tag__0x8769_" type="plongs"/>
-  <field name="unknown_tag__0x9330_" type="text_general"/>
-  <field name="unknown_tag__0xea1d_" type="plongs"/>
-  <field name="usertags1field" type="text_general"/>
-  <field name="viewport" type="text_general"/>
-  <field name="white_balance_mode" type="text_general"/>
+  <field name="subject" type="text_general"/>
+  
+<!--  <field name="a" type="text_general"/>
+  <field name="character_count" type="plongs"/>
+  <field name="character_count_with_spaces" type="plongs"/>
+  <field name="content_type_hint" type="text_general"/>
+  <field name="created" type="text_general"/>
+  <field name="creation_date" type="pdates"/>
+  <field name="creator" type="text_general"/>
+  <field name="date" type="pdates"/>
+  <field name="date_time" type="text_general"/>
+  <field name="exif_datetimeoriginal" type="pdates"/>
+   <field name="file_modified_date" type="text_general"/>
+  <field name="file_name" type="text_general"/>
+  <field name="last_author" type="text_general"/>
+
+  <field name="last_save_date" type="pdates"/>
+  <field name="line_count" type="plongs"/>
+  <field name="message_cc" type="text_general"/>
+  <field name="message_cc_display_name" type="text_general"/>
+  <field name="message_cc_email" type="text_general"/>
+  <field name="message_from_email" type="text_general"/>
+  <field name="message_from_name" type="text_general"/>
+  <field name="message_recipient_address" type="text_general"/>
+  <field name="message_to_display_name" type="text_general"/>
+  <field name="message_to_email" type="text_general"/>
+  <field name="message_to_name" type="text_general"/>
+  <field name="meta_author" type="text_general"/>
+  <field name="stream_name" type="text_general"/>
+  <field name="stream_size" type="plongs" stored="true"/>
+  <field name="subject_location" type="text_general"/>
   <field name="word_count" type="plongs"/>
-  <field name="x_parsed_by" type="text_general"/>
-  <field name="x_resolution" type="text_general"/>
-  <field name="x_ua_compatible" type="text_general"/>
-  <field name="xmp_creatortool" type="text_general"/>
-  <field name="xmp_value_count" type="plongs"/>
-  <field name="xmpmm_documentid" type="text_general"/>
-  <field name="xmptpg_npages" type="plongs"/>
-  <field name="y_resolution" type="text_general"/>
-  <field name="ycbcr_positioning" type="text_general"/>
-  <dynamicField name="message*" type="text_general" indexed="true" stored="true"/>
-  <dynamicField name="*_txt_en_split_tight" type="text_en_splitting_tight" indexed="true" stored="true"/>
-  <dynamicField name="*_descendent_path" type="descendent_path" indexed="true" stored="true"/>
-  <dynamicField name="*_ancestor_path" type="ancestor_path" indexed="true" stored="true"/>
-  <dynamicField name="*_txt_en_split" type="text_en_splitting" indexed="true" stored="true"/>
-  <dynamicField name="*_txt_rev" type="text_general_rev" indexed="true" stored="true"/>
-  <dynamicField name="*_phon_en" type="phonetic_en" indexed="true" stored="true"/>
-  <dynamicField name="*_s_lower" type="lowercase" indexed="true" stored="true"/>
-  <dynamicField name="*_txt_cjk" type="text_cjk" indexed="true" stored="true"/>
-  <dynamicField name="*_txt_en" type="text_en" indexed="true" stored="true"/>
-  <dynamicField name="*_txt_ar" type="text_ar" indexed="true" stored="true"/>
-  <dynamicField name="*_txt_bg" type="text_bg" indexed="true" stored="true"/>
-  <dynamicField name="*_txt_ca" type="text_ca" indexed="true" stored="true"/>
-  <dynamicField name="*_txt_cz" type="text_cz" indexed="true" stored="true"/>
-  <dynamicField name="*_txt_da" type="text_da" indexed="true" stored="true"/>
-  <dynamicField name="*_txt_de" type="text_de" indexed="true" stored="true"/>
-  <dynamicField name="*_txt_el" type="text_el" indexed="true" stored="true"/>
-  <dynamicField name="*_txt_es" type="text_es" indexed="true" stored="true"/>
-  <dynamicField name="*_txt_eu" type="text_eu" indexed="true" stored="true"/>
-  <dynamicField name="*_txt_fa" type="text_fa" indexed="true" stored="true"/>
-  <dynamicField name="*_txt_fi" type="text_fi" indexed="true" stored="true"/>
-  <dynamicField name="*_txt_fr" type="text_fr" indexed="true" stored="true"/>
-  <dynamicField name="*_txt_ga" type="text_ga" indexed="true" stored="true"/>
-  <dynamicField name="*_txt_gl" type="text_gl" indexed="true" stored="true"/>
-  <dynamicField name="*_txt_hi" type="text_hi" indexed="true" stored="true"/>
-  <dynamicField name="*_txt_hu" type="text_hu" indexed="true" stored="true"/>
-  <dynamicField name="*_txt_hy" type="text_hy" indexed="true" stored="true"/>
-  <dynamicField name="*_txt_id" type="text_id" indexed="true" stored="true"/>
-  <dynamicField name="*_txt_it" type="text_it" indexed="true" stored="true"/>
-  <dynamicField name="*_txt_ja" type="text_ja" indexed="true" stored="true"/>
-  <dynamicField name="*_txt_lv" type="text_lv" indexed="true" stored="true"/>
-  <dynamicField name="*_txt_nl" type="text_nl" indexed="true" stored="true"/>
-  <dynamicField name="*_txt_no" type="text_no" indexed="true" stored="true"/>
-  <dynamicField name="*_txt_pt" type="text_pt" indexed="true" stored="true"/>
-  <dynamicField name="*_txt_ro" type="text_ro" indexed="true" stored="true"/>
-  <dynamicField name="*_txt_ru" type="text_ru" indexed="true" stored="true"/>
-  <dynamicField name="*_txt_sv" type="text_sv" indexed="true" stored="true"/>
-  <dynamicField name="*_txt_th" type="text_th" indexed="true" stored="true"/>
-  <dynamicField name="*_txt_tr" type="text_tr" indexed="true" stored="true"/>
-  <dynamicField name="*_point" type="point" indexed="true" stored="true"/>
-  <dynamicField name="*_srpt" type="location_rpt" indexed="true" stored="true"/>
-  <dynamicField name="attr_*" type="text_general" multiValued="true" indexed="true" stored="true"/>
-  <dynamicField name="*_txt" type="text_general" indexed="true" stored="true"/>
-  <dynamicField name="*_str" type="strings" docValues="true" indexed="false" stored="false"/>
-  <dynamicField name="*_dts" type="pdate" multiValued="true" indexed="true" stored="true"/>
-  <dynamicField name="*_dpf" type="delimited_payloads_float" indexed="true" stored="true"/>
-  <dynamicField name="*_dpi" type="delimited_payloads_int" indexed="true" stored="true"/>
-  <dynamicField name="*_dps" type="delimited_payloads_string" indexed="true" stored="true"/>
-  <dynamicField name="*_is" type="pints" indexed="true" stored="true"/>
-  <dynamicField name="*_ss" type="strings" indexed="true" stored="true"/>
-  <dynamicField name="*_ls" type="plongs" indexed="true" stored="true"/>
-  <dynamicField name="*_bs" type="booleans" indexed="true" stored="true"/>
-  <dynamicField name="*_fs" type="pfloats" indexed="true" stored="true"/>
-  <dynamicField name="*_ds" type="pdoubles" indexed="true" stored="true"/>
-  <dynamicField name="*_dt" type="pdate" indexed="true" stored="true"/>
-  <dynamicField name="*_ws" type="text_ws" indexed="true" stored="true"/>
-  <dynamicField name="*_i" type="pint" indexed="true" stored="true"/>
-  <dynamicField name="*_s" type="string" indexed="true" stored="true"/>
-  <dynamicField name="*_l" type="plong" indexed="true" stored="true"/>
-  <dynamicField name="*_b" type="boolean" indexed="true" stored="true"/>
-  <dynamicField name="*_f" type="pfloat" indexed="true" stored="true"/>
-  <dynamicField name="*_d" type="pdouble" indexed="true" stored="true"/>
-  <dynamicField name="*_p" type="location" indexed="true" stored="true"/>
-  <dynamicField name="*" type="text_general" multiValued="true" indexed="true" stored="true"/>
-  <copyField source="last_modified" dest="sb_last_modified"/>
-  <copyField source="stream_size" dest="tika_metadata_content_length"/>
-  <copyField source="tika_metadata_last_modified" dest="sb_last_modified"/>
-  <copyField source="tika_metadata_resourcename" dest="sb_filename" maxChars="256"/>
+-->
+  <dynamicField name="*" type="text_general" multiValued="true" indexed="false" stored="false" docValues="false"/>
+<!--  CHANGE indexed and stored to True to pick up new fields
+
+ <dynamicField name="*" type="text_general" multiValued="true" indexed="true" stored="true"/>
+-->
+
+<!--  <copyField source="tika_metadata_message_to" dest="message_to" maxChars="256"/>
+  <copyField source="tika_metadata_author" dest="author" maxChars="256"/>
+  <copyField source="tika_metadata_title" dest="title" maxChars="256"/>
+  <copyField source="tika_metadata_message_from" dest="message_from" maxChars="256"/>
+-->  
+  <copyField source="last_modified_iso8601" dest="sb_last_modified"/>
+  
+  <copyField source="stream_size" dest="sb_size" />
+<!--  <copyField source="content_length" dest="stream_size"/> 
+-->  
+
+  
+<!--  <copyField source="stream_size" dest="tika_metadata_content_length"/>-->
+<!--  <copyField source="tika_metadata_last_modified" dest="sb_last_modified" multiValued="false" stored="false"/>
+--><!--  <copyField source="tika_metadata_resourcename" dest="sb_filename" maxChars="256"/>-->
   <copyField source="pdf_docinfo_creator_tool" dest="pdf_docinfo_creator_tool_str" maxChars="256"/>
   <copyField source="extract_paths" dest="extract_paths_str" maxChars="256"/>
   <copyField source="stream_source_info" dest="stream_source_info_str" maxChars="256"/>
@@ -1206,7 +657,11 @@
   <copyField source="tika_metadata_message_raw_header_x_priority" dest="tika_metadata_message_raw_header_x_priority_str" maxChars="256"/>
   <copyField source="tika_metadata_message_raw_header_to" dest="tika_metadata_message_raw_header_to_str" maxChars="256"/>
   <copyField source="tika_metadata_message_raw_header_x_originalarrivaltime" dest="tika_metadata_message_raw_header_x_originalarrivaltime_str" maxChars="256"/>
+
   <copyField source="tika_metadata_message_to" dest="tika_metadata_message_to_str" maxChars="256"/>
+
+
+
   <copyField source="tika_metadata_message_raw_header_in_reply_to" dest="tika_metadata_message_raw_header_in_reply_to_str" maxChars="256"/>
   <copyField source="tika_metadata_message_raw_header_x_nai_spam_checker_version" dest="tika_metadata_message_raw_header_x_nai_spam_checker_version_str" maxChars="256"/>
   <copyField source="tika_metadata_message_raw_header_content_type" dest="tika_metadata_message_raw_header_content_type_str" maxChars="256"/>
@@ -1215,7 +670,10 @@
   <copyField source="tika_metadata_message_raw_header_x_nai_spam_flag" dest="tika_metadata_message_raw_header_x_nai_spam_flag_str" maxChars="256"/>
   <copyField source="tika_metadata_meta_mapi_sent_by_server_type" dest="tika_metadata_meta_mapi_sent_by_server_type_str" maxChars="256"/>
   <copyField source="tika_metadata_message_raw_header_content_transfer_encoding" dest="tika_metadata_message_raw_header_content_transfer_encoding_str" maxChars="256"/>
+
   <copyField source="tika_metadata_message_from" dest="tika_metadata_message_from_str" maxChars="256"/>
+
+
   <copyField source="tika_metadata_message_raw_header_x_mailer" dest="tika_metadata_message_raw_header_x_mailer_str" maxChars="256"/>
   <copyField source="tika_metadata_message_raw_header_from" dest="tika_metadata_message_raw_header_from_str" maxChars="256"/>
   <copyField source="tika_metadata_message_from_email" dest="tika_metadata_message_from_email_str" maxChars="256"/>
