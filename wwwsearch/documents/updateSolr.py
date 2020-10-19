@@ -72,6 +72,29 @@ class Updater:
         except s.SolrConnectionError:
             log.debug('Solr connection error: failed after {} records'.format(counter))        
 
+class RemoveNoContent(Updater):
+    """remove entries with no content"""
+    def modify(self,result):
+        #log.debug(result.docname)
+        if result:
+            if not result.folder:
+                try:
+                    if not result.data.get('rawtext') and not result.data.get('extract_level'):
+                        #log.debug('empty file')
+                        #log.debug(result.id)
+                        #log.debug(result.data.get('docpath'))
+                        assert not result.data.get('content_type')
+                        
+                        delete(result.id,self.mycore)
+                except Exception as e:
+                    log.error(e)
+                    log.debug(result.__dict__)
+        else:
+            if not result.data.get('extract_level'):
+                log.debug(result.__dict__)
+            log.debug(result.data.get('extract_level'))
+        
+
 class PurgeField(Updater):
     """remove all contents of a single field"""
     def __init__(self,mycore,field):
@@ -410,12 +433,12 @@ Methods to handle a list of defined changes: [[(sourcefield, resultfield, value)
 	the "resultfield" is an attribute of the SolrDoc object 
  
 """
-def update(id,changes,mycore,_test=False):  #solrid, list of changes [(sourcefield, resultfield, value),(f1,f2,value)..],core
+def update(id,changes,mycore,_test=False,check=True):  #solrid, list of changes [(sourcefield, resultfield, value),(f1,f2,value)..],core
     """update solr index with list of atomic changes"""
     data=makejson(id,changes,mycore)
-    response,poststatus=post_jsonupdate(data,mycore,test=_test)
+    response,poststatus=post_jsonupdate(data,mycore,test=_test,check=check)
     log.debug('Response: {} PostStatus: {}'.format(response,poststatus))
-    if not _test:
+    if not _test and check:
         updatestatus=checkupdate(id,changes,mycore)
         if updatestatus:
             log.debug('solr successfully updated')
@@ -437,27 +460,26 @@ def makejson(solrid,changes,mycore):   #the changes use standard fields (e.g. 'd
     return data
 
 def clear_date(solrid,mycore):
-    doc=s.getmeta(solrid,mycore)[0]
-    if doc.date:
-        data=make_remove_json(mycore,solrid,mycore.datesourcefield,doc.date)
-        response,poststatus=post_jsonupdate(data,mycore)
-        doc=s.getmeta(solrid,mycore)[0]
-#        
-#        if doc.date and mycore.datesourcefield2:
-#            data=make_remove_json(mycore,solrid,mycore.datesourcefield2,doc.date)
-#            response,poststatus=post_jsonupdate(data,mycore)
-#            doc=s.getmeta(solrid,mycore)[0]
-#            if not doc.date:
-#                return True
-#            else:
-#                return False
-#        else:
+    docs=s.getmeta(solrid,mycore)
+    if docs:
+        doc=docs[0]
         if doc.date:
-            return False
-        else:
-            return True
-    else:
-        return True
+            data=make_remove_json(mycore,solrid,mycore.datesourcefield,doc.date)
+            response,poststatus=post_jsonupdate(data,mycore)
+            doc=s.getmeta(solrid,mycore)[0]
+    #        
+    #        if doc.date and mycore.datesourcefield2:
+    #            data=make_remove_json(mycore,solrid,mycore.datesourcefield2,doc.date)
+    #            response,poststatus=post_jsonupdate(data,mycore)
+    #            doc=s.getmeta(solrid,mycore)[0]
+    #            if not doc.date:
+    #                return True
+    #            else:
+    #                return False
+    #        else:
+            if doc.date:
+                return False
+    return True
 
 
 def make_remove_json(mycore,solrid,field,value):
@@ -521,9 +543,13 @@ def checkupdate(id,changes,mycore):
     return status
 
 
-def post_jsonupdate(data,mycore,timeout=10,test=False):
+def post_jsonupdate(data,mycore,timeout=10,test=False,check=True):
     """ I/O with Solr API """
-    updateurl=mycore.url+'/update/json?commit=true'
+    log.debug(f'Check: {check}')
+    if check:
+        updateurl=mycore.url+'/update/json?commit=true'
+    else:
+        updateurl=mycore.url+'/update/json'
     url=updateurl
     log.debug(data)
     headers={'Content-type': 'application/json'}
@@ -533,7 +559,7 @@ def post_jsonupdate(data,mycore,timeout=10,test=False):
             res=ses.post(url, data=data, headers=headers,timeout=timeout)
             jres=res.json()
             status=jres['responseHeader']['status']
-            log.debug(jres)
+            #log.debug(jres)
         else:
             log.info('TEST ONLY: simulate post to {}, with data {} and headers {}'.format(url,data,headers))
             status=0
@@ -659,14 +685,22 @@ def check_paths(solr_result,_file,mycore,docstore=DOCSTORE):
         return path_changes(_file.filepath,paths,docstore=docstore)
 
 def path_changes(filepath,existing_paths,docstore=DOCSTORE):
+    #log.debug(f'{existing_paths}, {filepath}')
     relpath=make_relpath(filepath,docstore=docstore)       
-    if relpath in existing_paths:
-        log.debug('Correct relative filepath already stored in doc')
-        return False,None,None
-    elif filepath in existing_paths:#replace full path with relative path
+    if '' in existing_paths and relpath in existing_paths:
+        existing_paths.remove('')
+        p_hashes=parent_hashes(existing_paths)
+        return True,existing_paths,p_hashes
+    elif relpath in existing_paths:
+        #log.debug('Correct relative filepath already stored in doc')
+        return False,existing_paths,None
+    if filepath in existing_paths:#replace full path with relative path
         existing_paths.remove(filepath)
+    if '' in existing_paths:
+        existing_paths.remove('')
     existing_paths.append(relpath)
     p_hashes=parent_hashes(existing_paths)
+    
     return True,existing_paths,p_hashes
 
 
@@ -754,7 +788,7 @@ def listmeta(id=2):
 
 #POST EXTRACTION PROCESSING
 
-def updatetags(solrid,mycore,value=['test','anothertest'],field_to_update='usertags1field',newfield=False,test=False):
+def updatetags(solrid,mycore,value=['test','anothertest'],field_to_update='usertags1field',newfield=False,test=False,check=True):
     """ADD ADDITIONAL METADATA TO SOLR RECORDS """
     #check the parameters
     field=mycore.__dict__.get(field_to_update,field_to_update) #decode the standard field, or use the name'as is'.
@@ -773,7 +807,7 @@ def updatetags(solrid,mycore,value=['test','anothertest'],field_to_update='usert
     log.debug(f'Json to post to index \"{mycore}\": {jsondoc}')
 
     #post the update
-    result,status=post_jsonupdate(jsondoc,mycore,timeout=10,test=test)
+    result,status=post_jsonupdate(jsondoc,mycore,timeout=10,test=test,check=check)
     
     #check the result
     log.debug('Solr doc update: result: {}, status: {}'.format(result,status))

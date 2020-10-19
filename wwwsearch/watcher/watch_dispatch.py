@@ -44,10 +44,17 @@ class TaskError(Exception):
 
 class HeartBeat:
     def tick(self):
-        r.set('SB_heartbeat','tick')
+        try:
+            r.set('SB_heartbeat','tick')
+        except Exception as e:
+            log.debug(e)
+            
     def tock(self):
-        r.set('SB_heartbeat','tock')
-
+        try:
+            r.set('SB_heartbeat','tock')
+        except Exception as e:
+            log.debug(e)
+    
     @property
     def alive(self):
         if r.get('SB_heartbeat') == 'tock':
@@ -69,9 +76,11 @@ class Index_Dispatch:
         self.ignore=True if indexSolr.ignorefile(self.sourcepath) else False
         self.destpath=destpath
         self.check_base()
-        self.check_dupbase()        
+        self.check_dupbase()
         log.debug(f'EVENT: {self.event_type}  PATH: {self.sourcepath}  (DESTPATH: {self.destpath})') if not self.ignore else None
-        if self.event_type=='created':
+        if self.master_index.sqlfilename==self.sourcepath or self.master_index.sqlfilename+"-journal"==self.sourcepath :
+             log.debug('ignore master database file')
+        elif self.event_type=='created':
             self.dupbase_create()
             self.create()
             self._index()
@@ -129,7 +138,7 @@ class Index_Dispatch:
             self.create()
 
     def moved(self):
-        log.debug('move event')
+        #log.debug('move event')
         self.moved_dupbase()
         if self.dest_in_database and self.source_in_database:
             self.delete() #delete the origin - the destination will be picked up with move event
@@ -165,7 +174,7 @@ class Index_Dispatch:
         else:
             self.sourcepath=self.destpath #send new location to source path to create file record
             #create if within a collection
-            log.info('CREATE IF WITHIN MASTERINDEX')
+            #log.info('CREATE IF WITHIN MASTERINDEX')
             if self.master_dest_changed:
                 self.master_index.add_new_file(self.destpath)
                 self.master_index.save()
@@ -174,11 +183,11 @@ class Index_Dispatch:
     def dupbase_create(self):
         """add a new file to masterindex"""
         #no ignore list in dupbase
-        log.info('Adding new file to masterindex')
+        #log.info('Adding new file to masterindex')
         if self.master_source_changed and not self.master_source_entry:
+            log.info(f'adding file {self.sourcepath} to file index')
             self.master_index.add_new_file(self.sourcepath)
             self.master_index.save()
-            log.info('added file')            
             
     def delete(self):
         """delete both from database and solr index, if indexed"""
@@ -190,8 +199,8 @@ class Index_Dispatch:
                 deletefiles=[_file.filepath]
                 collection=_file.collection
                 updateSolr.removedeleted(deletefiles,collection) #docstore= use default in user settings
-        else:
-            log.debug(f'File not in database - nothing to delete')
+##        else:
+##            log.debug(f'File not in database - nothing to delete')
             
             
     def delete_dupbase(self):
@@ -245,11 +254,11 @@ class Index_Dispatch:
                 self.master_source_entry=None
             if self.destpath:
                 if file_utils.new_is_inside(self.destpath,self.master_index.folder_path):
-                    log.info(f'destpath {self.destpath} inside master index')
+                    log.debug(f'destpath {self.destpath} inside master index')
                     self.master_dest_changed=True
                     
                     self.master_dest_entry=self.master_index.simple_check_path(self.destpath)
-                    log.info(f'Destination in master_index:  {self.master_dest_entry}')
+                    log.debug(f'Destination in master_index:  {self.master_dest_entry}')
                     
                 else:
                     self.master_dest_changed=False

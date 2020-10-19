@@ -6,7 +6,7 @@ from django.core.management import call_command
 from django.db.models.query import QuerySet
 from django.urls import reverse
 from documents import documentpage,solrcursor,updateSolr,api,indexSolr,file_utils,changes,check_pdf,time_utils, views as views_docs, index_check, correct_paths
-from documents.indexSolr import BadParameters
+from documents.indexSolr import BadParameters, ExtractFileMeta
 from documents.management.commands import setup
 from documents.management.commands.setup import make_admin_or_login
 from documents.models import  Index, Collection, Source, UserEdit,File
@@ -169,11 +169,13 @@ class ExtractorTest(ExtractTest):
         #NOW SCAN THE COLLECTION
         scanfiles=updateSolr.scandocs(collectiondups,docstore=self.docstore) 
         ext=indexSolr.Extractor(collectiondups,mycore,docstore=self.docstore,useICIJ=self.icij_extract)
-        
+        self.mycore.commit()
         updated_doc=indexSolr.check_hash_in_solrdata("6d50ecaf0fb1fc3d59fd83f8e9ef962cf91eb14e547b2231e18abb12f6cfa809",mycore)
         updatedlist=updated_doc.data['docpath']
         expectedlist=[os.path.join('dups','HilaryEmailC05793347.pdf'), os.path.join('dups','HilaryEmailC05793347 copy.pdf'), os.path.join('dups','dup_in_folder','HilaryEmailC05793347 copy.pdf')]
-        #print(expectedlist)
+        
+#        print(expectedlist)
+#        print(updatedlist)
         for path in expectedlist:
             updatedlist.remove(path)
         self.assertEquals(updatedlist,[])
@@ -350,7 +352,7 @@ class ExtractorTest(ExtractTest):
             if existing_doc:
                 indexSolr.UpdateMeta(mycore,_newfile,existing_doc,docstore=self.docstore)
             else:
-                ext=indexSolr.ExtractFileMeta(path,mycore,hash_contents='',sourcetext='',docstore=self.docstore,test=True)
+                ext=indexSolr.ExtractFileMeta(path,mycore,hash_contents='',sourcetext='',docstore=self.docstore,test=True,check=True)
                 ext.post_process(indexed=False)
         #check results
         doc=solrJson.getmeta(_id,self.mycore)[0]
@@ -384,6 +386,23 @@ class ExtractorTest(ExtractTest):
             #print(_newfile.__dict__)
             self.assertTrue(_newfile.indexMetaOnly)
             
+            
+    def test_meta_only_date(self):
+        """index meta only date"""
+        _id='e46df5747edd25174f7d61aa2d333f81e8435029faf1ebcebc5a51e1d535ab8b'
+        path=os.path.abspath(os.path.join(os.path.dirname(__file__), '..','tests','testdocs','pdfs','4meta_date','2019-12-01 doc.mov'))
+        self.assertTrue(os.path.exists(path))
+        mycore=self.mycore
+        updateSolr.delete(_id,self.mycore)
+        
+        
+        ext=ExtractFileMeta(path,self.mycore,hash_contents=_id,sourcetext='',docstore=self.docstore,meta_only=True,check=True)
+        result=ext.post_process(indexed=False)
+        
+        doc=solrJson.getmeta(_id,self.mycore)
+        
+        self.assertTrue(doc[0].data.get('sb_meta_only'))
+    
     def test_fail_file(self):
         testfolders_path=os.path.abspath(os.path.join(os.path.dirname(__file__), '..','tests','testdocs','fails2'))
         mycore=self.mycore
@@ -412,7 +431,7 @@ class ExtractorTest(ExtractTest):
         filename="65865.TIF"
         filepath=os.path.join(testfolders_path,filename)
         
-        ext=indexSolr.ExtractFileMeta(filepath,self.mycore,hash_contents=_id,sourcetext='',docstore=self.docstore,meta_only=True)
+        ext=indexSolr.ExtractFileMeta(filepath,self.mycore,hash_contents=_id,sourcetext='',docstore=self.docstore,meta_only=True,check=True)
         meta_result=ext.post_process(indexed=False)
         doc=solrJson.getcontents(_id,self.mycore)
         self.assertEquals('Metadata only: No content extracted from file',doc[0].data['rawtext'])
@@ -454,7 +473,7 @@ class ICIJFolderTest(IndexTester):
         doc=solrJson.getmeta('6d50ecaf0fb1fc3d59fd83f8e9ef962cf91eb14e547b2231e18abb12f6cfa809',self.mycore)[0]
         self.assertEquals(doc.data.get('docpath'),["mixed_folder/HilaryEmailC05793347.pdf",
           "mixed_folder/HilaryEmailC05793347 copy.pdf"])
-        self.assertEquals(doc.docname,'HilaryEmailC05793347 copy.pdf')
+        self.assertEquals(doc.docname,'HilaryEmailC05793347.pdf')
         
 #        #NOW RECOGNISE FOLDER IN THE DATA - NOT NECESSARY
 #        counter,skipped,failed=.index_check(self.collection,self.mycore)
@@ -567,7 +586,7 @@ class ICIJFolderTest(IndexTester):
         doc=solrJson.getmeta('6d50ecaf0fb1fc3d59fd83f8e9ef962cf91eb14e547b2231e18abb12f6cfa809',self.mycore)[0]
         self.assertEquals(doc.data.get('docpath'),["mixed_folder/HilaryEmailC05793347.pdf",
           "mixed_folder/HilaryEmailC05793347 copy.pdf"])
-        self.assertEquals(doc.docname,'HilaryEmailC05793347 copy.pdf')
+        self.assertEquals(doc.docname,'HilaryEmailC05793347.pdf')
         
         childdoc=solrJson.getmeta('c032fe1fbef76624f1ad09e46feb4c04ec4e37a27a6a3487abc3ef73c702d3f9',self.mycore)[0]
         self.assertEquals(childdoc.docname,"image1.jpg")
@@ -603,6 +622,63 @@ class ICIJExtractTest(ExtractorTest):
         self.assertEquals(doc.data.get(self.mycore.parenthashfield),'ca966a7642c7791b99ab661feae3ebb7')
         self.assertEquals(doc.docname,'C05769606.pdf')
 
+    
+    def test_no_commit(self):
+        _id2='28b00a45819a9307fa1f1a34fc729efb6d7e3378591e9d6b99f210b0b989f29c'
+        
+        #with commit
+        updateSolr.delete(_id2,self.mycore)        
+        updateSolr.updatetags(_id2,self.mycore)
+        doc=indexSolr.check_hash_in_solrdata(_id2,self.mycore)
+        
+        #print(doc.__dict__)
+        self.assertTrue(doc.data.get('sb_usertags1')==['test', 'anothertest'])
+        
+        #no commit
+        updateSolr.delete(_id2,self.mycore)        
+        updateSolr.updatetags(_id2,self.mycore,check=False)
+        doc=indexSolr.check_hash_in_solrdata(_id2,self.mycore)
+        
+        self.assertFalse(doc)
+        
+        #now commit
+        self.mycore.commit()
+        doc=indexSolr.check_hash_in_solrdata(_id2,self.mycore)        
+        self.assertTrue(doc.data.get('sb_usertags1')==['test', 'anothertest'])
+
+        
+#        if doc:
+#            print(doc.__dict__)        
+#        self.assertFalse(doc.data.get('sb_usertags1')==['test', 'anothertest'])
+
+        
+    
+    def test_childprocess(self):
+#        #ERASE EVERYTHING FROM TESTS_ONLY 
+#        res,status=updateSolr.delete_all(self.mycore)
+#        self.assertTrue(status)
+        
+        
+        _id2='28b00a45819a9307fa1f1a34fc729efb6d7e3378591e9d6b99f210b0b989f29c'
+        updateSolr.delete(_id2,self.mycore)
+        _id='c032fe1fbef76624f1ad09e46feb4c04ec4e37a27a6a3487abc3ef73c702d3f9'
+        updateSolr.delete(_id,self.mycore)
+        
+        _relpath="mixed_folder/2013-03-10 Labour claims largest majority ever in post.docx"
+        path=os.path.abspath(os.path.join(os.path.dirname(__file__), '../tests/testdocs', _relpath))
+
+        _newfile=changes.newfile(path,self.sample_collection)
+        #print(_newfile)
+        ext=indexSolr.ExtractSingleFile(_newfile,forceretry=False,useICIJ=True,ocr=True,docstore=self.docstore,job=None,check=False)
+            #print(ext.counter,ext.skipped,ext.failed)
+        self.mycore.commit()
+        doc=indexSolr.check_hash_in_solrdata(_id2,self.mycore)        
+        #print(doc.__dict__)
+
+        self.assertEquals(doc.data.get('sb_source'),'Test source')
+        #running it a second time 
+        ch=indexSolr.ChildProcessor(path,self.mycore,docstore=self.docstore)
+        ch.process_children()
     
 
     def test_ICIJfail(self):
@@ -913,6 +989,7 @@ class ExtractFileTest(ExtractTest):
         #print(doc.__dict__)
         self.assertEquals(doc.data['message_to'],"'Adele Fulton'; Paul J. Brown")
         self.assertEquals(doc.data['message_from'],'Wood, Tracy')
+        self.assertEquals(doc.data['message_raw_header_message_id'],'<B7EE98A869777C49ACF006A8AA90665C63B8A2@HZNGRANMAIL1.granite.nhroot.int>')
         self.assertEquals(doc.date,'2015-07-29T17:58:40Z')
         self.assertEquals(doc.data['title'], 'Newport Adimistrative Order by Consent (AOC) Status')
         

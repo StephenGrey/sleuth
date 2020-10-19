@@ -602,6 +602,7 @@ class Counter():
             for entry in os.scandir(subfolder):
                 if entry.is_dir():
                     self.counter+=1
+                    log.info(f'{self.counter} folders counted') if self.counter%1000==0 else None
                     #print(entry.path)
                     try:
                         count_sub(entry.path)
@@ -756,20 +757,22 @@ class SqlFileIndex(sql_connect.SqlIndex,PathIndex):
    
    def move_path(self,oldpath,newpath):
        log.debug(f'Adjusting index for move from {oldpath} to {newpath}')
-       spec=self.lookup_path(oldpath)
-       moved_inside=new_is_inside(newpath,self.folder_path)
-       if spec:
-           if moved_inside:
-               log.debug('alter filepath')
-               spec.path=newpath
-           else:
-               self.delete_record(oldpath)
-               log.debug('removed from database')
-       elif moved_inside:
-               self.update_record(newpath) #add it
-               log.debug(f'added new entry inside Index:{self.folder_path}')
-   	    
-               
+       try:
+           spec=self.lookup_path(oldpath)
+           moved_inside=new_is_inside(newpath,self.folder_path)
+           if spec:
+               if moved_inside:
+                   log.debug('alter filepath')
+                   spec.path=newpath
+               else:
+                   self.delete_record(oldpath)
+                   log.debug('removed from database')
+           elif moved_inside:
+                   self.update_record(newpath) #add it
+                   log.debug(f'added new entry inside Index:{self.folder_path}')
+       except Exception as e:
+           log.info(f'Failed to adjust index for from {oldpath} to {newpath}')
+           log.info(f'Exception {e}')
    def update_changed(self):
       """#update changed files"""
       self.check_reset()
@@ -845,9 +848,9 @@ class SqlFileIndex(sql_connect.SqlIndex,PathIndex):
           last_check=100000 #minimum valid timestamp in 1970
           self.add_setting('last_mod',_int=last_check)
           self.save()
-          last_check=946684800 #default year 2000
-          self.add_setting('last_mod',_int=last_check)
-          self.save()
+#          last_check=946684800 #default year 2000
+#          self.add_setting('last_mod',_int=last_check)
+#          self.save()
       log.debug(last_check)
       last_check_str=time_utils.timestring(time_utils.timefromstamp(last_check))
       _root=self.folder_path
@@ -855,8 +858,10 @@ class SqlFileIndex(sql_connect.SqlIndex,PathIndex):
       #check the root
       log.info(f'Checking {_root} for changes since {last_check_str}')
       self.total=Counter(self.folder_path).counter #len([p for p,s,f in os.walk(self.folder_path)])
-
+      log.info(f'{self.total} subfolders found')
+      log.debug(f'  {os.stat(_root).st_mtime} {last_check}')
       if os.stat(_root).st_mtime > last_check:
+          log.debug(f'checking {_root}')
           self.check_folder(_root)
 
       #check subfolders
@@ -894,8 +899,8 @@ class SqlFileIndex(sql_connect.SqlIndex,PathIndex):
            _files=[]
        _modified=[]
            
-       #log.debug(f'Files in {path}: {_files}')
-       #log.debug(_index.lookup_parent_hash(pathHash(path)))
+       log.debug(f'Files in {path}: {_files}')
+       log.debug(self.lookup_parent_hash(pathHash(path)))
        
        #check files in database
        for _db_file in self.lookup_parent_hash((pathHash(path))):
@@ -918,7 +923,7 @@ class SqlFileIndex(sql_connect.SqlIndex,PathIndex):
                    
                    deleted_ids=[_id for hash,_id in self.files_inside(_db_file.path,limit=1000000)]
                    deleted_files=self.lookup_id_list(deleted_ids)
-                   log.debug(f'Files inside to purge: {[f.path for f in deleted_files]}')
+                   log.debug(f'Files inside to purge: {len([f.path for f in deleted_files])}')
                    for _file in deleted_files:
                        try:
                            self.delete_file(_file)
@@ -1056,9 +1061,9 @@ class Index_Maker():
         
     @staticmethod
     def file_html(mfile,_stored,_indexed,dupcheck,relpath,path):	
-        log.debug(f' {mfile}STORED{_stored}INDEXED{_indexed}') 
-        if _indexed:
-            log.debug(_indexed[0].filename)
+        #log.debug(f' {mfile}STORED{_stored}INDEXED{_indexed}') 
+#        if _indexed:
+#            log.debug(_indexed[0].filename)
         try:
             meta_only=_indexed[0].indexMetaOnly
         except:
@@ -1541,7 +1546,7 @@ def model_index(path,index_collections,hashcheck=False):
         return None,None
     
     stored=File.objects.filter(filepath=path, collection__in=index_collections)
-    log.debug(stored)
+    #log.debug(stored)
     if stored:
         indexed=stored.exclude(solrid='' )
             

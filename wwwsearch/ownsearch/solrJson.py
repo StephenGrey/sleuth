@@ -51,6 +51,7 @@ class SolrCore:
             else:
                 core=mycore
             
+            self.stored_session=None
             #variables that are specific to this core
             self.url=config['Solr']['url']+mycore # Solr:url is the network address of the Solr backend
             self.name=mycore
@@ -104,7 +105,61 @@ class SolrCore:
         return res.results,jres
 
     def solr_session(self):
-        return SolrSession()
+        self.stored_session=SolrSession()
+        return self.stored_session
+    
+    def backup(self,location=None,check=False):
+        self.ping()#check the solr core exists and is up- raises exception
+        PARAMS = {}
+        try:
+            if check:
+                backup_url="/replication?command=details" 
+            else:
+                backup_url="/replication?command=backup"
+                if location:
+                    assert os.path.exists(location)
+                    PARAMS = {'location':location}
+                log.info(f'Backing up using {self.url+backup_url} and params: {PARAMS}')
+            res=self.solr_session().get(self.url+backup_url,params=PARAMS)
+            log.info(f'Back up command issued to solr with result: {res}')
+            log.info(res.content)
+            return res
+        except Exception as e:
+            log.error(e)
+            return False
+    
+    def restore(self,location=None,check=False,name=None,repository=None):
+        self.ping()#check the solr core exists and is up- raises exception
+        PARAMS = {}
+        try:
+            if check:
+                restore_url="/replication?command=restorestatus"
+            else:
+                restore_url="/replication?command=restore"
+                if location:
+                    if not os.path.exists(location):
+                        raise Exception('Location does not exist')
+                    PARAMS.update({'location':location})
+                if name:
+                    PARAMS.update({'update':name})
+                if repository:
+                    PARAMS.update({'repository':repository})
+                log.info(f'Restoring index using {self.url+restore_url} and params: {PARAMS}')
+            res=self.solr_session().get(self.url+restore_url,params=PARAMS)
+            log.info(f'Back up command issued to solr with result: {res}')
+            log.info(res.content)
+            return res
+        except Exception as e:
+            log.error(e)
+            return False
+    
+    
+    def commit(self):
+        try:
+           res=self.solr_session().get(self.url+'/update/json?commit=true')
+           log.debug(f'Committed \'{self.name}\' solr core, with result {res}')
+        except Exception as e:
+           log.error(e)
     
     def ping(self):
         try:

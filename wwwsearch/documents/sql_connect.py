@@ -21,6 +21,7 @@ class SqlIndex():
         if not self.folder_path:
             self.engine = create_engine('sqlite:///:memory:', echo=False)
         else:
+            self.sqlfilename=os.path.join(self.folder_path,ARCH_FILENAME)
             self.engine = create_engine(f'sqlite:///{os.path.join(self.folder_path,ARCH_FILENAME)}', echo=False,
             connect_args={'check_same_thread': False}
             )
@@ -61,6 +62,7 @@ class SqlIndex():
         _file.length=docspec.get('length')
         _file.contents_hash=docspec.get('contents_hash')
         _file.parent_hash=docspec.get('parent_hash')
+        _file.document_id=''
         if not existing:
             #log.debug(f'adding new file {_file}')
             self.session.add(_file)
@@ -129,6 +131,17 @@ class SqlIndex():
             self.session.rollback()
             raise
     
+    def filter_path(self,pattern):
+        """search for a filepath pattern in the index, returning list of files"""
+        try:
+            return self.session.query(File).filter(File.path.like(pattern)).all()
+        
+        except Exception as e:
+            log.error(e)
+            self.session.rollback()
+            raise
+    
+    
     def lookup_id_list(self,id_list):
         try:
             _files=[]
@@ -177,6 +190,13 @@ class SqlIndex():
             log.error(e)
             return []
             
+    def lookup_doc_id(self,_id):
+        try:
+            return [f for f in self.session.query(File).filter(File.document_id==_id)]
+        except Exception as e:
+            log.error(e)
+            return []            
+            
     def count_hash(self,_hash):
         return self.session.query(File).filter(File.contents_hash==_hash).count()
 
@@ -185,6 +205,10 @@ class SqlIndex():
     
     def dup_orphans(self):
         return self.session.query(File.contents_hash,func.count(File.contents_hash)).group_by(File.contents_hash).having(func.count(File.contents_hash)==1)
+
+    def dup_doc_id(self,n=1):
+        return self.session.query(File.document_id,func.count(File.document_id)).group_by(File.document_id).having(func.count(File.document_id)>n)
+
     
     def checked_false(self):
         return  [f for f in self.session.query(File).filter(File.checked==False)]
@@ -302,7 +326,7 @@ class ComboIndex():
         if folder:
             self.query=self.i2.files_inside(folder)
         else:
-            self.query=self.i2.session.query(File.contents_hash,File.id).all()
+            self.query=self.i2.session.query(File.contents_hash,File.id).all() #issue would it save memory if not 'all' here
         self.folder=folder
 
         
@@ -400,6 +424,7 @@ class File(Base):
     path = Column(String,index=True)
     contents_hash = Column(String,index=True)
     parent_hash=Column(String,index=True)
+    document_id=Column(String,index=True)
     name=Column(String)
     length = Column(Integer)
     last_modified=Column(Float)
