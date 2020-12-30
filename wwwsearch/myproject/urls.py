@@ -38,3 +38,4 @@ urlpatterns = [
     url(r'^accounts/password/reset/complete/$', 
              auth_views.PasswordResetCompleteView.as_view(), name='password_reset_done'),
 ]
+

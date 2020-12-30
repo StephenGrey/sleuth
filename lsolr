@@ -1,1 +1,2 @@
-./solr/solr-7.2.0/bin/solr $@
+./solr/solr-8.7.0/bin/solr $@
+#./solr/solr-7.2.0/bin/solr $@
