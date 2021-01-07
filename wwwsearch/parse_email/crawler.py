@@ -1,6 +1,7 @@
 import os
+from .email import Email
 from msglite import Message
-import extract_msg
+#import extract_msg
 
 
 def crawler(parent_folder):
@@ -14,10 +15,15 @@ def check_email(folder):
 	errors=[]
 	for path in crawler(folder):
 		try:
-			msg = Message(path)
+			#msg = Message(path)
 			#print(msg.subject )
 			#print(msg.body
-			msg2=extract_msg.Message(path)
+			#msg2=extract_msg.Message(path)
+			
+			msg=Email(path)
+			msg.process()
+			
+			
 		except Exception as e:
 			print(e)
 			print(f'Error with {path}')

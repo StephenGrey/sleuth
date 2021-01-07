@@ -576,7 +576,7 @@ def post_jsonupdate(data,mycore,timeout=10,test=False,check=True):
     except Exception as e:
         log.error(f'Unknown exception: {e}')
     return '',False
-        
+       
 def post_jsondoc(data,mycore):
     """post json to solr index"""
     updateurl=mycore.url+'/update/json/docs?commit=true'

@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 from datetime import datetime, timedelta
+import dateutil.parser
 import pytz, iso8601 #support localising the timezone
 
 def make_datefilter(start_date,end_date):
@@ -41,3 +42,10 @@ def cleaned_ISOtimestring(rawstring):
         return ISOtimestring(parseISO(rawstring))
     except iso8601.ParseError as e:
         return None
+
+def parse_time(time_string):
+    return dateutil.parser.parse(time_string)
+
+
+def iso_parse(time_string):
+    return ISOtimestring(parse_time(time_string))
