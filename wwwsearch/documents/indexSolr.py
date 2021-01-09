@@ -9,8 +9,7 @@ import hashlib  #routines for calculating hash
 from .models import Collection,File,Index
 log = logging.getLogger('ownsearch.indexsolr')
 from configs import config
-from ownsearch.solrJson import SolrConnectionError
-from ownsearch.solrJson import SolrCoreNotFound
+from ownsearch.solrJson import SolrConnectionError, SolrCoreNotFound
 from documents.updateSolr import scandocs,delete,updatetags,check_hash_in_solrdata,check_file_in_solrdata,remove_filepath_or_delete_solrrecord,makejson,update as update_meta,get_source,get_collection_source,check_paths,clear_date
 from ownsearch import solrJson as s
 from fnmatch import fnmatch
@@ -65,8 +64,15 @@ class DuplicateRecords(Exception):
     pass
 
 
+class Entity():
+    def __init__(self,_file=None):
+        self._file=_file
+        self.sourcetext=""
+        self.updated=False
+
 class ExtractFolder():
     """extract entire collection folder to index with ICIJ extract and correct meta"""
+
     def __init__(self,corename,path='',collection='',collectionID='',job=None,ocr=False,docstore=DOCSTORE):
         
         self.job=job
@@ -122,7 +128,6 @@ class ExtractFolder():
         #now fix meta
         Collection_Post_Processor(self.collection,self.mycore,docstore=self.docstore,_test=False,job=self.job)
 
-
 class CorrectMeta(ExtractFolder):
     def process(self):
         #scan the collection
@@ -132,7 +137,6 @@ class CorrectMeta(ExtractFolder):
         #now fix meta
         Collection_Post_Processor(self.collection,self.mycore,docstore=self.docstore,_test=False,job=self.job)
         
-
 class Extractor():
     """extract a collection of docs into solr"""
     def __init__(self,collection,mycore,forceretry=False,useICIJ=False,ignore_filesize=False,ocr=True,docstore=DOCSTORE,job=None,check=True):
@@ -150,161 +154,23 @@ class Extractor():
         self.job=job
         self.counter,self.skipped,self.failed=0,0,0
         self.skippedlist,self.failedlist=[],[]
-        self.filelist=File.objects.filter(collection=collection)
+        self.filelist=File.objects.filter(collection=collection) #get the list of files to index
         self.target_count=len(self.filelist)
-        self.update_extract_results()
-        self.update_working_file('')
+        self.update_extract_results() #to update the UI via redis
+        self.update_working_file('') #to update the UK via redis
         try:
             self.extract()
         finally:
             self.update_extract_results()
             self.update_working_file('')
     
-    
-    def extract_file(self,file):
-        """extract single file to solr index"""
-        
-        if self.skip_file(file): #don't index at all
-            log.debug('Skipping {}'.format(file))
-            pass
-        else:
-            log.info('Attempting index of {}'.format(file.filepath))
-            self.update_working_file(file.filepath) #update redis output
-
-            #if was previously indexed, store old solr ID and then delete if new index successful
-            oldsolrid=file.solrid
-            #get source
-            sourcetext=get_source(file)
-                            
-            
-            if file.is_folder:
-                log.debug('detected folder path')
-                result=self.extract_folder(file)
-                
-            else:
-                #getfile hash if not already done
-                if not file.hash_contents:
-                    file.hash_contents=file_utils.get_contents_hash(file.filepath)
-                    file.save()
-                
-                #check by hash of contents if doc exists already in solr index
-                existing_doc=check_file_in_solrdata(file,self.mycore) #searches by hashcontents, not solrid
-                log.debug(existing_doc.__dict__) if existing_doc else None
-                if existing_doc and not file.indexMetaOnly and not self.forceretry:
-                    #UPDATE META ONLY
-                    log.debug('exists already - updating meta')
-                    result=self.update_existing_meta(file,existing_doc,check=self.check)
-                    if self.skip_extract(file): 
-                        file.indexMetaOnly=True
-                        file.save()
-                
-                elif self.skip_extract(file):
-                    #INDEX META ONLY
-                    log.debug('INDEX META ONLY')
-                    
-                    try:
-                        ext=ExtractFileMeta(file.filepath,self.mycore,hash_contents=file.hash_contents,sourcetext='',docstore=self.docstore,meta_only=True)
-                        result=ext.post_process(indexed=False)
-                    except (s.SolrCoreNotFound,s.SolrConnectionError,requests.exceptions.RequestException) as e:
-                        raise ExtractInterruption(self.interrupt_message())
-                    #log.debug(result)
-                    if result:
-                        file.solrid=file.hash_contents
-                        file.indexMetaOnly=True
-                        file.save()
-                        #log.debug(file.__dict__)
-                else:
-                #now try the extract
-                    file.indexedTry=True  #set flag to say we've tried
-                    file.indexMetaOnly=False
-                    file.save()
-                    if self.useICIJ:
-                        log.info('using ICIJ extract method..')
-                        ext = solrICIJ.ICIJExtractor(file.filepath,self.mycore,ocr=self.ocr)
-                        result=ext.result
-                        file.error_message=ext.error_message
-                        if result is True:
-                            try:
-                                new_id=s.hashlookup(file.hash_contents,self.mycore).results[0].id #id of the first result returned
-                                file.solrid=new_id
-                                file.save()
-                                log.info(f'(ICIJ extract) New solr ID: {new_id}')
-                            except:
-                                log.warning('Extracted doc not found in index')
-                                file.error_message='Indexed, but not found in index'
-                                result=False
-                        if result is True:
-                        #post extract process -- add meta data field to solr doc, e.g. source field
-                            try:
-                                sourcetext=file.collection.source.sourceDisplayName
-                            except:
-                                sourcetext=''
-
-                            try:
-                                ext=ICIJ_Post_Processor(file.filepath,self.mycore,hash_contents=file.solrid, sourcetext=sourcetext,docstore=self.docstore,test=False,check=self.check)
-                            except Exception as e:
-                                log.error(f'Cannot add meta data to solrdoc: {new_id}, error: {e}')
-                            
-                    else:
-                        try:
-                            #extract contents of file using inbuilt solr tika
-                            extractor=ExtractFile(file.filepath,self.mycore,hash_contents=file.hash_contents,sourcetext=sourcetext,docstore=self.docstore,test=False,ocr=self.ocr,check=self.check)
-                            result=extractor.result
-                            if result:
-                                log.debug('now post process')
-                                extractor.post_process()
-                                result=extractor.post_result
-                                log.debug(f'post process result {result}')
-                                
-                            else:
-                                file.error_message=extractor.error_message
-                        except (s.SolrCoreNotFound,s.SolrConnectionError,requests.exceptions.RequestException) as e:
-                            raise ExtractInterruption(self.interrupt_message())
-         
-            if result is True:
-                #succesful extraction of the contents
-                self.counter+=1
-                    
-                if not self.useICIJ and not file.is_folder:
-                    file.solrid=file.hash_contents  #extract uses hashcontents for an id , so add it
-                
-                file.indexedSuccess=True
-                file.indexFails=0
-                file.error_message=''
-                
-                #log.debug(file.__dict__)
-                #now delete previous solr doc of moved file(if any): THIS IS ONLY NECESSARY IF ID CHANGES  
-                #log.info('Old ID: '+oldsolrid+' New ID: '+file.solrid)
-                
-                if oldsolrid and oldsolrid!=file.solrid:
-                    log.info('now delete or update old solr doc'+str(oldsolrid))
-                    relpath=make_relpath(file.filepath,docstore=self.docstore)
-                    remove_filepath_or_delete_solrrecord(oldsolrid,relpath,self.mycore)
-            else:
-                log.info(f'Indexing fail: PATH \'{file.filepath}\]\' with ERROR:{file.error_message}')
-                self.failed+=1
-                self.failedlist.append((file.filepath,file.error_message))
-                file.indexFails+=1
-                #Try to index meta despite the extract failure
-                log.debug(f'try to index the meta only')
-                try:
-                    ext=ExtractFileMeta(file.filepath,self.mycore,hash_contents=file.hash_contents,sourcetext='',docstore=self.docstore,meta_only=True,check=self.check)
-                    meta_result=ext.post_process(indexed=False)
-                except (s.SolrCoreNotFound,s.SolrConnectionError,requests.exceptions.RequestException) as e:
-                    raise ExtractInterruption(self.interrupt_message())
-                if meta_result:
-                    log.info(f'Meta data added successfully')
-                    file.solrid=file.hash_contents  #extract uses hashcontents for an id , so add it
-                    file.indexMetaOnly=True
-            file.save()
-        if self.job and r:
-            self.update_extract_results()
-                
     def extract(self):
-        #main loop
+        """main loop"""
         for _file in self.filelist:
+            entity=Entity(_file=_file)
+
             try:
-                self.extract_file(_file)
+                self.extract_entity(entity)
             except Exception as e:
                 log.info(f'PATH : {_file.filepath} indexing failed, with exception {e}')
                 _file.indexedTry=True  #set flag to say we've tried
@@ -312,20 +178,182 @@ class Extractor():
                 exc_type, exc_value, exc_traceback = sys.exc_info()
                 traceback.print_exc(limit=2, file=sys.stdout)
                 raise e
+            finally:
+                if entity.updated:
+                    _file.save()
 
-    def update_existing_meta(self,_file,existing_doc,check=False):
-        """update meta of existing solr doc"""
-        result=True
+    def extract_entity(self,entity):
+        """extract single file to solr index"""
+        _file=entity._file
+        if self.skip_file(_file): #ignore completely
+            #ignore
+            log.debug('Skipping {}'.format(_file))
+            pass
+        else:
+            #extract
+            log.info('Attempting index of {}'.format(_file.filepath))
+            self.update_working_file(_file.filepath) #update redis output
+            entity.oldsolrid=_file.solrid #if was previously indexed, store old solr ID and then delete if new index successful
+            entity.sourcetext=get_source(_file) #get source text
+                            
+            if _file.is_folder:
+                log.debug('detected folder path')
+                self.extract_folder(entity)
+            
+            else:
+                entity.skip_extract=self.skip_extract(_file)
+                if entity.skip_extract and not _file.indexMetaOnly:
+                    _file.indexMetaOnly=True
+                    entity.updated=True
+                if not _file.hash_contents:
+                    _file.hash_contents=file_utils.get_contents_hash(_file.filepath)
+                    entity.updated=True
+                self.extract_document(entity)
+                
+            if entity.result:
+                self.cleanup_success(entity)
+            else:
+                self.cleanup_fails(entity)
+            
+        #update the user interface via redis
+        if self.job and r:
+            self.update_extract_results()
+                
+    def extract_document(self,entity):
+        #getfile hash if not already done
+        _file=entity._file
+
+        #check by hash of contents if doc exists already in solr index
+        entity.existing_doc=check_file_in_solrdata(_file,self.mycore) #searches by hashcontents, not solrid
+        if entity.existing_doc and not _file.indexMetaOnly and not self.forceretry:
+            #UPDATE META ONLY
+            log.debug('document indexed already - updating meta')
+            self.update_existing_meta(entity,check=self.check)
+
+        elif entity.skip_extract:
+            #INDEX META ONLY
+            log.debug('INDEX META ONLY')
+            self.extract_meta_only(entity)
+         
+        else:
+            self.extract_file(entity)
+    
+    def extract_file(self,entity):
+        #now try the extract
+        _file=entity._file
+        _file.indexedTry=True  #set flag to say we've tried
+        _file.indexMetaOnly=False
+        entity.updated=True
+        
+        if self.useICIJ:
+            log.info('using ICIJ extract method..')
+            ext = solrICIJ.ICIJExtractor(_file.filepath,self.mycore,ocr=self.ocr)
+            entity.result=ext.result
+            _file.error_message=ext.error_message
+            
+            if entity.result:
+                try:
+                    new_id=s.hashlookup(_file.hash_contents,self.mycore).results[0].id #id of the first result returned
+                    _file.solrid=new_id
+                    log.info(f'(ICIJ extract) New solr ID: {new_id}')
+                    try:
+                        #post extract process -- add meta data field to solr doc, e.g. source field
+                        ext=ICIJ_Post_Processor(_file.filepath,self.mycore,hash_contents=_file.solrid, sourcetext=entity.sourcetext,docstore=self.docstore,test=False,check=self.check)
+                    except Exception as e:
+                        log.error(f'Cannot add meta data to solrdoc: {new_id}, error: {e}')
+                        _file.error_message='Failed to add meta data'
+                        entity.result=False                    
+                except IndexError:
+                    log.warning('Extracted doc not found in index')
+                    _file.error_message='Indexed, but not found in index'
+                    entity.result=False
+        else:
+            try:
+                #extract contents of file using inbuilt solr tika
+                extractor=ExtractFile(_file.filepath,self.mycore,hash_contents=_file.hash_contents,sourcetext=entity.sourcetext,docstore=self.docstore,test=False,ocr=self.ocr,check=self.check)
+                entity.result=extractor.result
+                if entity.result:
+                    log.debug('now post process')
+                    extractor.post_process()
+                    entity.result=extractor.post_result
+                    log.debug(f'post process result {entity.result}')            
+                else:
+                    _file.error_message=extractor.error_message
+            except (s.SolrCoreNotFound,s.SolrConnectionError,requests.exceptions.RequestException) as e:
+                raise ExtractInterruption(self.interrupt_message())
+                
+#        if entity.result:
+#            self.cleanup_success(entity)
+#        else:
+#            self.cleanup_fails(entity)
+            
+    def cleanup_success(self,entity):
+        _file=entity._file
+        #succesful extraction of the contents
+        self.counter+=1
+            
+        if not self.useICIJ and not _file.is_folder:
+            _file.solrid=_file.hash_contents  #extract uses hashcontents for an id , so add it
+
+        _file.indexedSuccess=True
+        _file.indexFails=0
+        _file.error_message=''
+                
+        if entity.oldsolrid and entity.oldsolrid!=_file.solrid:
+            log.info(f'now delete or update old solr doc {entity.oldsolrid}')
+            relpath=make_relpath(_file.filepath,docstore=self.docstore)
+            remove_filepath_or_delete_solrrecord(entity.oldsolrid,relpath,self.mycore)
+
+                
+    def cleanup_fails(self,entity):            
+        """on failure - index only basic meta data and add to fail lists"""
+        
+        _file=entity._file
+        entity.updated=True
+        log.info(f'Indexing fail: PATH \'{_file.filepath}\]\' with ERROR:{_file.error_message}')
+        self.failed+=1
+        self.failedlist.append((_file.filepath,_file.error_message))
+        _file.indexFails+=1
+        
+        #Try to index meta despite the extract failure
+        log.debug(f'try to index the meta only')
         try:
-            _file.solrid=existing_doc.id
-            #log.debug('Existing docpath: {}'.format(existing_doc.data.get('docpath')))
-            #log.debug('Existing parent path hashes: {}'.format(existing_doc.data.get(self.mycore.parenthashfield)))
-            #log.debug(f'Existing source: {existing_doc.data.get(self.mycore.sourcefield)}')
-            #log.debug(f'Existing full: {existing_doc.__dict__}')
+            ext=ExtractFileMeta(_file.filepath,self.mycore,hash_contents=_file.hash_contents,sourcetext=entity.sourcetext,docstore=self.docstore,meta_only=True,check=self.check)
+            meta_result=ext.post_process(indexed=False)
+        except (s.SolrCoreNotFound,s.SolrConnectionError,requests.exceptions.RequestException) as e:
+            raise ExtractInterruption(self.interrupt_message())
+        if meta_result:
+            log.info(f'Meta data added successfully')
+            _file.solrid=_file.hash_contents  #extract uses hashcontents for an id , so add it
+            _file.indexMetaOnly=True
+                    
+    def extract_meta_only(self,entity):
+        try:
+            ext=ExtractFileMeta(entity._file.filepath,self.mycore,hash_contents=entity._file.hash_contents,sourcetext=entity.sourcetext,docstore=self.docstore,meta_only=True)
+            entity.result=ext.post_process(indexed=False)
+        except (s.SolrCoreNotFound,s.SolrConnectionError,requests.exceptions.RequestException) as e:
+            raise ExtractInterruption(self.interrupt_message())
+        #log.debug(result)
+        if entity.result:
+            entity._file.solrid=entity._file.hash_contents
+            entity._file.indexMetaOnly=True
+            entity.updated=True
+        
+    	
+
+    def update_existing_meta(self,entity,check=False):
+        """update meta of existing solr doc"""
+        entity.result=True
+        _file=entity._file
+        try:
+            if _file.solrid!=entity.existing_doc.id:
+                _file.solrid=entity.existing_doc.id
+                entity.updated=True
+
             changes=[]
             
             #add a source if no source
-            solr_source=existing_doc.data.get(self.mycore.sourcefield)
+            solr_source=entity.existing_doc.data.get(self.mycore.sourcefield)
             if not solr_source:
                 file_source=get_source(_file)
                 if file_source:
@@ -341,9 +369,9 @@ class Extractor():
             
             if _file.content_date: #only modify date if date from path changes
                 date_from_path=time_utils.timestringGMT(_file.content_date)
-                log.debug(f'Existing date: {existing_doc.date}')
+                log.debug(f'Existing date: {entity.existing_doc.date}')
                 log.debug(f'Date from path {date_from_path}')
-                if existing_doc.date != date_from_path:
+                if entity.existing_doc.date != date_from_path:
                     log.debug('Date from path altered; update in index')
                     if not clear_date(_file.solrid,self.mycore):
                         log.error('Failed to clear previous date')
@@ -355,7 +383,7 @@ class Extractor():
                     log.debug('Date from path unchanged')
     
             #check paths
-            paths_are_missing,paths,parent_hashes=check_paths(existing_doc,_file,self.mycore,docstore=self.docstore)
+            paths_are_missing,paths,parent_hashes=check_paths(entity.existing_doc,_file,self.mycore,docstore=self.docstore)
             if paths_are_missing:
                 log.info('Updating doc \"{}\" to append the old and new filepath {} to make {}'.format(_file.solrid,_file.filepath,paths))
                 #result=updatetags(_file.solrid,self.mycore,field_to_update='docpath',value=paths,check=False)
@@ -372,78 +400,40 @@ class Extractor():
             correct_filename=file1 if file1 else _file.filename
             log.debug(correct_filename)
             
-            if _file.is_folder and existing_doc.docname != f'Folder: {_file.filename}':
-                log.info(f'Existing filename {existing_doc.docname} to replace with Folder: {_file.filename}')
+            if _file.is_folder and entity.existing_doc.docname != f'Folder: {_file.filename}':
+                log.info(f'Existing filename {entity.existing_doc.docname} to replace with Folder: {_file.filename}')
                 #result=updatetags(_file.solrid,self.mycore,field_to_update=self.mycore.docnamesourcefield,value=_file.filename,check=check)
                 changes.append((self.mycore.docnamesourcefield,'docname',f'Folder: {_file.filename}'))
                 
-            elif not _file.is_folder and existing_doc.docname != correct_filename:
-                log.info(f'Existing filename {existing_doc.docname} to replace with 1st filename {correct_filename}')
+            elif not _file.is_folder and entity.existing_doc.docname != correct_filename:
+                log.info(f'Existing filename {entity.existing_doc.docname} to replace with 1st filename {correct_filename}')
                 log.debug(f'.. derived from paths {paths}')
                 #result=updatetags(_file.solrid,self.mycore,field_to_update=self.mycore.docnamesourcefield,value=_file.filename,check=check)
                 changes.append((self.mycore.docnamesourcefield,'docname',correct_filename))
 
-
-#        #add field to indicate if meta only indexed
-#        changes.append(('sb_meta_only','sb_meta_only',self.meta_only))
-#        #add to text field to indicate no extracted content
-#        if not indexed:
-#            changes.append(('rawtext','rawtext',"Metadata only: No content extracted from file"))
-
-            
-            _file.save()
             if changes:
                 log.debug(f'CHANGES: {changes}')
                 response,updatestatus=update_meta(_file.solrid,changes,self.mycore,check=self.check)
                 log.debug(response)
         except Exception as e:
             log.error(e)
-            result=False
-        return result
+            entity.result=False
+        return
         
-        
-#       
-#        
-#        
-#        
-#        
-#        #pick up alternate filesize, else use docsize
-#        parsed_filesize=self.parse_filesize()
-#        changes.append((self.mycore.docsizesourcefield1,'solrdocsize',parsed_filesize)) if parsed_filesize else None
-#
-#        
-#
-#        #add hash of parent relative path
-#        if self.mycore.parenthashfield:
-#            parenthash=file_utils.parent_hash(relpath)
-#            
-#
-#        
-#        self.post_result=updatestatus
-#        #log.debug(self.post_result)
-#        childresult=self.process_children()
-#        log.debug(f'Child process result: {childresult}')
-#        if self.post_result and childresult:
-#            return True
-#        else:
+#    
+#    def index_meta(self,file):
+#        #already indexed
+#        if file.indexedSuccess:
 #            return False
-
-
-
-    
-    def index_meta(self,file):
-        #already indexed
-        if file.indexedSuccess:
-            return False
-        try:
-            #index meta
-            pass
-            #file.indexedSuccess=True
-        except:
-            #index meta failed
-            log.debug('Failed to index meta')
-        
-    
+#        try:
+#            #index meta
+#            pass
+#            #file.indexedSuccess=True
+#        except:
+#            #index meta failed
+#            log.debug('Failed to index meta')
+#        
+#    
     def skip_extract(self,file):
         """test if file should be indexed by meta-only"""
         if file.filesize>MAXSIZE and not self.ignore_filesize:
@@ -497,30 +487,28 @@ class Extractor():
     def interrupt_message(self):
         return '{} files extracted, {} files skipped and {} files failed.'.format(self.counter,self.skipped,self.failed)
         
-    def extract_folder(self,file):
-        
-        solrid=file.hash_filename
+    def extract_folder(self,entity):
+        _file=entity._file
+        solrid=_file.hash_filename
         log.info('Adding (meta-only) folder name to index')
            #extract a relative path from the docstore root
-        relpath=make_relpath(file.filepath,docstore=self.docstore)
+        relpath=make_relpath(_file.filepath,docstore=self.docstore)
         #args+='&literal.{}={}&literal.{}={}'.format(filepathfield,relpath,pathhashfield,file_utils.pathHash(path))
-        result=updatetags(solrid,self.mycore,field_to_update='docpath',value=[relpath])
-        if result:
-            file.solrid=solrid
+        entity.result=updatetags(solrid,self.mycore,field_to_update='docpath',value=[relpath])
+        if entity.result:
+            _file.solrid=solrid
             #add hash of parent relative path
             if self.mycore.parenthashfield:
                 parenthash=file_utils.parent_hash(relpath)
                 #args+='&literal.{}={}'.format(parenthashfield,parenthash)
                 log.debug("Parenthash: {} Relpath: {}".format(parenthash,relpath))
-                result=updatetags(solrid,self.mycore,field_to_update=self.mycore.parenthashfield,value=parenthash)
+                entity.result=updatetags(solrid,self.mycore,field_to_update=self.mycore.parenthashfield,value=parenthash)
             else:
                 log.debug('no parenthashfield')
-                result=False    
+                entity.result=False    
             
-            if result:
-                result=updatetags(solrid,self.mycore,field_to_update=self.mycore.docnamesourcefield,value='Folder: {}'.format(file.filename))
-        return result
-    #REDIS UPDATES
+            if entity.result:
+                entity.result=updatetags(solrid,self.mycore,field_to_update=self.mycore.docnamesourcefield,value='Folder: {}'.format(_file.filename))
     
     def update_working_file(self,_filename):
         if self.job:
@@ -550,15 +538,23 @@ class Extractor():
 
 class UpdateMeta(Extractor):
     """extract a single file with meta only"""
-    def __init__(self,mycore,file,existing_doc,docstore=DOCSTORE,existing=True,check=True):
+    def __init__(self,mycore,_file,existing_doc,docstore=DOCSTORE,existing=True,check=True):
         if not isinstance(mycore,s.SolrCore):
             raise BadParameters("Bad parameters for extraction")
         self.mycore=mycore
         self.check=check
         self.ignore_filesize=False
         self.docstore=docstore
+        
+        entity=Entity(_file=_file)
+        entity.existing_doc=existing_doc
+        
         if existing:
-            self.update_existing_meta(file,existing_doc,check=check)   
+            try:
+                self.update_existing_meta(entity,check=check)
+            finally:
+                if entity.updated:
+                    _file.save()   
 
 class ExtractSingleFile(Extractor):
     """extract a single doc into solr"""
@@ -708,9 +704,8 @@ class ChildProcessor():
             return None
   
 
-
 class ExtractFile(ChildProcessor):
-    def __init__(self,path,mycore,hash_contents='',sourcetext='',docstore='',test=False,ocr=True,meta_only=False,check=True):
+    def __init__(self,path,mycore,hash_contents='',sourcetext='',docstore='',test=False,ocr=True,meta_only=False,check=True,retry=True):
         self.path=path
         self.ocr=ocr
         self.check=check
@@ -725,8 +720,14 @@ class ExtractFile(ChildProcessor):
         self.docstore=docstore
         self.hash_contents = hash_contents if hash_contents else file_utils.get_contents_hash(path)
         self.solrid=self.hash_contents
+        
         self.result,self.error_message=extract(self.path,self.hash_contents,self.mycore,timeout=TIMEOUT,docstore=docstore,test=self.test,sourcetext=self.sourcetext,ocr=self.ocr)
         log.debug(f'Extract file success: {self.result}')
+        
+            
+            
+            
+        
         
         
     def post_process(self,indexed=True):
@@ -875,7 +876,10 @@ class Collection_Post_Processor(Extractor):
                     existing_doc=check_file_in_solrdata(_file,self.mycore) #searches by hashcontents, not solrid
                     if existing_doc:
                     #FIX META ONLY
-                        result=self.update_existing_meta(_file,existing_doc,check=self.check)
+                        entity=Entity(_file=_file)
+                        entity.existing_doc=existing_doc
+                        result=self.update_existing_meta(entity,check=self.check)
+                        
                         c=ChildProcessor(_file.filepath,self.mycore,hash_contents=_file.hash_contents,sourcetext=self.sourcetext,docstore=self.docstore,check=self.check)
                         c.process_children()
                         _file.solrid=_file.hash_contents

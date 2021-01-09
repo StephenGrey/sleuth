@@ -29,5 +29,5 @@ def check_email(folder):
 			print(f'Error with {path}')
 			errors.append((path,e))
 		
-		print(errors)
+	print(f'Errors: {errors}')
 		

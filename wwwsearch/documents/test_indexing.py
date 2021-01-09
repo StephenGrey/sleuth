@@ -382,7 +382,10 @@ class ExtractorTest(ExtractTest):
             skip=updater.skip_extract(_newfile)
             self.assertEquals(updater.skipped,1)
             self.assertTrue(skip)
-            updater.extract_file(_newfile)
+            
+            entity=indexSolr.Entity(_file=_newfile)
+            updater.extract_entity(entity)
+            
             #print(_newfile.__dict__)
             self.assertTrue(_newfile.indexMetaOnly)
             
