@@ -9,9 +9,16 @@ import hashlib  #routines for calculating hash
 from .models import Collection,File,Index
 log = logging.getLogger('ownsearch.indexsolr')
 from configs import config
+
 from ownsearch.solrJson import SolrConnectionError, SolrCoreNotFound
-from documents.updateSolr import scandocs,delete,updatetags,check_hash_in_solrdata,check_file_in_solrdata,remove_filepath_or_delete_solrrecord,makejson,update as update_meta,get_source,get_collection_source,check_paths,clear_date
 from ownsearch import solrJson as s
+
+from documents.updateSolr import scandocs,delete,updatetags,check_hash_in_solrdata,check_file_in_solrdata,remove_filepath_or_delete_solrrecord,makejson,update as update_meta,get_source,get_collection_source,check_paths,clear_date
+
+from ownsearch import solrJson as s
+from parse_email.email import Email
+
+
 from fnmatch import fnmatch
 from . import solrICIJ,file_utils,changes,time_utils
 from .file_utils import make_relpath
@@ -189,6 +196,7 @@ class Extractor():
             #ignore
             log.debug('Skipping {}'.format(_file))
             pass
+        
         else:
             #extract
             log.info('Attempting index of {}'.format(_file.filepath))
@@ -245,6 +253,9 @@ class Extractor():
         _file.indexMetaOnly=False
         entity.updated=True
         
+
+        
+        
         if self.useICIJ:
             log.info('using ICIJ extract method..')
             ext = solrICIJ.ICIJExtractor(_file.filepath,self.mycore,ocr=self.ocr)
@@ -269,8 +280,14 @@ class Extractor():
                     entity.result=False
         else:
             try:
-                #extract contents of file using inbuilt solr tika
-                extractor=ExtractFile(_file.filepath,self.mycore,hash_contents=_file.hash_contents,sourcetext=entity.sourcetext,docstore=self.docstore,test=False,ocr=self.ocr,check=self.check)
+                """use other methods on retry if available"""
+                if _file.indexedTry and self.forceretry:
+                    retry=True
+                else:
+                    retry=False
+
+                """extract contents of file using inbuilt solr tika"""
+                extractor=ExtractFile(_file.filepath,self.mycore,hash_contents=_file.hash_contents,sourcetext=entity.sourcetext,docstore=self.docstore,test=False,ocr=self.ocr,check=self.check,retry=retry)
                 entity.result=extractor.result
                 if entity.result:
                     log.debug('now post process')
@@ -434,6 +451,8 @@ class Extractor():
 #            log.debug('Failed to index meta')
 #        
 #    
+    
+    
     def skip_extract(self,file):
         """test if file should be indexed by meta-only"""
         if file.filesize>MAXSIZE and not self.ignore_filesize:
@@ -705,12 +724,13 @@ class ChildProcessor():
   
 
 class ExtractFile(ChildProcessor):
-    def __init__(self,path,mycore,hash_contents='',sourcetext='',docstore='',test=False,ocr=True,meta_only=False,check=True,retry=True):
+    def __init__(self,path,mycore,hash_contents='',sourcetext='',docstore=DOCSTORE,test=False,ocr=True,meta_only=False,check=True,retry=False):
         self.path=path
         self.ocr=ocr
         self.check=check
         specs=file_utils.FileSpecs(path,scan_contents=False)###
         self.filename=specs.name
+        self.ext=specs.ext
         self.size=specs.length
         self.date_from_path,self.last_modified=changes.parse_date(specs)
         self.mycore=mycore
@@ -721,14 +741,36 @@ class ExtractFile(ChildProcessor):
         self.hash_contents = hash_contents if hash_contents else file_utils.get_contents_hash(path)
         self.solrid=self.hash_contents
         
-        self.result,self.error_message=extract(self.path,self.hash_contents,self.mycore,timeout=TIMEOUT,docstore=docstore,test=self.test,sourcetext=self.sourcetext,ocr=self.ocr)
+        if retry and self.alt_methods_exist:
+            self.alt_try()
+        else:
+            self.result,self.error_message=extract(self.path,self.hash_contents,self.mycore,timeout=TIMEOUT,docstore=docstore,test=self.test,sourcetext=self.sourcetext,ocr=self.ocr)
+            self.alt_tried=False
         log.debug(f'Extract file success: {self.result}')
         
-            
-            
-            
-        
-        
+    
+    
+    def alt_try(self):
+        """ use alternate parsers to Solr Tika """
+        self.error_message=""
+        self.alt_tried=True
+        self.result=False
+        if self.ext=='.msg':
+            _parser=Email(self.path,docstore=self.docstore,sourcetext=self.sourcetext)
+            _parser.process()
+            self.result=_parser.result
+            self.error_message=_parser.error_message
+        else:
+            log.error('No alternate parser installed for this file')
+    
+    
+    @property
+    def alt_methods_exist(self):
+        """check if alternate parsers installed"""
+        if self.ext=='.msg': #alt parser installed for Outlook emails
+            return True
+        else:
+            return False
         
     def post_process(self,indexed=True):
         self.indexed=indexed

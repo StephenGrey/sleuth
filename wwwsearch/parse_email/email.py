@@ -2,10 +2,12 @@ import os,json,collections,logging
 from documents import time_utils
 from documents.file_utils import FileSpecs,make_relpath,parent_hash
 from documents.updateSolr import post_jsondoc
-from msglite import Message
+from msglite import Message,Attachment
 import unicodedata
+import extract_msg
+
 from ownsearch.solrJson import SolrCore
-log = logging.getLogger('email_parser.email')
+log = logging.getLogger('ownsearch.email')
 
 try:
 	from documents.indexSolr import DOCSTORE
@@ -15,6 +17,28 @@ except:
 #Parts of this code incorporated from Aleph code base
 
 DEFAULT_CORE=SolrCore('tests_only')
+
+
+class LazyMessage(Message):
+	"""Not very strict parser! Parse a message even if some attachments fail"""
+	
+	def parseAttachments(self):
+		""" Returns a list of all attachments. """
+		
+		attachments = []
+		for path in self.list_paths():
+			if path.startswith("__attach"):
+				try:
+					attachments.append(Attachment(self, path))
+				except TypeError as e:
+					log.warning('Could not parse attachment in message %s',self.path)
+					self.error_message='Skipped attachment on type error'
+				except Exception as e:
+					log.warning ('Could not parse an attachment in message %s',self.path)
+					log.debug(e)
+					self.error_message='Skipped attachment on unknown error'
+		return attachments
+
 
 class Email():
 	"""parse an Outlook .msg file and index it to solr index"""
@@ -33,31 +57,44 @@ class Email():
 		if self.mycore.parenthashfield:
 			self.parenthash=parent_hash(self.relpath)
 
-		
 	def process(self):
 		"""parse and then extract, catching errors"""
 		try:
 			self.parse()
+		#	log.debug(self.__dict__)
 		except Exception as e:
 			self.error_message=f'Cannot parse {self.filepath} Exception: {e}'
 			log.error(self.error_message)
 			return
-		if True:
+		try:
 			self.extract()
-#		except Exception as e:
-#			self.error_message=f'Cannot extract {self.filepath}. Exception: {e}'
-#			log.error(self.error_message)
-#			return
-			
-			
-		
+		except Exception as e:
+			self.error_message=f'Cannot extract {self.filepath}. Exception: {e}'
+			log.error(self.error_message)
+			return
+	
 	def parse(self):
 		"""parse fields from message"""
-		self.parsed=Message(self.filepath)
+		self.parsed=LazyMessage(self.filepath)
 		self.body=self.parsed.body
 		self.text=self.body #remove_control_characters(self.body)
 		self.date=self.parsed.date
-		self.title=self.parsed.subject,
+		self.title=self.parsed.subject
+		self._from=self.parsed.header.get('From')
+		self.to=self.parsed.header.get('To')
+		self.author=self._from
+		self.subject=self.parsed.subject
+		self.message_id=self.parsed.header.get('Message-ID')
+		self.thread_id=self.parsed.header.get('Thread-Index')
+		self.content_type=self.parsed.header.get('Content-Type')
+	
+	def parse2(self):
+		"""parse fields using msg_parser app"""
+		self.parsed=extract_msg.Message(self.filepath)
+		self.body=self.parsed.body
+		self.text=self.body #remove_control_characters(self.body)
+		self.date=self.parsed.date
+		self.title=self.parsed.subject
 		self._from=self.parsed.header.get('From')
 		self.to=self.parsed.header.get('To')
 		self.author=self._from
@@ -66,7 +103,8 @@ class Email():
 		self.thread_id=self.parsed.header.get('Thread-Index')
 		self.content_type=self.parsed.header.get('Content-Type')
 		
-		
+	
+	
 	def extract(self):
 		"""index the email"""
 		doc=collections.OrderedDict()  #keeps the JSON file in a nice order
@@ -83,6 +121,9 @@ class Email():
 		doc['message_to']=self.to,
 		doc['author']=self.author,
 		doc['subject']=self.subject
+		doc['extract_parent_paths']=[self.filepath]
+		doc['extract_level']=["0"]
+		doc['message_raw_header_message_id']=self.message_id
 		doc[self.mycore.docnamesourcefield]=self.filename
 		doc[self.mycore.docpath]=self.relpath
 		doc[self.mycore.parenthashfield]=self.parenthash
@@ -93,6 +134,7 @@ class Email():
 		self.result=status
 		if not status:
 			log.info(post_result)
+			self.error_message=post_result
 		return
 
 		"""other fields that could be added"""

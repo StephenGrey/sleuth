@@ -1,6 +1,12 @@
 import os
 from .email import Email
 from msglite import Message
+from documents import indexSolr,updateSolr
+from ownsearch import solrJson
+
+MYCORE=solrJson.SolrCore('tests_only')
+DOCSTORE=indexSolr.DOCSTORE
+
 #import extract_msg
 
 
@@ -10,9 +16,13 @@ def crawler(parent_folder):
 				path = os.path.join(dirName, filename)
 				yield path 
  
- 
 def check_email(folder):
 	errors=[]
+	
+	#ERASE EVERYTHING FROM TESTS_ONLY 
+	res,status=updateSolr.delete_all(MYCORE)
+	assert status is True
+	
 	for path in crawler(folder):
 		try:
 			#msg = Message(path)
@@ -20,8 +30,13 @@ def check_email(folder):
 			#print(msg.body
 			#msg2=extract_msg.Message(path)
 			
-			msg=Email(path)
-			msg.process()
+			#msg=Email(path)
+			#msg.process()
+			
+			extractor=indexSolr.ExtractFile(path,MYCORE,hash_contents='',sourcetext='Test source',docstore=DOCSTORE,retry=True)
+			
+			if not extractor.result:
+				raise Exception(f"{extractor.error_message}")
 			
 			
 		except Exception as e:
