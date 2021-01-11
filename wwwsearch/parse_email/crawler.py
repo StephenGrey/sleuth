@@ -15,8 +15,8 @@ def crawler(parent_folder):
 			for filename in fileList: #now through every file in the folder/subfolder
 				path = os.path.join(dirName, filename)
 				yield path 
- 
-def check_email(folder):
+
+def check_email_indexing(folder):
 	errors=[]
 	
 	#ERASE EVERYTHING FROM TESTS_ONLY 
@@ -32,17 +32,27 @@ def check_email(folder):
 			
 			#msg=Email(path)
 			#msg.process()
-			
 			extractor=indexSolr.ExtractFile(path,MYCORE,hash_contents='',sourcetext='Test source',docstore=DOCSTORE,retry=True)
-			
 			if not extractor.result:
 				raise Exception(f"{extractor.error_message}")
-			
-			
 		except Exception as e:
 			print(e)
 			print(f'Error with {path}')
 			errors.append((path,e))
-		
 	print(f'Errors: {errors}')
-		
+
+def check_email_4errors(folder):
+	errors=[]
+	counter=1
+	for path in crawler(folder):
+		try:
+			msg=Email(path)
+			msg.parse()
+			counter+=1
+			if counter %100==0:
+				print(f'Messages parsed: {counter}')
+		except Exception as e:
+			print(e)
+			print(f'Error with {path}')
+			errors.append((path,e))
+	return errors

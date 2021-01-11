@@ -23,6 +23,9 @@ DOCSTORE=config['Models']['collectionbasepath'] #get base path of the docstore
 class SolrdocNotFound(Exception):
     pass
 
+class DuplicateRecords(Exception):
+    pass
+
 
 class Updater:
     """template to modify solr index"""
@@ -292,10 +295,13 @@ def check_hash_in_solrdata(contents_hash,mycore):
             log.debug('hash \"{}\" not found in index'.format(contents_hash))
             return None
         if len(existing_docs)>1:
-            raise DuplicateRecords
+            raise DuplicateRecords("Document found more than once in index")
         return existing_docs[0]
     except s.SolrConnectionError:
         raise s.SolrConnectionError
+    except DuplicateRecords as e:
+        log.warning(e)
+        return existing_docs[0]
     except Exception as e:
         log.debug(e)
         log.info('hash \"{}\" not found in index'.format(contents_hash))

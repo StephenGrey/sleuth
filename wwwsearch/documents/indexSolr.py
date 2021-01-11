@@ -194,7 +194,7 @@ class Extractor():
         _file=entity._file
         if self.skip_file(_file): #ignore completely
             #ignore
-            log.debug('Skipping {}'.format(_file))
+            #log.debug('Skipping {}'.format(_file))
             pass
         
         else:
@@ -476,7 +476,7 @@ class Extractor():
         """test if file should be skipped entirely from index or extract"""
         if file.indexedSuccess:
             file.error_message='Already indexed'
-            log.debug(f'Skipped {file.error_message} filename: {file.filename}')
+            #log.debug(f'Skipped {file.error_message} filename: {file.filename}')
             #skip this file: it's already indexed
         elif file.indexedTry and not self.forceretry:
             #skip this file, tried before and not forcing retry
@@ -742,6 +742,7 @@ class ExtractFile(ChildProcessor):
         self.solrid=self.hash_contents
         
         if retry and self.alt_methods_exist:
+            log.debug('Trying alternate indexing method')
             self.alt_try()
         else:
             self.result,self.error_message=extract(self.path,self.hash_contents,self.mycore,timeout=TIMEOUT,docstore=docstore,test=self.test,sourcetext=self.sourcetext,ocr=self.ocr)
@@ -756,7 +757,7 @@ class ExtractFile(ChildProcessor):
         self.alt_tried=True
         self.result=False
         if self.ext=='.msg':
-            _parser=Email(self.path,docstore=self.docstore,sourcetext=self.sourcetext)
+            _parser=Email(self.path,docstore=self.docstore,sourcetext=self.sourcetext,mycore=self.mycore)
             _parser.process()
             self.result=_parser.result
             self.error_message=_parser.error_message

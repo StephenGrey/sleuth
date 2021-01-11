@@ -53,6 +53,7 @@ class Email():
 		self.filename=specs.name
 		self.relpath=make_relpath(self.filepath,docstore=self.docstore)
 		self.size=specs.length
+		self.error_message=None
 		self.contents_hash=specs.contents_hash
 		if self.mycore.parenthashfield:
 			self.parenthash=parent_hash(self.relpath)
@@ -76,8 +77,12 @@ class Email():
 	def parse(self):
 		"""parse fields from message"""
 		self.parsed=LazyMessage(self.filepath)
+		try:
+			self.error_message=self.parsed.error_message
+		except:
+			pass
 		self.body=self.parsed.body
-		self.text=self.body #remove_control_characters(self.body)
+		self.text=self.body #remove_control_characters(self.b ody)
 		self.date=self.parsed.date
 		self.title=self.parsed.subject
 		self._from=self.parsed.header.get('From')
@@ -129,7 +134,8 @@ class Email():
 		doc[self.mycore.parenthashfield]=self.parenthash
 		doc[self.mycore.docsizesourcefield1]=self.size
 		doc['sb_meta_only']=False
-
+		log.info(f' Indexing: {self.filepath}with id:  {self.contents_hash}')
+		log.debug(doc)
 		post_result,status=self._index(doc)
 		self.result=status
 		if not status:
