@@ -60,7 +60,8 @@ def filepathdups(core,delete=False):
 
     return dupcount,deletecount
 
-def dupkeys(core,keyfield1,key2field=''):
+def dupkeys(core,keyfield1='id',key2field=''):
+    """return list of solr docs with duplicate keys"""
     dups=[]
 #    docpath=getattr(core,key)
 #    if key2:
