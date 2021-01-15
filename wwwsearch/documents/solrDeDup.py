@@ -73,7 +73,7 @@ def filepathdups(core,delete=False):
 
     return dupcount,deletecount
 
-def dupkeys(core,keyfield1,key2field=''):
+def dupkeys(core,keyfield1='id',key2field=''):
     """return a list of dups keyed to one or two keys"""
     dups=[]
 #    docpath=getattr(core,key)

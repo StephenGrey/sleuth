@@ -42,7 +42,7 @@ def cursor(mycore,keyfield='docpath',searchterm='*',highlights=False,rows=100):
                 break
         #PUT RESULTS INTO DICTIONARY KEYED BY KEYFIELD
             for document in res.results:
-                #log.debug('{}, {}'.format(keyfield,document.__dict__))
+                log.debug('{}, {}'.format(keyfield,document.__dict__))
                 if keyfield in document.data:  #.data:
                     keystring=document.data[keyfield]
 #                        print(keyfield,document.__dict__,keystring)
