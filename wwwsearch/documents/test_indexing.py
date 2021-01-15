@@ -585,7 +585,6 @@ class ICIJFolderTest(IndexTester):
         
         self.assertRaises(BadParameters, indexSolr.ExtractFolder,'wrongname',self._path)
         self.assertRaises(BadParameters,indexSolr.ExtractFolder,'tests_only','randompath')
-        print('remove this print from line 588')
         
                
         args = ['tests_only']
@@ -597,7 +596,6 @@ class ICIJFolderTest(IndexTester):
         #self.assertEquals([Path(doc.data.get('docpath')[0]),Path(doc.data.get('docpath')[0])],[Path("mixed_folder/HilaryEmailC05793347.pdf"),Path("mixed_folder/HilaryEmailC05793347 copy.pdf")])
         #print(doc.__dict__)
         self.assertTrue(doc.docname=='HilaryEmailC05793347.pdf' or doc.docname=='HilaryEmailC05793347 copy.pdf')
-        print('remove this print from line 600')
         childdoc=solrJson.getmeta('c032fe1fbef76624f1ad09e46feb4c04ec4e37a27a6a3487abc3ef73c702d3f9',self.mycore)[0]
         self.assertEquals(childdoc.docname,"image1.jpg")
         
