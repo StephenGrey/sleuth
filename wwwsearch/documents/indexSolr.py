@@ -175,7 +175,7 @@ class Extractor():
         """main loop"""
         for _file in self.filelist:
             entity=Entity(_file=_file)
-
+            log.debug(_file.filepath)
             try:
                 self.extract_entity(entity)
             except Exception as e:
@@ -183,7 +183,7 @@ class Extractor():
                 _file.indexedTry=True  #set flag to say we've tried
                 _file.save()
                 exc_type, exc_value, exc_traceback = sys.exc_info()
-                traceback.print_exc(limit=2, file=sys.stdout)
+                #traceback.print_exc(limit=2, file=sys.stdout)
                 raise e
             finally:
                 if entity.updated:
@@ -490,7 +490,7 @@ class Extractor():
             #skip the extract, it's too big
             file.error_message=f'Too large {file.filesize}b'
             log.info(f'Skipped {file.error_message} path: {file.filename}')
-        elif file.filesize<3:
+        elif file.filesize<3 and not file.is_folder:
             #skip , it's empty
             file.error_message=f'Skipped. Empty file: {file.filesize}bytes'
             log.info(f'Skipped {file.error_message} path: {file.filename}')
@@ -812,7 +812,7 @@ class ExtractFile(ChildProcessor):
             log.debug(f'CHANGES: {changes}')
         except Exception as e:
             exc_type, exc_value, exc_traceback = sys.exc_info()
-            traceback.print_exc(limit=4, file=sys.stdout)
+            #traceback.print_exc(limit=4, file=sys.stdout)
             raise
             
         

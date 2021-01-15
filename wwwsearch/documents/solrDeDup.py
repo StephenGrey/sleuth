@@ -3,16 +3,29 @@ from __future__ import unicode_literals, print_function
 from documents import solrcursor,updateSolr
 from ownsearch import solrJson
 from configs import config
-import os
+import os,logging
+log = logging.getLogger('ownsearch.solrDeDup')
 #get cursor of solr index, indexing that by key which can be any field, usually a filename or contentshash
 #optionally delete the newest version of any duplicate solrdoc indexed by that key
 #or- by default - check name of file and path; delete the newest if these also duplicate.
 
 
-def hashdups(core):
+def hashdups(core, delete=False):
+    """return a list of duplicate solr documents , keyed to hashcontents
+        kill all but the first doc if delete flag set"""
+    
     key='hashcontents'
     dups=dupkeys(core,key)
-    
+    deletecount=0
+    if delete:
+        for _hash,_ignore,_duplist in dups:
+            killist=_duplist[1:]
+            log.debug(killist)
+            for doc in killist:
+                if updateSolr.delete(doc.id,core):
+                    print('... deleted from solr index')
+                    deletecount+=1
+        return dups,deletecount
 
     return dups
     
@@ -61,6 +74,7 @@ def filepathdups(core,delete=False):
     return dupcount,deletecount
 
 def dupkeys(core,keyfield1,key2field=''):
+    """return a list of dups keyed to one or two keys"""
     dups=[]
 #    docpath=getattr(core,key)
 #    if key2:

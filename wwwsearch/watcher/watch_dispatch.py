@@ -79,7 +79,8 @@ class Index_Dispatch:
         self.check_dupbase()
         log.debug(f'EVENT: {self.event_type}  PATH: {self.sourcepath}  (DESTPATH: {self.destpath})') if not self.ignore else None
         if self.master_index.sqlfilename==self.sourcepath or self.master_index.sqlfilename+"-journal"==self.sourcepath :
-             log.debug('ignore master database file')
+             #log.debug('ignore master database file')
+             pass
         elif self.event_type=='created':
             self.dupbase_create()
             self.create()

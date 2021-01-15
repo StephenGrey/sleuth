@@ -2021,7 +2021,7 @@ def add_parent_hashes(_index):
             f.parent_hash=parent_hash(f.path)
         n+=1
         if n%100==0:
-            print (n)
+            #print (n)
             _index.save()
     _index.save()
                 

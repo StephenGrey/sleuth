@@ -21,11 +21,9 @@ class Dups(IndexTester):
         index_collections=Collection.objects.all()
         #print(f'DOCSTORE: {self.docstore}')
         i=file_utils.Index_Maker(self.testdups_path,index_collections,rootpath=self.docstore)
-        print(i)
-        _ind=[x for x in file_utils.Index_Maker(self.testdups_path,index_collections)._index]
+        #print(i)
+        _ind=[x for x in file_utils.Index_Maker(self.testdups_path,index_collections,rootpath=self.docstore)._index if x =='<li class="du">\n\n<span class="sb_file" id="" filename="" indexed="no"  fails="" solrid="" style="color:red;">HilaryEmailC05793347.pdf</span>\n\n\n\n\n\n</li>' ]
         #options IndexMaker(path,index_collections,specs=None,masterindex=None, rootpath=DOCSTORE, hidden_files=False,max_depth=1,check_index=True,next_url=''
-        #print(_ind[0])
-        
         self.assertEquals(_ind[0],'<li class="du">\n\n<span class="sb_file" id="" filename="" indexed="no"  fails="" solrid="" style="color:red;">HilaryEmailC05793347.pdf</span>\n\n\n\n\n\n</li>')
         
     def remove_bfindex(self):
@@ -37,13 +35,15 @@ class Dups(IndexTester):
     def test_dupindex(self):
         index_collections=Collection.objects.all()
         _ind=[x for x in file_utils.Dups_Index_Maker(self.testdups_path,index_collections,rootpath=self.docstore)._index]
-        self.assertTrue('dups/HilaryEmailC05793347.pdf' in _ind[0])
+        sel=[x for x in _ind if "dups\HilaryEmailC05793347.pdf" in x] 
+        self.assertTrue("dups\HilaryEmailC05793347.pdf" in sel[0] )
 
 
     def test_filetree(self):
-        x=file_utils.file_tree(self.testdups_path)
-        self.assertEquals([f for f in x][0],os.path.join(self.testdups_path,'HilaryEmailC05793347.pdf'))
-        
+    	   x=file_utils.file_tree(self.testdups_path)
+    	   tree=[f for f in x]
+    	   self.assertTrue(os.path.join(self.testdups_path,'HilaryEmailC05793347.pdf')in tree )
+    	   self.assertEquals(len(tree),3)
         
     def test_bigfileindex(self):
         self.remove_bfindex() #remove the stored index

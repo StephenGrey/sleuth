@@ -19,10 +19,11 @@ class NoValidCollection(Exception):
     pass
 
 class CollectionPage(Page):
-    def __init__(self,path=''):
+    def __init__(self,path='',docstore=None):
         self.docpath=path
         self.url_path=quote_plus(path)
         log.debug(self.url_path)
+        self.docstore=docstore
 
     def getcores(self,this_user,stored_core=None):
         """get authorised solr cores , choosed stored core or default """
@@ -91,7 +92,8 @@ class CollectionPage(Page):
         self.myindex=Index.objects.get(id=self.coreID)
         log.debug('my Index: {}'.format(self.myindex))
         self.authorised_collections=Collection.objects.filter(core=self.myindex)
-        self.authorised_collections_relpaths=[(make_relpath(c.path),c.id,c.live_update) for c in self.authorised_collections]
+        #print([x.path for x in self.authorised_collections])
+        self.authorised_collections_relpaths=[(make_relpath(c.path,docstore=self.docstore),c.id,c.live_update) for c in self.authorised_collections]
 
     def collection_updates(self,request_posted):
         _collection_IDs=request_posted.getlist('checked')
