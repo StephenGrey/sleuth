@@ -38,6 +38,7 @@ solr/solr-7.2.0/bin/solr-8983.port
 solr/solr-7.2.0/bin/solr.in.cmd
 solr/solr-7.2.0/bin/solr.in.sh
 solr/solr-7.2.0/server/tmp/*
+solr/solr-8.7.0/server/tmp/*
 solr/keys/*
 
 .DS_Store

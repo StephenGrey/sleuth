@@ -138,7 +138,7 @@ class Email():
 		doc[self.mycore.docsizesourcefield1]=self.size
 		doc['sb_meta_only']=False
 		log.info(f' Indexing: {self.filepath}with id:  {self.contents_hash}')
-		log.debug(doc)
+		#log.debug(doc)
 		post_result,status=self._index(doc)
 		self.result=status
 		if not status:

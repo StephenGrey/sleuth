@@ -175,7 +175,7 @@ class Extractor():
         """main loop"""
         for _file in self.filelist:
             entity=Entity(_file=_file)
-            log.debug(_file.filepath)
+            #
             try:
                 self.extract_entity(entity)
             except Exception as e:
@@ -183,7 +183,7 @@ class Extractor():
                 _file.indexedTry=True  #set flag to say we've tried
                 _file.save()
                 exc_type, exc_value, exc_traceback = sys.exc_info()
-                #traceback.print_exc(limit=2, file=sys.stdout)
+                traceback.print_exc(limit=2, file=sys.stdout)
                 raise e
             finally:
                 if entity.updated:
@@ -815,11 +815,10 @@ class ExtractFile(ChildProcessor):
             #traceback.print_exc(limit=4, file=sys.stdout)
             raise
             
-        
-        
         response,updatestatus=update_meta(self.solrid,changes,self.mycore,check=self.check)
         log.debug(response)
-        
+        if not self.post_result:
+        	    self.error_message='Post-processing failure - failed to correct meta'
         self.post_result=updatestatus
         log.debug(self.post_result)
         childresult=self.process_children()
