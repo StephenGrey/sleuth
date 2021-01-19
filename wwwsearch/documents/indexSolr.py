@@ -753,7 +753,7 @@ class ExtractFile(ChildProcessor):
     
     def alt_try(self):
         """ use alternate parsers to Solr Tika """
-        self.error_message=""
+        self.error_message="Used non-Tika indexing"
         self.alt_tried=True
         self.result=False
         if self.ext=='.msg':
@@ -812,15 +812,15 @@ class ExtractFile(ChildProcessor):
             log.debug(f'CHANGES: {changes}')
         except Exception as e:
             exc_type, exc_value, exc_traceback = sys.exc_info()
-            #traceback.print_exc(limit=4, file=sys.stdout)
+            traceback.print_exc(limit=4, file=sys.stdout)
             raise
             
         response,updatestatus=update_meta(self.solrid,changes,self.mycore,check=self.check)
         log.debug(response)
-        if not self.post_result:
-        	    self.error_message='Post-processing failure - failed to correct meta'
         self.post_result=updatestatus
         log.debug(self.post_result)
+        if not self.post_result:
+        	    self.error_message='Post-processing failure - failed to correct meta'
         childresult=self.process_children()
         log.debug(f'Child process result: {childresult}')
         if self.post_result and childresult:

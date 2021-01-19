@@ -405,13 +405,13 @@ def make_collection(request,path='',confirm=False):
     try:
         page.check_path()
         if confirm:
-            page.make_collection()
+            page.make_newcollection()
             page.live_update=None
 
     except documentpage.NoValidCollection as e:
         page.error=f"{e}"
     if page.error:
-        log.debug(page.error)
+        log.error(page.error)
     request.session['mycore']=page.coreID
     request.session['mysource']=page.sourceID
     request.session['live_update']=page.live_update

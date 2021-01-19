@@ -20,7 +20,7 @@ MEDIAROOT=dupsconfig.get('rootpath') if dupsconfig else None
 MASTER_FULLPATH=os.path.join(MEDIAROOT,MASTER_RELPATH)
 #SQL connection inside Index_Dispatch object if os.path.exists(MASTER_FULLPATH):
 #    master_index=file_utils.SqlFileIndex(MASTER_FULLPATH)
-
+IGNORE_EXT=['.kdi','.fdm','.fdx','.fnm','.nvd','.si','.tmd','.tip','.tmp','.fdt','.nvm']  #do not index solr index files 
 """
 
 watcher thread:  - watching file system
@@ -73,6 +73,10 @@ class Index_Dispatch:
     def process(self,event_type,sourcepath,destpath):
         self.event_type=event_type
         self.sourcepath=sourcepath
+        try:
+             root,self.source_ext=os.path.splitext(sourcepath)
+        except:
+            self.source_ext=None
         self.ignore=True if indexSolr.ignorefile(self.sourcepath) else False
         self.destpath=destpath
         self.check_base()
@@ -81,6 +85,8 @@ class Index_Dispatch:
         if self.master_index.sqlfilename==self.sourcepath or self.master_index.sqlfilename+"-journal"==self.sourcepath :
              #log.debug('ignore master database file')
              pass
+        elif self.source_ext in IGNORE_EXT:
+        	pass 
         elif self.event_type=='created':
             self.dupbase_create()
             self.create()
@@ -186,7 +192,7 @@ class Index_Dispatch:
         #no ignore list in dupbase
         #log.info('Adding new file to masterindex')
         if self.master_source_changed and not self.master_source_entry:
-            log.info(f'adding file {self.sourcepath} to file index')
+            log.info(f'adding file {self.sourcepath} to master file index ')
             self.master_index.add_new_file(self.sourcepath)
             self.master_index.save()
             

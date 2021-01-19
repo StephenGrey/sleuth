@@ -123,9 +123,10 @@ class CollectionPage(Page):
     
     
 class FilesPage(CollectionPage):
-    def __init__(self,request='',default_master='',path=''):
+    def __init__(self,request='',default_master='',path='',docstore=None):
         self.request=request
         self.docpath=path
+        self.docstore=docstore
         
         if self.request and default_master:
             self.local_scanpath=request.session.get('scanfolder')
@@ -257,12 +258,14 @@ class SolrFilesPage(CollectionPage):
     pass
         
 class MakeCollectionPage(CollectionPage):
-    def __init__(self,relpath='',rootpath=''):
+    def __init__(self,relpath='',rootpath='',docstore=None):
         self.docpath=relpath
         self.rootpath=rootpath
         self.error=None
         self.success=False
-        
+        self.docstore=docstore
+        self.live_update=False
+               
     def make_sources(self,request_method,request_postdata,source_initial=None,live_default=False):
         if request_method=='POST' and request_postdata.get('make_collection'):
             form=SourceForm(request_postdata)
@@ -319,7 +322,7 @@ class MakeCollectionPage(CollectionPage):
                 raise NoValidCollection('This folder has existing one or more existing collections inside\n -- remove them first!')
         return True
             
-    def make_collection(self):
+    def make_newcollection(self):
         try:
             source=Source.objects.get(id=self.sourceID)
             collection,created=make_collection.make(path=self._path, source=source,_index=self.myindex,live_update=self.live_update)
