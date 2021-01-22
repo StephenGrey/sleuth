@@ -1146,6 +1146,10 @@ def changed_file(_file):
         return True
     return False
 
+def match_any(text,patterns):
+	"check if text matches any regex patterns"
+	return any(re.compile(regex).match(text) for regex in regexes)
+
 
 class Dups_Lister(Dups_Index_Maker):
     def __init__(self):
