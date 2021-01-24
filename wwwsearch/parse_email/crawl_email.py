@@ -14,8 +14,17 @@ DOCBASE=os.path.abspath(os.path.join(os.path.dirname(__file__),'../tests/testdoc
 TESTPATH=os.path.join(DOCBASE,_relpath)
 TESTPATH2=os.path.join(DOCBASE,_relpath2)
 
+"""
+HUNT DUPLICATE .MSG FILES BASED ON MESSAGE ID
+
+(using two methods to find message ID)
+
+"""
+
+
 
 def db(path=TESTPATH):
+    """return a message index"""
     return MessageIndex(path,label='messages')
 
 class MessageIndex(SqlFileIndex):
@@ -45,14 +54,13 @@ class MessageIndex(SqlFileIndex):
                         log.debug(e)
         print(f'Scanned: {mcount}files; no id retrieved {nullcount}')
         self.save()            
+
     def message_dups(self):
         """return all messages that are duplicates"""
         return self.dup_doc_id()
     
     def list_message_dups(self):
-        dups=[]
-        
-         
+
         for d in self.message_dups().all():
             if d[0]=='': #ignore files with NO message_id
                 continue
@@ -61,6 +69,7 @@ class MessageIndex(SqlFileIndex):
 #        return dups
 
     def _inspect(self):
+        """list meta for duplicate messages"""
         for d,files in self.list_message_dups():
             print(d)
             for f in files:
@@ -71,11 +80,12 @@ class MessageIndex(SqlFileIndex):
                 if not os.path.exists(f.path):
                     print(f'File {f.path} does not exist')
     def purge(self,target):
+        """ move all duplicates (apart from first) to a target folder"""
         _count=0
         for d,files in self.list_message_dups():
             _count+=1
-            remove_files=files[1:] #no preference on which copy to keep
-            self.remove_files(remove_files,target)
+            files2remove=files[1:] #no preference on which copy to keep
+            self.remove_files(files2remove,target)
         print(f'Removed {_count}files')
 #    def add_orphans(self,search_folder=TESTPATH2):
 #    	       for filepath in search_orphans(self,target):
@@ -83,17 +93,19 @@ class MessageIndex(SqlFileIndex):
    
     def move_all(self,target):
         for d,files in self.list_message_dups():
-            remove_files=files
-            self.remove_files(remove_files,target)
+            files2remove=files
+            self.remove_files(files2remove,target)
 
-    def remove_files(self,remove_files,target):
-        for f in remove_files:
+    def remove_files(self,files2remove,target):
+        """ move a list of files to folder - recreating file tree
+              except if already exists"""
+        for f in files2remove:
             if target:
                 folder,filename=os.path.split(f.path)
                 print(f' oldfolder{folder}, path {self.folder_path}')
                 relfolder=relpath(folder,self.folder_path)
                 newfolder=os.path.join(target,relfolder)
-                make_folder(newfolder)
+                make_folder(newfolder) #make target folder if doesnt exist
                 try:
                     newpath=normalise(os.path.join(newfolder,filename))
                     print(f'moving {f.path} to {newpath}')
@@ -119,6 +131,12 @@ class MessageIndex(SqlFileIndex):
 
 
 class Compare():
+        """
+        Look for duplicate .msg in master_folder, comparing it to new (search_folder),
+        with functionality to move duplicates to output_folder
+        (uses sql database for each folder)
+        (duplicates keyed on message ID)
+        """
         def __init__(self,master_folder,search_folder,output_folder=None):
             self.master_folder=master_folder
             self.search_folder=search_folder
@@ -139,9 +157,9 @@ class Compare():
         	    self.local.message_scan()
         	    print('scans complete')
              
-            
         def search_local_dups(self):
-            #look through a folder
+            """check what .msg files in local folder already exist in master
+               return a generator of dups """
             #print(search_folder)
             blanks=0
             orphans=0
@@ -154,7 +172,7 @@ class Compare():
                         #message in search folder FOUND in  master specs
                         dups+=1
                         try:
-                            print(f'Duplicate id found in local filepath: {f.path} match in master: {q} ')
+                            print(f'Duplicate message id found in local filepath: {f.path} match in master: {q} ')
                         except Exception as e:
                             print(e)
                         yield f
@@ -162,17 +180,20 @@ class Compare():
                         orphans+=1 #the local file not found in master
                 else:
                     blanks+=1
-            print(f'Ignore {blanks} blanks in local folder')
+            print(f'Ignore {blanks} messages with no message id in local folder')
             print(f'Orphans found in local folder  {orphans}and dups: {dups}')
                         
         def inspect_local(self):
+            """ print meta for duplicates in local folder"""
             self.local._inspect()
     
         def purge_local(self):
+            """purge all the duplicates within the local folder"""
             self.local.purge(self.output_folder)
             self.local.rescan()
         
         def purge_dups_with_master(self):
+            """move all the local files that already exist in master"""
             print(f'removing dups to {self.output_folder}')
             self.local.remove_files(self.search_local_dups(),self.output_folder)
             self.local.rescan()
@@ -180,6 +201,7 @@ class Compare():
 
         
 def message_id(path):
+    """try two methods to extract message_ID"""
     try:
         msg = extract_msg.Message(path)
         _id=msg.header.get('Message-Id')
@@ -306,8 +328,6 @@ def message_id_v2(f):
     	    return None
     return windowsUnicode(data)
 
-    
-    
 
 def windowsUnicode(string):
     if string is None:
