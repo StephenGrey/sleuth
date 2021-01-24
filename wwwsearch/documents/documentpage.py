@@ -19,10 +19,11 @@ class NoValidCollection(Exception):
     pass
 
 class CollectionPage(Page):
-    def __init__(self,path=''):
+    def __init__(self,path='',docstore=None):
         self.docpath=path
         self.url_path=quote_plus(path)
         log.debug(self.url_path)
+        self.docstore=docstore
 
     def getcores(self,this_user,stored_core=None):
         """get authorised solr cores , choosed stored core or default """
@@ -91,7 +92,8 @@ class CollectionPage(Page):
         self.myindex=Index.objects.get(id=self.coreID)
         log.debug('my Index: {}'.format(self.myindex))
         self.authorised_collections=Collection.objects.filter(core=self.myindex)
-        self.authorised_collections_relpaths=[(make_relpath(c.path),c.id,c.live_update) for c in self.authorised_collections]
+        #print([x.path for x in self.authorised_collections])
+        self.authorised_collections_relpaths=[(make_relpath(c.path,docstore=self.docstore),c.id,c.live_update) for c in self.authorised_collections]
 
     def collection_updates(self,request_posted):
         _collection_IDs=request_posted.getlist('checked')
@@ -121,9 +123,10 @@ class CollectionPage(Page):
     
     
 class FilesPage(CollectionPage):
-    def __init__(self,request='',default_master='',path=''):
+    def __init__(self,request='',default_master='',path='',docstore=None):
         self.request=request
         self.docpath=path
+        self.docstore=docstore
         
         if self.request and default_master:
             self.local_scanpath=request.session.get('scanfolder')
@@ -255,12 +258,14 @@ class SolrFilesPage(CollectionPage):
     pass
         
 class MakeCollectionPage(CollectionPage):
-    def __init__(self,relpath='',rootpath=''):
+    def __init__(self,relpath='',rootpath='',docstore=None):
         self.docpath=relpath
         self.rootpath=rootpath
         self.error=None
         self.success=False
-        
+        self.docstore=docstore
+        self.live_update=False
+               
     def make_sources(self,request_method,request_postdata,source_initial=None,live_default=False):
         if request_method=='POST' and request_postdata.get('make_collection'):
             form=SourceForm(request_postdata)
@@ -317,7 +322,7 @@ class MakeCollectionPage(CollectionPage):
                 raise NoValidCollection('This folder has existing one or more existing collections inside\n -- remove them first!')
         return True
             
-    def make_collection(self):
+    def make_newcollection(self):
         try:
             source=Source.objects.get(id=self.sourceID)
             collection,created=make_collection.make(path=self._path, source=source,_index=self.myindex,live_update=self.live_update)

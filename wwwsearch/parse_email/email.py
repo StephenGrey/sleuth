@@ -81,6 +81,7 @@ class Email():
 			self.error_message=self.parsed.error_message
 		except:
 			pass
+		self.content_type=["application/vnd.ms-outlook"]
 		self.body=self.parsed.body
 		self.text=self.body #remove_control_characters(self.b ody)
 		self.date=self.parsed.date
@@ -96,6 +97,7 @@ class Email():
 	def parse2(self):
 		"""parse fields using msg_parser app"""
 		self.parsed=extract_msg.Message(self.filepath)
+		self.content_type=["application/vnd.ms-outlook"]
 		self.body=self.parsed.body
 		self.text=self.body #remove_control_characters(self.body)
 		self.date=self.parsed.date
@@ -118,6 +120,7 @@ class Email():
 			doc[self.mycore.hashcontentsfield]=self.contents_hash #also store hash in its own standard field
 		doc[self.mycore.rawtext]=self.text
 		doc['preview_html']=self.body
+		doc['content_type']=self.content_type
 		doc[self.mycore.sourcefield]=self.sourcetext
 		if self.date:
 			doc[self.mycore.datefield]=time_utils.iso_parse(self.date)	
@@ -135,7 +138,7 @@ class Email():
 		doc[self.mycore.docsizesourcefield1]=self.size
 		doc['sb_meta_only']=False
 		log.info(f' Indexing: {self.filepath}with id:  {self.contents_hash}')
-		log.debug(doc)
+		#log.debug(doc)
 		post_result,status=self._index(doc)
 		self.result=status
 		if not status:

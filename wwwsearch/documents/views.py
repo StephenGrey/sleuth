@@ -110,7 +110,7 @@ def getcores(page,request):
 
 @staff_member_required()
 def display_results(request,job_id=''):
-    
+    """show the detailed results of indexing"""
     results=r.hgetall(job_id)
     #log.debug(results)
     if not results:
@@ -123,12 +123,13 @@ def display_results(request,job_id=''):
             #failed=ast.literal_eval(json.loads(failed))
     except KeyError:
         failed=None
-    results['failed_list']=failed
-    log.debug(f'Failed list {failed}')
+    results['failed_list']=failed[:30]
+    log.debug(f'Failed list {failed}') #limit results to 30
     
     skipped=results.get('skipped_list')
     if skipped:
         results['skipped_list']=json.loads(skipped)
+        results['skipped_list']=results['skipped_list'][:20] # limit results to 20 
         #ast.literal_eval()
     #log.debug(f'Skipped list: {skipped}')
 #    results['failed_list']=[('/Volumes/Crypt/ownCloud/testfolder/willerby.TIF', 'Solr post timeout')]
@@ -139,6 +140,7 @@ def display_results(request,job_id=''):
 
 @staff_member_required()
 def listfiles(request):
+    """ list all the scanned files in a collection"""
     job_id=request.session.get('tasks')
     log.info(f'Stored jobs: {job_id}')
     page=documentpage.CollectionPage()
@@ -405,13 +407,13 @@ def make_collection(request,path='',confirm=False):
     try:
         page.check_path()
         if confirm:
-            page.make_collection()
+            page.make_newcollection()
             page.live_update=None
 
     except documentpage.NoValidCollection as e:
         page.error=f"{e}"
     if page.error:
-        log.debug(page.error)
+        log.error(page.error)
     request.session['mycore']=page.coreID
     request.session['mysource']=page.sourceID
     request.session['live_update']=page.live_update

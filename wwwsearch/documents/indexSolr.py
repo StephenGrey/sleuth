@@ -54,9 +54,12 @@ MAXSIZE_HASH=MAXSIZE_HASH_MB*(1024**2)
 
 """
 EXTRACT CONTENTS OF A FILE FROM LOCAL MEDIA INTO SOLR INDEX
-
-main method is extract(path,contentsHash,mycore,test=False)
 """
+#main method is extract(path,contentsHash,mycore,test=False)
+
+#in the event of a corrupted index, use CheckIndex  
+#FILEPATHTO...sleuth\solr\solr-8.7.0\server\solr-webapp\webapp\WEB-INF\lib>java -cp lucene-core-8.7.0.jar -ea:org.apache.lucene... org.apache.lucene.index.CheckIndex FILEPATHTO\NAME_OF_INDEX\data\index """
+
 
 class BadParameters(Exception):
     pass
@@ -175,11 +178,11 @@ class Extractor():
         """main loop"""
         for _file in self.filelist:
             entity=Entity(_file=_file)
-
+            #
             try:
                 self.extract_entity(entity)
             except Exception as e:
-                log.info(f'PATH : {_file.filepath} indexing failed, with exception {e}')
+                log.info(f'PATH : {_file.filepath} indexing failed, with UNCAUGHT exception {e}')
                 _file.indexedTry=True  #set flag to say we've tried
                 _file.save()
                 exc_type, exc_value, exc_traceback = sys.exc_info()
@@ -192,7 +195,7 @@ class Extractor():
     def extract_entity(self,entity):
         """extract single file to solr index"""
         _file=entity._file
-        if self.skip_file(_file): #ignore completely
+        if self.skip_file(_file): #ignore completely based on ignore pattern
             #ignore
             #log.debug('Skipping {}'.format(_file))
             pass
@@ -218,10 +221,10 @@ class Extractor():
                     entity.updated=True
                 self.extract_document(entity)
                 
-            if entity.result:
-                self.cleanup_success(entity)
-            else:
-                self.cleanup_fails(entity)
+                if entity.result:
+                    self.cleanup_success(entity)
+                else:
+                    self.cleanup_fails(entity)
             
         #update the user interface via redis
         if self.job and r:
@@ -252,8 +255,6 @@ class Extractor():
         _file.indexedTry=True  #set flag to say we've tried
         _file.indexMetaOnly=False
         entity.updated=True
-        
-
         
         
         if self.useICIJ:
@@ -339,6 +340,9 @@ class Extractor():
             meta_result=ext.post_process(indexed=False)
         except (s.SolrCoreNotFound,s.SolrConnectionError,requests.exceptions.RequestException) as e:
             raise ExtractInterruption(self.interrupt_message())
+        except Exception as e:
+            log.error(f'Uncaught error in meta extraction: {e}')
+            meta_result=False
         if meta_result:
             log.info(f'Meta data added successfully')
             _file.solrid=_file.hash_contents  #extract uses hashcontents for an id , so add it
@@ -490,7 +494,7 @@ class Extractor():
             #skip the extract, it's too big
             file.error_message=f'Too large {file.filesize}b'
             log.info(f'Skipped {file.error_message} path: {file.filename}')
-        elif file.filesize<3:
+        elif file.filesize<3 and not file.is_folder:
             #skip , it's empty
             file.error_message=f'Skipped. Empty file: {file.filesize}bytes'
             log.info(f'Skipped {file.error_message} path: {file.filename}')
@@ -510,25 +514,40 @@ class Extractor():
         _file=entity._file
         solrid=_file.hash_filename
         log.info('Adding (meta-only) folder name to index')
-           #extract a relative path from the docstore root
-        relpath=make_relpath(_file.filepath,docstore=self.docstore)
-        #args+='&literal.{}={}&literal.{}={}'.format(filepathfield,relpath,pathhashfield,file_utils.pathHash(path))
-        entity.result=updatetags(solrid,self.mycore,field_to_update='docpath',value=[relpath])
-        if entity.result:
-            _file.solrid=solrid
-            #add hash of parent relative path
-            if self.mycore.parenthashfield:
-                parenthash=file_utils.parent_hash(relpath)
-                #args+='&literal.{}={}'.format(parenthashfield,parenthash)
-                log.debug("Parenthash: {} Relpath: {}".format(parenthash,relpath))
-                entity.result=updatetags(solrid,self.mycore,field_to_update=self.mycore.parenthashfield,value=parenthash)
-            else:
-                log.debug('no parenthashfield')
-                entity.result=False    
+        try:
             
+            relpath=make_relpath(_file.filepath,docstore=self.docstore)
+            #args+='&literal.{}={}&literal.{}={}'.format(filepathfield,relpath,pathhashfield,file_utils.pathHash(path))
+            entity.result=updatetags(solrid,self.mycore,field_to_update='docpath',value=[relpath])
             if entity.result:
-                entity.result=updatetags(solrid,self.mycore,field_to_update=self.mycore.docnamesourcefield,value='Folder: {}'.format(_file.filename))
-    
+                _file.solrid=solrid
+                _file.indexedSuccess=True
+                entity.updated=True
+                #add hash of parent relative path
+                if self.mycore.parenthashfield:
+                    parenthash=file_utils.parent_hash(relpath)
+                    #args+='&literal.{}={}'.format(parenthashfield,parenthash)
+                    log.debug("Parenthash: {} Relpath: {}".format(parenthash,relpath))
+                    entity.result=updatetags(solrid,self.mycore,field_to_update=self.mycore.parenthashfield,value=parenthash)
+                else:
+                    log.debug('no parenthashfield')
+                    entity.result=False
+                
+                if entity.result:
+                    entity.result=updatetags(solrid,self.mycore,field_to_update=self.mycore.docnamesourcefield,value='Folder: {}'.format(_file.filename))
+                    return True
+                else:
+                    return False
+            else:
+                return False
+        except Exception as e:
+            log.error(f'Failed to add folder to index. Error: {e}')
+            entity.result=False
+            _file.error_message=str(e)
+            _file.indexedTry=True  #set flag to say we've tried
+            entity.updated=True
+            return False
+            
     def update_working_file(self,_filename):
         if self.job:
             r.hset(self.job,'working_file',_filename)
@@ -753,7 +772,7 @@ class ExtractFile(ChildProcessor):
     
     def alt_try(self):
         """ use alternate parsers to Solr Tika """
-        self.error_message=""
+        self.error_message="Used non-Tika indexing"
         self.alt_tried=True
         self.result=False
         if self.ext=='.msg':
@@ -815,13 +834,12 @@ class ExtractFile(ChildProcessor):
             traceback.print_exc(limit=4, file=sys.stdout)
             raise
             
-        
-        
         response,updatestatus=update_meta(self.solrid,changes,self.mycore,check=self.check)
         log.debug(response)
-        
         self.post_result=updatestatus
         log.debug(self.post_result)
+        if not self.post_result:
+        	    self.error_message='Post-processing failure - failed to correct meta'
         childresult=self.process_children()
         log.debug(f'Child process result: {childresult}')
         if self.post_result and childresult:
@@ -904,10 +922,11 @@ class Collection_Post_Processor(Extractor):
     def loop(self):
         for _file in self.filelist:
             _file.indexedTry=True
+            entity=Entity(_file=_file)
             if _file.is_folder:
                 #add folder to the index:
                 log.debug('Adding folder to index')
-                _file.indexedSuccess=True if self.extract_folder(_file) else False
+                _file.indexedSuccess=True if self.extract_folder(entity) else False
                 _file.save()
             else:
                 if self.skip_file(_file):
@@ -919,7 +938,6 @@ class Collection_Post_Processor(Extractor):
                     existing_doc=check_file_in_solrdata(_file,self.mycore) #searches by hashcontents, not solrid
                     if existing_doc:
                     #FIX META ONLY
-                        entity=Entity(_file=_file)
                         entity.existing_doc=existing_doc
                         result=self.update_existing_meta(entity,check=self.check)
                         

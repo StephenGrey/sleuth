@@ -83,7 +83,7 @@ class DocumentsTest(TestCase):
     def test_searchpageview(self):
         """test search page view"""  
         response = self.client.get(reverse('searchpageview', kwargs={'searchterm':'*', 'page_number':1,'sorttype':'relevance'}))
-        #print("Response: {}".format(response.content))
+        #print("Response: {}".format(response.content.decode("utf-8")))
         self.assertFalse("No results for search" in response.content.decode("utf-8"))
         response = self.client.get(reverse('searchpageview', kwargs={'searchterm':'Trump', 'page_number':0,'sorttype':'date'}))
         self.assertEqual(response.status_code,200)

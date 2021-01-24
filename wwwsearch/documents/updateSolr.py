@@ -107,9 +107,9 @@ class PurgeField(Updater):
         
     def modify(self,result):
         currentvalue=result.data.get(self.field)
-        print(f'SolrID: {result.id}  Current value: {currentvalue}')
+        #print(f'SolrID: {result.id}  Current value: {currentvalue}')
         data=make_remove_json(self.mycore,result.id,self.field,currentvalue)
-        print(data)
+        #print(data)
         post_jsondoc(data,self.mycore)
 
 class UpdateField(Updater):
@@ -632,7 +632,7 @@ def metaupdate_rawfile(_file,test_run=False):
     mycore=cores[_file.collection.core.id]
     metaupdate_file(_file,mycore,test_run=test_run)
 
-def metaupdate_file(_file,mycore,test_run=False):
+def metaupdate_file(_file,mycore,test_run=False,_docstore=DOCSTORE):
     if not _file.indexUpdateMeta:
         log.debug('Wrong call to metaupdate: Not flagged for update')
         return
@@ -642,7 +642,7 @@ def metaupdate_file(_file,mycore,test_run=False):
     results=s.getmeta(_file.solrid,core=mycore)  #get current contents of solr doc, without full contents
     if len(results)>0:
         solrdoc=results[0] #results come as a list so just take the first one
-        _changes=parsechanges(solrdoc,_file,mycore) #returns list of tuples [(field,newvalue),]
+        _changes=parsechanges(solrdoc,_file,mycore,docstore=_docstore) #returns list of tuples [(field,newvalue),]
         if _changes:
             #make changes to the solr index - using standardised fields
             json2post=makejson(solrdoc.id,_changes,mycore)
@@ -710,7 +710,7 @@ def path_changes(filepath,existing_paths,docstore=DOCSTORE):
     return True,existing_paths,p_hashes
 
 
-def parsechanges(solrresult,_file,mycore): 
+def parsechanges(solrresult,_file,mycore,docstore=DOCSTORE): 
     """take a Solr Result object,compare with _file database, 
    return change list [(standardisedsourcefield,resultfield,newvalue),..]"""
     #print(solrresult)
@@ -745,7 +745,7 @@ def parsechanges(solrresult,_file,mycore):
     #compare solr data with new metadata & make list of changes to make in solr
     changes=[] 
 
-    paths_are_missing,paths,p_hashes=check_paths(solrresult,_file,mycore)
+    paths_are_missing,paths,p_hashes=check_paths(solrresult,_file,mycore,docstore=docstore)
     if paths_are_missing:
         log.debug(f'Updating paths to: {paths}') 
         changes.append(('docpath','docpath',paths))

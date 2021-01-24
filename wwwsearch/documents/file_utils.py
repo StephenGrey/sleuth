@@ -1146,6 +1146,10 @@ def changed_file(_file):
         return True
     return False
 
+def match_any(text,patterns):
+	"check if text matches any regex patterns"
+	return any(re.compile(regex).match(text) for regex in regexes)
+
 
 class Dups_Lister(Dups_Index_Maker):
     def __init__(self):
@@ -2021,7 +2025,7 @@ def add_parent_hashes(_index):
             f.parent_hash=parent_hash(f.path)
         n+=1
         if n%100==0:
-            print (n)
+            #print (n)
             _index.save()
     _index.save()
                 

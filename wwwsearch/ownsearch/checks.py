@@ -19,7 +19,7 @@ class SolrIndexTests():
             print (core.__dict__)
             cores[core.id]=solrJson.SolrCore(core.corename)
             corenumber=str(core.id)
-            coredisplayname=core.coreDisplayName
+            coredisplayname=core.coreDisplayNamemim
             choice_list +=((corenumber,coredisplayname),) #value/label
         try:
             DEFAULTCOREID=int(config['Solr']['defaultcoreid'])

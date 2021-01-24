@@ -2,6 +2,7 @@
 import sys,datetime,time, logging, redis, sys,traceback,os, configs
 
 from tools import wwwsearch_connect #Connect to Django project
+from tools import ignore_files
 from django.conf import settings
 from documents import file_utils,changes,updateSolr,indexSolr,redis_cache
 from documents.models import File,Collection
@@ -20,7 +21,7 @@ MEDIAROOT=dupsconfig.get('rootpath') if dupsconfig else None
 MASTER_FULLPATH=os.path.join(MEDIAROOT,MASTER_RELPATH)
 #SQL connection inside Index_Dispatch object if os.path.exists(MASTER_FULLPATH):
 #    master_index=file_utils.SqlFileIndex(MASTER_FULLPATH)
-
+IGNORE_EXT=['.kdi','.fdm','.fdx','.fnm','.nvd','.si','.tmd','.tip','.tmp','.fdt','.nvm','.pos','.dvm',]  #do not index solr index files 
 """
 
 watcher thread:  - watching file system
@@ -73,14 +74,34 @@ class Index_Dispatch:
     def process(self,event_type,sourcepath,destpath):
         self.event_type=event_type
         self.sourcepath=sourcepath
-        self.ignore=True if indexSolr.ignorefile(self.sourcepath) else False
+        try:
+             root,self.source_ext=os.path.splitext(sourcepath)
+        except:
+            self.source_ext=None
+
+        """Ignore checks"""
+        #check if filetype to ignore or filepath fits a pattern (for ignored folders)
+        if indexSolr.ignorefile(self.sourcepath) or ignore_files.match_any(self.sourcepath):
+             self.ignore=True
+        #ignore masterdatabase file
+        elif self.master_index.sqlfilename==self.sourcepath or self.master_index.sqlfilename+"-journal"==self.sourcepath :
+             self.ignore=True
+        #skip a further list of ignored extensions
+        elif self.source_ext in IGNORE_EXT:
+             self.ignore=True
+        else:
+             self.ignore=False
+             
+        if self.ignore:
+            return #bail out if ignored
+
+        """Actions on event """
         self.destpath=destpath
         self.check_base()
         self.check_dupbase()
         log.debug(f'EVENT: {self.event_type}  PATH: {self.sourcepath}  (DESTPATH: {self.destpath})') if not self.ignore else None
-        if self.master_index.sqlfilename==self.sourcepath or self.master_index.sqlfilename+"-journal"==self.sourcepath :
-             log.debug('ignore master database file')
-        elif self.event_type=='created':
+        
+        if self.event_type=='created':
             self.dupbase_create()
             self.create()
             self._index()
@@ -93,7 +114,6 @@ class Index_Dispatch:
             self.moved()
             self._index()
         
-        #log.debug(f'Modification queues: {MODIFIED_FILES}, TIMES: {MODIFIED_TIMES}')
         
     def create(self):
 
@@ -185,7 +205,7 @@ class Index_Dispatch:
         #no ignore list in dupbase
         #log.info('Adding new file to masterindex')
         if self.master_source_changed and not self.master_source_entry:
-            log.info(f'adding file {self.sourcepath} to file index')
+            log.info(f'adding file {self.sourcepath} to master file index ')
             self.master_index.add_new_file(self.sourcepath)
             self.master_index.save()
             
@@ -218,6 +238,7 @@ class Index_Dispatch:
             
     
     def check_base(self):
+        """see if source or destination of file event is among live monitored files (within indexing model database)"""
         _database_files=file_utils.find_live_files(self.sourcepath)
         #log.debug(f'Existing files found: {_database_files}')
         
@@ -240,7 +261,7 @@ class Index_Dispatch:
             self.master_index=None
     
     def check_dupbase(self):
-        """check if file in master dupindex"""
+        """check if file in master dupindex (within separate dupbase sql database)"""
         if self.master_index:
             if file_utils.new_is_inside(self.sourcepath,self.master_index.folder_path):
                 #log.debug(f'sourcepath {self.sourcepath} inside master index folder')

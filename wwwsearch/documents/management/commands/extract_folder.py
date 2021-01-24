@@ -19,7 +19,7 @@ class Command(BaseCommand):
         parser.add_argument('-d', '--docstore',type=str, help='Path to root of document store')
             
     def handle(self, *args, **kwargs):
-        print(f"with arguments {args} and {kwargs}")
+        #print(f"with arguments {args} and {kwargs}")
         
         corename = kwargs['corename']
         dargs={}
@@ -37,7 +37,7 @@ class Command(BaseCommand):
         dargs.update({'docstore':docstore}) if docstore else None 
         
         try:
-            print(f'Extracting {corename} index with args: {dargs}')
+            #print(f'Extracting {corename} index with args: {dargs}')
             indexSolr.ExtractFolder(corename,**dargs)
         except BadParameters as e:
             print(e)
