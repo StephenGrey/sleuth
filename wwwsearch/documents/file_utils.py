@@ -899,8 +899,8 @@ class SqlFileIndex(sql_connect.SqlIndex,PathIndex):
            _files=[]
        _modified=[]
            
-       log.debug(f'Files in {path}: {_files}')
-       log.debug(self.lookup_parent_hash(pathHash(path)))
+       #log.debug(f'Files in {path}: {_files}')
+       #log.debug(self.lookup_parent_hash(pathHash(path)))
        
        #check files in database
        for _db_file in self.lookup_parent_hash((pathHash(path))):
@@ -1411,6 +1411,16 @@ def new_is_inside(filepath,folder):
     else:
         return False
 
+def nt_is_inside(filepath,folder):
+    """filepath inside a folder"""
+    if os.name=='nt' and filepath.startswith('\\\\?\\') and not folder.startswith('\\\\?\\'):
+        folder=u"\\\\?\\"+folder
+    if filepath.startswith(folder):
+        if os.path.commonpath([filepath,folder])==folder:
+            return True
+    return False
+
+
 def is_down(relpath, root=DOCSTORE):
     """is down folder tree"""
     path=os.path.abspath(os.path.join(root,relpath))
@@ -1421,7 +1431,7 @@ def is_absolute(path,root=DOCSTORE):
     
 def relpath_exists(relpath,root=DOCSTORE):
     if root:
-        return os.path.exists(os.path.join(root,relpath))
+        return os.path.exists(os.path.join(root,relpatfah))
     else:
         return False
 

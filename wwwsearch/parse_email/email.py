@@ -18,6 +18,10 @@ except:
 
 DEFAULT_CORE=SolrCore('tests_only')
 
+class LightMessage(Message):
+    """ignore attachments completely"""
+    def parseAttachments(self):
+        return None
 
 class LazyMessage(Message):
 	"""Not very strict parser! Parse a message even if some attachments fail"""
@@ -42,9 +46,10 @@ class LazyMessage(Message):
 
 class Email():
 	"""parse an Outlook .msg file and index it to solr index"""
-	def __init__(self,filepath,sourcetext='Not known',mycore=DEFAULT_CORE,docstore=DOCSTORE):
+	def __init__(self,filepath,sourcetext='Not known',mycore=DEFAULT_CORE,docstore=DOCSTORE,extract_attachments=True):
 		self.docstore=docstore
 		self.error_message=None
+		self.extract_attachments=extract_attachments
 		self.result=None
 		self.filepath=filepath
 		self.sourcetext=sourcetext
@@ -76,11 +81,15 @@ class Email():
 	
 	def parse(self):
 		"""parse fields from message"""
-		self.parsed=LazyMessage(self.filepath)
-		try:
-			self.error_message=self.parsed.error_message
-		except:
-			pass
+		if self.extract_attachments:
+			self.parsed=LazyMessage(self.filepath)
+			try:
+				self.error_message=self.parsed.error_message
+			except:
+				pass
+		else:
+			self.parsed=LightMessage(self.filepath)
+			self.error_message=None
 		self.content_type=["application/vnd.ms-outlook"]
 		self.body=self.parsed.body
 		self.text=self.body #remove_control_characters(self.b ody)
@@ -185,8 +194,7 @@ class Email():
 #        "message_to_display_name":["Hilton, Joy (Palmer)"],
 #        "extract_id":"38f3c0bd853aa49dc3963050633e93c8382c9a435c43760b2fe4315d0d06d647",
 #        "extract_base_type":["application/vnd.ms-outlook"],
-#        "extract_paths":["mixed_folder/2016-02-04 email to FW Newport AOC 15-020 WD - Fuss  O'Neill Draft Scope of Work  Schedule-NHDES comments.msg"],
-#        "extract_parent_paths":["/Users/Stephen/Code/Sleuth/wwwsearch/tests/testdocs/mixed_folder"],
+
 #        "extract_level":["0"],
 #        "tika_content":["FW: Newport AOC 15-020 WD - Fuss & O'Neill Draft Scope of Work & Schedule\n\tFrom\n\tWood, Tracy\n\tTo\n\tHilton, Joy (Palmer)\n\tRecipients\n\tHilton.Joy@epa.gov\n\nFYI.\n\n\n\n \n\n\n\nFrom: Jeffrey McDonald [mailto:JMcDonald@fando.com] \nSent: Thursday, February 04, 2016 9:28 AM\nTo: Wood, Tracy; LaBranche, Rene; Paul J. Brown\nCc: Spanos, Stergios; Roberts, Steve; Kessler, Kenneth; Hilliard, Brian\nSubject: RE: Newport AOC 15-020 WD - Fuss & O'Neill Draft Scope of Work & Schedule\n\n\n\n \n\n\n\nThank you, this is very helpful!\n\n\n\n \n\n\n\nJeff McDonald, PE\nAssociate\nFuss & O'Neill, Inc | | \n860.646.2469 x5339 | jmcdonald@fando.com | cell: 802.324.7720 \nwww.fando.com | twitter | facebook | linkedin\n\n\n\nFrom: Wood, Tracy [mailto:Tracy.Wood@des.nh.gov] \nSent: Thursday, February 04, 2016 8:11 AM\nTo: Jeffrey McDonald; LaBranche, Rene; Paul J. Brown\nCc: Spanos, Stergios; Roberts, Steve; Kessler, Kenneth; Hilliard, Brian\nSubject: Newport AOC 15-020 WD - Fuss & O'Neill Draft Scope of Work & Schedule\n\n\n\n \n\n\n\nPaul/Jeff/Rene,\n\n\n\n \n\n\n\nThank you for coming to DES last Thursday, January 28th to present the Draft Scope of Work for Newport’s Facilities Plan update.  DES has had the opportunity to review the Draft Scope of Work and offers the following comments:\n\n\n\n \n\n\n\nProject Understanding\n\n\n\n·         EPA AO 09-015 issued on March 6, 2009 was not “subsequently amended” but superseded by DES AOC 15-020 WD on September 1, 2015.  Revise first paragraph accordingly.\n\n\n\n·         Item c) states to perform pilot testing of up to two (2) preferred alternatives.  If additional pilot testing is determined to be necessary it is expected that the Town will undergo additional pilot testing as necessary.\n\n\n\nScope of Services\n\n\n\n·         2)f) Existing and projected flow.  Keep in mind that if the new WWTF will have an average daily design flow greater than 1.3 mgd, then Newport will have to address anti-degradation.\n\n\n\n·         3)d)vi) Present and proposed future discharge permits.  Please contact Ellen Weitzler (Weitzler.Ellen@epa.gov, tel. no. 617-918-1582) of EPA Region 1 to initiate discussion of  future discharge permits.  \n\n\n\nSchedule\n\n\n\n·         Meets the December 31, 2017 requirement of Section E.1. of DES AOC 15-020 WD to submit an updated facility plan with implementation schedule for final recommended alternative to upgrade Newport WWTF to meet its 2007 NPDES permit limits. \n\n\n\nIf you have any questions or comments please do not hesitate to contact me.\n\n\n\n \n\n\n\nThank you,\n\n\n\n-Tracy\n\n\n\n \n\n\n\nTracy L. Wood, PE, Administrator\n\n\n\nWastewater Engineering Bureau, NHDES\n\n\n\n29 Hazen Drive, PO Box 95, Concord, NH 03302\n\n\n\nTel: (603) 271-2001  |  Fax: (603) 271-4128\n\n\n\n \n\n\n\n\n\n\n"],
 #        "sb_source":["Test source"],

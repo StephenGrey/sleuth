@@ -196,6 +196,17 @@ class SqlIndex():
         except Exception as e:
             log.error(e)
             return []            
+    
+    def lookup_meta(self,name,length,last_mod=None):
+        try:
+            if last_mod:
+                return [f for f in self.session.query(File).filter(File.length==length,File.name==name,File.last_modified==last_mod)]
+            else:
+                return [f for f in self.session.query(File).filter(File.length==length,File.name==name)]
+        except Exception as e:
+            log.error(e)
+            return []            
+    
             
     def count_hash(self,_hash):
         return self.session.query(File).filter(File.contents_hash==_hash).count()
