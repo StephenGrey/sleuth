@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 import os,logging,shutil
+
 #from msg_parser import MsOxMessage
-from documents.file_utils import SqlFileIndex
+from documents.file_utils import SqlFileIndex, normalise
 from documents.file_utils import normalise, is_inside,nt_is_inside
 import extract_msg,olefile,sys
 from parse_email.email import Email
@@ -38,23 +39,29 @@ class MessageIndex(SqlFileIndex):
         """add missing message_id to database"""
         mcount=0
         nullcount=0
-        for f in self.files:
-            mcount+=1
-            if not f.document_id:
-                xt = os.path.splitext(f.name)[1]
-                if xt=='.msg':
-                    _id=message_id(f.path)
-                    if not _id:
-                        nullcount+=1
-                    f.document_id=_id
-                    
-                    try:
-                    #print(f'Message name: {f.name}')
-                        log.debug(f'Message ID: {_id}')if _id else None
-                    except Exception as e:
-                        log.debug(e)
-        print(f'Scanned: {mcount}files; no id retrieved {nullcount}')
-        self.save()            
+        new_ids=0
+        try:
+            for f in self.files:
+                mcount+=1
+                if not f.document_id:
+                    xt = os.path.splitext(f.name)[1]
+                    if xt=='.msg':
+                        _id=message_id(f.path)
+                        if not _id:
+                            nullcount+=1
+                            continue
+                        new_ids+=1
+                        f.document_id=_id
+                        if new_ids%100==0:
+                            self.save()
+                        try:
+                        #print(f'Message name: {f.name}')
+                            log.debug(f'Message ID: {_id} for {f.path}')if _id else None
+                        except Exception as e:
+                            log.debug(e)
+        finally:
+            print(f'Scanned: {mcount}files; no id retrieved {nullcount}')
+            self.save()            
 
     def message_dups(self):
         """return all messages that are duplicates"""
@@ -120,6 +127,7 @@ class MessageIndex(SqlFileIndex):
 
             else:
                 log.info('No destination specified')
+    
     def list_blanks(self):
         return self.lookup_doc_id("")
     
@@ -129,7 +137,44 @@ class MessageIndex(SqlFileIndex):
     	    for f in self.list_blanks():
     	    	if not os.path.isdir(f.path):
     	    	    shutil.copy2(f.path,os.path.join(target,os.path.basename(f.path)))
-
+    	    	    
+    
+    def fill_blank_ids(self):
+	    try:
+	    	for message in self.list_blanks():
+	    		try:
+	    			xt = os.path.splitext(message.name)[1]
+	    			if xt=='.msg':
+	    				i=Email(message.path,extract_attachments=False)
+	    				i.parse()
+	    				assert i.message_id is not None
+	    				print(i.message_id)
+	    				message.document_id=i.message_id
+	    		except Exception as e:
+	    			log.error(f'error with {message.path}')
+	    			log.error(e)
+	    finally:
+	   		self.save()
+	  
+    def check_all_alt_ids(self):
+	    try:
+	        changes=0
+	        for f in self.files:
+	        	xt = os.path.splitext(f.name)[1]
+	        	if xt=='.msg':
+	        		_id=f.document_id
+	        		if _id:
+		        		if not _id.startswith('<'):
+		        			_newid=message_id(f.path)
+		        			if _id != _newid:
+		        				changes+=1
+		        				f.document_id=_newid
+		        				if changes%1000==0:
+		        					log.debug(f'Made {changes} changes')
+		        					self.save()
+	    finally:
+	        self.save()
+	        log.debug(f'Made {changes} changes')
 
 class Compare():
         """
@@ -224,7 +269,7 @@ class Compare():
                         continue
                 #try directly searching by meta in the message
                 if self.meta_compare(f.path):
-                    #log.debug(f'Matched by meta {f}')
+                    log.debug(f'Matched by meta {f}')
                     dups+=1
                     continue
                 else:
@@ -247,8 +292,9 @@ class Compare():
                     newfolder=os.path.join(target_folder,relfolder)
                     make_folder(newfolder)
                     #print(f'new folder:{newfolder}')
+                    newpath=normalise(os.path.join(newfolder,filename))
                     try:
-                        shutil.copy2(f.path,os.path.join(newfolder,filename))
+                        shutil.copy2(f.path,newpath)
                         #os.rename(f,dst_dir_fd=newfolder)
                         copied+=1
                     except Exception as e:
@@ -284,7 +330,6 @@ class Compare():
             self.purge_dups_with_master() #remove messages already in master index
             self.copy_orphans() #copy into master index all messages remaining that have no match in master (by 3 methods)
             self.rescan_all()
-            
 
         
 def message_id(path):
@@ -386,7 +431,8 @@ def copy_orphans(specs,search_folder=TESTPATH2,target_folder=None):
             newfolder=os.path.join(target_folder,relfolder)
             make_folder(newfolder)
             #print(f'new folder:{newfolder}')
-            shutil.copy2(f,os.path.join(newfolder,filename))
+            newpath=normalise(os.path.join(newfolder,filename))
+            shutil.copy2(f,newpath)
             #os.rename(f,dst_dir_fd=newfolder)
         else:
             log.info('No destination specified')
@@ -399,7 +445,8 @@ def copy_dups(specs,search_folder=TESTPATH2,target_folder=None):
             newfolder=os.path.join(target_folder,relfolder)
             make_folder(newfolder)
             #print(f'new folder:{newfolder}')
-            shutil.copy2(f,os.path.join(newfolder,filename))
+            newpath=normalise(os.path.join(newfolder,filename))
+            shutil.copy2(f,newpath)
             #os.rename(f,dst_dir_fd=newfolder)
         else:
             log.info('No destination specified')
@@ -411,7 +458,8 @@ def move_dups(specs,search_folder=TESTPATH2,target_folder=None):
             relfolder=relpath(folder,search_folder)
             newfolder=os.path.join(target_folder,relfolder)
             make_folder(newfolder)
-            os.rename(f,os.path.join(newfolder,filename))
+            newpath=normalise(os.path.join(newfolder,filename))
+            os.rename(f,newpath)
         else:
             log.info('No destination specified')
 

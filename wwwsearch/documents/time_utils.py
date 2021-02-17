@@ -25,6 +25,10 @@ def timeaware(dumbtimeobject):
 def timestring(timeobject):
     return "{:%B %d,%Y %I:%M%p}".format(timeobject)
     
+def condensed_timestring(timeobject):
+    return "{:%Y%M%d%H%M%S}".format(timeobject)
+
+
 def timestringGMT(timeobject):
     return timeobject.strftime("%Y-%m-%dT%H:%M:%SZ")
     

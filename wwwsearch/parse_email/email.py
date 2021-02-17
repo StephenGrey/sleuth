@@ -1,4 +1,4 @@
-import os,json,collections,logging
+import os,json,collections,logging,hashlib
 from documents import time_utils
 from documents.file_utils import FileSpecs,make_relpath,parent_hash
 from documents.updateSolr import post_jsondoc
@@ -15,6 +15,19 @@ except:
 	DOCSTORE=''
 
 #Parts of this code incorporated from Aleph code base
+TIME_CONSTANTS={
+"SENT":['0039'],
+"RECEIVED":['0E06'],
+"CREATION_TIME":['3007'],
+"LAST_MODIFIED":['3008'],
+"END":['8004','8006','0061','8015'],
+"START":['0060','8003','8005','800B','8014'],
+"REMINDER":['8013'],
+"REPLY_TIME":['8033'],
+}
+
+
+
 
 DEFAULT_CORE=SolrCore('tests_only')
 
@@ -53,10 +66,14 @@ class Email():
 		self.result=None
 		self.filepath=filepath
 		self.sourcetext=sourcetext
+		
 		self.mycore=mycore
 		specs=FileSpecs(self.filepath)###
 		self.filename=specs.name
-		self.relpath=make_relpath(self.filepath,docstore=self.docstore)
+		try:
+			self.relpath=make_relpath(self.filepath,docstore=self.docstore)
+		except ValueError:
+			self.relpath="Failed relpath"
 		self.size=specs.length
 		self.error_message=None
 		self.contents_hash=specs.contents_hash
@@ -81,6 +98,7 @@ class Email():
 	
 	def parse(self):
 		"""parse fields from message"""
+		
 		if self.extract_attachments:
 			self.parsed=LazyMessage(self.filepath)
 			try:
@@ -90,18 +108,60 @@ class Email():
 		else:
 			self.parsed=LightMessage(self.filepath)
 			self.error_message=None
-		self.content_type=["application/vnd.ms-outlook"]
-		self.body=self.parsed.body
-		self.text=self.body #remove_control_characters(self.b ody)
-		self.date=self.parsed.date
+
+		self.parse_times() #extract all the different times
 		self.title=self.parsed.subject
 		self._from=self.parsed.header.get('From')
 		self.to=self.parsed.header.get('To')
 		self.author=self._from
+		self.senders=self.parsed.senders
+		self.sender=self.parsed.getStringField("0C1A")
+		self.sender_address=self.parsed.getStringField("0C1F")
 		self.subject=self.parsed.subject
-		self.message_id=self.parsed.header.get('Message-ID')
 		self.thread_id=self.parsed.header.get('Thread-Index')
 		self.content_type=self.parsed.header.get('Content-Type')
+		self.message_id=self.parsed.header.get('Message-ID')
+		self.location=self.parsed.getStringField("800D")
+		if not self.location:
+			self.location=self.parsed.getStringField("800A")
+		self.required=self.parsed.getStringField("0E04")
+		self.organiser=self.parsed.getStringField("0042")
+		self.start=self.time_props.get('START')
+		self.end=self.time_props.get('END')
+		self.last_mod=self.time_props.get('LAST_MODIFIED')
+		self.creation_time=self.time_props.get('CREATION_TIME')
+				
+		self.message_type=self.parsed.getStringField("001A")
+		self.content_type=["application/vnd.ms-outlook"]
+		self.body=self.parsed.body
+		
+		try:
+			self.date=time_utils.parse_time(self.parsed.date)
+		except:
+			self.date=None
+
+		if self.message_type =='IPM.Appointment' and self.start:
+			self.date=self.start
+		
+		self.content_enhance() #compose text from body and other details for contacts, appointments
+		if not self.message_id:
+			self.message_id=self.make_alt_id()
+	
+	def make_alt_id(self):
+		"""substitute a message ID if not exists"""
+		try:
+			_time=self.date
+		except:
+			_time=None
+		text2hash=self.text if self.text else self.contents_hash
+		_sender=next(item for item in [self.sender_address,self.sender,"@Unknown_source"] if item)
+		
+		if not _time or not text2hash or not _sender:
+			log.debug(f'Making alternate for {self.filepath} with missing value. time:{_time},{text2hash[:20]+"..."},{_sender}')
+		return alt_message_id(_time,text2hash,_sender)
+
+
+
 	
 	def parse2(self):
 		"""parse fields using msg_parser app"""
@@ -119,6 +179,43 @@ class Email():
 		self.thread_id=self.parsed.header.get('Thread-Index')
 		self.content_type=self.parsed.header.get('Content-Type')
 		
+	def parse_times(self):
+		self.time_props={}
+		for key,prop_list in TIME_CONSTANTS.items():
+			try:
+				for prop in prop_list:
+					try:
+						val=clean_time(self.parsed.mainProperties.get(prop+'0040').value)
+						if val:
+							self.time_props[key]=val
+							break
+					except:
+						pass
+			except Exception as e:
+				log.error(e)
+				log.error(prop)
+	
+	def save_attachments(self,target_folder):
+		"""dump attachments into a folder"""
+		for attach in self.parsed.attachments:
+			try:
+				open(os.path.join(target_folder,attach.longFilename),'wb').write(attach.data)
+			except Exception as e:
+				log.error(e)
+				
+	def content_enhance(self):
+		"""add content to text for indexing and display"""
+		if self.message_type =='IPM.Appointment':
+			self.text=f'Appointment: \n{self.subject}\nOrganiser: {self.organiser}\nTime: FROM: {self.start} TO: {self.end}\nLocation: {self.location}\nText: {self.body}'
+		elif self.message_type=='IPM.Contact':
+			self.text='Contact: \nText: {self.body}'
+		else:
+			self.text=self.body #remove_control_characters(self.b ody)
+
+#		if self._header:
+#			head_add="""
+#			----------------------- Internet Header --------------------------------"""+self._header
+#			self.text+=head_add
 	
 	
 	def extract(self):
@@ -200,6 +297,15 @@ class Email():
 #        "sb_source":["Test source"],
 #		
 
+def alt_message_id(last_mod,body,sender_email):
+	"""make a message ID for when none exists"""
+	_time=time_utils.condensed_timestring(last_mod)
+	_hash=hashlib.md5(body.encode('utf-8')).hexdigest()[-8:]
+	_sender=sender_email
+	return _time+_hash+_sender
+
+
+
 		
 	def _index(self,doc):
 		"""index to solr"""
@@ -211,3 +317,50 @@ class Email():
 def remove_control_characters(s):
 	return "".join(ch for ch in s if unicodedata.category(ch)[0]!="C")
 
+
+def msgEpoch(inp):
+	return (inp - 116444736000000000) / 10000000.0
+
+def clean_time(inp):
+	return time_utils.timefromstamp(msgEpoch(inp))
+
+
+def parse_times(msg):
+	time_props={}
+	props=msg.parsed.mainProperties.keys()
+	time_props=[x for x in props if x[-3:]=='040']
+	if True:
+		for prop in time_props:
+			
+			try:
+				val=clean_time(msg.parsed.mainProperties.get(prop).value)
+				print(f'Property: {prop} Value: {val}')
+			except AttributeError as e:
+				pass
+			except Exception as e:
+				log.error(e)
+				log.error(prop)
+
+
+def parse_strings(msg):
+	props=msg.parsed.mainProperties.keys()
+	s_props=[x for x in props if x[-3:]=='01F']
+	if True:
+		for prop in s_props:
+			print(prop)
+			try:
+#				val=msg.parsed.mainProperties.get(prop).value
+#				print(f'Property: {prop} Value: {val}')
+				print(msg.parsed.getStringField(prop[:4]))
+			except AttributeError as e:
+				pass
+			except Exception as e:
+				log.error(e)
+				log.error(prop)
+#
+
+"""
+
+040 data type - time - use MsgEpoch ton convert
+
+"""
