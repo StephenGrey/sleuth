@@ -1,7 +1,8 @@
-import os,json,collections,logging,hashlib
+import os,json,collections,logging,hashlib,tempfile
 from documents import time_utils
-from documents.file_utils import FileSpecs,make_relpath,parent_hash
-from documents.updateSolr import post_jsondoc
+from documents.file_utils import FileSpecs,make_relpath,parent_hash, get_contents_hash
+from documents.updateSolr import post_jsondoc,check_hash_in_solrdata
+#from documents.indexSolr import ExtractFile
 from msglite import Message,Attachment
 import unicodedata
 import extract_msg
@@ -25,9 +26,6 @@ TIME_CONSTANTS={
 "REMINDER":['8013'],
 "REPLY_TIME":['8033'],
 }
-
-
-
 
 DEFAULT_CORE=SolrCore('tests_only')
 
@@ -160,8 +158,6 @@ class Email():
 			log.debug(f'Making alternate for {self.filepath} with missing value. time:{_time},{text2hash[:20]+"..."},{_sender}')
 		return alt_message_id(_time,text2hash,_sender)
 
-
-
 	
 	def parse2(self):
 		"""parse fields using msg_parser app"""
@@ -220,6 +216,11 @@ class Email():
 	
 	def extract(self):
 		"""index the email"""
+		
+		#first deal with attachments
+		if self.extract_attachments and self.parsed.attachments:
+			self.emit_attachments()
+						
 		doc=collections.OrderedDict()  #keeps the JSON file in a nice order
 		doc[self.mycore.unique_id]=self.contents_hash #using the hash of the HTML body as the doc ID
 		if self.mycore.hashcontentsfield != self.mycore.unique_id:
@@ -251,6 +252,29 @@ class Email():
 			log.info(post_result)
 			self.error_message=post_result
 		return
+	
+	def emit_attachments(self):
+		"""index attachments in solr, if not already there"""
+		log.info('extracting attachments')
+		#put attachments into a temporary folder
+		if True: #to do catch exceptions
+			with tempfile.TemporaryDirectory() as tmpdirname:
+				print('created temporary directory', tmpdirname)
+				self.save_attachments(tmpdirname)
+				for x in os.listdir(tmpdirname):
+					log.info(f'Attempting to index attachment: {x}')
+					path=os.path.join(tmpdirname,x)
+					_hash=get_contents_hash(path,blocksize = 65536)
+					if _hash:
+						existing=check_hash_in_solrdata(contents_hash,mycore)
+						if existing:
+							log.info('Attachment exists already in the index')
+						else:
+							ext=ExtractFile(path,self.mycore,hash_contents='',sourcetext='',docstore=self.docstore,test=True,ocr=True,meta_only=False,check=True,retry=False)
+
+					#todo replace test=True
+
+	
 
 		"""other fields that could be added"""
 #        "subject":["Newport AOC 15-020 WD - Fuss & O'Neill Draft Scope of Work & Schedule"],
@@ -296,6 +320,12 @@ class Email():
 #        "tika_content":["FW: Newport AOC 15-020 WD - Fuss & O'Neill Draft Scope of Work & Schedule\n\tFrom\n\tWood, Tracy\n\tTo\n\tHilton, Joy (Palmer)\n\tRecipients\n\tHilton.Joy@epa.gov\n\nFYI.\n\n\n\n \n\n\n\nFrom: Jeffrey McDonald [mailto:JMcDonald@fando.com] \nSent: Thursday, February 04, 2016 9:28 AM\nTo: Wood, Tracy; LaBranche, Rene; Paul J. Brown\nCc: Spanos, Stergios; Roberts, Steve; Kessler, Kenneth; Hilliard, Brian\nSubject: RE: Newport AOC 15-020 WD - Fuss & O'Neill Draft Scope of Work & Schedule\n\n\n\n \n\n\n\nThank you, this is very helpful!\n\n\n\n \n\n\n\nJeff McDonald, PE\nAssociate\nFuss & O'Neill, Inc | | \n860.646.2469 x5339 | jmcdonald@fando.com | cell: 802.324.7720 \nwww.fando.com | twitter | facebook | linkedin\n\n\n\nFrom: Wood, Tracy [mailto:Tracy.Wood@des.nh.gov] \nSent: Thursday, February 04, 2016 8:11 AM\nTo: Jeffrey McDonald; LaBranche, Rene; Paul J. Brown\nCc: Spanos, Stergios; Roberts, Steve; Kessler, Kenneth; Hilliard, Brian\nSubject: Newport AOC 15-020 WD - Fuss & O'Neill Draft Scope of Work & Schedule\n\n\n\n \n\n\n\nPaul/Jeff/Rene,\n\n\n\n \n\n\n\nThank you for coming to DES last Thursday, January 28th to present the Draft Scope of Work for Newport’s Facilities Plan update.  DES has had the opportunity to review the Draft Scope of Work and offers the following comments:\n\n\n\n \n\n\n\nProject Understanding\n\n\n\n·         EPA AO 09-015 issued on March 6, 2009 was not “subsequently amended” but superseded by DES AOC 15-020 WD on September 1, 2015.  Revise first paragraph accordingly.\n\n\n\n·         Item c) states to perform pilot testing of up to two (2) preferred alternatives.  If additional pilot testing is determined to be necessary it is expected that the Town will undergo additional pilot testing as necessary.\n\n\n\nScope of Services\n\n\n\n·         2)f) Existing and projected flow.  Keep in mind that if the new WWTF will have an average daily design flow greater than 1.3 mgd, then Newport will have to address anti-degradation.\n\n\n\n·         3)d)vi) Present and proposed future discharge permits.  Please contact Ellen Weitzler (Weitzler.Ellen@epa.gov, tel. no. 617-918-1582) of EPA Region 1 to initiate discussion of  future discharge permits.  \n\n\n\nSchedule\n\n\n\n·         Meets the December 31, 2017 requirement of Section E.1. of DES AOC 15-020 WD to submit an updated facility plan with implementation schedule for final recommended alternative to upgrade Newport WWTF to meet its 2007 NPDES permit limits. \n\n\n\nIf you have any questions or comments please do not hesitate to contact me.\n\n\n\n \n\n\n\nThank you,\n\n\n\n-Tracy\n\n\n\n \n\n\n\nTracy L. Wood, PE, Administrator\n\n\n\nWastewater Engineering Bureau, NHDES\n\n\n\n29 Hazen Drive, PO Box 95, Concord, NH 03302\n\n\n\nTel: (603) 271-2001  |  Fax: (603) 271-4128\n\n\n\n \n\n\n\n\n\n\n"],
 #        "sb_source":["Test source"],
 #		
+		
+	def _index(self,doc):
+		"""index to solr"""
+		jsondoc=json.dumps([doc])
+		result,status=post_jsondoc(jsondoc,self.mycore)
+		return result,status
 
 def alt_message_id(last_mod,body,sender_email):
 	"""make a message ID for when none exists"""
@@ -304,14 +334,6 @@ def alt_message_id(last_mod,body,sender_email):
 	_sender=sender_email
 	return _time+_hash+_sender
 
-
-
-		
-	def _index(self,doc):
-		"""index to solr"""
-		jsondoc=json.dumps([doc])
-		result,status=post_jsondoc(jsondoc,self.mycore)
-		return result,status
 
 
 def remove_control_characters(s):

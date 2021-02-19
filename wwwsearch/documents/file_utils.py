@@ -1547,9 +1547,32 @@ def safe_hash(_hash):
         if re.match("^[a-z0-9]+$", _hash):
             return True
     return False
-    
-    
-    
+
+def purge_special_characters(folderpath,rename=False):
+	"""find file paths with strange characters and (optionally) replace"""
+	count=0
+	for x in file_tree(folderpath):
+		cleaned=big_bytes(x)
+		if cleaned!=x:
+			count+=1
+			if count>1000:
+				break
+			print(f'Original \n{x} to be replaced with cleaned \n{cleaned}')
+			if rename:
+				try:
+					os.rename(x,cleaned)
+				except Exception as e:
+					log.error(e)
+					raise
+					
+
+def big_bytes(path):
+	"""filter paths with emojis and other multi byte characters"""
+	orig=path
+	for char in path:
+		if ord(char)>10000:
+			orig=orig.replace(char,"X")
+	return orig
 
 
 #FILE MODEL METHODS
