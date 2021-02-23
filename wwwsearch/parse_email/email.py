@@ -2,7 +2,7 @@ import os,json,collections,logging,hashlib,tempfile
 from documents import time_utils
 from documents.file_utils import FileSpecs,make_relpath,parent_hash, get_contents_hash
 from documents.updateSolr import post_jsondoc,check_hash_in_solrdata
-#from documents.indexSolr import ExtractFile
+from documents.indexSolr import ExtractFile
 from msglite import Message,Attachment
 import unicodedata
 import extract_msg
@@ -266,11 +266,11 @@ class Email():
 					path=os.path.join(tmpdirname,x)
 					_hash=get_contents_hash(path,blocksize = 65536)
 					if _hash:
-						existing=check_hash_in_solrdata(contents_hash,mycore)
+						existing=check_hash_in_solrdata(_hash,self.mycore)
 						if existing:
 							log.info('Attachment exists already in the index')
 						else:
-							ext=ExtractFile(path,self.mycore,hash_contents='',sourcetext='',docstore=self.docstore,test=True,ocr=True,meta_only=False,check=True,retry=False)
+							ext=ExtractFile(path,self.mycore,hash_contents='',sourcetext='',docstore=tmpdirname,test=False,ocr=True,meta_only=False,check=True,retry=False)
 
 					#todo replace test=True
 

@@ -16,7 +16,7 @@ from ownsearch import solrJson as s
 from documents.updateSolr import scandocs,delete,updatetags,check_hash_in_solrdata,check_file_in_solrdata,remove_filepath_or_delete_solrrecord,makejson,update as update_meta,get_source,get_collection_source,check_paths,clear_date
 
 from ownsearch import solrJson as s
-from parse_email.email import Email
+from parse_email import email
 
 
 from fnmatch import fnmatch
@@ -776,7 +776,7 @@ class ExtractFile(ChildProcessor):
         self.alt_tried=True
         self.result=False
         if self.ext=='.msg':
-            _parser=Email(self.path,docstore=self.docstore,sourcetext=self.sourcetext,mycore=self.mycore)
+            _parser=email.Email(self.path,docstore=self.docstore,sourcetext=self.sourcetext,mycore=self.mycore)
             _parser.process()
             self.result=_parser.result
             self.error_message=_parser.error_message
