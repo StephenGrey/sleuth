@@ -1002,32 +1002,6 @@ class ExtractFileTest(ExtractTest):
         self.assertEquals(doc.data['title'], 'Newport Adimistrative Order by Consent (AOC) Status')
         
         
-    def test_email_alt(self):
-        """test email with alternative parser"""
-        _relpath='msg/test_email.msg'
-        _id='5b6fcfc9fe87b050255bb695a4616e3c7abddf282e6397fd868e03c1b0018fb0'
-        updateSolr.delete(_id,self.mycore)
-        
-        path=os.path.abspath(os.path.join(os.path.dirname(__file__), '../tests/testdocs', _relpath))
-
-        #first a test run, then a full extract into index        
-        self.assertTrue(os.path.exists(path))
-        
-
-        extractor=indexSolr.ExtractFile(path,self.mycore,hash_contents='',sourcetext='Test source',docstore=self.docstore,retry=True)
-        self.assertTrue(extractor.alt_tried)
-        
-        doc=updateSolr.check_hash_in_solrdata(_id,self.mycore)
-        
-        #print(doc.data['message_to'])
-        #print(self.docstore)
-
-        self.assertEquals(doc.data['message_to'],"'Adele Fulton' <AFulton@townandcitylaw.com>, \"Paul J. Brown\" <finance@newportnh.net>")
-        self.assertEquals(doc.data['message_from'],'"Wood, Tracy" <Tracy.Wood@des.nh.gov>')
-        self.assertEquals(doc.data['message_raw_header_message_id'],'<B7EE98A869777C49ACF006A8AA90665C63B8A2@HZNGRANMAIL1.granite.nhroot.int>')
-        self.assertEquals(doc.date,'2015-07-29T17:58:40Z')
-        self.assertEquals(doc.data['title'], 'Newport Adimistrative Order by Consent (AOC) Status')
-        self.assertEquals(Path(doc.data['docpath'][0]),Path('msg/test_email.msg'))
 
 
 #        extractor=indexSolr.ExtractFile(path,self.mycore,hash_contents='',sourcetext='',docstore=self.docstore,test=False)

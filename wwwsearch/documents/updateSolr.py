@@ -465,6 +465,16 @@ def makejson(solrid,changes,mycore):   #the changes use standard fields (e.g. 'd
     data=json.dumps([a])
     return data
 
+def make_atomic_json(solrid,changes,id_field):
+	"""make json instructiosn for atomic changes with fields already calculated"""
+	a=collections.OrderedDict()  #keeps the JSON file in a nice order
+	a[id_field]=solrid 
+	for field,value in changes.items():
+		a[field]={"set":value}
+	data=json.dumps([a])
+	return data
+	 
+
 def clear_date(solrid,mycore):
     docs=s.getmeta(solrid,mycore)
     if docs:

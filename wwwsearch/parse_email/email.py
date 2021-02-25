@@ -1,8 +1,8 @@
 import os,json,collections,logging,hashlib,tempfile
 from documents import time_utils
 from documents.file_utils import FileSpecs,make_relpath,parent_hash, get_contents_hash
-from documents.updateSolr import post_jsondoc,check_hash_in_solrdata
-from documents.indexSolr import ExtractFile
+from documents.updateSolr import post_jsondoc,check_hash_in_solrdata,make_atomic_json,post_jsonupdate
+from documents import indexSolr
 from msglite import Message,Attachment
 import unicodedata
 import extract_msg
@@ -57,18 +57,19 @@ class LazyMessage(Message):
 
 class Email():
 	"""parse an Outlook .msg file and index it to solr index"""
-	def __init__(self,filepath,sourcetext='Not known',mycore=DEFAULT_CORE,docstore=DOCSTORE,extract_attachments=True):
+	def __init__(self,filepath,sourcetext='Not known',mycore=DEFAULT_CORE,docstore=DOCSTORE,extract_attachments=True,level=0):
 		self.docstore=docstore
 		self.error_message=None
 		self.extract_attachments=extract_attachments
 		self.result=None
 		self.filepath=filepath
 		self.sourcetext=sourcetext
-		
+		self.level=level
 		self.mycore=mycore
 		specs=FileSpecs(self.filepath)###
 		self.filename=specs.name
 		try:
+			self.parent_folder=make_relpath(specs.parent_folder,docstore=self.docstore)
 			self.relpath=make_relpath(self.filepath,docstore=self.docstore)
 		except ValueError:
 			self.relpath="Failed relpath"
@@ -106,19 +107,21 @@ class Email():
 		else:
 			self.parsed=LightMessage(self.filepath)
 			self.error_message=None
-
+		log.info(self.parsed.header._headers)
 		self.parse_times() #extract all the different times
 		self.title=self.parsed.subject
 		self._from=self.parsed.header.get('From')
 		self.to=self.parsed.header.get('To')
 		self.author=self._from
 		self.senders=self.parsed.senders
+		self.cc=self.parsed.cc
 		self.sender=self.parsed.getStringField("0C1A")
 		self.sender_address=self.parsed.getStringField("0C1F")
 		self.subject=self.parsed.subject
 		self.thread_id=self.parsed.header.get('Thread-Index')
 		self.content_type=self.parsed.header.get('Content-Type')
 		self.message_id=self.parsed.header.get('Message-ID')
+		self.originating_ip=self.parsed.header.get('x-originating-ip')
 		self.location=self.parsed.getStringField("800D")
 		if not self.location:
 			self.location=self.parsed.getStringField("800A")
@@ -132,6 +135,7 @@ class Email():
 		self.message_type=self.parsed.getStringField("001A")
 		self.content_type=["application/vnd.ms-outlook"]
 		self.body=self.parsed.body
+		self.index_text=self.body
 		
 		try:
 			self.date=time_utils.parse_time(self.parsed.date)
@@ -203,15 +207,19 @@ class Email():
 		"""add content to text for indexing and display"""
 		if self.message_type =='IPM.Appointment':
 			self.text=f'Appointment: \n{self.subject}\nOrganiser: {self.organiser}\nTime: FROM: {self.start} TO: {self.end}\nLocation: {self.location}\nText: {self.body}'
+			self.index_text=self.text
 		elif self.message_type=='IPM.Contact':
 			self.text='Contact: \nText: {self.body}'
+			self.index_text=self.text
 		else:
 			self.text=self.body #remove_control_characters(self.b ody)
 
-#		if self._header:
+#		if self.parsed.header:
+#			
+#			log.info(str(self.parsed.header.keys()))
 #			head_add="""
-#			----------------------- Internet Header --------------------------------"""+self._header
-#			self.text+=head_add
+#			----------------------- Internet Header --------------------------------"""+self.parsed.header
+#			self.index_text=self.body+head_add
 	
 	
 	def extract(self):
@@ -230,15 +238,19 @@ class Email():
 		doc['content_type']=self.content_type
 		doc[self.mycore.sourcefield]=self.sourcetext
 		if self.date:
-			doc[self.mycore.datefield]=time_utils.iso_parse(self.date)	
-		doc['title']=self.title,
-		doc['message_from']=self._from,
-		doc['message_to']=self.to,
-		doc['author']=self.author,
+			doc[self.mycore.datefield]=time_utils.ISOtimestring(self.date)	
+		doc['title']=self.title
+		doc['message_from']=self._from
+		doc["message_from_email"]=self.sender_address
+		doc['message_to']=self.to
+		doc['message_cc']=self.cc
+		doc['author']=self.author
 		doc['subject']=self.subject
-		doc['extract_parent_paths']=[self.filepath]
-		doc['extract_level']=["0"]
+		doc['extract_parent_paths']=[self.parent_folder]
+		doc['extract_level']=[f"{self.level}"]
 		doc['message_raw_header_message_id']=self.message_id
+		doc["message_raw_header_thread_index"]=self.thread_id
+		doc["message_raw_header_x_originating_ip"]=self.originating_ip
 		doc[self.mycore.docnamesourcefield]=self.filename
 		doc[self.mycore.docpath]=self.relpath
 		doc[self.mycore.parenthashfield]=self.parenthash
@@ -251,8 +263,35 @@ class Email():
 		if not status:
 			log.info(post_result)
 			self.error_message=post_result
+		
+		
 		return
 	
+	
+	def add_attachment_meta(self,filename,_hash,level,parent_id):
+		doc={}  #keeps the JSON file in a nice order
+#		doc[self.mycore.unique_id]=_hash
+		doc[self.mycore.sourcefield]=self.sourcetext
+		doc[self.mycore.docnamesourcefield]=filename
+		doc[self.mycore.docpath]=self.relpath	#keep original root file as the path
+		doc[self.mycore.parenthashfield]=self.parenthash
+#       "extract_paths":["/Users/Stephen/Code/Sleuth/wwwsearch/tests/testdocs/msg/test_with_attachment.msg"],
+		doc['extract_parent_paths']=[self.parent_folder]
+		doc['extract_level']=[f"{level}"]
+		doc['extract_parent_id']=[parent_id]
+		doc['extract_root']=[self.contents_hash]
+		doc['sb_source']=["some source"]
+		doc['sb_meta_only']=False
+		data=make_atomic_json(_hash,doc,self.mycore.unique_id)
+		response,poststatus=post_jsonupdate(data,self.mycore,test=False,check=True)
+		log.debug('Response: {} PostStatus: {}'.format(response,poststatus))
+#		post_result,status=self._index(doc)
+#		if not status:
+#			log.info(post_result)
+#			self.error_message=post_result
+#		return		
+		
+
 	def emit_attachments(self):
 		"""index attachments in solr, if not already there"""
 		log.info('extracting attachments')
@@ -270,7 +309,8 @@ class Email():
 						if existing:
 							log.info('Attachment exists already in the index')
 						else:
-							ext=ExtractFile(path,self.mycore,hash_contents='',sourcetext='',docstore=tmpdirname,test=False,ocr=True,meta_only=False,check=True,retry=False)
+							ext=indexSolr.ExtractFile(path,self.mycore,hash_contents='',sourcetext='',docstore=tmpdirname,test=False,ocr=True,meta_only=False,check=True,retry=False,level=self.level+1)
+							self.add_attachment_meta(x,_hash,self.level+1,self.contents_hash)
 
 					#todo replace test=True
 
@@ -326,6 +366,8 @@ class Email():
 		jsondoc=json.dumps([doc])
 		result,status=post_jsondoc(jsondoc,self.mycore)
 		return result,status
+		
+		
 
 def alt_message_id(last_mod,body,sender_email):
 	"""make a message ID for when none exists"""

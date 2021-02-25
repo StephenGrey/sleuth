@@ -743,10 +743,11 @@ class ChildProcessor():
   
 
 class ExtractFile(ChildProcessor):
-    def __init__(self,path,mycore,hash_contents='',sourcetext='',docstore=DOCSTORE,test=False,ocr=True,meta_only=False,check=True,retry=False):
+    def __init__(self,path,mycore,hash_contents='',sourcetext='',docstore=DOCSTORE,test=False,ocr=True,meta_only=False,check=True,retry=False,level=0):
         self.path=path
         self.ocr=ocr
         self.check=check
+        self.level=level
         specs=file_utils.FileSpecs(path,scan_contents=False)###
         self.filename=specs.name
         self.ext=specs.ext
@@ -776,7 +777,7 @@ class ExtractFile(ChildProcessor):
         self.alt_tried=True
         self.result=False
         if self.ext=='.msg':
-            _parser=email.Email(self.path,docstore=self.docstore,sourcetext=self.sourcetext,mycore=self.mycore)
+            _parser=email.Email(self.path,docstore=self.docstore,sourcetext=self.sourcetext,mycore=self.mycore,level=self.level)
             _parser.process()
             self.result=_parser.result
             self.error_message=_parser.error_message

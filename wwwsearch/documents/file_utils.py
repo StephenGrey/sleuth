@@ -90,6 +90,11 @@ class FileSpecs:
     @property
     def parent_hash(self):
         return parent_hash(self.path)
+        
+    @property
+    def parent_folder(self):
+        parent,filename=os.path.split(self.path)
+        return parent
     
     @property
     def date_from_path(self):
