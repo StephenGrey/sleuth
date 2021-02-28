@@ -66,6 +66,7 @@ class Email():
 		self.sourcetext=sourcetext
 		self.level=level
 		self.mycore=mycore
+		self.attachment_list=[]
 		specs=FileSpecs(self.filepath)###
 		self.filename=specs.name
 		try:
@@ -107,14 +108,20 @@ class Email():
 		else:
 			self.parsed=LightMessage(self.filepath)
 			self.error_message=None
-		log.info(self.parsed.header._headers)
+		#log.info(self.parsed.header._headers)
 		self.parse_times() #extract all the different times
 		self.title=self.parsed.subject
 		self._from=self.parsed.header.get('From')
 		self.to=self.parsed.header.get('To')
 		self.author=self._from
+		
+		self.bcc=self.parsed.bcc
+		self.recipient_emails=[x.email for x in self.parsed.recipients]
 		self.senders=self.parsed.senders
 		self.cc=self.parsed.cc
+		
+		log.info([x for x in self.cc])
+		
 		self.sender=self.parsed.getStringField("0C1A")
 		self.sender_address=self.parsed.getStringField("0C1F")
 		self.subject=self.parsed.subject
@@ -213,13 +220,6 @@ class Email():
 			self.index_text=self.text
 		else:
 			self.text=self.body #remove_control_characters(self.b ody)
-
-#		if self.parsed.header:
-#			
-#			log.info(str(self.parsed.header.keys()))
-#			head_add="""
-#			----------------------- Internet Header --------------------------------"""+self.parsed.header
-#			self.index_text=self.body+head_add
 	
 	
 	def extract(self):
@@ -228,7 +228,8 @@ class Email():
 		#first deal with attachments
 		if self.extract_attachments and self.parsed.attachments:
 			self.emit_attachments()
-						
+		
+		log.info(self.attachment_list)					
 		doc=collections.OrderedDict()  #keeps the JSON file in a nice order
 		doc[self.mycore.unique_id]=self.contents_hash #using the hash of the HTML body as the doc ID
 		if self.mycore.hashcontentsfield != self.mycore.unique_id:
@@ -242,8 +243,12 @@ class Email():
 		doc['title']=self.title
 		doc['message_from']=self._from
 		doc["message_from_email"]=self.sender_address
-		doc['message_to']=self.to
 		doc['message_cc']=self.cc
+		doc["message_cc_email"]=""
+		doc['message_to']=self.to
+		doc["message_to_email"]=self.recipient_emails
+		doc["message_bcc"]=self.bcc
+		doc["attachment_list"]=self.attachment_list
 		doc['author']=self.author
 		doc['subject']=self.subject
 		doc['extract_parent_paths']=[self.parent_folder]
@@ -263,8 +268,6 @@ class Email():
 		if not status:
 			log.info(post_result)
 			self.error_message=post_result
-		
-		
 		return
 	
 	
@@ -295,8 +298,9 @@ class Email():
 	def emit_attachments(self):
 		"""index attachments in solr, if not already there"""
 		log.info('extracting attachments')
+		
 		#put attachments into a temporary folder
-		if True: #to do catch exceptions
+		try: #to do catch exceptions
 			with tempfile.TemporaryDirectory() as tmpdirname:
 				print('created temporary directory', tmpdirname)
 				self.save_attachments(tmpdirname)
@@ -304,6 +308,7 @@ class Email():
 					log.info(f'Attempting to index attachment: {x}')
 					path=os.path.join(tmpdirname,x)
 					_hash=get_contents_hash(path,blocksize = 65536)
+					self.attachment_list.append((x,_hash))
 					if _hash:
 						existing=check_hash_in_solrdata(_hash,self.mycore)
 						if existing:
@@ -311,8 +316,8 @@ class Email():
 						else:
 							ext=indexSolr.ExtractFile(path,self.mycore,hash_contents='',sourcetext='',docstore=tmpdirname,test=False,ocr=True,meta_only=False,check=True,retry=False,level=self.level+1)
 							self.add_attachment_meta(x,_hash,self.level+1,self.contents_hash)
-
-					#todo replace test=True
+		except Exception as e:
+			log.error(e)
 
 	
 

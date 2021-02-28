@@ -731,6 +731,24 @@ def getmeta(docid,core):
     return res.results
     
 
+def get_email_meta(docid,core):
+    """return fields used for email messages"""
+    searchterm='{}:\"{}\"'.format(core.unique_id,docid)
+    args='&fl={}'.format(core.unique_id)
+    args+=","+core.sourcefield if core.sourcefield else ""
+    args+=","+core.docpath+","+core.datefield+","+core.docsizefield+","+core.datefield+","+core.docnamefield
+    args+=","+core.parenthashfield if core.parenthashfield else ""
+    args+=","+core.beforefield if core.beforefield else ""
+    args+=","+core.nextfield if core.nextfield else ""
+    args+=","+core.meta_only if core.meta_only else ""  
+    args+="title,message_from,message_to,message_cc,author,subject,extract_parent_paths,extract_level,message_raw_header_message_id,message_raw_header_thread_index,message_raw_header_x_originating_ip,extract_parent_id,extract_root,attachment_list,message_to_email,message_from_email,message_bcc"
+    jres=getJSolrResponse(searchterm,args,core=core)
+    #log.debug(args,jres)
+    res=getlist(jres,0,core=core)
+    return res.results
+
+
+
 def getfield(docid,field,core,resultfield=''):
     """return contents of single field in solr doc"""
     searchterm='{}:\"{}\"'.format(core.unique_id,docid)

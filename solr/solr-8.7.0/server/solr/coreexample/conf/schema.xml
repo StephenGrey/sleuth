@@ -473,7 +473,7 @@
   <field name="title" type="text_general"/>
   <field name="subject" type="text_general"/>
 
-
+  <field name="attachment_list" type="text_general" multiValued="true"/>
 <!--MORE email fields --> 
   <field name="message_raw_header_thread_index" type="text_general" multiValued="false"/>
   <field name="message_raw_header_message_id" type="text_general" multiValued="false"/>
