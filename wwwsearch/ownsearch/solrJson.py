@@ -730,6 +730,23 @@ def getmeta(docid,core):
     res=getlist(jres,0,core=core)
     return res.results
     
+def search_meta(field,value,core):
+    searchterm='{}:\"{}\"'.format(field,value)
+    args='&fl={}'.format(core.unique_id)
+    args+=","+core.docpath+","+core.datefield+","+core.docsizefield+","+core.datefield+","+core.docnamefield
+    args+=","+core.parenthashfield if core.parenthashfield else ""
+    args+=","+core.beforefield if core.beforefield else ""
+    args+=","+core.nextfield if core.nextfield else ""
+    args+=","+core.sequencefield if core.sequencefield else ""
+    args+=","+core.sourcefield if core.sourcefield else ""
+    args+=","+core.meta_only if core.meta_only else ""
+    jres=getJSolrResponse(searchterm,args,core=core)
+    #log.debug(args,jres)
+    res=getlist(jres,0,core=core)
+    return res.results
+    
+    
+    
 
 def get_email_meta(docid,core):
     """return fields used for email messages"""

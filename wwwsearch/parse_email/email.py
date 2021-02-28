@@ -2,6 +2,7 @@ import os,json,collections,logging,hashlib,tempfile
 from documents import time_utils
 from documents.file_utils import FileSpecs,make_relpath,parent_hash, get_contents_hash
 from documents.updateSolr import post_jsondoc,check_hash_in_solrdata,make_atomic_json,post_jsonupdate
+from ownsearch.solrJson import search_meta
 from documents import indexSolr
 from msglite import Message,Attachment
 import unicodedata
@@ -57,7 +58,7 @@ class LazyMessage(Message):
 
 class Email():
 	"""parse an Outlook .msg file and index it to solr index"""
-	def __init__(self,filepath,sourcetext='Not known',mycore=DEFAULT_CORE,docstore=DOCSTORE,extract_attachments=True,level=0):
+	def __init__(self,filepath,sourcetext='Not known',mycore=DEFAULT_CORE,docstore=DOCSTORE,extract_attachments=True,level=0,in_memory=False,root_id=None,parent_id=None):
 		self.docstore=docstore
 		self.error_message=None
 		self.extract_attachments=extract_attachments
@@ -66,6 +67,9 @@ class Email():
 		self.sourcetext=sourcetext
 		self.level=level
 		self.mycore=mycore
+		
+			
+		self.in_memory=in_memory
 		self.attachment_list=[]
 		specs=FileSpecs(self.filepath)###
 		self.filename=specs.name
@@ -73,10 +77,19 @@ class Email():
 			self.parent_folder=make_relpath(specs.parent_folder,docstore=self.docstore)
 			self.relpath=make_relpath(self.filepath,docstore=self.docstore)
 		except ValueError:
+			self.parent_folder=specs.parent_folder
 			self.relpath="Failed relpath"
 		self.size=specs.length
 		self.error_message=None
 		self.contents_hash=specs.contents_hash
+		if root_id:
+			self.root_id=root_id
+		elif level==0:
+			self.root_id=self.contents_hash
+		else:
+			self.root_id=None
+		
+		self.parent_id=parent_id
 		if self.mycore.parenthashfield:
 			self.parenthash=parent_hash(self.relpath)
 
@@ -98,13 +111,14 @@ class Email():
 	
 	def parse(self):
 		"""parse fields from message"""
-		
 		if self.extract_attachments:
-			self.parsed=LazyMessage(self.filepath)
-			try:
-				self.error_message=self.parsed.error_message
-			except:
-				pass
+			#if email is in memory & not a file then add to object before coming here
+			if not self.in_memory:
+				self.parsed=LazyMessage(self.filepath)
+				try:
+					self.error_message=self.parsed.error_message
+				except:
+					pass
 		else:
 			self.parsed=LightMessage(self.filepath)
 			self.error_message=None
@@ -114,14 +128,10 @@ class Email():
 		self._from=self.parsed.header.get('From')
 		self.to=self.parsed.header.get('To')
 		self.author=self._from
-		
 		self.bcc=self.parsed.bcc
 		self.recipient_emails=[x.email for x in self.parsed.recipients]
 		self.senders=self.parsed.senders
 		self.cc=self.parsed.cc
-		
-		log.info([x for x in self.cc])
-		
 		self.sender=self.parsed.getStringField("0C1A")
 		self.sender_address=self.parsed.getStringField("0C1F")
 		self.subject=self.parsed.subject
@@ -155,6 +165,8 @@ class Email():
 		self.content_enhance() #compose text from body and other details for contacts, appointments
 		if not self.message_id:
 			self.message_id=self.make_alt_id()
+			
+
 	
 	def make_alt_id(self):
 		"""substitute a message ID if not exists"""
@@ -206,10 +218,11 @@ class Email():
 		"""dump attachments into a folder"""
 		for attach in self.parsed.attachments:
 			try:
-				open(os.path.join(target_folder,attach.longFilename),'wb').write(attach.data)
+				if attach.type !='msg':
+					open(os.path.join(target_folder,attach.longFilename),'wb').write(attach.data)
 			except Exception as e:
 				log.error(e)
-				
+				log.error(f'target_folder: {target_folder}, filename:{attach.longFilename}, attachment:{attach.__dict__}')
 	def content_enhance(self):
 		"""add content to text for indexing and display"""
 		if self.message_type =='IPM.Appointment':
@@ -224,14 +237,20 @@ class Email():
 	
 	def extract(self):
 		"""index the email"""
+
+		if self.in_memory:
+			self.solr_id=self.message_id
+		else:
+			self.solr_id=self.contents_hash
 		
 		#first deal with attachments
 		if self.extract_attachments and self.parsed.attachments:
 			self.emit_attachments()
-		
-		log.info(self.attachment_list)					
+		log.info(self.attachment_list)					#TODO remove
 		doc=collections.OrderedDict()  #keeps the JSON file in a nice order
-		doc[self.mycore.unique_id]=self.contents_hash #using the hash of the HTML body as the doc ID
+		
+
+		doc[self.mycore.unique_id]=self.solr_id
 		if self.mycore.hashcontentsfield != self.mycore.unique_id:
 			doc[self.mycore.hashcontentsfield]=self.contents_hash #also store hash in its own standard field
 		doc[self.mycore.rawtext]=self.text
@@ -256,6 +275,12 @@ class Email():
 		doc['message_raw_header_message_id']=self.message_id
 		doc["message_raw_header_thread_index"]=self.thread_id
 		doc["message_raw_header_x_originating_ip"]=self.originating_ip
+		
+		if self.parent_id:
+			doc["extract_parent_id"]=self.parent_id
+		if self.root_id:
+			doc["extract_root"]=self.root_id
+		
 		doc[self.mycore.docnamesourcefield]=self.filename
 		doc[self.mycore.docpath]=self.relpath
 		doc[self.mycore.parenthashfield]=self.parenthash
@@ -299,7 +324,11 @@ class Email():
 		"""index attachments in solr, if not already there"""
 		log.info('extracting attachments')
 		
-		#put attachments into a temporary folder
+		if self.level>3:
+			print('max level stop')
+			return
+		
+		#put file attachments into a temporary folder and extract
 		try: #to do catch exceptions
 			with tempfile.TemporaryDirectory() as tmpdirname:
 				print('created temporary directory', tmpdirname)
@@ -318,6 +347,32 @@ class Email():
 							self.add_attachment_meta(x,_hash,self.level+1,self.contents_hash)
 		except Exception as e:
 			log.error(e)
+			
+		#deal with messages attached to messag
+		for attach in self.parsed.attachments:
+			#log.info(attach.__dict__)
+			if attach.type=='msg':
+				
+				msg=Email(self.filepath,sourcetext=self.sourcetext,mycore=self.mycore,docstore=self.docstore,extract_attachments=self.extract_attachments,level=self.level+1,in_memory=True,root_id=self.root_id,parent_id=self.solr_id)
+				msg.parsed=attach.data
+				msg.parse()
+				if msg.message_id:
+					previous=search_meta("message_raw_header_message_id",msg.message_id,self.mycore)
+				else:
+					log.info('No message id stored')
+					previous=None
+				if previous:
+					log.info('Attachment message {msg.message_id} already indexed')
+					try:
+						doc_id=previous[0].id
+						self.attachment_list.append((f'EmailMessage: {msg.subject}',doc_id))
+						continue
+					except Exception as e:
+						log.error(e)
+				else:
+					msg.extract()
+					self.attachment_list.append((f'EmailMessage: {msg.subject}',msg.message_id))
+		
 
 	
 
