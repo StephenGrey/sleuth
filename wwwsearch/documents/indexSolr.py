@@ -761,15 +761,13 @@ class ExtractFile(ChildProcessor):
         self.hash_contents = hash_contents if hash_contents else file_utils.get_contents_hash(path)
         self.solrid=self.hash_contents
         
-        if retry and self.alt_methods_exist:
+        if self.alt_methods_exist:  #give preference to other methods
             log.debug('Trying alternate indexing method')
             self.alt_try()
         else:
             self.result,self.error_message=extract(self.path,self.hash_contents,self.mycore,timeout=TIMEOUT,docstore=docstore,test=self.test,sourcetext=self.sourcetext,ocr=self.ocr)
             self.alt_tried=False
         log.debug(f'Extract file success: {self.result}')
-        
-    
     
     def alt_try(self):
         """ use alternate parsers to Solr Tika """

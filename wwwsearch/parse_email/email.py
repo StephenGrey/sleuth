@@ -324,8 +324,8 @@ class Email():
 		"""index attachments in solr, if not already there"""
 		log.info('extracting attachments')
 		
-		if self.level>3:
-			print('max level stop')
+		if self.level>5:
+			log.info('max level stopped at 5')
 			return
 		
 		#put file attachments into a temporary folder and extract
@@ -337,7 +337,7 @@ class Email():
 					log.info(f'Attempting to index attachment: {x}')
 					path=os.path.join(tmpdirname,x)
 					_hash=get_contents_hash(path,blocksize = 65536)
-					self.attachment_list.append((x,_hash))
+					self.attachment_list.append(f'"{x}","{_hash}"')
 					if _hash:
 						existing=check_hash_in_solrdata(_hash,self.mycore)
 						if existing:
@@ -365,13 +365,13 @@ class Email():
 					log.info('Attachment message {msg.message_id} already indexed')
 					try:
 						doc_id=previous[0].id
-						self.attachment_list.append((f'EmailMessage: {msg.subject}',doc_id))
+						self.attachment_list.append(f'"EmailMessage: {msg.subject}","{doc_id}"')
 						continue
 					except Exception as e:
 						log.error(e)
 				else:
 					msg.extract()
-					self.attachment_list.append((f'EmailMessage: {msg.subject}',msg.message_id))
+					self.attachment_list.append(f'"EmailMessage: {msg.subject}","{msg.message_id}"')
 		
 
 	

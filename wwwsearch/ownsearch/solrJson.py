@@ -764,6 +764,11 @@ def get_email_meta(docid,core):
     res=getlist(jres,0,core=core)
     return res.results
 
+def parse_email_meta(data):
+    for field in ["title","message_from","message_to","message_cc","author","subject","extract_parent_paths","extract_level","message_raw_header_message_id","message_raw_header_thread_index","message_raw_header_x_originating_ip","extract_parent_id","extract_root","attachment_list","message_to_email","message_from_email","message_bcc"]:
+        yield (field,data.get(field))
+    
+    
 
 
 def getfield(docid,field,core,resultfield=''):
