@@ -1436,7 +1436,7 @@ def is_absolute(path,root=DOCSTORE):
     
 def relpath_exists(relpath,root=DOCSTORE):
     if root:
-        return os.path.exists(os.path.join(root,relpatfah))
+        return os.path.exists(os.path.join(root,relpath))
     else:
         return False
 

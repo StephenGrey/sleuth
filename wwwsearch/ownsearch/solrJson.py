@@ -776,12 +776,12 @@ def getfield(docid,field,core,resultfield=''):
     searchterm='{}:\"{}\"'.format(core.unique_id,docid)
     args='&fl={}'.format(field)
     jres=getJSolrResponse(searchterm,args,core=core)
-    log.debug(jres)
+    #log.debug(jres)
     try:
         results=SolrResult(jres,core,startcount=0).results
         if len(results)>0:
             result=results[0]
-            log.debug(result.__dict__)
+            #log.debug(result.__dict__)
             if field in result.data:
                 return result.data[field]
             else:

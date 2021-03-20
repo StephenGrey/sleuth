@@ -3,7 +3,7 @@ from __future__ import unicode_literals
 from __future__ import print_function
 #from bs4 import BeautifulSoup as BS
 from django.conf import settings
-import requests, os, logging, json, urllib, re, sys, traceback
+import requests, os, logging, json, urllib, re, sys, traceback, collections
 import ownsearch.hashScan as dup
 import hashlib  #routines for calculating hash
 from .models import Collection,File,Index
@@ -14,6 +14,7 @@ from ownsearch.solrJson import SolrConnectionError, SolrCoreNotFound
 from ownsearch import solrJson as s
 
 from documents.updateSolr import scandocs,delete,updatetags,check_hash_in_solrdata,check_file_in_solrdata,remove_filepath_or_delete_solrrecord,makejson,update as update_meta,get_source,get_collection_source,check_paths,clear_date
+from documents.solrcursor import blank_field_cursor
 
 from ownsearch import solrJson as s
 from parse_email import email
@@ -290,13 +291,10 @@ class Extractor():
                 """extract contents of file using inbuilt solr tika"""
                 extractor=ExtractFile(_file.filepath,self.mycore,hash_contents=_file.hash_contents,sourcetext=entity.sourcetext,docstore=self.docstore,test=False,ocr=self.ocr,check=self.check,retry=retry)
                 entity.result=extractor.result
-                if entity.result:
-                    log.debug('now post process')
-                    extractor.post_process()
-                    entity.result=extractor.post_result
-                    log.debug(f'post process result {entity.result}')            
-                else:
+                if not entity.result:
                     _file.error_message=extractor.error_message
+                else:
+                    _file.error_message=""
             except (s.SolrCoreNotFound,s.SolrConnectionError,requests.exceptions.RequestException) as e:
                 raise ExtractInterruption(self.interrupt_message())
                 
@@ -762,11 +760,20 @@ class ExtractFile(ChildProcessor):
         self.solrid=self.hash_contents
         
         if self.alt_methods_exist:  #give preference to other methods
+            """extract via python methods"""
             log.debug('Trying alternate indexing method')
             self.alt_try()
         else:
+            """extract via TIKA"""
             self.result,self.error_message=extract(self.path,self.hash_contents,self.mycore,timeout=TIMEOUT,docstore=docstore,test=self.test,sourcetext=self.sourcetext,ocr=self.ocr)
             self.alt_tried=False
+            
+            if self.result:
+                log.debug('now post process')
+                self.post_process()
+                self.result=self.post_result
+                log.debug(f'post process result {self.result}')            
+
         log.debug(f'Extract file success: {self.result}')
     
     def alt_try(self):
@@ -956,7 +963,74 @@ class Collection_Post_Processor(Extractor):
             return True
         else:
             return False
-    
+
+
+class CheckEmailDate(Collection_Post_Processor):
+	def loop(self):
+		count=0
+		for _file in self.filelist:
+			entity=Entity(_file=_file)
+			if _file.is_folder:
+				pass
+			else:
+#				count+=1
+#				if count>1000:
+#					break
+				if _file.fileext!='.msg':
+					pass
+				else:
+					try:
+						if _file.solrid:
+							datetext=s.getfield(_file.solrid,self.mycore.datesourcefield,self.mycore)
+							if not datetext:
+								log.info(f'Date missing for {_file.solrid}')
+								log.info(_file.filepath)
+								msg=email.Email(_file.filepath,mycore=self.mycore)
+								msg.parse()
+								if msg.date and _file.solrid:
+									doc={self.mycore.datesourcefield:time_utils.ISOtimestring(msg.date)}
+									data=email.make_atomic_json(_file.solrid,doc,self.mycore.unique_id)
+									result,status=email.post_jsonupdate(data,self.mycore,test=False,check=True)
+									
+									msg.result=status
+									log.info(f'Indexed: {_file.solrid} , with result: {result} and {status}')
+									if not status:
+										log.error(result)
+					except Exception as e:
+						log.error(e)
+						
+		return
+
+def blank_date_files(mycore,docstore=DOCSTORE,purge=False):
+	_ind=blank_field_cursor(mycore)
+	for _hash,fields in _ind.items():
+		docpaths=fields.get('docpath')
+		if len(docpaths)>1:
+			log.error('More than one docpath')
+		else:
+			docpath=docpaths[0]
+			path=os.path.join(docstore,docpath)
+			if not os.path.exists(path):
+				print(f'Cannot find {_hash},{docpath}')
+				try:
+					_file=File.objects.filter(solrid=_hash)[0]
+					if not os.path.exists(_file.filepath) and purge:
+						print('DELETE filepath that does not exist from solr index')
+						delete(_hash,mycore)
+						_file.delete()
+				except IndexError:
+					pass
+					
+					
+
+
+#&q=-last_modified_iso8601%3A%5B*%20TO%20*%5D&rows=1100&start=1000
+#select?fq=%22content_type%22%3D%22application%2Fvnd.ms-outlook%22&q=-sb_last_modified%3A%5B*%20TO%20*%5D
+#fq="content_type"="application/vnd.ms-outlook"&q=
+#fq=-sb_last_modified:[* TO *]&q=-sb_last_modified:[* TO *]
+
+
+ 
 #SOLR METHODS
 
 def extract_test(test=True,timeout=TIMEOUT,mycore='',docstore='',ocr=True,path=''):

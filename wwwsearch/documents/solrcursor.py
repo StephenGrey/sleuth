@@ -114,3 +114,19 @@ def cursor_result(mycore,cursormark,searchterm,highlights=False,rows=100):
         return solrresult
 
 
+def blank_field_cursor(mycore,content="application/vnd.ms-outlook",field="sb_last_modified"):
+    res=False
+    _index={}
+    while True:
+        res=cursor_next(mycore,searchterm=f'-{field}:[* TO *]&fq="content_type"="{content}"',lastresult=res)
+        print(len(res.results))
+        if res == False:
+            break
+            #ESCAPE ROUTE ;
+        if not res.results:
+            break    
+            
+        for doc in res.results:
+            _index[doc.id]={'docpath':doc.data.get('docpath'),'docname':doc.data.get('docname')}
+    return _index
+            
