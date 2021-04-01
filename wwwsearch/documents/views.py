@@ -123,7 +123,7 @@ def display_results(request,job_id=''):
             #failed=ast.literal_eval(json.loads(failed))
     except KeyError:
         failed=None
-    results['failed_list']=failed[:30]
+    results['failed_list']=failed[:30] if failed else []
     log.debug(f'Failed list {failed}') #limit results to 30
     
     skipped=results.get('skipped_list')
@@ -396,6 +396,9 @@ def make_collection(request,path='',confirm=False):
     page=documentpage.MakeCollectionPage(relpath=path,rootpath=BASEDIR)
     path_info=request.session.get("back_url")
     page.live_update=request.session.get("live_update")
+    if not page.live_update:
+        page.live_update=False
+    	
     page.back_url=path_info
     log.debug(request.POST)
     page.getcores(request.user,request.session.get('mycore')) #arguments: user, storedcore

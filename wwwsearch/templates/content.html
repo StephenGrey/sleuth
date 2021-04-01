@@ -49,16 +49,28 @@ INDEXED FOLDERS:
 {% endfor %} 
 </ol>
 
-{{page.result.content_type}}
+Filetype: {{page.result.content_type}}
 
 {{page.result.data.content_type}}
 
-{{page.mimetype}}
-
+<!--{{page.mimetype}}
+-->
 {% ifequal page.result.content_type "email" %}
 		<h3>Email<p>
-			<b>From:</b> {{page.result.data.message_from}} <b>
-			<br>To:</b> {{page.result.data.message_to}}</h3>
+			<b>From:</b> {{page.result.data.message_from}}
+			<br><b>To:</b> {{page.result.data.message_to}}
+			<br><b>CC:</b> {{page.result.data.message_cc}}
+			<br><b>BCC:</b> {{page.result.data.message_BCC}}
+		<p></p>	
+			<h5><b>Message ID:</b> {{page.result.data.message_raw_header_message_id}})</h5>
+		{% if page.result.data.attachment_list %}
+	<p></p><br>Attachments:</b>
+		{% for filename,doc_id in page.result.data.attachment_list %}
+		<a href="/ownsearch/doc={{doc_id}}&searchterm=">{{filename}}</a> 
+		{% endfor %} 
+		{% endif %}
+		
+		</h3>
 {% endifequal %}
 
 	{% if page.result.data.title or page.result.data.subject %}

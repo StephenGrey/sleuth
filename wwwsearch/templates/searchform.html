@@ -106,7 +106,7 @@ Sort by:
    		 <li><a href="/ownsearch/doc={{res.id}}&searchterm={{page.searchterm_urlsafe}}"><b>{% if res.docname  %}{{res.docname }}{% else %}No Filename Indexed{% endif %}</b></a> 
     	{{res.data.solrdocsize}} {{res.datetext}}
     			{% if res.data.message_from  %}
-    			<br><b>Message title:</b>{{res.data.title}}<br><b>From:</b> {{res.data.message_from}} <b>To:</b> {{res.data.message_to}}
+    			<br><b>Message title:</b>{{res.data.title}}<br><b>From:</b> {{res.data.message_from|truncatechars:60 }} <b>To:</b> {{res.data.message_to|truncatechars:60 }}
     			{% endif %}
     
     			{% if res.data.tags1 %}<br>

@@ -19,7 +19,7 @@ from django.contrib.staticfiles.templatetags.staticfiles import static #returns 
 from django.contrib.staticfiles import finders #locates static file
 from django.conf import settings #to access settings constants
 from documents.management.commands import setup
-import re, os, logging, unicodedata, json
+import re, os, logging, unicodedata, json,ast
 from . import markup
 from watcher import watch_dispatch
 
@@ -298,6 +298,32 @@ def get_content(request,doc_id,searchterm,tagedit='False'):
         #        #check if file is registered and authorised to download
         page.authflag,page.matchfile_id,page.hashfilename=authorise.authfile(request,page.hashcontents,page.docname)
 
+        log.info(page.result.data)
+        if result.content_type=='email':
+            res=solrJson.get_email_meta(page.doc_id,page.mycore)
+            doc=next(iter(res))
+            for field,value in solrJson.parse_email_meta(doc.data):
+                if field=='attachment_list' and value:
+                	try:
+                		attachments=[]
+                		log.info(value)
+                		if type(value) is list:
+                			for attach in value:
+                				if attach:
+                					attachments.append(ast.literal_eval(attach))
+                		else:
+                			attachments.append(ast.literal_eval(value))
+                		log.info(attachments)
+                		value=attachments
+                	except Exception as e:
+                		log.error(e)
+                		value=""
+                page.result.data[field]=value
+            
+            log.info(page.result.data)
+        
+
+
         
         #REDIRECT IF PREVIEW URL DEFINED
         log.debug('Stored preview html: {}'.format(page.preview_url))
@@ -315,6 +341,8 @@ def get_content(request,doc_id,searchterm,tagedit='False'):
             log.debug('statpath: {}'.format(statpath))
             if os.path.exists(statpath):
                 log.debug('File exists in static: {}'.format(statpath))
+        
+        
         if page.mimetype in MIMETYPES_THAT_EMBED:
             if page.matchfile_id:
                 log.debug('Embed authorised')

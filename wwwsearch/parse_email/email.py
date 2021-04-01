@@ -1,6 +1,6 @@
 import os,json,collections,logging,hashlib,tempfile
 from documents import time_utils
-from documents.file_utils import FileSpecs,make_relpath,parent_hash, get_contents_hash
+from documents.file_utils import FileSpecs,make_relpath,parent_hash, get_contents_hash,normalise
 from documents.updateSolr import post_jsondoc,check_hash_in_solrdata,make_atomic_json,post_jsonupdate
 from ownsearch.solrJson import search_meta
 from documents import indexSolr
@@ -58,16 +58,20 @@ class LazyMessage(Message):
 
 class Email():
 	"""parse an Outlook .msg file and index it to solr index"""
-	def __init__(self,filepath,sourcetext='Not known',mycore=DEFAULT_CORE,docstore=DOCSTORE,extract_attachments=True,level=0,in_memory=False,root_id=None,parent_id=None):
+	def __init__(self,filepath,sourcetext="",mycore=DEFAULT_CORE,docstore=DOCSTORE,extract_attachments=True,level=0,in_memory=False,root_id=None,parent_id=None):
 		self.docstore=docstore
 		self.error_message=None
 		self.extract_attachments=extract_attachments
 		self.result=None
-		self.filepath=filepath
+		self.filepath=normalise(filepath)
+		if self.filepath.startswith("\\\\?\\"):
+			self.shortpath=self.filepath[4:]
+		else:
+			self.shortpath=self.filepath
+		
 		self.sourcetext=sourcetext
 		self.level=level
 		self.mycore=mycore
-		self.error_message=None
 		self.in_memory=in_memory
 		self.attachment_list=[]
 		self.root_id=root_id
@@ -77,9 +81,14 @@ class Email():
 	def get_specs(self):
 		specs=FileSpecs(self.filepath)###
 		self.filename=specs.name
+
+		if specs.parent_folder.startswith("\\\\?\\"):
+			parentf=specs.parent_folder[4:]
+		else:
+			parentf=specs.parent_folder
 		try:
-			self.parent_folder=make_relpath(specs.parent_folder,docstore=self.docstore)
-			self.relpath=make_relpath(self.filepath,docstore=self.docstore)
+			self.parent_folder=make_relpath(parentf,docstore=self.docstore)
+			self.relpath=make_relpath(self.shortpath,docstore=self.docstore)
 		except ValueError:
 			self.parent_folder=specs.parent_folder
 			self.relpath="Failed relpath"
@@ -129,8 +138,10 @@ class Email():
 		
 		self.attachments_exist=True if self.parsed.attachments else False
 		self.title=self.parsed.subject
-		self._from=self.parsed.header.get('From')
-		self.to=self.parsed.header.get('To')
+		self._from=self.header_value('From')
+		self.to=self.header_value('To')
+		if not self.to:
+			self.to=self.parsed.to
 		self.author=self._from
 		self.bcc=self.parsed.bcc
 		self.recipient_emails=[x.email for x in self.parsed.recipients]
@@ -139,10 +150,10 @@ class Email():
 		self.sender=self.parsed.getStringField("0C1A")
 		self.sender_address=self.parsed.getStringField("0C1F")
 		self.subject=self.parsed.subject
-		self.thread_id=self.parsed.header.get('Thread-Index')
-		self.content_type=self.parsed.header.get('Content-Type')
-		self.message_id=self.parsed.header.get('Message-ID')
-		self.originating_ip=self.parsed.header.get('x-originating-ip')
+		self.thread_id=self.header_value('Thread-Index')
+		self.content_type=self.header_value('Content-Type')
+		self.message_id=self.header_value('Message-ID')
+		self.originating_ip=self.header_value('x-originating-ip')
 		self.location=self.parsed.getStringField("800D")
 		if not self.location:
 			self.location=self.parsed.getStringField("800A")
@@ -152,7 +163,8 @@ class Email():
 		self.end=self.time_props.get('END')
 		self.last_mod=self.time_props.get('LAST_MODIFIED')
 		self.creation_time=self.time_props.get('CREATION_TIME')
-				
+		#TODO ? SET DATE FIELD.
+		
 		self.message_type=self.parsed.getStringField("001A")
 		self.content_type=["application/vnd.ms-outlook"]
 		self.body=self.parsed.body
@@ -169,8 +181,14 @@ class Email():
 		self.content_enhance() #compose text from body and other details for contacts, appointments
 		if not self.message_id:
 			self.message_id=self.make_alt_id()
-			
+	
 
+	def header_value(self,key):
+		try:
+			return self.parsed.header.get(key)
+		except Exception as e:
+			log.debug(e)
+			return None
 	
 	def make_alt_id(self):
 		"""substitute a message ID if not exists"""
@@ -262,9 +280,12 @@ class Email():
 		doc[self.mycore.rawtext]=self.text
 		doc['preview_html']=self.body
 		doc['content_type']=self.content_type
-		doc[self.mycore.sourcefield]=self.sourcetext
+		if self.sourcetext:
+			doc[self.mycore.sourcefield]=self.sourcetext
 		if self.date:
-			doc[self.mycore.datefield]=time_utils.ISOtimestring(self.date)	
+			doc[self.mycore.datesourcefield]=time_utils.ISOtimestring(self.date)	
+		
+			
 		doc['title']=self.title
 		doc['message_from']=self._from
 		doc["message_from_email"]=self.sender_address
@@ -289,7 +310,8 @@ class Email():
 		
 		doc[self.mycore.docnamesourcefield]=self.filename
 		doc[self.mycore.docpath]=self.relpath
-		doc[self.mycore.parenthashfield]=self.parenthash
+		if self.mycore.parenthashfield:
+			doc[self.mycore.parenthashfield]=self.parenthash
 		doc[self.mycore.docsizesourcefield1]=self.size
 		doc['sb_meta_only']=False
 		log.info(f' Indexing: {self.filepath}with id:  {self.contents_hash}')
@@ -300,7 +322,6 @@ class Email():
 			log.info(post_result)
 			self.error_message=post_result
 		return
-	
 	
 	def add_attachment_meta(self,filename,_hash,level,parent_id):
 		doc={}  #keeps the JSON file in a nice order
@@ -330,8 +351,8 @@ class Email():
 		"""index attachments in solr, if not already there"""
 		log.info('extracting attachments')
 		
-		if self.level>3:
-			print('max level stop')
+		if self.level>5:
+			log.info('max level stopped at 5')
 			return
 		
 		#put file attachments into a temporary folder and extract
@@ -343,7 +364,7 @@ class Email():
 					log.info(f'Attempting to index attachment: {x}')
 					path=os.path.join(tmpdirname,x)
 					_hash=get_contents_hash(path,blocksize = 65536)
-					self.attachment_list.append((x,_hash))
+					self.attachment_list.append(f'"{x}","{_hash}"')
 					if _hash:
 						existing=check_hash_in_solrdata(_hash,self.mycore)
 						if existing:
@@ -371,13 +392,13 @@ class Email():
 					log.info('Attachment message {msg.message_id} already indexed')
 					try:
 						doc_id=previous[0].id
-						self.attachment_list.append((f'EmailMessage: {msg.subject}',doc_id))
+						self.attachment_list.append(f'"EmailMessage: {msg.subject}","{doc_id}"')
 						continue
 					except Exception as e:
 						log.error(e)
 				else:
 					msg.extract()
-					self.attachment_list.append((f'EmailMessage: {msg.subject}',msg.message_id))
+					self.attachment_list.append(f'"EmailMessage: {msg.subject}","{msg.message_id}"')
 		
 
 	

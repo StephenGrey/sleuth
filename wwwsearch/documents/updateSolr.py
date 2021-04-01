@@ -473,7 +473,7 @@ def make_atomic_json(solrid,changes,id_field):
 		a[field]={"set":value}
 	data=json.dumps([a])
 	return data
-	 
+
 def clear_date(solrid,mycore):
     docs=s.getmeta(solrid,mycore)
     if docs:

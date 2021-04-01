@@ -16,6 +16,7 @@ import os,logging
 log = logging.getLogger('ownsearch.pages')
 from .forms import TagForm
 from documents import file_utils
+from .solrJson import get_email_meta
 import mimetypes
 MIMETYPES={
 }
@@ -216,6 +217,10 @@ class ContentPage(Page):
             self.tags1=False
         self.html=self.result.data.get('preview_html','')
         self.preview_url=self.result.data.get('preview_url','')
+        
+#        if result.content_type=='email':
+#            log.info('EMAIL EMAIL')
+#            res=get_email_meta(self.doc_id,self.)
         
     
     @property
