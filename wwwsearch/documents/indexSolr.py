@@ -203,7 +203,10 @@ class Extractor():
         
         else:
             #extract
-            log.info('Attempting index of {}'.format(_file.filepath))
+            
+            norm_path=file_utils.normalise(_file.filepath)
+            
+            log.info('Attempting index of {}'.format(norm_path))
             self.update_working_file(_file.filepath) #update redis output
             entity.oldsolrid=_file.solrid #if was previously indexed, store old solr ID and then delete if new index successful
             entity.sourcetext=get_source(_file) #get source text
@@ -218,7 +221,7 @@ class Extractor():
                     _file.indexMetaOnly=True
                     entity.updated=True
                 if not _file.hash_contents:
-                    _file.hash_contents=file_utils.get_contents_hash(_file.filepath)
+                    _file.hash_contents=file_utils.get_contents_hash(norm_path)
                     entity.updated=True
                 self.extract_document(entity)
                 
@@ -257,7 +260,7 @@ class Extractor():
         _file.indexMetaOnly=False
         entity.updated=True
         
-        
+        norm_path=file_utils.normalise(_file.filepath)
         if self.useICIJ:
             log.info('using ICIJ extract method..')
             ext = solrICIJ.ICIJExtractor(_file.filepath,self.mycore,ocr=self.ocr)
@@ -743,10 +746,11 @@ class ChildProcessor():
 class ExtractFile(ChildProcessor):
     def __init__(self,path,mycore,hash_contents='',sourcetext='',docstore=DOCSTORE,test=False,ocr=True,meta_only=False,check=True,retry=False,level=0):
         self.path=path
+        self.norm_path=file_utils.normalise(path)
         self.ocr=ocr
         self.check=check
         self.level=level
-        specs=file_utils.FileSpecs(path,scan_contents=False)###
+        specs=file_utils.FileSpecs(self.norm_path,scan_contents=False)###
         self.filename=specs.name
         self.ext=specs.ext
         self.size=specs.length
@@ -756,7 +760,7 @@ class ExtractFile(ChildProcessor):
         self.test=test
         self.sourcetext=sourcetext
         self.docstore=docstore
-        self.hash_contents = hash_contents if hash_contents else file_utils.get_contents_hash(path)
+        self.hash_contents = hash_contents if hash_contents else file_utils.get_contents_hash(self.norm_path)
         self.solrid=self.hash_contents
         
         if self.alt_methods_exist:  #give preference to other methods
@@ -1057,10 +1061,12 @@ def extract_test(test=True,timeout=TIMEOUT,mycore='',docstore='',ocr=True,path='
 def extract(path,contentsHash,mycore,test=False,timeout=TIMEOUT,sourcetext='',docstore='',ocr=True):
     """extract a path to solr index (mycore), storing hash of contents, optional testrun, timeout); throws exception if no connection to solr index, otherwise failures return False"""
     
+    
+    norm_path=file_utils.normalise(path)
     message=''
     try:
         assert isinstance(mycore,s.SolrCore)
-        assert os.path.exists(path) #check file exists
+        assert os.path.exists(norm_path) #check file exists
     except AssertionError:
         log.debug ('Extract: bad parameters: {},{}'.format(path,mycore))
         return False
@@ -1068,7 +1074,7 @@ def extract(path,contentsHash,mycore,test=False,timeout=TIMEOUT,sourcetext='',do
     mycore.ping() #       throws a SolrConnectionError if solr is down; throw error to higher level.
 
     if contentsHash =='':
-        contentsHash=file_utils.get_contents_hash(path)    
+        contentsHash=file_utils.get_contents_hash(norm_path)    
 
     try:
         docnamesourcefield=mycore.docnamesourcefield
@@ -1104,7 +1110,7 @@ def extract(path,contentsHash,mycore,test=False,timeout=TIMEOUT,sourcetext='',do
         log.debug('Testing extract args: {}, path: {}, mycore {}'.format(args,path,mycore))
         
     try:
-        result,elapsed=postSolr(args,path,mycore,timeout=timeout,ocr=ocr) #POST TO THE INDEX (returns True on success)
+        result,elapsed=postSolr(args,norm_path,mycore,timeout=timeout,ocr=ocr) #POST TO THE INDEX (returns True on success)
         if result:
             log.info(f'Indexing succeeded in {elapsed:.2f} seconds with OCR={ocr}')
             return True,None
