@@ -67,10 +67,14 @@ class Email():
 		self.sourcetext=sourcetext
 		self.level=level
 		self.mycore=mycore
-		
-			
+		self.error_message=None
 		self.in_memory=in_memory
 		self.attachment_list=[]
+		self.root_id=root_id
+		self.parent_id=parent_id
+		self.get_specs()
+
+	def get_specs(self):
 		specs=FileSpecs(self.filepath)###
 		self.filename=specs.name
 		try:
@@ -80,16 +84,14 @@ class Email():
 			self.parent_folder=specs.parent_folder
 			self.relpath="Failed relpath"
 		self.size=specs.length
-		self.error_message=None
+
 		self.contents_hash=specs.contents_hash
-		if root_id:
-			self.root_id=root_id
-		elif level==0:
-			self.root_id=self.contents_hash
-		else:
-			self.root_id=None
+		if not self.root_id:
+			if self.level==0:
+				self.root_id=self.contents_hash
+			else:
+				self.root_id=None
 		
-		self.parent_id=parent_id
 		if self.mycore.parenthashfield:
 			self.parenthash=parent_hash(self.relpath)
 
@@ -124,6 +126,8 @@ class Email():
 			self.error_message=None
 		#log.info(self.parsed.header._headers)
 		self.parse_times() #extract all the different times
+		
+		self.attachments_exist=True if self.parsed.attachments else False
 		self.title=self.parsed.subject
 		self._from=self.parsed.header.get('From')
 		self.to=self.parsed.header.get('To')
@@ -223,6 +227,8 @@ class Email():
 			except Exception as e:
 				log.error(e)
 				log.error(f'target_folder: {target_folder}, filename:{attach.longFilename}, attachment:{attach.__dict__}')
+	
+	
 	def content_enhance(self):
 		"""add content to text for indexing and display"""
 		if self.message_type =='IPM.Appointment':
@@ -244,9 +250,9 @@ class Email():
 			self.solr_id=self.contents_hash
 		
 		#first deal with attachments
-		if self.extract_attachments and self.parsed.attachments:
+		if self.extract_attachments and self.attachments_exist:
 			self.emit_attachments()
-		log.info(self.attachment_list)					#TODO remove
+		log.debug(self.attachment_list)					#TODO remove
 		doc=collections.OrderedDict()  #keeps the JSON file in a nice order
 		
 

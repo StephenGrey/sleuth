@@ -221,13 +221,13 @@ def get_content(request,doc_id,searchterm,tagedit='False'):
     """make a page showing the extracted text, highlighting searchterm """
     
     log.info('User \'{}\' fetch content for doc id: \'{}\' from search term \'{}\''.format(request.user,doc_id,searchterm))
-    log.debug('Request session : {}'.format(request.session.__dict__))
+    #log.debug('Request session : {}'.format(request.session.__dict__))
     
     page=pages.ContentPage(doc_id=doc_id,searchterm=searchterm,tagedit='False')
     page.safe_searchterm()
     page.searchurl=request.session.get('lastsearch','/ownsearch') #store the return page
-    log.debug(type(page.searchurl))
-    log.debug(request.META.get('PATH_INFO'))
+    #log.debug(type(page.searchurl))
+    #log.debug(request.META.get('PATH_INFO'))
     #GET INDEX
     #only show content if index defined in session:
     if request.session.get('mycore') is None:

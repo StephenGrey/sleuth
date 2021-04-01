@@ -227,7 +227,10 @@ class Solrdoc:
             
             self.content_type_raw=self.data.pop('content_type','')
             
-            self.content_type='email' if self.content_type_raw=='application/vnd.ms-outlook' else self.content_type_raw
+            if self.content_type_raw=='application/vnd.ms-outlook' or self.content_type_raw=='message/rfc822':
+                self.content_type='email'
+            else:
+                self.content_type=self.content_type_raw
             
             if self.docname.startswith('Folder:'):
                 self.folder=True
