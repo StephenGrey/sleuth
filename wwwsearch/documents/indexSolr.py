@@ -17,7 +17,7 @@ from documents.updateSolr import scandocs,delete,updatetags,check_hash_in_solrda
 from documents.solrcursor import blank_field_cursor
 
 from ownsearch import solrJson as s
-from parse_email import email
+from parse_email import email,eml
 
 
 from fnmatch import fnmatch
@@ -182,8 +182,13 @@ class Extractor():
             #
             try:
                 self.extract_entity(entity)
+            except MemoryError:
+                log.error(f'PATH : {_file.filepath} indexing failed, with MEMORY ERROR')
+                _file.indexedTry=True  #set flag to say we've tried
+                _file.error_message='Memory Error'
+                _file.save()
             except Exception as e:
-                log.info(f'PATH : {_file.filepath} indexing failed, with UNCAUGHT exception {e}')
+                log.error(f'PATH : {_file.filepath} indexing failed, with UNCAUGHT exception {e}')
                 _file.indexedTry=True  #set flag to say we've tried
                 _file.save()
                 exc_type, exc_value, exc_traceback = sys.exc_info()
@@ -310,7 +315,8 @@ class Extractor():
         _file=entity._file
         #succesful extraction of the contents
         self.counter+=1
-            
+        if self.counter%10000==0:
+            log.info(f'Indexed {self.counter} files')
         if not self.useICIJ and not _file.is_folder:
             _file.solrid=_file.hash_contents  #extract uses hashcontents for an id , so add it
 
@@ -486,11 +492,11 @@ class Extractor():
         elif file.indexedTry and not self.forceretry:
             #skip this file, tried before and not forcing retry
             file.error_message='Previous failure'
-            log.info(f'Skipped {file.error_message} path: {file.filename}')
+            log.debug(f'Skipped {file.error_message} path: {file.filename}')
         elif ignorefile(file.filepath):
             #skip this file because it is on ignore list
             file.error_message='On ignore list'
-            log.info(f'Skipped {file.error_message} path: {file.filename}')
+            log.debug(f'Skipped {file.error_message} path: {file.filename}')
         elif file.filesize>MAXSIZE_HASH and not self.ignore_filesize:
             #skip the extract, it's too big
             file.error_message=f'Too large {file.filesize}b'
@@ -498,7 +504,7 @@ class Extractor():
         elif file.filesize<3 and not file.is_folder:
             #skip , it's empty
             file.error_message=f'Skipped. Empty file: {file.filesize}bytes'
-            log.info(f'Skipped {file.error_message} path: {file.filename}')
+            log.debug(f'Skipped {file.error_message} path: {file.filename}')
         else:
             #don't skip
             return False
@@ -790,6 +796,11 @@ class ExtractFile(ChildProcessor):
             _parser.process()
             self.result=_parser.result
             self.error_message=_parser.error_message
+        elif self.ext=='.emlx':
+            _parser=eml.EMLX(self.path,docstore=self.docstore,sourcetext=self.sourcetext,mycore=self.mycore,level=self.level)
+            _parser.process()
+            self.result=_parser.result
+            self.error_message=_parser.error_message
         else:
             log.error('No alternate parser installed for this file')
     
@@ -798,6 +809,8 @@ class ExtractFile(ChildProcessor):
     def alt_methods_exist(self):
         """check if alternate parsers installed"""
         if self.ext=='.msg': #alt parser installed for Outlook emails
+            return True
+        if self.ext=='.emlx':
             return True
         else:
             return False

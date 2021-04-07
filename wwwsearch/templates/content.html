@@ -56,13 +56,25 @@ Filetype: {{page.result.content_type}}
 <!--{{page.mimetype}}
 -->
 {% ifequal page.result.content_type "email" %}
-		<h3>Email<p>
+		<h3>
 			<b>From:</b> {{page.result.data.message_from}}
 			<br><b>To:</b> {{page.result.data.message_to}}
 			<br><b>CC:</b> {{page.result.data.message_cc}}
 			<br><b>BCC:</b> {{page.result.data.message_BCC}}
+			<br><b>Date:</b> {{page.result.date}} &nbsp;  &nbsp;  ({{page.datetext}})
+	{% if page.result.data.subject %}
+		<br><b>Subject:</b> <span class="titlename">{{page.result.data.subject}}
+	{% elif page.result.data.title%}
+		<br><b>Subject:</b> <span class="titlename">{{page.result.data.title}}
+	{% endif %}
+			</span></h3>
 		<p></p>	
-			<h5><b>Message ID:</b> {{page.result.data.message_raw_header_message_id}})</h5>
+			<h5><b>Message ID:</b> {{page.result.data.message_raw_header_message_id}})
+	<br></b>Size(bytes):</b>{{page.docsize}}<br>
+<b><b>Filename:</b>{{page.docname}}</b>
+	{% if page.authflag%}&nbsp; &nbsp;<a href="/ownsearch/download={{page.matchfile_id}}&{{page.hashfilename}}"<b>Download</b></a><p>
+	{% endif %}</h5>
+
 		{% if page.result.data.attachment_list %}
 	<p></p><br>Attachments:</b>
 		{% for filename,doc_id in page.result.data.attachment_list %}
@@ -71,25 +83,17 @@ Filetype: {{page.result.content_type}}
 		{% endif %}
 		
 		</h3>
-{% endifequal %}
 
-	{% if page.result.data.title or page.result.data.subject %}
-		<b><h3>Subject:</b> <span class="titlename">{{page.result.data.title}}{% if not page.result.data.title %}{{page.result.data.subject}}{% endif %}
-			</span></h3>
-	<h4>{{page.datetext}}</h4>
-	<br>SIZE(bytes):{{page.docsize}}<br>
 	<!--DIRECT FROM APACHE--<a href="/docstore/{{docpath}}"><b>Download</b></a>	-->
-	<b><span >{{page.docname}}</span></b>
 
-	{% else %}
+{%else%}
+
 	<h5>Date: {{page.datetext}} &nbsp; &nbsp; Size(bytes): {{page.docsize}}</h5>
-
-	<!--DIRECT FROM APACHE--<a href="/docstore/{{docpath}}"><b>Download</b></a>	-->
-	<b><span class="titlename" >{{page.docname}}</span></b>
-		{% endif %}	
-	
+	<b><span >{{page.docname}}</span></b>
 	{% if page.authflag%}&nbsp; &nbsp;<a href="/ownsearch/download={{page.matchfile_id}}&{{page.hashfilename}}"<b>Download</b></a><p>
 	{% endif %}
+
+{% endifequal %}
 
 
 {% endblock %}

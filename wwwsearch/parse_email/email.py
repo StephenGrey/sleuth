@@ -283,7 +283,7 @@ class Email():
 		if self.sourcetext:
 			doc[self.mycore.sourcefield]=self.sourcetext
 		if self.date:
-			doc[self.mycore.datesourcefield]=time_utils.ISOtimestring(self.date)	
+			doc[self.mycore.datesourcefield]=time_utils.ISOtimestring(self.date)
 		
 			
 		doc['title']=self.title

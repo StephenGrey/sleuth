@@ -608,6 +608,7 @@ def index_job(job_id,job,task):
 
     try:
         index_collection_id(job,collection_id,_test,useICIJ=useICIJ,ocr=ocr,forceretry=forceretry)
+        log.info(f'Completed indexing of collection {collection_id}')
     except updateSolr.s.SolrConnectionError as e:
         log.error(f'Solr Connection Error: {e}')
         r.hset(job,'status','error')
@@ -625,6 +626,7 @@ def index_job(job_id,job,task):
 #                results=r.hgetall(job)
 #                log.info(results)
     except Exception as e:
+        log.error('Unknown error - terminating indexing task')
         log.error(e)
         r.hset(job,'status','error')
         r.hset(job,'message','Unknown error - see trace')
