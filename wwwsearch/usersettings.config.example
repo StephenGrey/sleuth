@@ -3,7 +3,7 @@
 
 
 [Extract]
-extractpath: /somepath/extract-master/target/extract.jar
+extractpath: /apps/extract-master/target/extract.jar
 
 [Django]
 secretkey: somesecretkey
@@ -16,7 +16,7 @@ console_loglevel: INFO
 logfile_loglevel: INFO
 
 [Models]
-collectionbasepath: /home/ubuntu/somefolder
+collectionbasepath: /data
 #path to directories you want to scan
 
 
@@ -69,5 +69,5 @@ hashcontents: extract_id
 cursorargs: &fl=id,extract_id,extract_base_type,extract_paths,extract_parent_paths
 
 [Dups]
-masterindex_path = /apps/somepath/
-rootpath = /apps
+masterindex_path = /data
+rootpath = /data

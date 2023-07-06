@@ -1,3 +1,7 @@
+#docker run -v ~/Documents:/data -it sleuth:v1 /bin/bash
+#
+
+
 FROM python:3.8
 WORKDIR /apps
 RUN git clone https://github.com/StephenGrey/sleuth.git
@@ -20,3 +24,4 @@ RUN ls
 RUN cd sleuth/wwwsearch && python manage.py makemigrations
 RUN cd sleuth/wwwsearch && python manage.py migrate
 RUN cd sleuth/wwwsearch && python manage.py createsuperuser
+
