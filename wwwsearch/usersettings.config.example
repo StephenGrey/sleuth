@@ -67,3 +67,7 @@ docsort: &sort+tika_metadata_resourcename+asc
 datesort: &sort+tika_metadata_last_modified+desc
 hashcontents: extract_id
 cursorargs: &fl=id,extract_id,extract_base_type,extract_paths,extract_parent_paths
+
+[Dups]
+masterindex_path = /apps/somepath/
+rootpath = /apps
