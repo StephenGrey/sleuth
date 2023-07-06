@@ -12,7 +12,7 @@ PyPDF2==1.26.0
 beautifulsoup4==4.8.1
 django_haystack==2.8.1
 usersettings==1.0.7
-MacFSEvents==0.8.1
+MacFSEvents==0.8.4
 urllib3==1.23
 watchdog==0.9.0
 concurrent-log-handler==0.9.24

@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+
+{% block maincontent %}
+
+{% block body_content %}
+		</div>
+		<div class="row">
+			<div class="col-sm-2">
+			</div>	
+			<div class="col-sm-10 ">		
+			<h2>Whats App Messages
+				
+<!--				 to/from {{filter1}}
+			{%if filter2 %} and {{filter2}}{% endif %}-->
+			</h2>
+			<p><p>
+			</div>
+		</div>
+
+		<div class="row">		
+			<div class="col-sm-2">
+		  </div>
+			<div class="col-sm-6">
+				
+				
+				<ul class="list-group">
+				{% for source in sources %}
+				
+				
+				<a href="/whatsapp/source/{{source}}">Source:"{{source}}"</a> 
+				<br><br>
+				{% endfor %}
+				</ul>
+		
+		  </div>
+		  <div class="col">
+		  </div>
+
+{% endblock %} {% endblock %}
