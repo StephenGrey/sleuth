@@ -20,7 +20,7 @@ RUN ls
 #Also in the 'Django' sub-section, edit the 'secretkey' to something long and random. This is an important security feature in Django. You can also set 'Debug' to 'True' or 'False'. 'Debug' mode is inherently insecure so disable it if other users have access to your Sleuth machine.
 
 #Now navigate to the wwwsearch directory. Set up the database:
-
+EXPOSE 8000
 RUN cd sleuth/wwwsearch && python manage.py makemigrations
 RUN cd sleuth/wwwsearch && python manage.py migrate
 RUN cd sleuth/wwwsearch && python manage.py createsuperuser

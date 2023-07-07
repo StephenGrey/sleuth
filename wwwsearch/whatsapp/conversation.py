@@ -41,7 +41,7 @@ class Conversation():
         """filter the conversation from database"""
     	  #filter1,filter2):
         self.messages=[]
-        #print('Filters {}, {}'.format(self.node1,self.node2))
+        print('Filters {}, {}'.format(self.node1,self.node2))
         filtered=Message.objects.filter(Q(to_number=self.node1) | Q(from_number=self.node1) | Q(whatsapp_group=self.node1))
         if self.node2:
             #print('second filter {}'.format(self.node2))
@@ -146,49 +146,56 @@ def get_name(number):
     else:
         return '',verified
 
-
-def list_messages(ignore=["0"]):
-
+def list_sources():
+    sq=Message.objects.values("message_source").distinct()
+    return [source['message_source'] for source in sq]
+	
+def list_messages(ignore=["0"],source=None):
+    print(source)
     combo=[]
-
-    #get to numbers
-    to_numbers=Message.objects.values("to_number").distinct().annotate(n=Count("pk"))
-    todict={}
-    for item in to_numbers:
-        number=item['to_number']
-        if number in ignore:
-            continue
-        todict[number]=item['n']
-
-
-    #get from numbers    
-    from_numbers=Message.objects.values("from_number").distinct().annotate(n=Count("pk"))
+    if True:
+        #get to numbers
+        to_numbers=Message.objects.filter(message_source=source).values("to_number").distinct().annotate(n=Count("pk"))
+        todict={}
+        for item in to_numbers:
+            number=item['to_number']
+            if number in ignore:
+                continue
+            todict[number]=item['n']
     
-    for item in from_numbers:
-        number=item['from_number']
-        if number in ignore:
-            continue        
-        name,verified=get_name(number)
-        #add count of 'from number' and count of same number from 'to number' index
-        combo.append((number,item['n']+todict.pop(number,0),name,verified))
-
-
-    #add unique items (i.e 'to numbers' not in the 'from' list)
-    for number in todict:
-        name,verified=get_name(number)
-        combo.append((number,todict[number],name,verified))
     
-    #add group messages
-    glist=list_groupmessages()
-    combo +=glist
+        #get from numbers    
+        from_numbers=Message.objects.filter(message_source=source).values("from_number").distinct().annotate(n=Count("pk"))
+        
+        for item in from_numbers:
+            number=item['from_number']
+            if number in ignore:
+                continue        
+            name,verified=get_name(number)
+            #add count of 'from number' and count of same number from 'to number' index
+            combo.append((number,item['n']+todict.pop(number,0),name,verified))
     
-    #now sort it all
-    combo=sorted(combo,key=operator.itemgetter(1),reverse=True)
+    
+        #add unique items (i.e 'to numbers' not in the 'from' list)
+        for number in todict:
+            name,verified=get_name(number)
+            combo.append((number,todict[number],name,verified))
+        
+        #add group messages
+        glist=list_groupmessages(source)
+        combo +=glist
+        
+        #now sort it all
+        combo=sorted(combo,key=operator.itemgetter(1),reverse=True)
+
+        
+        
+    
     return combo
 
-def list_groupmessages():
+def list_groupmessages(source):
     grouplist=[]
-    groups=Message.objects.values("whatsapp_group").distinct().annotate(n=Count("pk"))
+    groups=Message.objects.filter(message_source=source).values("whatsapp_group").distinct().annotate(n=Count("pk"))
     for item in groups:
         if item['whatsapp_group'] is '':
             continue

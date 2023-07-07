@@ -9,8 +9,10 @@
 			<div class="col-sm-2">
 			</div>	
 			<div class="col-sm-10 ">		
-			<h2>Whats App Messages to/from {{filter1}}
-			{%if filter2 %} and {{filter2}}{% endif %}
+			<h2>Whats App Messages
+				
+<!--				 to/from {{filter1}}
+			{%if filter2 %} and {{filter2}}{% endif %}-->
 			</h2>
 			<p><p>
 			</div>
@@ -20,8 +22,12 @@
 			<div class="col-sm-2">
 		  </div>
 			<div class="col-sm-6">
+				
+				
 				<ul class="list-group">
-				{% for contact,count,name,verified in list %}
+
+			
+				{% for contact,count,name,verified in combo %}
 				  <li class="list-group-item list-group-item-info">
 							{% if name %}
 								{% if name == "Group" %}<a href="/whatsapp/{{contact}}/">"{{contact}}" group</a> 
@@ -30,8 +36,10 @@
 							{% else %}
 							<a href="/whatsapp/{{contact}}/">{{contact}}</a>
 							{% endif %}
-							 <span class="badge">{{count}}</span> 		
+							 <span class="badge">{{count}}</span>
+							 {{source}} 		
 				</li> 
+
 				{% endfor %}
 				</ul>
 		

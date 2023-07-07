@@ -50,6 +50,13 @@ h3 {
 		float: right
 		}
 
+.attachments
+{
+		font-size: 14px;
+		color: purple;
+		}
+
+
 .radio {
 	list-style: none;	
 }

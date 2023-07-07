@@ -17,6 +17,15 @@
 	<div class="message">
 	{{message.text_markedup | safe}}
 	</div>
+	<div class="attachments">
+	{% if message.attach1_path %}
+
+	<br>{{message.attach1_path}}
+	{%endif%}
+	{% if message.attach2_path %}
+	<br>{{message.attach2_path}}
+	{%endif%}
+	</div>
 
 </div>
 
@@ -37,6 +46,15 @@
 	</div>
 	<div class="message">
 	{{message.text_markedup| safe}}
+	</div>
+		<div class="attachments">
+
+	{% if message.attach1_path %}
+	<br>{{message.attach1_path}}
+	{%endif%}
+	{% if message.attach2_path %}
+	<br>{{message.attach2_path}}
+	{%endif%}
 	</div>
 </div>
 

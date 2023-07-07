@@ -12,17 +12,32 @@ from .models import Message, PhoneNumber
 from .forms import PhoneNumberForm
 import operator #for sorting
 import json, logging
-from .conversation import Conversation, get_name, list_messages
+from .conversation import Conversation, get_name, list_messages,list_sources
 log=logging.getLogger('ownsearch.whatsapp.views')
 
 
 @login_required
+
 def home(request):    
     """To/From list of contacts with message count"""
     try:
-        combo=list_messages()
-        return render(request, 'whatsapp/list.html',{'list': combo})
+        sources=list_sources()
+        
+        return render(request, 'whatsapp/list_sources.html',{'sources': sources})
     except Exception as e:
+        log.error('Error fetching list of WhatsApp messages: {}'.format(e))
+        return HttpResponse('Error fetching list of WhatsApp messages')
+
+
+def sourcelist(request,source):    
+    """To/From list of contacts with message count"""
+    
+    try:
+        combo=list_messages(source=source)
+        
+        return render(request, 'whatsapp/list.html',{'combo': combo})
+    except Exception as e:
+        raise
         log.error('Error fetching list of WhatsApp messages: {}'.format(e))
         return HttpResponse('Error fetching list of WhatsApp messages')
 
