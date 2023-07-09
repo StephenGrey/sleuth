@@ -12,7 +12,10 @@ print(PATTERNS)
 
 def match_any(text,patterns=PATTERNS):
 	"check if text matches any regex patterns"
-	return any(fnmatch.fnmatch(text,pattern) for pattern in PATTERNS)
+	if PATTERNS:
+		return any(fnmatch.fnmatch(text,pattern) for pattern in PATTERNS)
+	else:
+		return None
 
 def list_matches(folder,patterns=PATTERNS):
     """list files in folder that match patterns"""

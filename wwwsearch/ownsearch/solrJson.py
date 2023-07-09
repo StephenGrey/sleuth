@@ -776,10 +776,12 @@ def parse_email_meta(data):
 
 def getfield(docid,field,core,resultfield=''):
     """return contents of single field in solr doc"""
+    log.debug(f"{docid},{field},{core}")
     searchterm='{}:\"{}\"'.format(core.unique_id,docid)
     args='&fl={}'.format(field)
+    log.debug(f"{searchterm},{args}")
     jres=getJSolrResponse(searchterm,args,core=core)
-    #log.debug(jres)
+    log.debug(jres)
     try:
         results=SolrResult(jres,core,startcount=0).results
         if len(results)>0:

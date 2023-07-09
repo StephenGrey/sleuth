@@ -1,24 +1,39 @@
+# docker-compose up -d
+# java
+
 version: '3.8'
 services:
-#  cache:
-#    image: redis:6.2-alpine
+  cache:
+    image: redis:6.2-alpine
 #    restart: always
-#    ports:
-#      - '6379:6379'
+    ports:
+      - '6379:6379'
+#      - 8983:8983
 #    command: redis-server --save 20 1 --loglevel warning --requirepass eYVX7EwVmmxKPCDmwMtyKVge8oLd2t81
-#    volumes: 
-#      - cache:/data
-#      
+    command: redis-server --save 20 1 --loglevel warning
+    volumes: 
+      - $PWD/redis_data:/data
+      
   sleuth:
     image: sleuth:v1
     ports:
       - 8000:8000
     volumes:
       - ~/Documents:/data
+      - $PWD:/apps
+      - $PWD/solrdata:/var/solr
+      
     stdin_open: true # docker run -i
     tty: true        # docker run -t
     
-#volumes:
-#  cache:
-#    driver: local
+  solr:
+    image: solrv3
+#solr:8.7
+    ports:
+      - 8983:8983
+    volumes:
+      - $PWD/solrdata:/var/solr
+volumes:
+  cache:
+    driver: local
     

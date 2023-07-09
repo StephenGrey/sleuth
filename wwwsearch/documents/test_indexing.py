@@ -94,7 +94,8 @@ class ExtractTest(IndexTester):
 
         #first a test run, then a full extract into index        
         self.assertTrue(os.path.exists(path))
-        extractor=indexSolr.ExtractFile(path,self.mycore,hash_contents='',sourcetext='',docstore=self.docstore,test=True)
+        print(path)
+#        extractor=indexSolr.ExtractFile(path,self.mycore,hash_contents='',sourcetext='',docstore=self.docstore,test=True)
         
         extractor=indexSolr.ExtractFile(path,self.mycore,hash_contents='',sourcetext='',docstore=self.docstore,test=False)
         self.assertTrue(extractor.result)
@@ -712,14 +713,39 @@ class ExtractFileTest(ExtractTest):
         indexSolr.extract_test(mycore=mycore,test=False,docstore=self.docstore)
     
     
+    def test_catch_nofile(self):
+        _id="fed766bc65fd9415917f0ded164a435011aab5247b2ee393929ec92bd96ffe74"
+        #_path="pdfs/ocr_d/C05769606.pdf"
+        _path=os.path.abspath(os.path.join(os.path.dirname(__file__), '../tests/testdocs/pdfs/ocr_d/C05769606.pdf'))
+        
+        self.assertTrue(os.path.exists(_path))
+        
+        updateSolr.delete(_id,self.mycore)
+        url="http://solr:8983/solr/tests_only/update/extract?commit=true&wt=json&literal.extract_id=fed766bc65fd9415917f0ded164a435011aab5247b2ee393929ec92bd96ffe74&literal.sb_pathhash=284be69651f8dfc66e2b86d2355c4b85&extractOnly=true"
+        #res=solrJson.resPostfile(url,_path,timeout=1)
+        
+        #e=indexSolr.ExtractFileMeta(_path,self.mycore)
+        #print(e)
+        
+        result=indexSolr.extract(_path,_id,self.mycore,timeout=1,docstore=self.docstore,test=False,sourcetext="random source",ocr=True)
+        
+        result=solrJson.getfield(_id,"sb_pathhash",self.mycore,resultfield='')
+        print(result)
+        
+        result=solrJson.getfield(_id,self.mycore.datesourcefield2,self.mycore,resultfield='')
+        #print(result)
+        
+        
+    
     def test_extractfile(self):
-        #path=os.path.abspath(os.path.join(os.path.dirname(__file__), '../tests/testdocs/docx/2018-01-23 Sale of Maltese passports nets Malta over €277m in one year.docx'))
+        path=os.path.abspath(os.path.join(os.path.dirname(__file__), '../tests/testdocs/docx/2018-01-23 Sale of Maltese passports nets Malta over €277m in one year.docx'))
         
         _id="fed766bc65fd9415917f0ded164a435011aab5247b2ee393929ec92bd96ffe74"
         _path="pdfs/ocr_d/C05769606.pdf"
         extractor=self.extract_document(_id,_path)
         
-        updateSolr.delete(_id,self.mycore)
+        #TEMP
+        #updateSolr.delete(_id,self.mycore)
     
     def test_extractfile_no_ocr(self):
         """index a single file with no OCR"""

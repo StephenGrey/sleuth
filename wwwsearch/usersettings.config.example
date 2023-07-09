@@ -1,6 +1,11 @@
 # -*- coding: UTF-8 -*-
 #example of user settings
 
+[Redis]
+host=cache
+port=6379
+db=0
+
 
 [Extract]
 extractpath: /apps/extract-master/target/extract.jar

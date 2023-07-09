@@ -635,12 +635,12 @@ class ChildProcessor():
 
     def process_children(self):
         
-        #log.debug(f'Processing children; checks:{self.check}')
+        log.debug(f'Processing children; checks:{self.check}')
         result=True
         try:
             	
             solr_result=s.hashlookup(self.hash_contents, self.mycore,children=True)
-            
+            log.debug(solr_result)
             for solrdoc in solr_result.results:
             #add source info to the extracted document
                 #log.debug(solrdoc.__dict__)
@@ -735,7 +735,10 @@ class ChildProcessor():
         elif indexed:
             if not existing:
                 #3. or date from cleaned-up second source field
-                altdate=time_utils.cleaned_ISOtimestring(s.getfield(solrid,self.mycore.datesourcefield2,self.mycore))
+                log.debug(f"{solrid},{self.mycore.datesourcefield2},{self.mycore}")
+                date2result=s.getfield(solrid,self.mycore.datesourcefield2,self.mycore)
+                log.debug(date2result)
+                altdate=time_utils.cleaned_ISOtimestring(date2result)
                 if altdate:
                     return altdate
             else:
@@ -830,7 +833,7 @@ class ExtractFile(ChildProcessor):
             #add to text field to indicate no extracted content
             if not indexed:
                 changes.append(('rawtext','rawtext',"Metadata only: No content extracted from file"))
-            
+            log.debug('now parse date')
             parsed_date=self.parse_date(self.solrid,self.last_modified,self.date_from_path,indexed=indexed)
             log.debug(f'parsed date: {parsed_date}')
             changes.append((self.mycore.datesourcefield,'date',parsed_date)) if parsed_date else None
@@ -1151,13 +1154,12 @@ def postSolr(args,path,mycore,timeout=1,ocr=True):
     
     url=extracturl+args
     log.debug('POSTURL: {}  TIMEOUT: {}'.format(url,timeout))
-    log.debug('Types posturl: {} path: {}'.format(type(url),type(timeout)))
+    log.debug(f'Types posturl: {url} path: {path}')
     if True:
         res=s.resPostfile(url,path,timeout=timeout) #timeout=
 #        log.debug('Returned json: {} type: {}'.format(res._content,type(res._content)))
         log.debug('Response header:{}'.format(res.json()['responseHeader']))
 #        log.debug(res.__dict__)
-        
         solrstatus=res.json()['responseHeader']['status']
         #log.debug(res.elapsed.total_seconds())
         solrelapsed=res.elapsed.total_seconds()
