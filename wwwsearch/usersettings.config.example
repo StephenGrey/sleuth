@@ -8,7 +8,7 @@ db=0
 
 
 [Extract]
-extractpath: /apps/extract-master/target/extract.jar
+extractpath: /apps/extract/extract-cli/target/extract-cli-3.7.2.jar
 
 [Django]
 secretkey: somesecretkey
@@ -19,6 +19,7 @@ debug: True
 #options for loglevels are DEBUG,INFO,WARNING,ERROR,SEVERE
 console_loglevel: INFO
 logfile_loglevel: INFO
+logpath="/var/sleuth"
 
 [Models]
 collectionbasepath: /data

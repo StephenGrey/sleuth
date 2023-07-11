@@ -1,8 +1,0 @@
-test
-
-manage.py migrate
-manage.py createsuperuser
-./launch 0:8000
-
-docker run -v $(pwd):/apps -it -p 8000:8000  sleuth:v1 /bin/bash
-

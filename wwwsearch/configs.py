@@ -11,9 +11,16 @@ except:
 
 
 CWD = os.path.dirname(os.path.abspath(__file__))
-CONFIGPATH=CWD+'/usersettings.config'
+
+ALTDIR="/var/sleuth"
+if os.path.exists(ALTDIR) and os.path.isdir(ALTDIR):
+    CONFIGS=ALTDIR
+else:
+    CONFIGS=CWD
+
+CONFIGPATH=CONFIGS+'/usersettings.config'
 DEFAULTPATH=CWD+'/usersettings.config.example'
-SOLRDEFAULTS=CWD+'/solrdefaults.config'
+SOLRDEFAULTS=CONFIGS+'/solrdefaults.config'
 
 
 class Config():

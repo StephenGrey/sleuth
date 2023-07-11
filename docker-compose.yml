@@ -1,5 +1,11 @@
+# in working directory, copy this file; make 2 folders:
+# 	mkdir configs
+#	mkdir solrdata
 # docker-compose up -d
-# java
+# then log into sleuth terminal
+# and you can launch the server
+# python wwwsearch/manage.py runserver 0:8000
+
 
 version: '3.8'
 services:
@@ -15,12 +21,12 @@ services:
       - $PWD/redis_data:/data
       
   sleuth:
-    image: sleuth:v1
+    image: stephengrey1/sleuth-java:v1
     ports:
       - 8000:8000
     volumes:
       - ~/Documents:/data
-      - $PWD:/apps
+      - $PWD/configs:/var/sleuth
       - $PWD/solrdata:/var/solr
       
     stdin_open: true # docker run -i
@@ -36,4 +42,5 @@ services:
 volumes:
   cache:
     driver: local
+    
     

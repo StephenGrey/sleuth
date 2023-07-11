@@ -1,0 +1,2 @@
+cp -r solrdata/data/* /var/solr/data/
+

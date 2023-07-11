@@ -1,0 +1,49 @@
+#CONTAINER USAGE
+Three containers are needed:
+redis, solr and the sleuth server, which runs python.
+
+They can all be started with 
+docker-compose up -d #(which launches them in detached form)
+
+	They can be directly launched from docker individually, exposing the correct ports
+
+e.g docker run -v $(pwd):/apps -it -p 8000:8000  sleuth:v1 /bin/bash
+docker run -it stephengrey1/sleuth-java /bin/bash
+
+to execute commands in the Sleuth server
+1. establish a shell interface to issue commands:
+	docker exec -ti sleuth-sleuth-1 /bin/bash
+2. issue commands:
+e.g 
+a) install superuser
+	python manage.py createsuperuser   #create admin password
+b) launch server
+	./launch 0:8000
+	(or python manage.py runserver 0:8000)
+	
+
+#DEVELOPMENT:
+navigate to sleuth directory
+#docker build . -t sleuth:v1
+(option no cache)
+
+#docker run -v ~/Documents:/data -it sleuth:v1 /bin/bash
+#docker run -v $(pwd):/apps -it -p 8000:8000  sleuth:v1 /bin/bash
+#docker exec -ti sleuth-sleuth-1 /bin/bash
+
+manage.py migrate
+manage.py createsuperuser
+./launch 0:8000
+
+
+Added Java to support ICIJ extract
+
+wget http://www.mirbsd.org/~tg/Debs/sources.txt/wtf-bookworm.sources
+sudo mkdir -p /etc/apt/sources.list.d
+sudo mv wtf-bookworm.sources /etc/apt/sources.list.d/
+sudo apt update
+Youll then see openjdk-8-jdk etc. available for installation as usual:
+
+sudo apt install openjdk-8-jdk
+apt install openjdk-8-jdk -y
+stephengrey1/sleuth-java

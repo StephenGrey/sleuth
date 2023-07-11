@@ -7,8 +7,6 @@
 # ignore the virtual environment
 venv/
 
-# ignore the ICIJ extract engine for now
-extract-master/
 
 # ignore logs
 wwwsearch/logfile*
@@ -63,8 +61,9 @@ wwwsearch/documents/migrations/0027_auto_20180227_0615.py
 wwwsearch/documents/migrations/0028_merge_20180309_0814.py
 wwwsearch/ownsearch/static/css/images/Thumbs.db
 wwwsearch/static/css/images/Thumbs.db
-extract-new/extract/
-extract-new/original/extract/
 solr/solr-7.2.0/bin/solr-8984.port
 wwwsearch/db.sqlite3-journal
 *.log
+redis_data/dump.rdb
+*.rdb
+redis_data/dump.rdb
