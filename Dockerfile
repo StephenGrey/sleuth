@@ -1,10 +1,10 @@
 #navigate to sleuth directory
-#docker build . -t sleuth:v1
+#docker build . -t stephengrey1/sleuth:v1
 #docker run -v ~/Documents:/data -it sleuth:v1 /bin/bash
 #docker run -v $(pwd):/apps -it -p 8000:8000  sleuth:v1 /bin/bash
-#docker exec -ti sleuth-sleuth-1 /bin/bash
-#docker run -v $(pwd):/apps -p 8000:8000 -idt stephengrey1/sleuth-java
 
+#docker run -v $(pwd)/configs:/var/sleuth -v $(pwd)/solrdata:/var/solr  -p 8000:8000 -idt stephengrey1/sleuth-java:v2
+#docker exec -ti stephengrey1/sleuth-java:v2 /bin/bash
 FROM python:3.8
 
 ENV PYTHONUNBUFFERED=1
