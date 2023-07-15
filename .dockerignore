@@ -1,0 +1,13 @@
+.git
+.cache
+wwwsearch/logfile*
+# ignore database - it should be recreated
+wwwsearch/db.sqlite3
+
+# ignore user settings - put defaults into usersettings.config.example
+wwwsearch/usersettings.config
+
+#ignore new host user solr and redis directories
+solrdata/*
+redis_data/*
+configs/*

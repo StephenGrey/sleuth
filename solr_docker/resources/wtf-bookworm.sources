@@ -1,0 +1,37 @@
+# sources.list equivalent for the "MirDebian WTF" repository
+# for Debian bookworm or newer which can skip installing the
+# wtf-debian-keyring package.
+# Install as /etc/apt/sources.list.d/wtf-bookworm.sources
+# (no .list extension!).
+#
+# Remove deb-src below to avoid downloading sources.
+#
+Types: deb deb-src
+URIs: http://www.mirbsd.org/~tg/Debs/
+Suites: bookworm
+Components: wtf
+Languages: none
+Signed-By:
+ -----BEGIN PGP PUBLIC KEY BLOCK-----
+ .
+ mQGNBFlP41MBDADGjAsxl0jbdknmg2CHKf7gQPBxOBk5/qw6F5HAOthBM/14sohA
+ iwXyXW7oEcmPAKc7v8yn+A/JjrCfsp6rXUnMlB37zr5qb0JIO1o3p0guekGGJ/in
+ 48NClFMQU71MmOvaRWIKrNVtFIhLcFncCU9k6bB1hCnhhSmHGBlsIIGhInIHbv4o
+ 5IZYKb0BWJ1SqiOLAwYblstUIcFGR2K+z3l+hwFgMFM0VhMCi0fCyrdEWw9Qs1I1
+ l0K3hzG2WUOhWO+aY4qoOyPlMc3a9zXBFdc0JHptRgh3JTBf2gK3kO6wcPfdG5Hq
+ btCstesRFYS9nOoKwyxg80iZYpV4+q6POeS43Xfi2APXB+3tXAQJ5+dCYam/jlzu
+ oyPAEZxai5R8m1q9SD+c16nx8F5GSuEoAcvfyAc7EqhCfnjh3o2/QokOPPboMRWW
+ s46FaIWZiuNf8p1hfgj6cjH1ny124AbvvClddCDPuFwwXVxRji3ApeOwPUkqoFDn
+ zebsA4OA2+ggEGEAEQEAAbQxU2lnbmluZyBrZXkgMjAxOCBmb3Ig4oCcV1RG4oCd
+ IHBhY2thZ2UgcmVwb3NpdG9yeYkBuwQTAQkAJQIbAwULCAQJBwUVCQoDCAMWAgAC
+ HgECF4AFAmPUf44FCREBvi4ACgkQAgir6mZzodktTgv9E48RRmVBXg8bVHxEjnvd
+ NQY3b/KjACzcs9iKVE1gPG0wrdo3DzCDhCfuIqeofz6/KWeoZUZi9NpJV8JIrzxZ
+ wjQAFAckuGhBRHo4OOEzYW+YyJMdWa1btM2qYy0YgBI4VJpbSQubW7s+iYosF4qg
+ 639tj0rRmBvScWvqKy0o/VxE4HvsZfq5abL/C4txpummmYuo7qHapoLNAgXylfoB
+ Z5xrRwZR64rLiIupkP8OwxF0oAXLvNrxN6CLJ3xBYCoaYU2phtA9b56FucGh6cts
+ CMpivK9iYt6GexFNw9DWxEffCRSdsT8uSp3CfktVb7BK0hjbQbZUvsDY870akRpx
+ G7c0D/iOK/lPpdAc/NXmCeM8dFWa6GaIc72cg60Nh9nrHedygALV7jY2wVxQRXgJ
+ RlU7iWE/Y56OcGQ6vERGK5ZpUN8sGS8EX2daltMBAyaA3xQ9LjCCE6uNAtIl89Yc
+ 1Fz5a02YLhd3YU39gbgx+vSKvBik5VO4o7mvLfEySR/n
+ =z3/K
+ -----END PGP PUBLIC KEY BLOCK-----

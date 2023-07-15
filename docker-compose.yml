@@ -21,19 +21,19 @@ services:
       - $PWD/redis_data:/data
       
   sleuth:
-    image: stephengrey1/sleuth-java:v1
+    image: stephengrey1/sleuth-java:v2
     ports:
       - 8000:8000
     volumes:
-      - ~/Documents:/data
-      - $PWD/configs:/var/sleuth
-      - $PWD/solrdata:/var/solr
+      - ~/Documents:/data  #IMPORTANT THIS IS HOST FOLDER THAT SLEUTH CAN SCAN AND INDEX 
+      - $PWD/configs:/var/sleuth #LOCATION TO STORE CONFIG FILES - MODIFY AND THEN RELAUNCH SLEUTH SERVER
+      - $PWD/solrdata:/var/solr #LOCATION ON HOST TO STORE SOLR INDEXES
       
     stdin_open: true # docker run -i
     tty: true        # docker run -t
     
   solr:
-    image: solrv3
+    image: stephengrey1/sleuth-solr
 #solr:8.7
     ports:
       - 8983:8983

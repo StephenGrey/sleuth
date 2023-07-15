@@ -1,5 +1,6 @@
 .*
 !.gitignore
+!.dockerignore
 
 # ignore python bytecode
 *.pyc
@@ -23,9 +24,11 @@ wwwsearch/db.sqlite3
 #ignore migrations - make them locally
 wwwsearch/documents/migrations/*
 
-
 #ignore new solr data directory
 solrdata/*
+
+#ignore new configs dir
+configs/*
 
 # ignore Solr data and PID files
 solr/solr-*/server/solr/*/data/*
@@ -66,4 +69,4 @@ wwwsearch/db.sqlite3-journal
 *.log
 redis_data/dump.rdb
 *.rdb
-redis_data/dump.rdb
+
