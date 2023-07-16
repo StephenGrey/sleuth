@@ -21,7 +21,8 @@ services:
       - $PWD/redis_data:/data
       
   sleuth:
-    image: stephengrey1/sleuth-java:v2
+    image: stephengrey1/sleuth:v0.2
+    command: bash -c "python wwwsearch/manage.py migrate && python wwwsearch/manage.py runserver 0:8000"
     ports:
       - 8000:8000
     volumes:

@@ -75,7 +75,7 @@ def do_search(request,page_number=0,**kwargs):
             
         except authorise.NoValidCore as e:
             log.warning('Cannot find any valid coreID in authorised corelist')
-            return HttpResponse('Missing any config data for any authorised index: contact administrator')
+            return HttpResponse('No valid index has been authorised for your user name: contact administrator or open admin interface url/admin')
             
         log.debug('AUTHORISED CORE CHOICE: '+str(choice_list))
         log.debug('DEFAULT CORE ID:'+str(authcores.defaultcore))

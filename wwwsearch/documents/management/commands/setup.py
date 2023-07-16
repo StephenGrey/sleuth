@@ -37,7 +37,10 @@ class Command(BaseCommand):
                 if answer_yes('Create admin user? (y/n)'):
                     print('Choose a username, password, email')
                     username=input('Username?')
-                    admin_user=get_admin(username)
+                    try:
+                        admin_user=get_admin(username)
+                    except User.DoesNotExist:
+                        admin_user=None
                     if admin_user:
                         print('Username \'{}\' exists already'.format(username))
                     else:

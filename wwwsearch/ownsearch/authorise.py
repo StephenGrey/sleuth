@@ -25,12 +25,12 @@ class NoValidCore(Exception):
 class AuthorisedCores:
     """Check authorised indexes; from these choose stored core, else default, else any authorised"""
     def __init__(self,thisuser,storedcore=''):
-        try:
+        if True:
            self.cores,self.defaultcore,self.choice_list=authcores(thisuser)
            self.mycoreID=getcore(self.cores,storedcore,self.defaultcore)
            self.mycore=self.cores[self.mycoreID]
-        except Exception as e:
-           log.debug('Error: {}'.format(e.__dict__))
+#        except Exception as e:
+#           log.debug('Error: {}'.format(e.__dict__))
         log.debug('authcores: {}'.format(self.__dict__))
 
 ##set up solr indexes
@@ -66,7 +66,7 @@ def authcores(thisuser):
 
         except Exception as e:
             log.error('No valid and authorised index set in database: fix in /admin interface')
-            log.error(str(e))
+            log.debug(f"{e}")
             raise NoValidCore            
     return cores, defaultcoreID, choice_list
 

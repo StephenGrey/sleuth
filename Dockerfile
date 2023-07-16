@@ -8,8 +8,8 @@
 #3/ copy the docker-compose.yml ino working folder to launch all services; edit environment variables.
 #4/ 
 #5/ docker exec -ti sleuth-java /bin/bash  TO ENTER THE CONTAINER
-# AND THEN USE ./setup to copy config files you can edit to host compotuer
-# AND from the shell, you will need to run ./setup to copy config files that you can edit into your host computer
+# AND THEN USE user "python wwwsearch/manage.py setup" and ""python wwwsearch/manage.py createsuperuser" to set up the indexx to  to copy config files you can edit to host compotuer
+#  docker exec -it sleuth_empty-sleuth-1 /bin/bash/launch 0:8000
 # AND launch or test server with ./launch 0:8000 or use python wwwsearch/manage.py to run different commands (see wiki docs)
 # FINALLY SHUT DOWN CONTAINER AND SWITCH TO DOCKER-COMPOSE TO RUN FULL SET UP
 # 
