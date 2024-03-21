@@ -1,10 +1,24 @@
-# in working directory, copy this file; make 2 folders:
+# SETUP
+#1. MAKE FOLDERS
+#in working directory, copy this file; make 2 folders:
 # 	mkdir configs
 #	mkdir solrdata
+#2. START SERVICES
 # docker-compose up -d
+#(to issue direct commands, you can use:
+# docker compose exec sleuth bash
+#)
+#3. COPY DEFAULT INDEX AND SETTINGS
+# docker compose exec -it sleuth bash -c ". /apps/copy_defaults.sh"
+# docker compose restart solr
+#4. SETUP DEFAULT PASSWORDS AND EMPTY INDEX
+# docker compose exec -d sleuth bash -c "python wwwsearch/manage.py setup"
+# (run this twice - first to set up passwords; then indexes)
+#5. LAUNCH SERVER
+# docker compose exec -d sleuth bash -c "python wwwsearch/manage.py runserver 0:8000"
 # then log into sleuth terminal
 # and you can launch the server
-# python wwwsearch/manage.py runserver 0:8000
+# http://localhost:8000
 
 
 version: '3.8'
@@ -21,8 +35,8 @@ services:
       - $PWD/redis_data:/data
       
   sleuth:
-    image: stephengrey1/sleuth:v0.2
-    command: bash -c "python wwwsearch/manage.py migrate && python wwwsearch/manage.py runserver 0:8000"
+    image: stephengrey1/sleuth:0.4
+#    command: bash -c "python wwwsearch/manage.py migrate && python wwwsearch/manage.py runserver 0:8000"
     ports:
       - 8000:8000
     volumes:

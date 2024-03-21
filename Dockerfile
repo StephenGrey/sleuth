@@ -1,10 +1,11 @@
 #to build:
 #make a directory:
 #1/ git clone https://github.com/StephenGrey/sleuth.git
-#2/ docker build . -t stephengrey1/sleuth:v2
+#2/ docker build . -t stephengrey1/sleuth:v3
 #3/ in working folder, make a 'configs' and a 'solrdata' folders.
-#docker run -v $(pwd)/configs:/var/sleuth -v $(pwd)/solrdata:/var/solr --name "sleuth-java" -p 8000:8000 -idt stephengrey1/sleuth:v0.1:  TO START UP THE CONTAINER
-#   docker exec -ti sleuth-java2 bash -c "/apps/copy_defaults.sh"
+#docker run -v $(pwd)/configs:/var/sleuth -v $(pwd)/solrdata:/var/solr --name "sleuth-java" -p 8000:8000 -idt stephengrey1/sleuth:v3:  TO START UP THE CONTAINER
+#   docker exec -ti sleuth-java7 bash -c "/apps/copy_defaults.sh"
+#   docker exec -ti sleuth-java7 bash -c "python wwwsearch/manage.py setup"
 #3/ copy the docker-compose.yml ino working folder to launch all services; edit environment variables.
 #4/ 
 #5/ docker exec -ti sleuth-java /bin/bash  TO ENTER THE CONTAINER
